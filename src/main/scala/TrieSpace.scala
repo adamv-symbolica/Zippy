@@ -1,6 +1,59 @@
 import scala.collection.immutable.{IntMap, TrieIntMapOps}
 import scala.collection.mutable
 
+enum AlgebraicEmptyReason:
+  /** Every argument was empty (the only way a union can be empty). */
+  case AllArguments
+  /** One or more empty arguments forced the result to be empty. */
+  case EmptyArguments(arguments: Int)
+  /** Non-empty arguments had no common paths. */
+  case Disjoint
+  /** The right argument covered every path in the left argument. */
+  case LeftCovered
+  /** Both arguments were non-empty, but no left path had a right prefix. */
+  case NoPrefixMatch
+
+sealed trait AlgebraicResult[+A]
+
+object AlgebraicResult:
+  /** Bit masks used by Identity. Multiple bits mean the arguments are equal. */
+  val Left: Int = 1
+  val Right: Int = 2
+  val Both: Int = Left | Right
+
+  final case class Empty(reason: AlgebraicEmptyReason) extends AlgebraicResult[Nothing]
+  final case class Identity(arguments: Int) extends AlgebraicResult[Nothing]:
+    require(arguments != 0, "an algebraic identity must name at least one argument")
+  final case class Bespoke[A](value: A) extends AlgebraicResult[A]
+
+  def identifies(result: AlgebraicResult[?], argument: Int): Boolean = result match
+    case Identity(arguments) => (arguments & argument) != 0
+    case _ => false
+
+  /** Equality information used while composing a parent, including empty children. */
+  def equalsArgument(result: AlgebraicResult[?], argument: Int): Boolean = result match
+    case Identity(arguments) => (arguments & argument) != 0
+    case Empty(AlgebraicEmptyReason.AllArguments) => true
+    case Empty(AlgebraicEmptyReason.EmptyArguments(arguments)) => (arguments & argument) != 0
+    case _ => false
+
+  def valueOf[A](result: AlgebraicResult[A], left: A, right: A, empty: => A): A = result match
+    case Empty(_) => empty
+    case Identity(arguments) => if (arguments & Left) != 0 then left else right
+    case Bespoke(value) => value
+
+/**
+ * Restriction has one useful relation beyond ordinary algebraic identity:
+ * `allPrefixesMatched` says every path on the right prefixed at least one path
+ * in the result. A bespoke result with this flag is a prefix-order superset of
+ * the right argument; without it, the result is the fully bespoke case.
+ */
+final case class RestrictionResult[+A](result: AlgebraicResult[A], allPrefixesMatched: Boolean):
+  def sourceUnchanged: Boolean = AlgebraicResult.identifies(result, AlgebraicResult.Left)
+  def equalsPrefixes: Boolean = AlgebraicResult.identifies(result, AlgebraicResult.Right)
+  def sourcePathsDropped: Boolean = !sourceUnchanged
+  def coversPrefixes: Boolean = allPrefixesMatched
+
 object PathItemOrder:
   given Ordering[PathItem] with
     def compare(a: PathItem, b: PathItem): Int = a.show.compare(b.show)
@@ -128,31 +181,84 @@ case class TrieSpace private (terminal: Boolean, children: IntMap[TrieSpace], pa
   def paths: Vector[PathValue] =
     encodedPaths.map(TrieSpace.decode)
 
-  def union(that: TrieSpace): TrieSpace =
-    if this.asInstanceOf[AnyRef] eq that.asInstanceOf[AnyRef] then this
-    else if this.isEmpty then that
-    else if that.isEmpty then this
+  private def binaryValue(result: AlgebraicResult[TrieSpace], that: TrieSpace): TrieSpace = result match
+    case _ => AlgebraicResult.valueOf(result, this, that, TrieSpace.empty)
+
+  def unionResult(that: TrieSpace): AlgebraicResult[TrieSpace] =
+    if isEmpty && that.isEmpty then AlgebraicResult.Empty(AlgebraicEmptyReason.AllArguments)
+    else if isEmpty then AlgebraicResult.Identity(AlgebraicResult.Right)
+    else if that.isEmpty then AlgebraicResult.Identity(AlgebraicResult.Left)
+    else if this.asInstanceOf[AnyRef] eq that.asInstanceOf[AnyRef] then
+      AlgebraicResult.Identity(AlgebraicResult.Both)
     else
-      TrieSpace.node(terminal || that.terminal,
-        TrieIntMapOps.unionTries(children, that.children))
+      val resultTerminal = terminal || that.terminal
+      val childResult = TrieIntMapOps.unionTriesResult(children, that.children)
+      val sameLeft = resultTerminal == terminal &&
+        AlgebraicResult.equalsArgument(childResult, AlgebraicResult.Left)
+      val sameRight = resultTerminal == that.terminal &&
+        AlgebraicResult.equalsArgument(childResult, AlgebraicResult.Right)
+      val identities =
+        (if sameLeft then AlgebraicResult.Left else 0) |
+          (if sameRight then AlgebraicResult.Right else 0)
+      if identities != 0 then AlgebraicResult.Identity(identities)
+      else
+        val resultChildren = AlgebraicResult.valueOf(childResult, children, that.children, IntMap.empty)
+        AlgebraicResult.Bespoke(TrieSpace.node(resultTerminal, resultChildren))
+
+  def union(that: TrieSpace): TrieSpace =
+    binaryValue(unionResult(that), that)
 
   infix def |(that: TrieSpace): TrieSpace = union(that)
 
-  def intersect(that: TrieSpace): TrieSpace =
-    if this.asInstanceOf[AnyRef] eq that.asInstanceOf[AnyRef] then this
-    else if this.isEmpty || that.isEmpty then TrieSpace.empty
+  def intersectionResult(that: TrieSpace): AlgebraicResult[TrieSpace] =
+    val emptyArguments =
+      (if isEmpty then AlgebraicResult.Left else 0) |
+        (if that.isEmpty then AlgebraicResult.Right else 0)
+    if emptyArguments != 0 then
+      AlgebraicResult.Empty(AlgebraicEmptyReason.EmptyArguments(emptyArguments))
+    else if this.asInstanceOf[AnyRef] eq that.asInstanceOf[AnyRef] then
+      AlgebraicResult.Identity(AlgebraicResult.Both)
     else
-      TrieSpace.node(terminal && that.terminal,
-        TrieIntMapOps.intersectTries(children, that.children))
+      val resultTerminal = terminal && that.terminal
+      val childResult = TrieIntMapOps.intersectTriesResult(children, that.children)
+      val resultChildren = AlgebraicResult.valueOf(childResult, children, that.children, IntMap.empty)
+      if !resultTerminal && resultChildren.isEmpty then
+        AlgebraicResult.Empty(AlgebraicEmptyReason.Disjoint)
+      else
+        val sameLeft = resultTerminal == terminal &&
+          AlgebraicResult.equalsArgument(childResult, AlgebraicResult.Left)
+        val sameRight = resultTerminal == that.terminal &&
+          AlgebraicResult.equalsArgument(childResult, AlgebraicResult.Right)
+        val identities =
+          (if sameLeft then AlgebraicResult.Left else 0) |
+            (if sameRight then AlgebraicResult.Right else 0)
+        if identities != 0 then AlgebraicResult.Identity(identities)
+        else AlgebraicResult.Bespoke(TrieSpace.node(resultTerminal, resultChildren))
+
+  def intersect(that: TrieSpace): TrieSpace =
+    binaryValue(intersectionResult(that), that)
 
   infix def &(that: TrieSpace): TrieSpace = intersect(that)
 
-  def diff(that: TrieSpace): TrieSpace =
-    if this.asInstanceOf[AnyRef] eq that.asInstanceOf[AnyRef] then TrieSpace.empty
-    else if this.isEmpty || that.isEmpty then this
+  def subtractionResult(that: TrieSpace): AlgebraicResult[TrieSpace] =
+    if isEmpty then
+      AlgebraicResult.Empty(AlgebraicEmptyReason.EmptyArguments(AlgebraicResult.Left))
+    else if that.isEmpty then AlgebraicResult.Identity(AlgebraicResult.Left)
+    else if this.asInstanceOf[AnyRef] eq that.asInstanceOf[AnyRef] then
+      AlgebraicResult.Empty(AlgebraicEmptyReason.LeftCovered)
     else
-      TrieSpace.node(terminal && !that.terminal,
-        TrieIntMapOps.diffTries(children, that.children))
+      val resultTerminal = terminal && !that.terminal
+      val childResult = TrieIntMapOps.diffTriesResult(children, that.children)
+      val resultChildren = AlgebraicResult.valueOf(childResult, children, that.children, IntMap.empty)
+      if !resultTerminal && resultChildren.isEmpty then
+        AlgebraicResult.Empty(AlgebraicEmptyReason.LeftCovered)
+      else if resultTerminal == terminal &&
+          AlgebraicResult.equalsArgument(childResult, AlgebraicResult.Left)
+      then AlgebraicResult.Identity(AlgebraicResult.Left)
+      else AlgebraicResult.Bespoke(TrieSpace.node(resultTerminal, resultChildren))
+
+  def diff(that: TrieSpace): TrieSpace =
+    binaryValue(subtractionResult(that), that)
 
   infix def -(that: TrieSpace): TrieSpace = diff(that)
 
@@ -169,12 +275,59 @@ case class TrieSpace private (terminal: Boolean, children: IntMap[TrieSpace], pa
   def unwrap(prefix: PathValue): TrieSpace = subtree(prefix).getOrElse(TrieSpace.empty)
   def unwrapItems(prefix: List[Int]): TrieSpace = subtreeItems(prefix).getOrElse(TrieSpace.empty)
 
+  def prefixRelation(prefixes: TrieSpace): (Boolean, Boolean) =
+    val childRelation = TrieIntMapOps.prefixRelation(children, prefixes.children)
+    ((!prefixes.terminal || !isEmpty) && childRelation._1) ->
+      (terminal == prefixes.terminal && childRelation._2)
+
+  def restrictionResult(prefixes: TrieSpace): RestrictionResult[TrieSpace] =
+    if isEmpty && prefixes.isEmpty then
+      RestrictionResult(AlgebraicResult.Empty(AlgebraicEmptyReason.AllArguments), allPrefixesMatched = true)
+    else if isEmpty then
+      RestrictionResult(
+        AlgebraicResult.Empty(AlgebraicEmptyReason.EmptyArguments(AlgebraicResult.Left)),
+        allPrefixesMatched = false
+      )
+    else if prefixes.isEmpty then
+      RestrictionResult(
+        AlgebraicResult.Empty(AlgebraicEmptyReason.EmptyArguments(AlgebraicResult.Right)),
+        allPrefixesMatched = true
+      )
+    else if this.asInstanceOf[AnyRef] eq prefixes.asInstanceOf[AnyRef] then
+      RestrictionResult(AlgebraicResult.Identity(AlgebraicResult.Both), allPrefixesMatched = true)
+    else if prefixes.terminal then
+      val (allMatched, equal) = prefixRelation(prefixes)
+      val identities = AlgebraicResult.Left | (if equal then AlgebraicResult.Right else 0)
+      RestrictionResult(AlgebraicResult.Identity(identities), allMatched)
+    else
+      val childOutcome = TrieIntMapOps.restrictTriesResult(children, prefixes.children)
+      val resultChildren = AlgebraicResult.valueOf(
+        childOutcome.result,
+        children,
+        prefixes.children,
+        IntMap.empty
+      )
+      if resultChildren.isEmpty then
+        RestrictionResult(
+          AlgebraicResult.Empty(AlgebraicEmptyReason.NoPrefixMatch),
+          childOutcome.allPrefixesMatched
+        )
+      else
+        val sameLeft = !terminal &&
+          AlgebraicResult.equalsArgument(childOutcome.result, AlgebraicResult.Left)
+        val sameRight = AlgebraicResult.equalsArgument(childOutcome.result, AlgebraicResult.Right)
+        val identities =
+          (if sameLeft then AlgebraicResult.Left else 0) |
+            (if sameRight then AlgebraicResult.Right else 0)
+        val result =
+          if identities != 0 then AlgebraicResult.Identity(identities)
+          else AlgebraicResult.Bespoke(TrieSpace.node(terminal = false, resultChildren))
+        RestrictionResult(result, childOutcome.allPrefixesMatched)
+
   def restrictBy(prefixes: TrieSpace): TrieSpace =
     if isEmpty || prefixes.isEmpty then TrieSpace.empty
-    else if prefixes.terminal then this
-    else
-      TrieSpace.node(terminal = false,
-        TrieIntMapOps.restrictTries(children, prefixes.children))
+    else if (this.asInstanceOf[AnyRef] eq prefixes.asInstanceOf[AnyRef]) || prefixes.terminal then this
+    else binaryValue(restrictionResult(prefixes).result, prefixes)
 
   def raffinate(prefixes: TrieSpace): TrieSpace = diff(restrictBy(prefixes))
 
@@ -310,6 +463,13 @@ object TrieSpace:
   val empty: TrieSpace = TrieSpace(terminal = false, IntMap.empty, pathCount = 0, nodeCount = 1, childCount = 0)
   val epsilon: TrieSpace = TrieSpace(terminal = true, IntMap.empty, pathCount = 1, nodeCount = 1, childCount = 0)
 
+  def binaryValue(
+    result: AlgebraicResult[TrieSpace],
+    left: TrieSpace,
+    right: TrieSpace
+  ): TrieSpace =
+    AlgebraicResult.valueOf(result, left, right, empty)
+
   def intern(p: PathValue): List[Int] = interner.encode(p)
   def internItems(items: List[PathItem]): List[Int] = interner.encodeItems(items)
   def decode(items: Iterable[Int]): PathValue = interner.decodePath(items)
@@ -368,8 +528,17 @@ object TrieSpace:
       }
       val childPairs = buckets.iterator.map { (key, bucket) =>
         key -> joinAll(bucket)
+      }.toVector
+      val resultPathCount = (if terminal then 1 else 0) + childPairs.iterator.map(_._2.pathCount).sum
+      val reused = tries.find { trie =>
+        trie.terminal == terminal &&
+          trie.pathCount == resultPathCount &&
+          trie.children.size == childPairs.size &&
+          childPairs.forall { (key, child) =>
+            trie.children.get(key).exists(_.asInstanceOf[AnyRef] eq child.asInstanceOf[AnyRef])
+          }
       }
-      node(terminal, IntMap.from(childPairs))
+      reused.getOrElse(node(terminal, IntMap.from(childPairs)))
 
   def meetAll(xs: IterableOnce[TrieSpace]): TrieSpace =
     val raw = xs.iterator.toVector

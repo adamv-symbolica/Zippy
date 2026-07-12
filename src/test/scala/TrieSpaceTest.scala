@@ -419,6 +419,192 @@ class TrieSpaceTest extends FunSuite:
     assert(TrieSpace.meetAll(Vector(shared, shared, shared)).asInstanceOf[AnyRef] eq shared.asInstanceOf[AnyRef])
   }
 
+  test("trie algebra reports exhaustive identities, bespoke values, and empty causes") {
+    val left = TrieSpace.fromSpaceValue(SpaceValue("a", "b"))
+    val equal = TrieSpace.fromSpaceValue(SpaceValue("a", "b"))
+    val a = TrieSpace.fromSpaceValue(SpaceValue("a"))
+    val b = TrieSpace.fromSpaceValue(SpaceValue("b"))
+    val bc = TrieSpace.fromSpaceValue(SpaceValue("b", "c"))
+
+    assertEquals(left.unionResult(equal), AlgebraicResult.Identity(AlgebraicResult.Both))
+    assert(left.union(equal).asInstanceOf[AnyRef] eq left.asInstanceOf[AnyRef])
+    assertEquals(left.unionResult(a), AlgebraicResult.Identity(AlgebraicResult.Left))
+    assert(left.union(a).asInstanceOf[AnyRef] eq left.asInstanceOf[AnyRef])
+    assertEquals(
+      TrieSpace.empty.unionResult(TrieSpace.empty),
+      AlgebraicResult.Empty(AlgebraicEmptyReason.AllArguments)
+    )
+    left.unionResult(bc) match
+      case AlgebraicResult.Bespoke(value) => assertEquals(value.toSpaceValue, SpaceValue("a", "b", "c"))
+      case other => fail(s"expected bespoke union, got $other")
+
+    assertEquals(left.intersectionResult(a), AlgebraicResult.Identity(AlgebraicResult.Right))
+    assert(left.intersect(a).asInstanceOf[AnyRef] eq a.asInstanceOf[AnyRef])
+    left.intersectionResult(bc) match
+      case AlgebraicResult.Bespoke(value) => assertEquals(value.toSpaceValue, SpaceValue("b"))
+      case other => fail(s"expected bespoke intersection, got $other")
+    assertEquals(
+      a.intersectionResult(b),
+      AlgebraicResult.Empty(AlgebraicEmptyReason.Disjoint)
+    )
+    assertEquals(
+      a.intersectionResult(TrieSpace.empty),
+      AlgebraicResult.Empty(AlgebraicEmptyReason.EmptyArguments(AlgebraicResult.Right))
+    )
+
+    // A non-empty but disjoint right side is also a left identity for subtraction.
+    assertEquals(a.subtractionResult(b), AlgebraicResult.Identity(AlgebraicResult.Left))
+    assert(a.diff(b).asInstanceOf[AnyRef] eq a.asInstanceOf[AnyRef])
+    left.subtractionResult(a) match
+      case AlgebraicResult.Bespoke(value) => assertEquals(value.toSpaceValue, SpaceValue("b"))
+      case other => fail(s"expected bespoke subtraction, got $other")
+    assertEquals(
+      a.subtractionResult(left),
+      AlgebraicResult.Empty(AlgebraicEmptyReason.LeftCovered)
+    )
+    assertEquals(
+      TrieSpace.empty.subtractionResult(a),
+      AlgebraicResult.Empty(AlgebraicEmptyReason.EmptyArguments(AlgebraicResult.Left))
+    )
+  }
+
+  test("restriction reports left/right identity, prefix coverage, and all empty causes") {
+    val equalLeft = TrieSpace.fromSpaceValue(SpaceValue("a.b"))
+    val equalLeftPrefixes = TrieSpace.fromSpaceValue(SpaceValue("a", "z"))
+    val leftOutcome = equalLeft.restrictionResult(equalLeftPrefixes)
+    assertEquals(leftOutcome.result, AlgebraicResult.Identity(AlgebraicResult.Left))
+    assert(!leftOutcome.allPrefixesMatched)
+    assert(equalLeft.restrictBy(equalLeftPrefixes).asInstanceOf[AnyRef] eq equalLeft.asInstanceOf[AnyRef])
+
+    val exactSource = TrieSpace.fromSpaceValue(SpaceValue("a", "drop"))
+    val exactPrefixes = TrieSpace.fromSpaceValue(SpaceValue("a"))
+    val exactOutcome = exactSource.restrictionResult(exactPrefixes)
+    assertEquals(exactOutcome.result, AlgebraicResult.Identity(AlgebraicResult.Right))
+    assert(exactOutcome.sourcePathsDropped)
+    assert(exactOutcome.allPrefixesMatched)
+    assert(exactSource.restrictBy(exactPrefixes).asInstanceOf[AnyRef] eq exactPrefixes.asInstanceOf[AnyRef])
+
+    val coveringSource = TrieSpace.fromSpaceValue(SpaceValue("a.b", "drop"))
+    val coveringPrefixes = TrieSpace.fromSpaceValue(SpaceValue("a"))
+    val coveringOutcome = coveringSource.restrictionResult(coveringPrefixes)
+    coveringOutcome.result match
+      case AlgebraicResult.Bespoke(value) => assertEquals(value.toSpaceValue, SpaceValue("a.b"))
+      case other => fail(s"expected prefix-covering bespoke restriction, got $other")
+    assert(coveringOutcome.sourcePathsDropped)
+    assert(coveringOutcome.allPrefixesMatched)
+
+    val unmatchedPrefixes = TrieSpace.fromSpaceValue(SpaceValue("a", "z"))
+    val bespokeOutcome = coveringSource.restrictionResult(unmatchedPrefixes)
+    assert(bespokeOutcome.result.isInstanceOf[AlgebraicResult.Bespoke[?]])
+    assert(!bespokeOutcome.allPrefixesMatched)
+
+    val equalCopy = TrieSpace.fromSpaceValue(SpaceValue("a.b", "drop"))
+    assertEquals(
+      coveringSource.restrictionResult(equalCopy),
+      RestrictionResult(AlgebraicResult.Identity(AlgebraicResult.Both), allPrefixesMatched = true)
+    )
+
+    assertEquals(
+      TrieSpace.empty.restrictionResult(TrieSpace.empty).result,
+      AlgebraicResult.Empty(AlgebraicEmptyReason.AllArguments)
+    )
+    assertEquals(
+      TrieSpace.empty.restrictionResult(coveringPrefixes).result,
+      AlgebraicResult.Empty(AlgebraicEmptyReason.EmptyArguments(AlgebraicResult.Left))
+    )
+    assertEquals(
+      coveringSource.restrictionResult(TrieSpace.empty).result,
+      AlgebraicResult.Empty(AlgebraicEmptyReason.EmptyArguments(AlgebraicResult.Right))
+    )
+    assertEquals(
+      TrieSpace.fromSpaceValue(SpaceValue("x")).restrictionResult(coveringPrefixes).result,
+      AlgebraicResult.Empty(AlgebraicEmptyReason.NoPrefixMatch)
+    )
+
+    // Exercise both Patricia Bin-containment orientations, not only Tip lookup.
+    val wideSource = TrieSpace.fromEncodedPaths(Vector(List(0), List(1), List(1 << 20)))
+    val narrowPrefixes = TrieSpace.fromEncodedPaths(Vector(List(0), List(1)))
+    assertEquals(
+      wideSource.restrictionResult(narrowPrefixes),
+      RestrictionResult(AlgebraicResult.Identity(AlgebraicResult.Right), allPrefixesMatched = true)
+    )
+    assertEquals(
+      narrowPrefixes.restrictionResult(wideSource),
+      RestrictionResult(AlgebraicResult.Identity(AlgebraicResult.Left), allPrefixesMatched = false)
+    )
+  }
+
+  test("algebraic result metadata agrees with exhaustive finite path sets") {
+    val universe = Vector(
+      PathValue(Nil),
+      Syntax.parse("a"), Syntax.parse("b"), Syntax.parse("c"),
+      Syntax.parse("a.a"), Syntax.parse("a.b"), Syntax.parse("b.a"), Syntax.parse("b.b"),
+      Syntax.parse("a.a.a"), Syntax.parse("a.b.a"), Syntax.parse("b.a.b")
+    )
+    val rng = Random(0x51a7cafeL)
+
+    def randomTrie(): TrieSpace =
+      TrieSpace.fromSpaceValue(SpaceValue(universe.filter(_ => rng.nextBoolean()).toSet))
+
+    def valueOf(result: AlgebraicResult[TrieSpace], left: TrieSpace, right: TrieSpace): TrieSpace = result match
+      case AlgebraicResult.Empty(_) => TrieSpace.empty
+      case AlgebraicResult.Identity(arguments) =>
+        if (arguments & AlgebraicResult.Left) != 0 then left else right
+      case AlgebraicResult.Bespoke(value) => value
+
+    def assertComplete(
+      result: AlgebraicResult[TrieSpace],
+      left: TrieSpace,
+      right: TrieSpace,
+      expected: Set[PathValue],
+      rightIdentityIsSpecial: Boolean = true
+    ): Unit =
+      val value = valueOf(result, left, right)
+      assertEquals(value.toSpaceValue.paths, expected)
+      result match
+        case AlgebraicResult.Empty(_) => assert(expected.isEmpty)
+        case AlgebraicResult.Identity(arguments) =>
+          assert(expected.nonEmpty)
+          assertEquals((arguments & AlgebraicResult.Left) != 0, expected == left.toSpaceValue.paths)
+          if rightIdentityIsSpecial then
+            assertEquals((arguments & AlgebraicResult.Right) != 0, expected == right.toSpaceValue.paths)
+          else assertEquals(arguments, AlgebraicResult.Left)
+        case AlgebraicResult.Bespoke(_) =>
+          assert(expected.nonEmpty)
+          assertNotEquals(expected, left.toSpaceValue.paths)
+          if rightIdentityIsSpecial then assertNotEquals(expected, right.toSpaceValue.paths)
+
+    for _ <- 0 until 300 do
+      val left = randomTrie()
+      val right = randomTrie()
+      val leftPaths = left.toSpaceValue.paths
+      val rightPaths = right.toSpaceValue.paths
+
+      assertComplete(left.unionResult(right), left, right, leftPaths union rightPaths)
+      assertComplete(left.intersectionResult(right), left, right, leftPaths intersect rightPaths)
+      assertComplete(
+        left.subtractionResult(right),
+        left,
+        right,
+        leftPaths diff rightPaths,
+        rightIdentityIsSpecial = false
+      )
+
+      val expectedRestriction = leftPaths.filter(path =>
+        rightPaths.exists(prefix => path.items.startsWith(prefix.items))
+      )
+      val restriction = left.restrictionResult(right)
+      assertComplete(restriction.result, left, right, expectedRestriction)
+      val expectedCoverage = rightPaths.forall(prefix =>
+        expectedRestriction.exists(path => path.items.startsWith(prefix.items))
+      )
+      assertEquals(
+        restriction.allPrefixesMatched,
+        expectedCoverage,
+        s"left=$leftPaths right=$rightPaths kept=$expectedRestriction result=${restriction.result}"
+      )
+  }
+
   test("zipper restriction pushes through union and subtraction before materialization") {
     val x = SpaceValue("keep.a", "keep.b", "drop.a", "drop.b", "other.z")
     val y = SpaceValue("keep.b", "drop.b")

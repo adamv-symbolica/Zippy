@@ -5113,3 +5113,166 @@ Verification:
 - `ALGEBRA.md` contains no repository, proof-suite, supercompiler API, backend-status, or `SuffixClosure` discussion.
 - `README.md` links to the functional pearl and existing benchmark/proof/runtime documents.
 - `git diff --check` passed.
+2026-07-12T12:00:00+01:00
+
+Exhaustive path-set algebra follow-up started:
+- User requires behavioral identity for the Trie executor and no asymptotic regression.
+- The provenance-aware implementation will be moved out of generic key-set traversals and into the specialized Patricia-trie `TrieIntMapOps` recursion.
+- `build.log` remains append-only; compile, test, and benchmark checkpoints will be appended as work proceeds.
+
+2026-07-12T12:08:00+01:00
+
+First specialized-IntMap compile checkpoint:
+- Restored `TrieIntMapOps` under `scala.collection.immutable` and moved recursive provenance through Patricia `Tip`/`Bin` cases.
+- Initial compile reached the new implementation and found six visibility-only errors: four uses of private `IntMap.Nil` from `morkl`, and two cross-package calls to the prefix-relation helper.
+- Replaced external `IntMap.Nil` uses with `IntMap.empty` and exposed the trie prefix-relation helper for the specialized map implementation.
+
+2026-07-12T12:10:00+01:00
+
+Second specialized-IntMap compile checkpoint:
+- Compile reduced the visibility failures from six to three remaining identity comparisons against private `IntMap.Nil`.
+- Replaced those external reference checks with public `IntMap.isEmpty`; internal Patricia code continues to use `IntMap.Nil` directly.
+
+2026-07-12T12:13:00+01:00
+
+Third specialized-IntMap compile checkpoint:
+- Main sources compile successfully with provenance-aware Patricia `unionTriesResult`, `intersectTriesResult`, `diffTriesResult`, `restrictTriesResult`, and prefix-relation descent.
+- `TrieSpace` now composes terminal-bit provenance with the specialized child-map result instead of enumerating child key sets.
+
+2026-07-12T12:17:00+01:00
+
+First focused behavioral test checkpoint:
+- 59 focused `TrieSpaceTest` cases passed.
+- The new exhaustive metadata property found one restriction prefix-coverage overclaim (`true` instead of `false`); denotational Trie behavior remained correct.
+- Added the randomized operands and kept result as an assertion clue before narrowing the Patricia coverage propagation bug.
+
+2026-07-12T12:20:00+01:00
+
+Restriction coverage diagnosis:
+- Reproduced the overclaim with a terminal right trie whose `a` branch contained both a matching `b` key and an unmatched sibling `a` key.
+- In the Patricia `Tip`-versus-`Bin` prefix-relation case, equality was correctly rejected but full coverage incorrectly propagated from the one matching key.
+- Coverage now also requires the right map to be the single matching `Tip`; a wider right `Bin` necessarily contains unmatched prefix keys.
+
+2026-07-12T12:24:00+01:00
+
+Second focused behavioral test checkpoint:
+- All 60 `TrieSpaceTest` tests pass.
+- This includes direct Trie/reference equivalence, graph `execT`, randomized native programs, zipper traversal, explicit algebraic cases, and 300 randomized exhaustive finite-set metadata comparisons.
+- The Trie executor remains denotationally unchanged on the focused suite.
+
+2026-07-12T12:30:00+01:00
+
+Complete test-suite checkpoint:
+- The complete Scala/MUnit suite passed, including `TrieSpaceTest`, `ZipperFuzzerTest`, `ZipperDenotationOracleTest`, publication examples, reference examples, supercompiler tests, graph execution, and independent egg transpilation.
+- Four pre-existing tests remain explicitly ignored (`UnionFind.find`, `Imperative.scc exec`, `Imperative.push out`, and `Unification.double transform`).
+- The first automatic approval review timed out before process creation; the permitted retry completed successfully.
+
+Asymptotic benchmark setup:
+- Added a repeatable `trieAlgebraAsymptoticBenchmark` main covering subset union, subset intersection, quarter-prefix restriction, and Patricia-disjoint subtraction at 1,024 through 65,536 root keys.
+- The same harness will be compiled against HEAD's original Trie algebra and the current provenance-aware Trie algebra.
+
+2026-07-12T12:38:00+01:00
+
+Asymptotic benchmark results (median nanoseconds per operation):
+- Current at 1,024 / 4,096 / 16,384 / 65,536 keys:
+  - union subset: 5,382 / 26,956 / 129,792 / 491,833 ns;
+  - intersection subset: 6,252 / 20,192 / 131,000 / 341,604 ns;
+  - quarter-prefix restriction: 8,487 / 27,791 / 114,284 / 535,047 ns;
+  - Patricia-disjoint subtraction: 11.1 / 8.1 / 4.1 / 5.3 ns.
+- HEAD baseline at the same sizes and with the identical harness:
+  - union subset: 28,779 / 75,283 / 612,175 / 1,926,646 ns;
+  - intersection subset: 12,456 / 53,043 / 220,711 / 1,152,391 ns;
+  - quarter-prefix restriction: 4,496 / 16,916 / 66,448 / 262,099 ns;
+  - Patricia-disjoint subtraction: 6,023 / 26,107 / 97,724 / 447,552 ns.
+- Union, intersection, and restriction retain linear scaling over a 64x size increase. Disjoint subtraction improves from a linear root-node recount to constant-time identity return.
+- A final branch-orientation audit found that restriction with a wider left `Bin` and narrower multi-key right `Bin` should propagate right identity; added that propagation and explicit tests for both Patricia containment orientations.
+
+2026-07-12T12:42:00+01:00
+
+Post-audit focused test checkpoint:
+- All 60 `TrieSpaceTest` tests pass after adding explicit wider-left/narrower-right and narrower-left/wider-right Patricia restriction cases.
+- The exhaustive finite-set metadata property and Trie executor behavioral checks remain green.
+
+2026-07-12T12:47:00+01:00
+
+Final complete test-suite checkpoint:
+- The complete Scala/MUnit suite passes after the final Patricia branch-orientation fix.
+- All Trie/reference, `execT`, zipper oracle, fuzzer, supercompiler, reference-example, graph, and independent egg-transpilation checks pass.
+- The same four pre-existing ignored tests remain ignored; there are no new skips or failures.
+
+2026-07-12T13:00:00+01:00
+
+Existing benchmark comparison started:
+- Selected the documented non-long benchmark reports: `trieBenchmarkReport` and `zipperAlgebraBenchmarkReport`, plus the existing `zipperIterRangeTailMicroReport` from the same algebra harness.
+- Excluded `zipperLargeBenchmarkReport` as the explicitly large/long suite.
+- Excluded `constantFoldExecutorReport` because its own report describes its inputs as the four long constant-fold rows.
+- Each selected main will run from a temporary output directory against both HEAD's original Trie algebra and the current provenance-aware Patricia implementation, using identical Scala/JVM settings.
+
+2026-07-12T13:06:00+01:00
+
+Existing trie benchmark harness repair:
+- The first HEAD run reached `datalog semi-naive / reference 24-chain` and aborted because the row attempted direct `evalZ` for a recursive top-level self-union that `transpileZ` intentionally rejects.
+- This is pre-existing benchmark drift and is independent of Trie algebra: the current zipper implementation has the same rejection contract.
+- Marked direct zipper timing unavailable for that row via the existing `zipperNote` mechanism; reference `eval`, `evalTrie`, graph `exec`, and graph `execT` measurements remain enabled.
+
+2026-07-12T13:09:00+01:00
+
+Second existing trie benchmark harness repair:
+- The rerun advanced to the process-supercompiled datalog row, whose residual still contains the same deliberately unsupported recursive top-level self-union shape.
+- Applied the same explicit `zipperNote` omission to that row; all non-zipper runtime and graph measurements remain active.
+
+2026-07-12T13:15:00+01:00
+
+Existing trie benchmark resource checkpoint:
+- With both datalog omissions explicit, the HEAD run progressed through life, temperature, and into sliding-puzzle rows.
+- Scala CLI's default heap exhausted while materializing the existing 3x3 sliding-puzzle zipper measurement.
+- Rerunning unchanged benchmark cases with the repository's established `_JAVA_OPTIONS=-Xmx1536m -Xss64m` test/benchmark heap setting rather than dropping the row.
+
+2026-07-12T13:20:00+01:00
+
+Existing trie benchmark source-search omission:
+- The 3x3 high-level sliding-puzzle direct zipper row still exhausted a 1.5 GiB heap, confirming an unbounded source-search materialization path rather than a small default-heap issue.
+- Used the benchmark harness's explicit `zipperNote` mechanism for the 3x3 and 4x4 high-level source rows.
+- Their reference `eval`, `evalTrie`, graph `exec`, and graph `execT` columns remain enabled; only unrelated direct `evalZ` source-tree measurements are omitted.
+
+2026-07-12T13:32:00+01:00
+
+Existing zipper-algebra benchmark regression found:
+- HEAD versus current showed major current regressions in n-ary-union consumers: tails-union increased from roughly 0.65-3.92 ms to 20-22 ms, suffix closure from 5.60-9.71 ms to 47-55 ms, and tails closure similarly.
+- Root cause was the earlier replacement of bucketed `joinAll` with a sequential binary fold. This was outside the Patricia binary microbenchmark and can repeatedly rebuild growing intermediate unions.
+- Restored the original bucketed n-ary construction. After building once, cardinality-equal operands are checked for structural equality so an input object is still reused when it is the complete union.
+- Rerunning focused tests and all affected existing benchmark reports before comparison.
+
+2026-07-12T13:42:00+01:00
+
+N-ary union reuse refinement:
+- Removed the post-build deep structural equality check from restored `joinAll`.
+- Recursive buckets already return an operand child when it is the union, so a parent candidate is now recognized using terminal equality, result cardinality, child-key count, and child-reference equality.
+- This retains n-ary containment reuse without a deep re-traversal and retains bucketed construction for bespoke unions.
+
+2026-07-12T13:32:36+01:00
+
+Final existing non-long benchmark comparison:
+- Ran `trieBenchmarkReport`, `zipperAlgebraBenchmarkReport`, and `zipperIterRangeTailMicroReport` against both HEAD and the final worktree with identical Scala 3.8.1 / JVM 17 settings (`-Xmx1536m -Xss64m`).
+- Excluded `zipperLargeBenchmarkReport` and the four explicitly long constant-fold rows, as requested.
+- `trieBenchmarkReport`, using geometric means for rows where both timings were at least 0.05 ms:
+  - `evalTrie`: baseline/current = 0.8975x over 16 rows, so the worktree was 11.4% slower overall in this run;
+  - `ROG execT`: baseline/current = 0.7673x over 9 rows, so the worktree was 30.3% slower overall in this run.
+  - The executor rows were mixed: aunt/reference `evalTrie` improved 0.459 -> 0.326 ms and synthetic process-SC improved 1.624 -> 1.055 ms, while graph two-hop increased 0.891 -> 3.020 ms and datalog process-SC increased 9.656 -> 12.892 ms. `execT` increases of at least 20% appeared in six rows, including life 4.130 -> 6.562 ms.
+- `zipperAlgebraBenchmarkReport`, with the same 0.05 ms floor:
+  - materialized `evalTrie`: baseline/current = 0.8923x over 50 rows, or 12.1% slower overall;
+  - virtual `evalZ`: baseline/current = 0.9433x over 47 rows, or 6.0% slower overall.
+  - Results were operation-dependent: 1%-sharing subtraction improved 2.365 -> 0.985 ms and tails-union improved 3.923 -> 2.112 ms, while intersection increased 1.573 -> 3.050 ms. At 90% sharing, suffix closure improved 9.707 -> 4.509 ms while tails-union increased 0.647 -> 0.869 ms.
+  - The temporary sequential-`joinAll` implementation's 20-55 ms n-ary regression is absent from these final results; final tails/suffix rows remain in the same single-digit/low-double-digit regime as HEAD.
+- `zipperIterRangeTailMicroReport` current-algorithm column:
+  - 32 heads: 3.285 -> 6.499 ms (+97.8%);
+  - 96 heads: 23.558 -> 25.174 ms (+6.9%);
+  - 192 heads: 87.216 -> 87.894 ms (+0.8%).
+  - The large-input endpoint is effectively unchanged and retains the same scaling; the 32-head result is dominated by fixed/sub-millisecond-per-stage benchmark noise.
+- These are single benchmark-report runs with internal warmups/averaging, not statistical confidence intervals. The broad runtime reports show constant-factor regressions and high row-to-row variance, while the dedicated 1,024-to-65,536-key benchmark continues to show unchanged linear asymptotics and constant-time Patricia-disjoint subtraction.
+
+Final verification checkpoint:
+- A direct whole-tree Scala CLI invocation first failed because this repository's sources require the established temporary `package morkl` wrapping; the single-file aggregate then exhausted the compiler heap while rendering a parser diagnostic.
+- Repeated the established verification with individually package-wrapped temporary source files, avoiding the giant parser unit.
+- The complete MUnit suite passed. All Trie/reference, `execT`, zipper fuzzer/oracle, supercompiler, reference-example, graph, and independent egg-transpilation checks are green; the same four pre-existing ignored tests remain ignored.
+- `git diff --check` passes.

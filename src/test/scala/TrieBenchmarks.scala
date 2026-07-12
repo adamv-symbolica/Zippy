@@ -577,8 +577,25 @@ object TrieBenchmarks:
       ProgramCase("aunt synthetic", "process-sc static family 24 people", scAuntResidual.top, scPeopleCtx, scPeopleTrie, scAuntResidual.env, defs = scAuntResidual.routines.values.toVector, runs = 3, prep = Some(scAuntResidualProfile)),
       ProgramCase("graph two-hop", "reference 90-chain", twoHop.body, graphCtx, graphTrie, runs = 3),
       ProgramCase("graph mutual", "reference 90-chain", mutual.body, graphCtx, graphTrie, runs = 3),
-      ProgramCase("datalog semi-naive", "reference 24-chain", datalogCall, rc = datalogDefs, defs = Vector(semiNaive), runs = 2),
-      ProgramCase("datalog semi-naive", "process-sc 24-chain", datalogResidual.top, rc = datalogResidual.env, defs = datalogResidual.routines.values.toVector, runs = 2, prep = Some(datalogResidualProfile)),
+      ProgramCase(
+        "datalog semi-naive",
+        "reference 24-chain",
+        datalogCall,
+        rc = datalogDefs,
+        defs = Vector(semiNaive),
+        runs = 2,
+        zipperNote = Some("direct evalZ rejects the recursive top-level self-union; use evalTrie/graph rows")
+      ),
+      ProgramCase(
+        "datalog semi-naive",
+        "process-sc 24-chain",
+        datalogResidual.top,
+        rc = datalogResidual.env,
+        defs = datalogResidual.routines.values.toVector,
+        runs = 2,
+        prep = Some(datalogResidualProfile),
+        zipperNote = Some("direct evalZ rejects the residual recursive top-level self-union; use evalTrie/graph rows")
+      ),
       ProgramCase("life", "reference random 24x24", life, rc = mod(LifeExample.neigh, LifeExample.nextStep), defs = Vector(LifeExample.neigh, LifeExample.nextStep), runs = 2),
       ProgramCase("life", "compile-pass random 24x24", lifeCompiled.routine.name(lifeInitialLiteral), rc = mod(LifeExample.neigh, lifeCompiled.routine), defs = Vector(LifeExample.neigh, lifeCompiled.routine), runs = 2, prep = Some(lifeCompiledProfile)),
       ProgramCase("life", "compile-pass random 24x24 initial literal", lifeCompiledIn.routine.body, runs = 2, prep = Some(lifeCompiledInProfile)),
@@ -586,9 +603,25 @@ object TrieBenchmarks:
       ProgramCase("temperature", "synthetic 32x64", noaaSyntheticQuery.body, noaaSyntheticCtx, noaaSyntheticTrie, runs = 3),
       ProgramCase("sliding puzzle", "2x2 pure source full frontier step", slide2, rc = SlidingPuzzleExample.context(2), defs = slide2Defs, runs = 2),
       ProgramCase("sliding puzzle", "2x2 pure compile-pass full frontier step", slide2Compiled.routine.body, rc = SlidingPuzzleExample.context(2), defs = slide2Defs, runs = 2, prep = Some(slide2CompiledProfile)),
-      ProgramCase("sliding puzzle", "3x3 pure source depth-8 step", slide3, rc = SlidingPuzzleExample.context(3), defs = slide3Defs, runs = 1),
+      ProgramCase(
+        "sliding puzzle",
+        "3x3 pure source depth-8 step",
+        slide3,
+        rc = SlidingPuzzleExample.context(3),
+        defs = slide3Defs,
+        runs = 1,
+        zipperNote = Some("direct evalZ source search tree exceeds the benchmark heap; use evalTrie/graph rows")
+      ),
       ProgramCase("sliding puzzle", "3x3 pure compile-pass depth-8 step", slide3Compiled.routine.body, rc = SlidingPuzzleExample.context(3), defs = slide3Defs, runs = 1, prep = Some(slide3CompiledProfile)),
-      ProgramCase("sliding puzzle", "4x4 pure source depth-5 step", slide4, rc = SlidingPuzzleExample.context(4), defs = slide4Defs, runs = 1),
+      ProgramCase(
+        "sliding puzzle",
+        "4x4 pure source depth-5 step",
+        slide4,
+        rc = SlidingPuzzleExample.context(4),
+        defs = slide4Defs,
+        runs = 1,
+        zipperNote = Some("direct evalZ source search tree exceeds the benchmark heap; use evalTrie/graph rows")
+      ),
       ProgramCase("n-queens", "MORKL 8x8 source", queens8.body, tc = emptyTrie, rc = queens8Ctx, defs = queens8Defs, runs = 1, zipperNote = Some("direct evalZ is currently omitted for the high-level source search tree; use compile-pass/graph rows")),
       ProgramCase("n-queens", "MORKL 8x8 compile-pass", queens8Compiled.routine.body, tc = emptyTrie, rc = queens8Ctx, defs = queens8Defs, runs = 1, prep = Some(queens8CompiledProfile))
     )

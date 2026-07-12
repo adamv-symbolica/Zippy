@@ -41,6 +41,39 @@ remain semantic boundaries. The trie evaluator converts the focused trie back to
 Benchmarks show this boundary clearly: native path-algebra programs speed up;
 grounded-heavy programs can slow down.
 
+## Algebraic Results And Structural Reuse
+
+Every Boolean trie operation computes an `AlgebraicResult` recursively, not
+only at the root. `Identity` contains a bit mask naming every argument equal to
+the result, `Bespoke` carries a newly built trie, and `Empty` records why the
+result vanished. The ordinary `union`, `intersect`, `diff`, and `restrictBy`
+methods unwrap this result while returning an input object directly whenever an
+identity bit is present.
+
+The exhaustive binary cases are:
+
+- Union is a left, right, or both identity; bespoke; or empty because both
+  arguments were empty.
+- Intersection is a left, right, or both identity; bespoke; empty because an
+  argument was empty; or empty because two non-empty arguments were disjoint.
+- Subtraction is a left identity when the right side is empty or merely
+  disjoint; bespoke after removing a proper non-empty overlap; empty because
+  the left side was empty; or empty because the right side covered it. A
+  subtraction cannot equal a non-empty right argument: membership in the right
+  side is exactly what subtraction excludes.
+- Restriction additionally returns `allPrefixesMatched`. A left identity means
+  no source path was dropped. A right-only identity means the kept paths equal
+  the prefixes and some source paths were dropped. A bespoke result with every
+  prefix matched is a superset in the prefix order (every right path has an
+  equal or longer kept left path); a bespoke result with that flag false has
+  unused prefixes as well as dropped source paths. Empty results distinguish
+  both-empty, left-empty, right-empty, and non-empty/no-match inputs.
+
+This metadata is computed inside `TrieIntMapOps`, alongside the existing
+Patricia `Tip`/`Bin` descent. A parent node combines child identity masks and
+terminal bits, so a containment result can reuse the complete smaller or larger
+argument without an equality re-traversal or a generic key-set scan.
+
 ## Join-All And Meet-All
 
 `joinAll` folds tries with structural union. Its useful property is that sparse
