@@ -1014,6 +1014,7 @@ def optimize_sharing(g: RecursiveOpGraph,
   def toOutputNode(n: Node[(Int, Int)]): Node[(Int, Int)] =
     n.map((lm, xm) => stack(lm)._2(xm))
   var c = 0
+  val canonicalSubgraphs = collection.mutable.HashMap.empty[Int, ArrayBuffer[(Int, RecursiveOpGraph)]]
   for (n, j) <- g.nodes.zipWithIndex do n match
     case Left(n) =>
       val canonical = forwardNode(n).getOrElse(throw RuntimeException(s"cannot remap node ${n.show} at level $l"))
@@ -1025,10 +1026,19 @@ def optimize_sharing(g: RecursiveOpGraph,
       else
         stack.last._1.update(j, l2 -> i)
     case Right(sg) =>
-      // Subgraph sharing needs meaning-aware hashing; keep this pass to local node sharing.
-      r.store(optimize_sharing(sg, stack, Some(r)))
-      stack(l)._2.update(j, l -> c)
-      c += 1
+      val canonical = optimize_sharing(sg, stack, Some(r))
+      val hash = graphStructuralHash(canonical)
+      val bucket = canonicalSubgraphs.getOrElseUpdate(hash, ArrayBuffer.empty)
+      bucket.find((_, previous) => graphStructurallyEqual(previous, canonical)) match
+        case Some((originalIndex, _)) =>
+          // Identical recursive subgraphs have the same captures after input
+          // forwarding, so later uses can share the earlier result position.
+          stack.last._1.update(j, l -> originalIndex)
+        case None =>
+          r.store(canonical)
+          bucket += j -> canonical
+          stack(l)._2.update(j, l -> c)
+          c += 1
   r.root = toOutputNode(forwardNode(r.root).getOrElse(throw RuntimeException(s"cannot remap root ${r.root.show} at level $l")))
   stack.remove(stack.length - 1)
   r
@@ -1162,6 +1172,16 @@ def graphStructurallyEqual(a: RecursiveOpGraph, b: RecursiveOpGraph): Boolean =
       case (Right(x), Right(y)) => graphStructurallyEqual(x, y)
       case _ => false
     }
+
+def graphStructuralHash(g: RecursiveOpGraph): Int =
+  import scala.util.hashing.MurmurHash3
+  var hash = MurmurHash3.productHash(g.root)
+  for entry <- g.nodes do
+    val next = entry match
+      case Left(node) => MurmurHash3.productHash(node)
+      case Right(subgraph) => graphStructuralHash(subgraph)
+    hash = MurmurHash3.mix(hash, next)
+  MurmurHash3.finalizeHash(hash, g.nodes.size + 1)
 
 def optimize(g: RecursiveOpGraph): RecursiveOpGraph =
   optimizeTimed(g).graph
@@ -1390,6 +1410,32 @@ object Lower:
   private def usesRef(s: Space, pr: PathRef): Boolean =
     collect(s)(ppre = { case Path.Deref(`pr`) => () })._2.nonEmpty
 
+  private def independentOf(s: Space, symbol: PathRef, rest: SpaceMention): Boolean =
+    !usesRef(s, symbol) && !usesMention(s, rest)
+
+  private val epsilonSpace: Space = Space.Singleton(Path.ZERO)
+
+  /** Iteration skips epsilon, so this is the epsilon-valued indicator that its
+    * source has at least one headed path.  Subtracting epsilon is a root-only
+    * Trie operation and `Syntax.nonEmpty` observes only the first survivor.
+    */
+  private def hasIterationIndicator(src: Space): Space =
+    Syntax.nonEmpty(Space.Subtraction(src, epsilonSpace))
+
+  private def epsilonOnly(s: Space): Boolean = s match
+    case Space.Empty => true
+    case Space.Singleton(Path.Constant(PathValue(Nil))) => true
+    case Space.Literal(SpaceValue(paths)) => paths.forall(_.items.isEmpty)
+    case Space.Union(a, b) => epsilonOnly(a) && epsilonOnly(b)
+    case Space.Intersection(a, b) => epsilonOnly(a) || epsilonOnly(b)
+    case Space.Subtraction(a, _) => epsilonOnly(a)
+    case Space.Restriction(a, _) => epsilonOnly(a)
+    case Space.Raffination(a, _) => epsilonOnly(a)
+    case Space.Composition(a, b) => epsilonOnly(a) && epsilonOnly(b)
+    case Space.Iteration(_, _, _, body) => epsilonOnly(body)
+    case Space.Range(src, _, _) => epsilonOnly(src)
+    case _ => false
+
   private def emptyPath(p: Path): Boolean = p match
     case Path.Constant(PathValue(Nil)) => true
     case _ => false
@@ -1566,6 +1612,14 @@ object Lower:
   private def normalizeUnion(s: Space): Space =
     val flat = unionTerms(s).filterNot(_ == Space.Empty)
     replaceFirstPair(flat) {
+      case (Space.Wrap(left, prefix), Space.Wrap(right, prefix2)) if prefix == prefix2 =>
+        Some(Space.Wrap(Space.Union(left, right), prefix))
+      case (Space.Composition(prefix, left), Space.Composition(prefix2, right)) if prefix == prefix2 =>
+        Some(Space.Composition(prefix, Space.Union(left, right)))
+      case (Space.Composition(left, suffix), Space.Composition(right, suffix2)) if suffix == suffix2 =>
+        Some(Space.Composition(Space.Union(left, right), suffix))
+      case (Space.Unwrap(left, prefix), Space.Unwrap(right, prefix2)) if prefix == prefix2 =>
+        Some(Space.Unwrap(Space.Union(left, right), prefix))
       case (Space.Restriction(src, leftPrefixes), Space.Restriction(src2, rightPrefixes)) if src == src2 =>
         Some(Space.Restriction(src, Space.Union(leftPrefixes, rightPrefixes)))
       case (Space.Subtraction(src, leftRemoved), Space.Subtraction(src2, rightRemoved)) if src == src2 =>
@@ -1710,10 +1764,12 @@ object Lower:
             case Some(upper2) if upper2 <= lo2 => Space.Empty
             case _ =>
               val lo = lo1 + lo2
-              val hi =
-                hi2 match
-                  case Some(upper2) => Some(lo1 + upper2)
-                  case None => hi1
+              val shiftedHi2 = hi2.map(lo1 + _)
+              val hi = (hi1, shiftedHi2) match
+                case (Some(upper1), Some(upper2)) => Some(math.min(upper1, upper2))
+                case (Some(upper1), None) => Some(upper1)
+                case (None, Some(upper2)) => Some(upper2)
+                case (None, None) => None
               encodeRange(lo, hi)(src)
     }
     else if start1 > 0 && end1 == 0 && start2 >= 0 && end2 >= 0 then Some {
@@ -1878,6 +1934,39 @@ object Lower:
       val (soc, poc) = collect(rhs)({ case Space.Mention(`rest`) => () }, { case Path.Deref(`symbol`) => () })
       soc.isEmpty && poc.isEmpty
     } => Space.Union(Space.Iteration(src, symbol, rest, lhs), rhs)
+  })
+
+  /** Split a two-dimensional union reduction into two independent reductions.
+    * Each arm keeps the other iterator's headed-nonempty guard, so lifting the
+    * arm is sound even when either dynamic source is empty or epsilon-only.
+    */
+  val IndependentProductUnion = subs(_: Space)(PartialFunction.empty, {
+    case original @ Space.Iteration(left, leftSymbol, leftRest,
+      Space.Iteration(right, rightSymbol, rightRest, Space.Union(a, b))) =>
+      def split(leftArm: Space, rightArm: Space): Option[Space] =
+        Option.when(
+          leftSymbol != rightSymbol &&
+            leftRest != rightRest &&
+            independentOf(right, leftSymbol, leftRest) &&
+            independentOf(leftArm, rightSymbol, rightRest) &&
+            independentOf(rightArm, leftSymbol, leftRest)
+        ) {
+          val leftReduction = Space.Iteration(left, leftSymbol, leftRest, leftArm)
+          val rightReduction = Space.Iteration(right, rightSymbol, rightRest, rightArm)
+          Space.Union(
+            Space.Composition(hasIterationIndicator(right), leftReduction),
+            Space.Composition(hasIterationIndicator(left), rightReduction)
+          )
+        }
+      split(a, b).orElse(split(b, a)).getOrElse(original)
+  })
+
+  /** An epsilon-valued guard commutes with a fixed path prefix.  This exposes
+    * equal `Wrap` prefixes to union factoring after guarded loop push-out.
+    */
+  val EpsilonGuard_Wrap = subs(_: Space)(PartialFunction.empty, {
+    case Space.Composition(guard, Space.Wrap(src, prefix)) if epsilonOnly(guard) =>
+      Space.Wrap(Space.Composition(guard, src), prefix)
   })
 
   val UnwrapConcat_Unwraps = subs(_: Space)(PartialFunction.empty, {
@@ -2292,6 +2381,8 @@ object Supercompiler:
     "concat-singleton-iteration" -> Lower.ConcatSingleton_Iter,
     "wrap-iteration" -> Lower.Wrap_Iter,
     "iteration-union-invariant" -> Lower.IterUnion_Indep,
+    "independent-product-push-out" -> Lower.IndependentProductUnion,
+    "epsilon-guard-wrap" -> Lower.EpsilonGuard_Wrap,
     "iteration-identity" -> Lower.Iter_Ident,
     "algebraic-cleanup" -> Lower.AlgebraicIdentities,
     "literal-cleanup" -> Lower.LiteralSpaceOps
@@ -3131,6 +3222,18 @@ object Syntax:
 
   def s(args: PathValue*): Space = Space.Literal(SpaceValue(Set.from(args)))
   def head(s: Space): Space = s.iterh(P"h", sP"h")
+  def nonEmpty(x: Space): Space =
+    val epsilon = Space.Singleton(Path.ZERO)
+    val symbol = PathRef(s"__nonempty_${x.hashCode().toHexString}").known(1)
+    Space.Union(
+      Space.Intersection(x, epsilon),
+      Space.Iteration(
+        Space.Range(x, 0, 1),
+        symbol,
+        SpaceMention("_"),
+        epsilon
+      )
+    )
   def \/(s: Space): Space = Space.TailsUnion(s)
   def /\(s: Space): Space = Space.TailsIntersection(s)
   def mod(rs: Routine*): PartialFunction[RoutinePtr, Routine] = ((rp: RoutinePtr) => rs.find(_.name == rp)).unlift

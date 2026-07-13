@@ -62,6 +62,46 @@ class TrieSpaceTest extends FunSuite:
     g.nodes.collectFirst { case Right(sg) if sg.root.operation == op => sg }
       .getOrElse(throw AssertionError(s"missing $op subgraph"))
 
+  private def subgraphCount(g: RecursiveOpGraph, op: String): Int =
+    g.nodes.collect { case Right(sg) =>
+      (if sg.root.operation == op then 1 else 0) + subgraphCount(sg, op)
+    }.sum
+
+  private def maxIterationNesting(s: Space): Int =
+    def recp(p: Path, depth: Int): Int = p match
+      case Path.Deref(_) | Path.Constant(_) => depth
+      case Path.Concat(a, b) => recp(a, depth).max(recp(b, depth))
+      case Path.GroundedPP(p, _) => recp(p, depth)
+      case Path.GroundedSP(s, _) => recs(s, depth)
+    def recs(s: Space, depth: Int): Int = s match
+      case Space.Empty | Space.Mention(_) | Space.Literal(_) => depth
+      case Space.Call(_, refs, mentions) =>
+        refs.map(recp(_, depth)).maxOption.getOrElse(depth)
+          .max(mentions.map(recs(_, depth)).maxOption.getOrElse(depth))
+      case Space.Singleton(p) => recp(p, depth)
+      case Space.Union(a, b) => recs(a, depth).max(recs(b, depth))
+      case Space.Intersection(a, b) => recs(a, depth).max(recs(b, depth))
+      case Space.Subtraction(a, b) => recs(a, depth).max(recs(b, depth))
+      case Space.Restriction(a, b) => recs(a, depth).max(recs(b, depth))
+      case Space.Raffination(a, b) => recs(a, depth).max(recs(b, depth))
+      case Space.Composition(a, b) => recs(a, depth).max(recs(b, depth))
+      case Space.Iteration(src, _, _, body) =>
+        recs(src, depth).max(recs(body, depth + 1))
+      case Space.Fold(src, initial, _, _, _, body, update) =>
+        recs(src, depth).max(recp(initial, depth)).max(recs(body, depth + 1)).max(recp(update, depth + 1))
+      case Space.Fixpoint(initial, _, step) => recs(initial, depth).max(recs(step, depth + 1))
+      case Space.Wrap(src, p) => recs(src, depth).max(recp(p, depth))
+      case Space.Unwrap(src, p) => recs(src, depth).max(recp(p, depth))
+      case Space.TailsUnion(src) => recs(src, depth)
+      case Space.TailsIntersection(src) => recs(src, depth)
+      case Space.PrefixClosure(src) => recs(src, depth)
+      case Space.SuffixClosure(src) => recs(src, depth)
+      case Space.TailsClosure(src) => recs(src, depth)
+      case Space.Range(src, _, _) => recs(src, depth)
+      case Space.GroundedPS(p, _) => recp(p, depth)
+      case Space.GroundedSS(src, _) => recs(src, depth)
+    recs(s, 0)
+
   private val randomSymbols = Vector("a", "b", "c", "d", "e", "0", "1")
 
   private def randomPathValue(rng: Random, maxLen: Int = 3): PathValue =
@@ -756,6 +796,15 @@ class TrieSpaceTest extends FunSuite:
     assertEquals(norm((xs \ prefixes) \ prefixes), norm(xs \ prefixes))
     assertEquals(norm((xs /\ ys) \/ (xs /\ prefixes)), norm(xs /\ (ys \/ prefixes)))
     assertEquals(norm((xs \/ ys) /\ (xs \/ prefixes)), norm(xs \/ (ys /\ prefixes)))
+    assertEquals(
+      norm(Space.Composition(xs, prefixes) \/ Space.Composition(ys, prefixes)),
+      norm(Space.Composition(xs \/ ys, prefixes))
+    )
+    assertEquals(
+      norm(Space.Unwrap(xs, Path.Constant(Syntax.parse("a"))) \/
+        Space.Unwrap(ys, Path.Constant(Syntax.parse("a")))),
+      norm(Space.Unwrap(xs \/ ys, Path.Constant(Syntax.parse("a"))))
+    )
     assertEquals(norm((xs \ ys) \/ (xs \ prefixes)), norm(xs \ (ys /\ prefixes)))
     assertEquals(norm((xs \ ys) /\ (xs \ prefixes)), norm(xs \ (ys \/ prefixes)))
     assertEquals(
@@ -775,6 +824,7 @@ class TrieSpaceTest extends FunSuite:
     assertEquals(norm(Space.TailsUnion(xs) \/ Space.TailsClosure(xs)), Space.TailsClosure(xs))
     assertEquals(norm(Space.SuffixClosure(xs) /\ Space.TailsClosure(xs)), Space.SuffixClosure(xs))
     assertEquals(norm(Space.Range(Space.Range(xs, 0, 2), 0, 1)), Space.Range(xs, 0, 1))
+    assertEquals(norm(Space.Range(Space.Range(xs, 0, 1), 0, 2)), Space.Range(xs, 0, 1))
     assertEquals(norm(Space.Range(Space.Range(xs, 0, 4), 2, 3)), Space.Range(xs, 2, 3))
     assertEquals(norm(Space.Range(Space.Range(xs, 0, 2), 2, 2)), Space.Empty)
     assertEquals(norm(Space.Range(xs, 2, 2)), Space.Empty)
@@ -825,13 +875,30 @@ class TrieSpaceTest extends FunSuite:
         (Space.TailsUnion(a) \/ Space.TailsClosure(a), Space.TailsClosure(a)),
         (Space.SuffixClosure(a) /\ Space.TailsClosure(a), Space.SuffixClosure(a)),
         (Space.Restriction(a, b) \/ Space.Restriction(a, c), Space.Restriction(a, b \/ c)),
-        (Space.Raffination(a, b) /\ Space.Raffination(a, c), Space.Raffination(a, b \/ c))
+        (Space.Raffination(a, b) /\ Space.Raffination(a, c), Space.Raffination(a, b \/ c)),
+        (Space.Composition(a, c) \/ Space.Composition(b, c), Space.Composition(a \/ b, c)),
+        (Space.Composition(c, a) \/ Space.Composition(c, b), Space.Composition(c, a \/ b)),
+        (
+          Space.Unwrap(a, Path.Constant(Syntax.parse("a"))) \/ Space.Unwrap(b, Path.Constant(Syntax.parse("a"))),
+          Space.Unwrap(a \/ b, Path.Constant(Syntax.parse("a")))
+        )
       )
       cases.zipWithIndex.foreach { case ((lhs, rhs), j) =>
         assertEquals(eval(lhs), eval(rhs), s"raw law $j failed on iteration $i")
         assertEquals(eval(norm(lhs)), eval(rhs), s"normalized lhs $j failed on iteration $i")
         assertEquals(eval(norm(rhs)), eval(rhs), s"normalized rhs $j failed on iteration $i")
       }
+      val rangeBounds = Vector((0, 0), (0, 1), (0, 2), (1, 2), (2, 0), (2, 3), (3, 4))
+      for
+        (start1, end1) <- rangeBounds
+        (start2, end2) <- rangeBounds
+      do
+        val nested = Space.Range(Space.Range(a, start1, end1), start2, end2)
+        assertEquals(
+          eval(norm(nested)),
+          eval(nested),
+          s"nested range normalization failed on iteration $i for ($start1,$end1) then ($start2,$end2)"
+        )
   }
 
   test("operation graph executes directly over TrieSpace") {
@@ -906,6 +973,91 @@ class TrieSpaceTest extends FunSuite:
       assertGraphWellScoped(graph, name)
       assertEquals(execTValue(graph, routine.mentions, tctx), expected, s"$name execT mismatch")
       assertEquals(execValue(graph, routine.mentions, ctx), expected, s"$name exec mismatch")
+  }
+
+  test("nonEmpty is an epsilon-valued constant-border emptiness indicator") {
+    val fixtures = Vector(
+      SpaceValue(),
+      SpaceValue(PathValue(Nil)),
+      SpaceValue("a"),
+      SpaceValue(PathValue(Nil), "a", "b.tail")
+    )
+    fixtures.foreach { value =>
+      val expression = Syntax.nonEmpty(Space.Literal(value))
+      val expected = if value.paths.isEmpty then SpaceValue() else SpaceValue(PathValue(Nil))
+      assertEquals(eval(expression), expected, s"reference nonEmpty(${value.pretty})")
+      assertEquals(evalTrieValue(expression), expected, s"trie nonEmpty(${value.pretty})")
+      assertEquals(evalZValue(expression), expected, s"zipper nonEmpty(${value.pretty})")
+    }
+  }
+
+  test("independent nested product union pushes out with headed guards and common prefix factoring") {
+    val foo = S"s"("foo")
+    val bar = S"s"("bar")
+    val input = foo.iter(P"x", S"x_",
+      bar.iter(P"y", S"y_",
+        Space.Singleton("cux" x P"x") \/ Space.Singleton("cux" x P"y")
+      )
+    )
+    val epsilon = Space.Singleton(Path.ZERO)
+    val expected = "cux" x (
+      (Syntax.nonEmpty(bar \ epsilon) x head(foo)) \/
+        (Syntax.nonEmpty(foo \ epsilon) x head(bar))
+    )
+    val normalized = Supercompiler.normalize(input)
+    val normalizedExpected = Supercompiler.normalize(expected)
+
+    assert(Matching.alphaEqual(normalized.space, normalizedExpected.space),
+      s"unexpected independent-product normal form:\n${normalized.space.show}\nexpected:\n${normalizedExpected.space.show}")
+    assert(normalized.steps.exists(_.pass == "independent-product-push-out"))
+    assert(normalized.steps.exists(_.pass == "concat-singleton-iteration"))
+    assert(normalized.steps.exists(_.pass == "epsilon-guard-wrap"))
+    assertEquals(maxIterationNesting(normalized.space), 1,
+      s"nested product loop survived:\n${normalized.space.show}")
+
+    val routine = Routine(RoutinePtr("independent_product_union"), Vector.empty, Vector(S"s".variable), input)
+    val optimizedRoutine = routine.copy(body = normalized.space)
+    val fixtures = Vector(
+      SpaceValue(),
+      SpaceValue("foo", "bar.z"),
+      SpaceValue("foo.x", "bar"),
+      SpaceValue("foo.a", "foo.b", "bar.c", "bar.d"),
+      SpaceValue(PathValue(Nil), "foo.a.tail", "bar.b.tail", "other.q")
+    )
+    fixtures.foreach { value =>
+      val ctx = SpaceContextMap(Map(S"s".variable -> value))
+      val tctx = TrieSpaceContext.fromReference(ctx)
+      val reference = eval(input)(using sc = ctx)
+      assertEquals(eval(normalized.space)(using sc = ctx), reference, s"normalized ${value.pretty}")
+      assertEquals(eval(expected)(using sc = ctx), reference, s"guarded target ${value.pretty}")
+      assertEquals(evalTrieValue(normalized.space)(using sc = tctx), reference, s"trie ${value.pretty}")
+      val graph = optimize(transpile(optimizedRoutine))
+      assertEquals(execTValue(graph, optimizedRoutine.mentions, tctx), reference, s"execT ${value.pretty}")
+      assertEquals(execValue(graph, optimizedRoutine.mentions, ctx), reference, s"exec ${value.pretty}")
+    }
+
+    val universe = Vector(PathValue(Nil), Syntax.parse("foo"), Syntax.parse("foo.a"), Syntax.parse("foo.b.tail"),
+      Syntax.parse("bar"), Syntax.parse("bar.c"), Syntax.parse("other.q"))
+    for mask <- 0 until (1 << universe.size) do
+      val value = SpaceValue(universe.indices.collect { case i if (mask & (1 << i)) != 0 => universe(i) }.toSet)
+      val ctx = SpaceContextMap(Map(S"s".variable -> value))
+      assertEquals(eval(normalized.space)(using sc = ctx), eval(input)(using sc = ctx), s"exhaustive mask=$mask")
+  }
+
+  test("optimal sharing merges structurally identical iteration subgraphs") {
+    val branch = S"xs".iter(P"h", S"tail", Space.Singleton("tag" x P"h"))
+    val routine = R"share_identical_iterations"(S"xs") := (branch \/ branch)
+    val raw = transpile(routine)
+    val shared = optimize_sharing(raw)
+    val ctx = SpaceContextMap(Map(SpaceMention("xs") -> SpaceValue("a.left", "b.right")))
+    val tctx = TrieSpaceContext.fromReference(ctx)
+    val expected = eval(routine.body)(using sc = ctx)
+
+    assertEquals(subgraphCount(raw, "Iteration"), 2)
+    assertEquals(subgraphCount(shared, "Iteration"), 1, shared.show)
+    assertGraphWellScoped(shared, "identical subgraph sharing")
+    assertEquals(execValue(shared, routine.mentions, ctx), expected)
+    assertEquals(execTValue(shared, routine.mentions, tctx), expected)
   }
 
   test("loop invariant hoist lifts transitive invariant DAG out of iteration") {

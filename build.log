@@ -5276,3 +5276,66 @@ Final verification checkpoint:
 - Repeated the established verification with individually package-wrapped temporary source files, avoiding the giant parser unit.
 - The complete MUnit suite passed. All Trie/reference, `execT`, zipper fuzzer/oracle, supercompiler, reference-example, graph, and independent egg-transpilation checks are green; the same four pre-existing ignored tests remain ignored.
 - `git diff --check` passes.
+
+2026-07-13T18:27:28+01:00
+
+Low-level nested product/union optimization audit:
+- Probed the current source normalizer and recursive operation-graph optimizer with the direct equivalent of `s(foo).iter(x, x_, s(bar).iter(y, y_, Singleton(cux.x) \/ Singleton(cux.y)))`.
+- Source normalization made no changes (`SOURCE_STEPS` was empty). The optimized graph converged in two rounds but retained both nested `Iteration` subgraphs, both `Singleton` nodes, their inner `Union`, and both path `Concat` nodes. It only shared one duplicate `cux` constant.
+- The source rules contain useful pieces (`iteration-union-invariant`, `concat-singleton-iteration`, `wrap-iteration`, and iteration identity), but `iteration-union-invariant` requires a provably headed source. `s(foo)` and `s(bar)` are dynamic `Unwrap(Mention(...))` expressions and do not satisfy that proof.
+- With a synthetic headed sentinel added to both sources, normalization did split the nested product into the union of two independently wrapped head iterations. It did not factor the common `cux` wrap into one destination or collapse the two loops into `cux x (Head(foo) \/ Head(bar))`.
+- The operation graph has no accumulator-update/destination-specialization IR corresponding to the proposed `res +=`, `res(prefix) +=`, drain-chain, single-use, or no-loop stages. `push_out` hoists loop-invariant ordinary nodes; it does not lift an accumulating iteration out of its parent. `optimize_sharing` performs local node CSE and explicitly does not share subgraphs.
+- The proposed unconditional final expression is not denotationally equivalent for arbitrary sets. Counterexample: `s = {foo, bar.z}`. The outer `foo` iteration has no headed item, so the original nested product is empty, while `cux x (Head(foo) \/ Head(bar)) = {cux.z}`. The collapse is sound only when both iterated sources are proved to have at least one headed path, or when equivalent emptiness guards are retained.
+- Four concrete fixtures confirmed equality when both sides were empty or both sources were headed, and exposed the stated counterexample when only `bar` was headed.
+
+2026-07-13T19:01:17+01:00
+
+Guarded independent-product implementation checkpoint:
+- Added public `Syntax.nonEmpty`, using epsilon intersection plus the first ordered border path exactly as proposed.
+- Because `Space.Iteration` skips epsilon, its push-out guard is `nonEmpty(source \\ epsilon)`: the constant-time indicator that the loop has at least one headed group.
+- Added `independent-product-union`, which splits a nested two-dimensional union reduction when the source and the two arms have the required binder independence, retaining the opposite loop's headed-nonempty indicator on each arm.
+- Added epsilon-guard/prefix commuting and common `Wrap`/composition union factoring. The exact dynamic `foo`/`bar` probe now normalizes to one `cux` prefix around two guarded `Head` reductions, with no nested product loop.
+- Upgraded graph sharing to merge structurally identical recursive subgraphs with identical forwarded captures, instead of limiting CSE to ordinary nodes.
+- First focused compile exposed illegal variable-binding pattern alternatives in a newly added test helper; expanded them into explicit cases.
+- The next focused run compiled and passed every prior `TrieSpaceTest` case. The new nonEmpty and subgraph-sharing tests passed; the product normal-form assertion differed only by bound iteration names (`x`/`y` versus `h`), so the assertion was changed to the repository's alpha-equivalence check.
+
+2026-07-13T19:08:24+01:00
+
+Guarded independent-product final verification:
+- Tightened the push-out pattern to require distinct nested binders and checked the optimized expression against the original on all 128 subsets of a seven-path universe containing epsilon-only, headed `foo`, headed `bar`, tails, empty, and unrelated cases.
+- Common-prefix factoring produces one outer `cux` `Wrap`; maximum iteration nesting drops from two to one. The remaining reductions are the two guarded `Head` computations.
+- Subgraph sharing now uses a structural hash table with collision-resolving structural equality, avoiding a quadratic scan across unrelated recursive subgraphs while still merging identical captures/graphs.
+- Focused `TrieSpaceTest` passes after the binder and hash refinements.
+- The complete MUnit suite passes after the final changes, including zipper fuzzers/oracles, graph `exec`/`execT`, supercompiler examples, references, and independent egg execution. The same four pre-existing ignored tests remain ignored.
+- Added and ran `independentProductBenchmark`; final median results (`original evalTrie -> optimized evalTrie`, compiled `execT` separately):
+  - 32 heads/side: 1.7615 -> 0.2732 ms (6.45x), compiled `execT` 0.5835 ms;
+  - 64: 0.8852 -> 0.0820 ms (10.80x), compiled `execT` 0.3715 ms;
+  - 128: 1.7615 -> 0.1085 ms (16.24x), compiled `execT` 0.2035 ms;
+  - 256: 7.1793 -> 0.2022 ms (35.51x), compiled `execT` 0.3846 ms.
+- The exact benchmark validates result equality across original `evalTrie`, optimized `evalTrie`, and compiled `execT` before every timing size. Growth changes from the nested-product traversal toward the two independent linear head reductions.
+- Reran the existing `trieBenchmarkReport`. Graph node counts were unchanged on its existing workloads. Relative to the prior worktree report, measurable-row geometric means favored this run by 1.19x for `evalTrie` and 1.50x for `execT`; these broad-report timing differences are noisy, but there was no aggregate regression signal.
+- `git diff --check` passes.
+
+2026-07-13T20:00:00+01:00
+
+laws.diff integration started:
+- Reviewed the source and test hunks independently rather than applying the 1.7 MB patch wholesale; most additions are proof artifacts or graph subsystems requiring opcodes not present on this branch.
+- Integrated the directly applicable path-set laws: nested range upper-bound clipping, common product-suffix factoring, and equal-prefix Unwrap factoring.
+- Added focused normal-form assertions and exhaustive positive-range composition checks over random literal path sets.
+- The first direct Scala CLI focused run failed before compiling MORKL because Scala CLI selected `src/main/scala` as the source root and treated package-less source files as the default package. This is the repository's known source-layout issue; verification continued with package-prefixed temporary mirrors.
+- The package-mirrored focused `TrieSpaceTest` run passed all 63 tests. Its random algebraic test now checks 80 x 49 = 3,920 nested positive-range compositions in addition to the normal-form assertions.
+- The complete package-mirrored MUnit suite passed; the same four pre-existing tests remain ignored. The independent egg programs also completed successfully.
+- `trieBenchmarkReport` completed successfully on the integrated worktree.
+- `constantFoldExecutorReport`, whose own report describes it as the focused long-row sweep, was attempted and exhausted the 1.5 GB heap in the Zipper backend. It is excluded from the non-long comparison requested by the user.
+
+2026-07-13T20:06:35+01:00
+
+laws.diff integration final verification:
+- Kept the patch's sound, directly applicable laws: nested positive Range composition now clips against both the inner and shifted outer upper bounds; unions factor a shared product suffix; and unions of Unwraps with the same prefix factor through Unwrap.
+- Did not import the patch's large guarded-union, semijoin-iteration, leave-one-product, or variadic graph subsystems. They require executor opcodes absent on this branch and are not needed for the independent-product-to-union result. Expansion-oriented product distribution/reassociation was also omitted to avoid program growth.
+- Added 80 randomized denotational checks for both product distribution directions and Unwrap distribution, plus 3,920 randomized nested-range compositions. The final complete MUnit run passed, including every executor/backend and independent egg program; the same four pre-existing ignores remain.
+- Controlled `trieBenchmarkReport` A/B (temporary pre-laws source followed by integrated source): no graph-node changes; integrated/pre speedups were 1.24x eval Set, 1.08x evalTrie, and 1.03x execT geometric mean. Total compilation was 1.16x faster, source-pass time 1.21x faster, and graph optimization 1.03x faster. These short timings are noisy but show no regression.
+- Direct Trie asymptotic run from 1,024 to 65,536 keys (64x input): union 5,579 -> 333,281 ns (59.7x), intersection 5,815 -> 378,484 ns (65.1x), restriction 7,376 -> 458,531 ns (62.2x), and disjoint subtraction 11.3 -> 4.1 ns. The expected linear/constant asymptotic classes are preserved.
+- Independent-product benchmark (`original -> optimized`, compiled execT): 32 heads 2.0195 -> 0.2517 ms (8.02x), 64 heads 1.0749 -> 0.0836 ms (12.86x), 128 heads 1.9506 -> 0.1359 ms (14.35x), 256 heads 9.0610 -> 0.2098 ms (43.19x); compiled execT was 0.2806, 0.1484, 0.2181, and 0.3829 ms.
+- Ran the non-long report entry points: trie, zipper algebra, zipper range-tail micro, zipper large, direct Trie asymptotic, and independent product. Report files were refreshed. Versus the prior checked reports, zipper-algebra geometric means were 0.81x evalTrie and 0.80x evalZ (current slower), while an immediate identical rerun improved 1.13x and 1.09x, demonstrating substantial timing noise in operations untouched by these source laws. Large-report evalTrie was 1.25x faster and evalZ 0.89x; the range-tail current implementation was 3.53x faster. The controlled laws A/B and asymptotic run are the meaningful regression checks.
+- `git diff --check` passes.
