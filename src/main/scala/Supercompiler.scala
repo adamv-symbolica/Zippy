@@ -681,6 +681,9 @@ case class SupercompiledProgram(top: Space,
                                 graph: Option[RecursiveOpGraph],
                                 graphOptimization: Option[GraphOptimizeResult] = None):
   def env: PartialFunction[RoutinePtr, Routine] = routines
+  def resultSize(
+    assumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
+  ): ResultSizeEstimate = ResultSpaceSize.estimate(top, assumptions)
 
 object SC:
   import Space.*

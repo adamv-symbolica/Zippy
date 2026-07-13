@@ -1,0 +1,612 @@
+/** Symbolic natural-number expressions used by result-space cardinality analysis.
+  * `None` from [[evaluate]] denotes an unbounded/unknown finite upper bound.
+  */
+enum SizeExpr:
+  case Const(value: BigInt)
+  case SizeOf(space: Space)
+  case Add(terms: Vector[SizeExpr])
+  case Multiply(factors: Vector[SizeExpr])
+  case Maximum(terms: Vector[SizeExpr])
+  case Minimum(terms: Vector[SizeExpr])
+  case PositiveDifference(left: SizeExpr, right: SizeExpr)
+  case Positive(value: SizeExpr)
+  case RangeCardinality(value: SizeExpr, start: Int, end: Int)
+  case Infinity
+
+  def show: String = this match
+    case SizeExpr.Const(value) => value.toString
+    case SizeExpr.SizeOf(space) => s"|${space.show}|"
+    case SizeExpr.Add(terms) => terms.map(_.show).mkString("(", " + ", ")")
+    case SizeExpr.Multiply(factors) => factors.map(_.show).mkString("(", " * ", ")")
+    case SizeExpr.Maximum(terms) => terms.map(_.show).mkString("max(", ", ", ")")
+    case SizeExpr.Minimum(terms) => terms.map(_.show).mkString("min(", ", ", ")")
+    case SizeExpr.PositiveDifference(left, right) => s"relu(${left.show} - ${right.show})"
+    case SizeExpr.Positive(value) => s"positive(${value.show})"
+    case SizeExpr.RangeCardinality(value, start, end) => s"rangeSize(${value.show}, $start, $end)"
+    case SizeExpr.Infinity => "∞"
+
+  def evaluate(using
+    pc: PathContext = PathContextMap(Map.empty),
+    sc: SpaceContext = SpaceContextMap(Map.empty),
+    rc: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty
+  ): Option[BigInt] = this match
+    case SizeExpr.Const(value) => Some(value)
+    case SizeExpr.SizeOf(space) => Some(BigInt(eval(space).paths.size))
+    case SizeExpr.Add(terms) =>
+      terms.foldLeft(Option(BigInt(0)))((sum, term) => for a <- sum; b <- term.evaluate yield a + b)
+    case SizeExpr.Multiply(factors) =>
+      val values = factors.map(_.evaluate)
+      if values.contains(Some(BigInt(0))) then Some(BigInt(0))
+      else values.foldLeft(Option(BigInt(1)))((product, value) => for a <- product; b <- value yield a * b)
+    case SizeExpr.Maximum(terms) =>
+      terms.foldLeft(Option(BigInt(0)))((maximum, term) => for a <- maximum; b <- term.evaluate yield a.max(b))
+    case SizeExpr.Minimum(terms) =>
+      val finite = terms.flatMap(_.evaluate)
+      if finite.nonEmpty then Some(finite.min) else None
+    case SizeExpr.PositiveDifference(left, right) =>
+      (left.evaluate, right.evaluate) match
+        case (Some(a), Some(b)) => Some((a - b).max(BigInt(0)))
+        case (None, Some(_)) => None
+        case (Some(_), None) => Some(BigInt(0))
+        case (None, None) => None
+    case SizeExpr.Positive(value) =>
+      value.evaluate.map(v => if v > 0 then BigInt(1) else BigInt(0)).orElse(Some(BigInt(1)))
+    case SizeExpr.RangeCardinality(value, start, end) =>
+      value.evaluate.map(SizeExpr.rangeCardinality(_, start, end))
+    case SizeExpr.Infinity => None
+
+object SizeExpr:
+  val Zero: SizeExpr = SizeExpr.Const(0)
+  val One: SizeExpr = SizeExpr.Const(1)
+
+  def const(value: BigInt): SizeExpr =
+    require(value >= 0, s"size expressions must be non-negative, got $value")
+    SizeExpr.Const(value)
+
+  def sizeOf(space: Space): SizeExpr = SizeExpr.SizeOf(space)
+
+  private def sameInstance(left: SizeExpr, right: SizeExpr): Boolean =
+    left.asInstanceOf[AnyRef] eq right.asInstanceOf[AnyRef]
+
+  def add(values: SizeExpr*): SizeExpr =
+    val terms = values.filterNot(_ == Zero).toVector
+    terms match
+      case Vector() => Zero
+      case Vector(term) => term
+      case result if result.forall(_.isInstanceOf[SizeExpr.Const]) =>
+        const(result.collect { case SizeExpr.Const(value) => value }.sum)
+      case result => SizeExpr.Add(result)
+
+  def multiply(values: SizeExpr*): SizeExpr =
+    val factors = values.toVector
+    if factors.contains(Zero) then Zero
+    else
+      val result = factors.filterNot(_ == One)
+      if result.exists { factor =>
+        result.exists {
+          case SizeExpr.PositiveDifference(SizeExpr.Const(one), other) if one == 1 => other == factor
+          case _ => false
+        }
+      } then Zero
+      else result match
+        case Vector() => One
+        case Vector(factor) => factor
+        case xs if xs.forall(_.isInstanceOf[SizeExpr.Const]) =>
+          const(xs.collect { case SizeExpr.Const(value) => value }.product)
+        case _ => SizeExpr.Multiply(result)
+
+  private def exclusiveMaximum(left: SizeExpr, right: SizeExpr): Option[SizeExpr] =
+    def guardedByZero(value: SizeExpr, guarded: SizeExpr): Boolean = guarded match
+      case SizeExpr.PositiveDifference(SizeExpr.Const(one), `value`) if one == 1 => true
+      case SizeExpr.Multiply(factors) => factors.exists {
+        case SizeExpr.PositiveDifference(SizeExpr.Const(one), `value`) if one == 1 => true
+        case _ => false
+      }
+      case _ => false
+    if guardedByZero(left, right) then Some(add(left, right))
+    else if guardedByZero(right, left) then Some(add(left, right))
+    else None
+
+  def maximum(values: SizeExpr*): SizeExpr =
+    val terms = values.filterNot(_ == Zero).toVector
+    if terms.contains(SizeExpr.Infinity) then SizeExpr.Infinity
+    else
+      terms match
+        case Vector() => Zero
+        case Vector(value) => value
+        case Vector(left, right) if sameInstance(left, right) => left
+        case Vector(left, right) => exclusiveMaximum(left, right).getOrElse(SizeExpr.Maximum(terms))
+        case result => SizeExpr.Maximum(result)
+
+  def minimum(values: SizeExpr*): SizeExpr =
+    val terms = values.filterNot(_ == SizeExpr.Infinity).toVector
+    if terms.contains(Zero) then Zero
+    else terms match
+      case Vector() => SizeExpr.Infinity
+      case Vector(value) => value
+      case Vector(left, right) if sameInstance(left, right) => left
+      case result => SizeExpr.Minimum(result)
+
+  def positiveDifference(left: SizeExpr, right: SizeExpr): SizeExpr = (left, right) match
+    case (SizeExpr.Const(a), SizeExpr.Const(b)) => const((a - b).max(BigInt(0)))
+    case (SizeExpr.Const(zero), _) if zero == 0 => Zero
+    case (_, SizeExpr.Const(zero)) if zero == 0 => left
+    case _ if left == right => Zero
+    case (SizeExpr.Infinity, SizeExpr.Infinity) => SizeExpr.Infinity
+    case (SizeExpr.Infinity, _) => SizeExpr.Infinity
+    case (_, SizeExpr.Infinity) => Zero
+    case _ => SizeExpr.PositiveDifference(left, right)
+
+  def positive(value: SizeExpr): SizeExpr = value match
+    case SizeExpr.Const(v) => if v > 0 then One else Zero
+    case SizeExpr.Positive(_) => value
+    case difference @ SizeExpr.PositiveDifference(SizeExpr.Const(one), _) if one == 1 => difference
+    case SizeExpr.Infinity => One
+    case _ if definitelyPositive(value) => One
+    case _ => SizeExpr.Positive(value)
+
+  def isZero(value: SizeExpr): SizeExpr =
+    if definitelyPositive(value) then Zero else positiveDifference(One, value)
+
+  private def definitelyPositive(value: SizeExpr): Boolean = value match
+    case SizeExpr.Const(v) => v > 0
+    case SizeExpr.Add(terms) => terms.exists(definitelyPositive)
+    case SizeExpr.Multiply(factors) => factors.forall(definitelyPositive)
+    case SizeExpr.Maximum(terms) => terms.exists(definitelyPositive)
+    case SizeExpr.Minimum(terms) => terms.forall(definitelyPositive)
+    case SizeExpr.Positive(inner) => definitelyPositive(inner)
+    case SizeExpr.Infinity => true
+    case _ => false
+
+  def range(value: SizeExpr, start: Int, end: Int): SizeExpr = value match
+    case SizeExpr.Const(size) => const(rangeCardinality(size, start, end))
+    case _ if start == 0 && end == 0 => value
+    case _ => SizeExpr.RangeCardinality(value, start, end)
+
+  private def rangeCardinality(size: BigInt, start: Int, end: Int): BigInt =
+    def lower(bound: Int): BigInt =
+      if bound == 0 then BigInt(0)
+      else if bound > 0 then BigInt(bound - 1)
+      else size + bound
+    def upper(bound: Int): BigInt =
+      if bound == 0 then size
+      else if start == 0 && bound > 0 then BigInt(bound)
+      else if bound > 0 then BigInt(bound - 1)
+      else size + bound
+    val lo = lower(start).max(BigInt(0)).min(size)
+    val hi = upper(end).max(BigInt(0)).min(size)
+    (hi - lo).max(BigInt(0))
+
+/** Upper and lower bounds for the cardinality of a result path set. */
+case class ResultSizeEstimate(upper: SizeExpr, lower: SizeExpr):
+  def exact: Boolean = upper == lower
+  def show: String = s"⌊result⌋=${lower.show}, ⌈result⌉=${upper.show}"
+
+object ResultSizeEstimate:
+  def exact(value: SizeExpr): ResultSizeEstimate = ResultSizeEstimate(value, value)
+  val empty: ResultSizeEstimate = exact(SizeExpr.Zero)
+  val unknown: ResultSizeEstimate = ResultSizeEstimate(SizeExpr.Infinity, SizeExpr.Zero)
+
+/** Abstract interpretation of result path-set cardinality.
+  *
+  * Bounds are symbolic in the cardinalities of free space mentions. Operations
+  * that depend on path contents rather than total cardinality (for example a
+  * general Unwrap) remain exact opaque atoms instead of inventing a relation
+  * from insufficient information.
+  */
+object ResultSpaceSize:
+  def estimate(
+    space: Space,
+    assumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
+  ): ResultSizeEstimate =
+    analyze(space, assumptions, Set.empty, Set.empty)
+
+  private def dependsOnBound(
+    space: Space,
+    boundSpaces: Set[SpaceMention],
+    boundPaths: Set[PathRef]
+  ): Boolean =
+    val (spaces, paths) = collect(space)(
+      { case Space.Mention(sm) if boundSpaces(sm) => () },
+      { case Path.Deref(pr) if boundPaths(pr) => () }
+    )
+    spaces.nonEmpty || paths.nonEmpty
+
+  private def opaque(
+    space: Space,
+    boundSpaces: Set[SpaceMention],
+    boundPaths: Set[PathRef]
+  ): ResultSizeEstimate =
+    if dependsOnBound(space, boundSpaces, boundPaths) then ResultSizeEstimate.unknown
+    else ResultSizeEstimate.exact(SizeExpr.sizeOf(space))
+
+  private def exactZero(estimate: ResultSizeEstimate): Boolean = estimate.upper == SizeExpr.Zero
+
+  private def sameSpaceInstance(left: Space, right: Space): Boolean =
+    left.asInstanceOf[AnyRef] eq right.asInstanceOf[AnyRef]
+
+  private def exactOne(estimate: ResultSizeEstimate): Boolean =
+    estimate.upper == SizeExpr.One && estimate.lower == SizeExpr.One
+
+  private def pathDefinitelyHeaded(path: Path): Boolean = path match
+    case Path.Constant(PathValue(items)) => items.nonEmpty
+    case Path.Deref(ref) => ref.lengthHint > 0
+    case Path.Concat(left, right) => pathDefinitelyHeaded(left) || pathDefinitelyHeaded(right)
+    case Path.GroundedPP(_, _) | Path.GroundedSP(_, _) => false
+
+  /** True when every possible member is headed (the empty set is vacuously so). */
+  private def headedOnly(space: Space): Boolean = space match
+    case Space.Empty => true
+    case Space.Singleton(path) => pathDefinitelyHeaded(path)
+    case Space.Literal(SpaceValue(paths)) => paths.forall(_.items.nonEmpty)
+    case Space.Union(left, right) => headedOnly(left) && headedOnly(right)
+    case Space.Intersection(left, right) => headedOnly(left) || headedOnly(right)
+    case Space.Subtraction(left, _) => headedOnly(left)
+    case Space.Restriction(left, _) => headedOnly(left)
+    case Space.Raffination(left, _) => headedOnly(left)
+    case Space.Composition(left, right) => headedOnly(left) || headedOnly(right)
+    case Space.Iteration(_, _, _, body) => headedOnly(body)
+    case Space.Fold(_, _, _, _, _, body, _) => headedOnly(body)
+    case Space.Fixpoint(initial, _, step) => headedOnly(initial) && headedOnly(step)
+    case Space.Wrap(src, prefix) => pathDefinitelyHeaded(prefix) || headedOnly(src)
+    case Space.Range(src, _, _) => headedOnly(src)
+    case Space.PrefixClosure(_) | Space.SuffixClosure(_) => true
+    case _ => false
+
+  private def matchIfEmpty(space: Space): Option[(Space, Space)] = space match
+    case Space.Iteration(
+          Space.Subtraction(
+            Space.Singleton(Path.Constant(sentinel)),
+            Space.Iteration(innerSource, innerHead, _, Space.Singleton(Path.Deref(emittedHead)))
+          ),
+          outerHead,
+          outerRest,
+          fallback
+        ) if sentinel.items.length == 1 && innerHead == emittedHead &&
+             !dependsOnBound(fallback, Set(outerRest), Set(outerHead)) =>
+      innerSource match
+        case Space.Composition(Space.Singleton(Path.Constant(prefix)), condition) if prefix == sentinel =>
+          Some(condition -> fallback)
+        case Space.Wrap(condition, Path.Constant(prefix)) if prefix == sentinel =>
+          Some(condition -> fallback)
+        case _ => None
+    case _ => None
+
+  private def analyze(
+    space: Space,
+    assumptions: Map[SpaceMention, ResultSizeEstimate],
+    boundSpaces: Set[SpaceMention],
+    boundPaths: Set[PathRef]
+  ): ResultSizeEstimate =
+    def rec(next: Space): ResultSizeEstimate = analyze(next, assumptions, boundSpaces, boundPaths)
+    space match
+      case Space.Empty => ResultSizeEstimate.empty
+      case Space.Mention(variable) =>
+        assumptions.getOrElse(variable, ResultSizeEstimate.exact(SizeExpr.sizeOf(space)))
+      case Space.Singleton(_) => ResultSizeEstimate.exact(SizeExpr.One)
+      case Space.Literal(value) => ResultSizeEstimate.exact(SizeExpr.const(value.paths.size))
+      case Space.Union(left, right) =>
+        val l = rec(left)
+        if sameSpaceInstance(left, right) then l
+        else
+          val r = rec(right)
+          if exactZero(l) then r
+          else if exactZero(r) then l
+          else ResultSizeEstimate(SizeExpr.add(l.upper, r.upper), SizeExpr.maximum(l.lower, r.lower))
+      case Space.Intersection(left, right) =>
+        val l = rec(left)
+        if sameSpaceInstance(left, right) then l
+        else
+          val r = rec(right)
+          if exactZero(l) || exactZero(r) then ResultSizeEstimate.empty
+          else ResultSizeEstimate(SizeExpr.minimum(l.upper, r.upper), SizeExpr.Zero)
+      case Space.Subtraction(left, right) =>
+        val l = rec(left)
+        if sameSpaceInstance(left, right) || exactZero(l) then ResultSizeEstimate.empty
+        else
+          val r = rec(right)
+          if exactZero(r) then l
+          else ResultSizeEstimate(l.upper, SizeExpr.positiveDifference(l.lower, r.upper))
+      case Space.Restriction(left, prefixes) =>
+        val l = rec(left)
+        val p = rec(prefixes)
+        if exactZero(l) || exactZero(p) then ResultSizeEstimate.empty
+        else ResultSizeEstimate(l.upper, SizeExpr.Zero)
+      case Space.Raffination(left, prefixes) =>
+        val l = rec(left)
+        val p = rec(prefixes)
+        if exactZero(l) then ResultSizeEstimate.empty
+        else if exactZero(p) then l
+        else ResultSizeEstimate(l.upper, SizeExpr.Zero)
+      case Space.Composition(left, right) =>
+        val l = rec(left)
+        val r = rec(right)
+        if exactZero(l) || exactZero(r) then ResultSizeEstimate.empty
+        else if exactOne(l) then r
+        else if exactOne(r) then l
+        else
+          val upper = SizeExpr.multiply(l.upper, r.upper)
+          val lower = SizeExpr.maximum(
+            SizeExpr.multiply(l.lower, SizeExpr.positive(r.lower)),
+            SizeExpr.multiply(r.lower, SizeExpr.positive(l.lower))
+          )
+          ResultSizeEstimate(upper, lower)
+      case iteration @ Space.Iteration(src, symbol, rest, body) =>
+        matchIfEmpty(iteration) match
+          case Some((condition, fallback)) =>
+            val conditionSize = rec(condition)
+            val fallbackSize = rec(fallback)
+            if conditionSize.exact && fallbackSize.exact then
+              ResultSizeEstimate.exact(SizeExpr.multiply(SizeExpr.isZero(conditionSize.upper), fallbackSize.upper))
+            else
+              ResultSizeEstimate(
+                SizeExpr.multiply(SizeExpr.isZero(conditionSize.lower), fallbackSize.upper),
+                SizeExpr.multiply(SizeExpr.isZero(conditionSize.upper), fallbackSize.lower)
+              )
+          case None =>
+            val source = rec(src)
+            if exactZero(source) then ResultSizeEstimate.empty
+            else
+              val bodyAssumptions = assumptions.updated(rest, ResultSizeEstimate(source.upper, SizeExpr.One))
+              val branch = analyze(body, bodyAssumptions, boundSpaces + rest, boundPaths + symbol)
+              val upper = SizeExpr.multiply(source.upper, branch.upper)
+              val lower =
+                if headedOnly(src) then SizeExpr.multiply(SizeExpr.positive(source.lower), branch.lower)
+                else SizeExpr.Zero
+              ResultSizeEstimate(upper, lower)
+      case Space.Fold(src, _, acc, symbol, rest, body, _) =>
+        val source = rec(src)
+        if exactZero(source) then ResultSizeEstimate.empty
+        else
+          val bodyAssumptions = assumptions.updated(rest, ResultSizeEstimate(source.upper, SizeExpr.One))
+          val branch = analyze(body, bodyAssumptions, boundSpaces + rest, boundPaths ++ Set(acc, symbol))
+          ResultSizeEstimate(
+            SizeExpr.multiply(source.upper, branch.upper),
+            if headedOnly(src) then SizeExpr.multiply(SizeExpr.positive(source.lower), branch.lower) else SizeExpr.Zero
+          )
+      case Space.Fixpoint(initial, _, _) =>
+        val base = rec(initial)
+        ResultSizeEstimate(SizeExpr.Infinity, base.lower)
+      case Space.Wrap(src, _) => rec(src)
+      case Space.Unwrap(_, _) => opaque(space, boundSpaces, boundPaths)
+      case Space.TailsUnion(src) =>
+        val source = rec(src)
+        if exactZero(source) then ResultSizeEstimate.empty
+        else ResultSizeEstimate(
+          source.upper,
+          if headedOnly(src) then SizeExpr.positive(source.lower) else SizeExpr.Zero
+        )
+      case Space.TailsIntersection(src) =>
+        val source = rec(src)
+        if exactZero(source) then ResultSizeEstimate.empty
+        else ResultSizeEstimate(source.upper, SizeExpr.Zero)
+      case Space.PrefixClosure(src) =>
+        val source = rec(src)
+        if exactZero(source) then ResultSizeEstimate.empty
+        else ResultSizeEstimate(
+          SizeExpr.Infinity,
+          if headedOnly(src) then SizeExpr.positive(source.lower) else SizeExpr.Zero
+        )
+      case Space.SuffixClosure(src) =>
+        val source = rec(src)
+        if exactZero(source) then ResultSizeEstimate.empty
+        else ResultSizeEstimate(
+          SizeExpr.Infinity,
+          if headedOnly(src) then SizeExpr.positive(source.lower) else SizeExpr.Zero
+        )
+      case Space.TailsClosure(src) =>
+        val source = rec(src)
+        if exactZero(source) then ResultSizeEstimate.empty
+        else ResultSizeEstimate(SizeExpr.Infinity, SizeExpr.positive(source.lower))
+      case Space.Range(src, start, end) =>
+        val source = rec(src)
+        if exactZero(source) then ResultSizeEstimate.empty
+        else if source.exact then ResultSizeEstimate.exact(SizeExpr.range(source.upper, start, end))
+        else ResultSizeEstimate(source.upper, SizeExpr.Zero)
+      case Space.Call(_, _, _) | Space.GroundedPS(_, _) | Space.GroundedSS(_, _) =>
+        opaque(space, boundSpaces, boundPaths)
+
+/** Opt-in corpus audit for [[ResultSpaceSize]]. Set
+  * `morkl.resultSizeAudit.path` to audit every reference-evaluator result and
+  * write a Markdown summary at JVM shutdown. Direct callers can use
+  * [[observeExplicit]] independently of the system property.
+  */
+object ResultSpaceSizeAudit:
+  import java.nio.charset.StandardCharsets
+  import java.nio.file.{Files, Paths}
+  import scala.collection.mutable
+
+  private case class Worst(actual: BigInt, bound: String, gap: Option[BigInt], expression: String, estimate: String)
+
+  private val active = ThreadLocal.withInitial(() => false)
+  private val outputPath = Option(System.getProperty("morkl.resultSizeAudit.path")).filter(_.nonEmpty)
+  private var auditLabel = Option(System.getProperty("morkl.resultSizeAudit.label")).getOrElse("result-space size audit")
+  private var observations = 0L
+  private var finiteUpper = 0L
+  private var unboundedUpper = 0L
+  private var unknownLower = 0L
+  private var exactUpper = 0L
+  private var exactLower = 0L
+  private var upperGapSum = BigInt(0)
+  private var lowerGapSum = BigInt(0)
+  private val upperGapCounts = mutable.LinkedHashMap.from(
+    Vector("0", "1", "2-3", "4-7", "8-15", "16-31", "32-63", "64-255", "256+").map(_ -> 0L)
+  )
+  private val lowerGapCounts = mutable.LinkedHashMap.from(upperGapCounts.keysIterator.map(_ -> 0L))
+  private val upperRatioCounts = mutable.LinkedHashMap.from(
+    Vector("exact", "≤1.25x", "≤1.5x", "≤2x", "≤4x", "≤10x", ">10x", "zero→positive").map(_ -> 0L)
+  )
+  private val lowerCoverageCounts = mutable.LinkedHashMap.from(
+    Vector("exact", "≥75%", "≥50%", "≥25%", ">0%", "0%").map(_ -> 0L)
+  )
+  private val worstFiniteUpper = mutable.HashMap.empty[String, Worst]
+  private val worstUnboundedUpper = mutable.LinkedHashMap.empty[String, Worst]
+  private val worstLower = mutable.HashMap.empty[String, Worst]
+
+  outputPath.foreach { path =>
+    Runtime.getRuntime.addShutdownHook(new Thread(() =>
+      val target = Paths.get(path)
+      Option(target.getParent).foreach(Files.createDirectories(_))
+      Files.writeString(target, render, StandardCharsets.UTF_8)
+      ()
+    ))
+  }
+
+  def enabled: Boolean = outputPath.nonEmpty
+
+  private def short(value: String, limit: Int = 480): String =
+    val oneLine = value.replace('\n', ' ')
+    if oneLine.length <= limit then oneLine else oneLine.take(limit - 1) + "…"
+
+  private def gapBucket(gap: BigInt): String =
+    if gap == 0 then "0"
+    else if gap == 1 then "1"
+    else if gap <= 3 then "2-3"
+    else if gap <= 7 then "4-7"
+    else if gap <= 15 then "8-15"
+    else if gap <= 31 then "16-31"
+    else if gap <= 63 then "32-63"
+    else if gap <= 255 then "64-255"
+    else "256+"
+
+  private def upperRatioBucket(actual: BigInt, upper: BigInt): String =
+    if upper == actual then "exact"
+    else if actual == 0 then "zero→positive"
+    else
+      val ratio = BigDecimal(upper) / BigDecimal(actual)
+      if ratio <= BigDecimal("1.25") then "≤1.25x"
+      else if ratio <= BigDecimal("1.5") then "≤1.5x"
+      else if ratio <= BigDecimal(2) then "≤2x"
+      else if ratio <= BigDecimal(4) then "≤4x"
+      else if ratio <= BigDecimal(10) then "≤10x"
+      else ">10x"
+
+  private def lowerCoverageBucket(actual: BigInt, lower: BigInt): String =
+    if lower == actual then "exact"
+    else if lower == 0 then "0%"
+    else
+      val coverage = BigDecimal(lower) / BigDecimal(actual)
+      if coverage >= BigDecimal("0.75") then "≥75%"
+      else if coverage >= BigDecimal("0.5") then "≥50%"
+      else if coverage >= BigDecimal("0.25") then "≥25%"
+      else ">0%"
+
+  private def remember(target: mutable.Map[String, Worst], value: Worst): Unit =
+    val key = value.expression + "\u0000" + value.estimate
+    target.get(key) match
+      case Some(previous) if previous.gap.getOrElse(BigInt(-1)) >= value.gap.getOrElse(BigInt(-1)) => ()
+      case _ => target(key) = value
+
+  private def record(space: Space, actual: BigInt, estimate: ResultSizeEstimate, lower: Option[BigInt], upper: Option[BigInt]): Unit = synchronized {
+    observations += 1
+    val expression = short(space.show)
+    val shownEstimate = short(estimate.show)
+    lower match
+      case Some(value) =>
+        if value > actual then
+          throw AssertionError(s"result-size lower bound $value exceeds actual $actual for ${space.show}; ${estimate.show}")
+        val gap = actual - value
+        if gap == 0 then exactLower += 1
+        lowerGapSum += gap
+        lowerGapCounts(gapBucket(gap)) += 1
+        lowerCoverageCounts(lowerCoverageBucket(actual, value)) += 1
+        remember(worstLower, Worst(actual, value.toString, Some(gap), expression, shownEstimate))
+      case None => unknownLower += 1
+    upper match
+      case Some(value) =>
+        finiteUpper += 1
+        if value < actual then
+          throw AssertionError(s"result-size upper bound $value is below actual $actual for ${space.show}; ${estimate.show}")
+        val gap = value - actual
+        if gap == 0 then exactUpper += 1
+        upperGapSum += gap
+        upperGapCounts(gapBucket(gap)) += 1
+        upperRatioCounts(upperRatioBucket(actual, value)) += 1
+        remember(worstFiniteUpper, Worst(actual, value.toString, Some(gap), expression, shownEstimate))
+      case None =>
+        unboundedUpper += 1
+        val value = Worst(actual, "∞", None, expression, shownEstimate)
+        worstUnboundedUpper.getOrElseUpdate(expression + "\u0000" + shownEstimate, value)
+  }
+
+  def observe(
+    space: Space,
+    result: SpaceValue
+  )(using pc: PathContext, sc: SpaceContext, rc: PartialFunction[RoutinePtr, Routine]): Unit =
+    if enabled then observeExplicit(space, result)
+
+  def observeExplicit(
+    space: Space,
+    result: SpaceValue
+  )(using pc: PathContext, sc: SpaceContext, rc: PartialFunction[RoutinePtr, Routine]): Unit =
+    if !active.get() then
+      active.set(true)
+      try
+        val estimate = ResultSpaceSize.estimate(space)
+        val lower = estimate.lower.evaluate
+        val upper = estimate.upper.evaluate
+        record(space, BigInt(result.paths.size), estimate, lower, upper)
+      finally active.set(false)
+
+  def reset(label: String): Unit = synchronized {
+    auditLabel = label
+    observations = 0L
+    finiteUpper = 0L
+    unboundedUpper = 0L
+    unknownLower = 0L
+    exactUpper = 0L
+    exactLower = 0L
+    upperGapSum = BigInt(0)
+    lowerGapSum = BigInt(0)
+    upperGapCounts.keys.foreach(upperGapCounts(_) = 0L)
+    lowerGapCounts.keys.foreach(lowerGapCounts(_) = 0L)
+    upperRatioCounts.keys.foreach(upperRatioCounts(_) = 0L)
+    lowerCoverageCounts.keys.foreach(lowerCoverageCounts(_) = 0L)
+    worstFiniteUpper.clear()
+    worstUnboundedUpper.clear()
+    worstLower.clear()
+  }
+
+  private def percent(count: Long, total: Long): String =
+    if total == 0 then "0.00%" else f"${count.toDouble * 100.0 / total}%.2f%%"
+
+  private def mean(sum: BigInt, count: Long): String =
+    if count == 0 then "n/a" else (BigDecimal(sum) / BigDecimal(count)).setScale(3, BigDecimal.RoundingMode.HALF_UP).toString
+
+  private def distribution(title: String, values: collection.Map[String, Long], total: Long): String =
+    val rows = values.iterator.map { (bucket, count) => s"| $bucket | $count | ${percent(count, total)} |" }.mkString("\n")
+    s"## $title\n\n| Bucket | Count | Share |\n|---|---:|---:|\n$rows\n"
+
+  private def worstTable(title: String, values: Iterable[Worst], unbounded: Boolean = false): String =
+    val ordered =
+      if unbounded then values.toVector.sortBy(v => -v.actual).take(10)
+      else values.toVector.sortBy(v => (v.gap.getOrElse(BigInt(0)), v.actual)).reverse.take(10)
+    val rows = ordered.map { value =>
+      val gap = value.gap.fold("∞")(_.toString)
+      s"| ${value.actual} | ${value.bound} | $gap | `${value.expression.replace("|", "\\|")}` | `${value.estimate.replace("|", "\\|")}` |"
+    }.mkString("\n")
+    s"## $title\n\n| Actual | Bound | Additive gap | Expression | Estimate |\n|---:|---:|---:|---|---|\n$rows\n"
+
+  def render: String = synchronized {
+    val sound = unknownLower == 0
+    s"""# $auditLabel
+       |
+       |- Observations: $observations
+       |- Sound: ${if sound then "yes" else "not fully checkable"} (all finite bounds contained the concrete result)
+       |- Finite upper bounds: $finiteUpper (${percent(finiteUpper, observations)})
+       |- Unbounded upper bounds: $unboundedUpper (${percent(unboundedUpper, observations)})
+       |- Exact finite upper bounds: $exactUpper (${percent(exactUpper, finiteUpper)})
+       |- Exact lower bounds: $exactLower (${percent(exactLower, observations - unknownLower)})
+       |- Unknown lower bounds: $unknownLower
+       |- Mean finite upper overestimate: ${mean(upperGapSum, finiteUpper)} paths
+       |- Mean lower underestimate: ${mean(lowerGapSum, observations - unknownLower)} paths
+       |
+       |${distribution("Finite upper-bound additive overestimate", upperGapCounts, finiteUpper)}
+       |${distribution("Finite upper-bound multiplicative overestimate", upperRatioCounts, finiteUpper)}
+       |${distribution("Lower-bound additive underestimate", lowerGapCounts, observations - unknownLower)}
+       |${distribution("Lower-bound coverage of the actual result", lowerCoverageCounts, observations - unknownLower)}
+       |${worstTable("Least-tight unbounded upper bounds", worstUnboundedUpper.values, unbounded = true)}
+       |${worstTable("Least-tight finite upper bounds", worstFiniteUpper.values)}
+       |${worstTable("Least-tight lower bounds", worstLower.values)}
+       |""".stripMargin
+  }

@@ -483,7 +483,9 @@ def eval(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceC
       if hi <= lo then Set.empty
       else if lo == 0 && hi == values.size then values
       else values.toVector.sorted.slice(lo, hi).toSet
-  SpaceValue(recs(s))
+  val result = SpaceValue(recs(s))
+  ResultSpaceSizeAudit.observe(s, result)(using pc, sc, rc)
+  result
 
 case class Node[R](operation: String, constant: String, kind: "path" | "space", inputs: Vector[R]):
   def show: String = s"$operation[${constant}](${inputs.mkString(", ")}): $kind"
@@ -2360,6 +2362,10 @@ case class SupercompileReport(
     f"${name.s}: ${before.totalNodes} -> ${after.totalNodes} AST nodes, ${steps.size} pass changes, $convergence$graph$fold, compile $compileMs%.3f ms / budget ${maxCompileMillis} ms"
 
 case class SupercompiledRoutine(routine: Routine, report: SupercompileReport, graph: Option[RecursiveOpGraph]):
+  def resultSize(
+    assumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
+  ): ResultSizeEstimate = ResultSpaceSize.estimate(routine.body, assumptions)
+
   def semanticEquals(original: Routine)(using pc: PathContext = PathContext.emptyMap,
                                         sc: SpaceContext = SpaceContextMap(Map.empty),
                                         rc: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty): Boolean =
@@ -2387,6 +2393,11 @@ object Supercompiler:
     "algebraic-cleanup" -> Lower.AlgebraicIdentities,
     "literal-cleanup" -> Lower.LiteralSpaceOps
   )
+
+  def resultSize(
+    s: Space,
+    assumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
+  ): ResultSizeEstimate = ResultSpaceSize.estimate(s, assumptions)
 
   def stats(s: Space): SpaceStats =
     def bumpSpace(x: SpaceStats, depth: Int): SpaceStats = x.copy(spaceNodes = x.spaceNodes + 1, depth = x.depth.max(depth))

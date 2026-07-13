@@ -5339,3 +5339,35 @@ laws.diff integration final verification:
 - Independent-product benchmark (`original -> optimized`, compiled execT): 32 heads 2.0195 -> 0.2517 ms (8.02x), 64 heads 1.0749 -> 0.0836 ms (12.86x), 128 heads 1.9506 -> 0.1359 ms (14.35x), 256 heads 9.0610 -> 0.2098 ms (43.19x); compiled execT was 0.2806, 0.1484, 0.2181, and 0.3829 ms.
 - Ran the non-long report entry points: trie, zipper algebra, zipper range-tail micro, zipper large, direct Trie asymptotic, and independent product. Report files were refreshed. Versus the prior checked reports, zipper-algebra geometric means were 0.81x evalTrie and 0.80x evalZ (current slower), while an immediate identical rerun improved 1.13x and 1.09x, demonstrating substantial timing noise in operations untouched by these source laws. Large-report evalTrie was 1.25x faster and evalZ 0.89x; the range-tail current implementation was 3.53x faster. The controlled laws A/B and asymptotic run are the meaningful regression checks.
 - `git diff --check` passes.
+
+2026-07-13T21:51:08+01:00
+
+Abstract result-space size analysis started:
+- Added a symbolic natural-number domain for constants, free-space cardinalities, sums, products, extrema, positive differences, non-emptiness indicators, ranges, and unbounded upper bounds.
+- Added upper/lower cardinality interpretation for every `Space` constructor, using stronger path-set laws where concatenation by a singleton is injective and avoiding the old unsound general-product lower bound.
+- Recognized the singleton-sentinel `ifEmpty` iteration exactly, so the control-flow example reduces to `|s| + relu(1 - |s|) * |g|`.
+- Added focused symbolic assertions and exhaustive concrete soundness checks over small path sets; compilation and verification follow below.
+
+2026-07-13T22:35:00+01:00
+
+Abstract result-space size analysis final verification:
+- Exposed the analysis as `ResultSpaceSize.estimate`, `Supercompiler.resultSize`, and `resultSize` on both compiled-result wrappers. Bounds can remain symbolic in free-space cardinalities or be evaluated under concrete path/space/routine contexts.
+- Implemented rules for every `Space` constructor. General concatenation uses the sound path-set lower bound `max(lower(l) * positive(lower(r)), lower(r) * positive(lower(l)))`; concatenation with either exact singleton is cardinality-preserving and exact.
+- The singleton-sentinel empty-control form is recognized exactly. Consequently `s \/ ifEmpty(s, g)` simplifies to the exact size expression `|s| + relu(1 - |s|) * |g|`; substituting a definitely nonempty singleton union removes the guarded fallback term.
+- Focused tests pass. The exhaustive soundness matrix checks 23 expression families in all 256 assignments of two variables over a four-path universe (5,888 concrete denotations), including epsilon, fold, fixpoint, all closures, grounded operations, and range. It caught and fixed the epsilon-only prefix/suffix-closure lower-bound corner.
+- The complete package-mirrored MUnit suite passes after the final correction, including every Trie, zipper, graph executor, process-supercompiler, reference, and independent egg-program test; the same four pre-existing tests remain ignored.
+- Abstract-analysis asymptotic medians on balanced union ASTs were 0.1180, 0.2320, 0.4645, 0.9258, 2.6923, and 3.8179 ms for 1,024 through 32,768 leaves. A 32x input increase took 32.4x the time, preserving linear scaling. This analysis is additive and does not alter Trie execution; the previously completed non-long benchmark A/B remains the executor-performance comparison.
+- `git diff --check` passes.
+
+2026-07-13T23:22:00+01:00
+
+Full-suite and random-corpus result-size audit:
+- Added an opt-in reference-evaluator audit (`morkl.resultSizeAudit.path`) which evaluates both symbolic bounds under the same path, space, and routine contexts as each concrete result, fails immediately on a soundness violation, and writes aggregate tightness histograms plus worst examples. Normal execution only performs the disabled property check.
+- Added `resultSpaceSizeRandomAudit`, using the repository's canonical `SpaceFuzzerCorpus.generate` configuration: 1,000 programs, seed 20260708, maximum depth 5, and maximum accepted result size 400.
+- The random corpus was sound for all 1,000 programs. Finite uppers: 963 (96.30%), of which 301 (31.26%) were exact; 37 (3.70%) were unbounded. Lowers were exact for 205 (20.50%) and unknown for none. Mean finite upper gap was 23,106,409.808 paths (strongly skewed); mean lower gap was 3.904.
+- Random worst cases: largest unbounded-upper result 58; largest finite upper was 20,661,046,784 for an actual result of 3; next was 1,549,681,956 for actual 1. The largest lower deficit was actual 256 versus lower 15; next were 99 versus 0 and 84 versus 0.
+- Reran the complete package-mirrored MUnit suite with the audit enabled. All tests passed, including the independent egg programs; the same four pre-existing tests remained ignored. The audit recorded 467,359 reference-evaluation observations with no finite-bound violations and no unknown lower bounds.
+- Full-suite finite uppers: 448,444 (95.95%), with 338,359 exact (75.45%); 18,915 (4.05%) were unbounded. Lowers were exact for 215,645 observations (46.14%). Mean lower deficit was 14.020. The finite upper mean was dominated by nested permutation/n-queens products and is not representative; full bucket distributions are in `RESULT_SPACE_SIZE_AUDIT.md`.
+- Full-suite worst cases: largest unbounded-upper result 339; largest finite upper was 2,316,673,043,953,008,053,236,882,700,427,523,658,046,124,800 for actual 28,512; largest lower deficit was actual 178,098 versus lower 0. These are deeply nested iteration/permutation programs where independent upper products compound and lower collision guarantees are unavailable.
+- Added `RESULT_SPACE_SIZE_AUDIT.md` with both complete aggregate distributions and the least-tight cases. The clearest tightening opportunities are correlated iteration groups, structurally repeated/idempotent operands, and iteration bodies with heavily colliding outputs.
+- `git diff --check` passes after the audit hook, runner, and report additions.
