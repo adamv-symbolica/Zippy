@@ -689,10 +689,10 @@ object TrieBenchmarks:
 
 @main def trieBenchmarkReport(): Unit =
   val report = TrieBenchmarks.markdown()
-  Files.writeString(Paths.get("TRIE_BENCHMARKS.md"), report + "\n")
+  Files.writeString(Paths.get("docs/TRIE_BENCHMARKS.md"), report + "\n")
   println(report)
 
 @main def constantFoldExecutorReport(): Unit =
   val report = TrieBenchmarks.constantFoldExecutorMarkdown()
-  Files.writeString(Paths.get("CONSTANT_FOLD_EXECUTOR_BENCHMARKS.md"), report + "\n")
+  Files.writeString(Paths.get("docs/CONSTANT_FOLD_EXECUTOR_BENCHMARKS.md"), report + "\n")
   println(report)

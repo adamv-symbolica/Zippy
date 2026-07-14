@@ -10,9 +10,9 @@ The pipeline is intentionally executable and counterexample-oriented.  Scala is
 the source of truth for generated artifacts:
 
 - `morkl.ProofArtifactGeneratorMain` generates TPTP files under
-  `proofs/vampire/generated/`.
-- The same Scala generator writes SMT-LIB files under `proofs/generated/`.
-- The Scala generator also writes `proofs/proof_manifest.tsv`, which is the
+  `../../proofs/vampire/generated/`.
+- The same Scala generator writes SMT-LIB files under `../../proofs/generated/`.
+- The Scala generator also writes `../../proofs/proof_manifest.tsv`, which is the
   manifest consumed by the Python runner.
 - Before running external solvers, the Python runner validates proof-shape
   invariants that must hold even in manifest-only runs.  In particular,
@@ -79,7 +79,7 @@ the source of truth for generated artifacts:
 - It then runs `egglog` over `zipper-descend.egg`, `zipper.egg`, the generated
   `zipper-egg-tests/*.egg` artifacts, and the generated cornerstone egg
   certificates, plus the generated arbitrary-backend egg certificate.
-- It writes the latest summary to `proofs/PROOF_REPORT.md`.
+- It writes the latest summary to `PROOF_REPORT.md`.
 
 Current scope:
 

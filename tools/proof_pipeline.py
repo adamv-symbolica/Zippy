@@ -3530,7 +3530,7 @@ def main(argv: Sequence[str]) -> int:
     parser.add_argument("--open-out-dir", default="proofs/open", help="where Scala writes open-program proof artifacts")
     parser.add_argument("--open-manifest", default="proofs/open/proof_manifest.tsv", help="Scala-generated open-program proof manifest")
     parser.add_argument("--operational-manifest", default="proofs/operational_rule_manifest.tsv", help="generated zipper-descend operational rule proof-coverage manifest")
-    parser.add_argument("--report", default="proofs/PROOF_REPORT.md", help="markdown report path")
+    parser.add_argument("--report", default="docs/proofs/PROOF_REPORT.md", help="markdown report path")
     parser.add_argument("--vampire", default="/Applications/Vampire", help="path to the Vampire executable")
     parser.add_argument("--vampire-time-limit", type=int, default=300, help="per-obligation Vampire time limit in seconds")
     parser.add_argument("--z3-time-limit", type=int, default=300, help="per-obligation Z3 time limit in seconds")

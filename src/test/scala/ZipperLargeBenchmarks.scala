@@ -173,5 +173,5 @@ object ZipperLargeBenchmarks:
 
 @main def zipperLargeBenchmarkReport(): Unit =
   val report = ZipperLargeBenchmarks.markdown()
-  Files.writeString(Paths.get("ZIPPER_LARGE_BENCHMARKS.md"), report + "\n")
+  Files.writeString(Paths.get("docs/ZIPPER_LARGE_BENCHMARKS.md"), report + "\n")
   println(report)

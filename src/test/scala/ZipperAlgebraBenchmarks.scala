@@ -325,10 +325,10 @@ object ZipperAlgebraBenchmarks:
 
 @main def zipperAlgebraBenchmarkReport(): Unit =
   val report = ZipperAlgebraBenchmarks.markdown()
-  Files.writeString(Paths.get("ZIPPER_ALGEBRA_BENCHMARKS.md"), report + "\n")
+  Files.writeString(Paths.get("docs/ZIPPER_ALGEBRA_BENCHMARKS.md"), report + "\n")
   println(report)
 
 @main def zipperIterRangeTailMicroReport(): Unit =
   val report = ZipperAlgebraBenchmarks.iterRangeTailMicroMarkdown()
-  Files.writeString(Paths.get("ZIPPER_ITER_RANGE_MICRO.md"), report + "\n")
+  Files.writeString(Paths.get("docs/ZIPPER_ITER_RANGE_MICRO.md"), report + "\n")
   println(report)

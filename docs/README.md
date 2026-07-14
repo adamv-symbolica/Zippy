@@ -35,7 +35,7 @@ See [Proof Status](#proof-status) and [`fallbacks.md`](fallbacks.md).
 | `src/main/scala/MORKL.scala` | language syntax, reference evaluator, operation graphs, optimization, and `execT` |
 | `src/main/scala/TrieSpace.scala` | interned trie representation and native algebra |
 | `src/main/scala/ZipperSpace.scala` | virtual zipper operators, traversal, context, and `execZ` |
-| `src/main/scala/SC.scala` | positive supercompiler and residualization |
+| `src/main/scala/Supercompiler.scala` | positive supercompiler and residualization |
 | `src/main/scala/Fuzzer.scala` | reusable distribution and corpus machinery |
 | `src/main/scala/ProofArtifacts.scala` | generated bounded and unbounded proof obligations |
 | `src/test/scala/` | unit, differential, corpus, proof-generation, and benchmark suites |

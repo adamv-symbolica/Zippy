@@ -63,21 +63,21 @@ make the same shape true only after proving the relevant payload lattice laws.
 
 ## What Is Here
 
-- `src/main/scala/morkl/valued/ValuedTrieSpace.scala`
+- `../../valued/src/main/scala/morkl/valued/ValuedTrieSpace.scala`
   - `MergeLattice[V]`
   - `ValuedTrieSpace[V]` over `IntMap` children and optional terminal payloads
   - native union/intersection/diff/product/restriction/raffination/wrap/unwrap,
     tails, head, and closure operations
   - a direct `ValuedSpace[V]` expression evaluator
   - a concrete focus/context zipper with down/up/sibling/edit operations
-- `src/test/scala/morkl/valued/ValuedTrieSpaceTest.scala`
+- `../../valued/src/test/scala/morkl/valued/ValuedTrieSpaceTest.scala`
   - oracle tests for lattice merge behavior
   - structural operation tests
   - direct evaluator dispatch tests
   - focus/context movement and edit tests
-- `proofs/vampire/generated/valued_*.p`
+- `../../valued/proofs/vampire/generated/valued_*.p`
   - historical TPTP artifacts for valued membership and backend equivalence
-- `proofs/generated/egg/valued_backend_rewrite_equivalence.egg`
+- `../../valued/proofs/generated/egg/valued_backend_rewrite_equivalence.egg`
   - historical egg normalization certificate for valued backend surfaces
 - `ValuedLearnings.md`
   - lessons from this side track that should strengthen the unit/path-set track
