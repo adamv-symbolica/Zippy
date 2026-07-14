@@ -17,26 +17,26 @@ class ResultSpaceSizeTest extends FunSuite:
     val r = SizeExpr.sizeOf(right)
 
     assertEquals(
-      ResultSpaceSize.estimate(left \/ right),
+      ResultSpaceSize.estimateBaseline(left \/ right),
       ResultSizeEstimate(SizeExpr.add(l, r), SizeExpr.maximum(l, r))
     )
     assertEquals(
-      ResultSpaceSize.estimate(left /\ right),
+      ResultSpaceSize.estimateBaseline(left /\ right),
       ResultSizeEstimate(SizeExpr.minimum(l, r), SizeExpr.Zero)
     )
     assertEquals(
-      ResultSpaceSize.estimate(left \ right),
+      ResultSpaceSize.estimateBaseline(left \ right),
       ResultSizeEstimate(l, SizeExpr.positiveDifference(l, r))
     )
     assertEquals(
-      ResultSpaceSize.estimate(left <| right),
+      ResultSpaceSize.estimateBaseline(left <| right),
       ResultSizeEstimate(l, SizeExpr.Zero)
     )
-    assertEquals(ResultSpaceSize.estimate(left \/ left), ResultSizeEstimate.exact(l))
-    assertEquals(ResultSpaceSize.estimate(left /\ left), ResultSizeEstimate.exact(l))
-    assertEquals(ResultSpaceSize.estimate(left \ left), ResultSizeEstimate.empty)
+    assertEquals(ResultSpaceSize.estimateBaseline(left \/ left), ResultSizeEstimate.exact(l))
+    assertEquals(ResultSpaceSize.estimateBaseline(left /\ left), ResultSizeEstimate.exact(l))
+    assertEquals(ResultSpaceSize.estimateBaseline(left \ left), ResultSizeEstimate.empty)
 
-    val product = ResultSpaceSize.estimate(left x right)
+    val product = ResultSpaceSize.estimateBaseline(left x right)
     assertEquals(product.upper, SizeExpr.multiply(l, r))
     assertEquals(
       product.lower,
@@ -47,25 +47,29 @@ class ResultSpaceSizeTest extends FunSuite:
     )
 
     // Concatenation by one fixed path is injective and therefore exact.
-    assertEquals(ResultSpaceSize.estimate("prefix" x left), ResultSizeEstimate.exact(l))
+    assertEquals(ResultSpaceSize.estimateBaseline("prefix" x left), ResultSizeEstimate.exact(l))
     val suffix = Space.Singleton(Path.Constant(Syntax.parse("suffix")))
-    assertEquals(ResultSpaceSize.estimate(left x suffix), ResultSizeEstimate.exact(l))
+    assertEquals(ResultSpaceSize.estimateBaseline(left x suffix), ResultSizeEstimate.exact(l))
 
     val prefix = Path.Constant(Syntax.parse("a"))
     val unwrapped = Space.Unwrap(left, prefix)
     assertEquals(
-      ResultSpaceSize.estimate(unwrapped),
+      ResultSpaceSize.estimateBaseline(unwrapped),
       ResultSizeEstimate.exact(SizeExpr.sizeOf(unwrapped))
     )
     assertEquals(
-      ResultSpaceSize.estimate(Space.TailsUnion(left)),
+      ResultSpaceSize.estimateBaseline(Space.TailsUnion(left)),
       ResultSizeEstimate(l, SizeExpr.Zero)
     )
     assertEquals(
-      ResultSpaceSize.estimate(Space.Range(left, 0, 2)),
+      ResultSpaceSize.estimateBaseline(Space.Range(left, 0, 2)),
       ResultSizeEstimate.exact(SizeExpr.range(l, 0, 2))
     )
     assertEquals(Supercompiler.resultSize(left \/ right), ResultSpaceSize.estimate(left \/ right))
+    assertEquals(
+      Supercompiler.optimizedResultSize(left \/ Space.Empty),
+      ResultSpaceSize.estimate(left)
+    )
 
     val opaqueCall = Space.Call(RoutinePtr("unknown"), Vector.empty, Vector(left))
     assertEquals(
@@ -115,6 +119,183 @@ class ResultSpaceSizeTest extends FunSuite:
     val definitelyNonEmpty = Space.Singleton(Path.Constant(Syntax.parse("x"))) \/ residual
     val nonEmptyControl = subs(control)(spost = { case Space.Mention(sm) if sm == source.variable => definitelyNonEmpty })
     assertEquals(ResultSpaceSize.estimate(nonEmptyControl), ResultSpaceSize.estimate(definitelyNonEmpty))
+  }
+
+  test("Z3 refinement preserves correlations and is pointwise tighter than baseline") {
+    val x = S"x"
+    val y = S"y"
+    val unionAbsorption = x \/ (x /\ y)
+    val intersectionAbsorption = x /\ (x \/ y)
+    val repeatedIntersection = x /\ (x /\ y)
+    val differenceCorrelation = (x \/ y) \ x
+    val expressions = Vector(unionAbsorption, intersectionAbsorption, repeatedIntersection, differenceCorrelation)
+    val universe = Vector(PathValue(Nil), Syntax.parse("a"), Syntax.parse("b"), Syntax.parse("a.b"))
+
+    for
+      leftMask <- 0 until (1 << universe.size)
+      rightMask <- 0 until (1 << universe.size)
+    do
+      val left = SpaceValue(universe.indices.collect {
+        case index if (leftMask & (1 << index)) != 0 => universe(index)
+      }.toSet)
+      val right = SpaceValue(universe.indices.collect {
+        case index if (rightMask & (1 << index)) != 0 => universe(index)
+      }.toSet)
+      val context = SpaceContextMap(Map(x.variable -> left, y.variable -> right))
+
+      expressions.foreach { expression =>
+        val baseline = ResultSpaceSize.estimateBaseline(expression)
+        val refined = ResultSpaceSize.estimate(expression)
+        val baselineLower = evaluated(baseline.lower, context)
+        val refinedLower = evaluated(refined.lower, context)
+        val baselineUpper = baseline.upper.evaluate(using emptyPathContext, context, emptyRoutines)
+        val refinedUpper = refined.upper.evaluate(using emptyPathContext, context, emptyRoutines)
+        val actual = BigInt(eval(expression)(using emptyPathContext, context, emptyRoutines).paths.size)
+
+        assert(refinedLower >= baselineLower,
+          s"weaker refined lower for ${expression.show}: baseline=$baselineLower refined=$refinedLower")
+        assert(refinedLower <= actual,
+          s"unsound refined lower for ${expression.show}: refined=$refinedLower actual=$actual")
+        (baselineUpper, refinedUpper) match
+          case (Some(base), Some(value)) => assert(value <= base,
+            s"weaker refined upper for ${expression.show}: baseline=$base refined=$value")
+          case (Some(_), None) => fail(s"refinement lost a finite baseline upper for ${expression.show}")
+          case _ => ()
+        refinedUpper.foreach(value => assert(actual <= value,
+          s"unsound refined upper for ${expression.show}: actual=$actual refined=$value"))
+      }
+
+      val unionSize = ResultSpaceSize.estimate(unionAbsorption)
+      assertEquals(evaluated(unionSize.lower, context), BigInt(left.paths.size))
+      assertEquals(unionSize.upper.evaluate(using emptyPathContext, context, emptyRoutines), Some(BigInt(left.paths.size)))
+
+      val intersectionSize = ResultSpaceSize.estimate(intersectionAbsorption)
+      assertEquals(evaluated(intersectionSize.lower, context), BigInt(left.paths.size))
+      assertEquals(intersectionSize.upper.evaluate(using emptyPathContext, context, emptyRoutines), Some(BigInt(left.paths.size)))
+
+      val repeatedSize = ResultSpaceSize.estimate(repeatedIntersection)
+      val innerSize = ResultSpaceSize.estimate(x /\ y)
+      assertEquals(evaluated(repeatedSize.lower, context), evaluated(innerSize.lower, context))
+      assertEquals(
+        repeatedSize.upper.evaluate(using emptyPathContext, context, emptyRoutines),
+        innerSize.upper.evaluate(using emptyPathContext, context, emptyRoutines)
+      )
+
+      val differenceSize = ResultSpaceSize.estimate(differenceCorrelation)
+      assert(differenceSize.upper.evaluate(using emptyPathContext, context, emptyRoutines).forall(_ <= right.paths.size))
+  }
+
+  test("mixed operation laws refine former opaque graph boundaries") {
+    val source = S"source"
+    val body = S"body"
+    val head = PathRef("law_head").known(1)
+    val rest = SpaceMention("law_rest")
+    val independentIteration = Space.Iteration(source, head, rest, body)
+    val sourceValue = SpaceValue(Set(PathValue(Nil), Syntax.parse("a.x"), Syntax.parse("b.y"), Syntax.parse("c.z")))
+    val bodyValue = SpaceValue(Set(Syntax.parse("p"), Syntax.parse("q"), Syntax.parse("r")))
+    val context = SpaceContextMap(Map(source.variable -> sourceValue, body.variable -> bodyValue))
+
+    val iterationBaseline = ResultSpaceSize.estimateBaseline(independentIteration)
+    val iterationRefined = ResultSpaceSize.estimate(independentIteration)
+    assertEquals(evaluated(iterationBaseline.upper, context), BigInt(12))
+    assertEquals(evaluated(iterationRefined.upper, context), BigInt(3))
+    assertEquals(evaluated(iterationRefined.lower, context), BigInt(3))
+
+    val prefix = ResultSpaceSize.estimate(Space.PrefixClosure(source))
+    val suffix = ResultSpaceSize.estimate(Space.SuffixClosure(source))
+    val tails = ResultSpaceSize.estimate(Space.TailsClosure(source))
+    assertEquals(evaluated(prefix.lower, context), BigInt(3))
+    assertEquals(evaluated(suffix.lower, context), BigInt(3))
+    assertEquals(evaluated(tails.lower, context), BigInt(4))
+
+    val boundUnwrap = Space.Iteration(
+      source,
+      head,
+      rest,
+      Space.Unwrap(Space.Mention(rest), Path.Constant(Syntax.parse("x")))
+    )
+    val unwrapBaseline = ResultSpaceSize.estimateBaseline(boundUnwrap)
+    val unwrapRefined = ResultSpaceSize.estimate(boundUnwrap)
+    assert(unwrapBaseline.upper.evaluate(using emptyPathContext, context, emptyRoutines).isEmpty)
+    assert(unwrapRefined.upper.evaluate(using emptyPathContext, context, emptyRoutines).nonEmpty)
+
+    val epsilonOnly = SpaceContextMap(Map(
+      source.variable -> SpaceValue(Set(PathValue(Nil))),
+      body.variable -> bodyValue
+    ))
+    assertEquals(evaluated(iterationRefined.lower, epsilonOnly), BigInt(0))
+    assertEquals(evaluated(iterationRefined.upper, epsilonOnly), BigInt(3))
+  }
+
+  test("literal fibers and nested iteration maps remain visible to the mixed graph") {
+    val relation = Space.Literal(SpaceValue(Set(
+      Syntax.parse("a.x"),
+      Syntax.parse("a.y"),
+      Syntax.parse("b.z")
+    )))
+    val dynamicPrefix = PathRef("fiber_prefix").known(1)
+    val prefixRest = SpaceMention("fiber_rest")
+    val lookup = Space.Iteration(
+      Space.Literal(SpaceValue(Set(Syntax.parse("a"), Syntax.parse("b")))),
+      dynamicPrefix,
+      prefixRest,
+      Space.Unwrap(relation, Path.Deref(dynamicPrefix))
+    )
+    val lookupBaseline = ResultSpaceSize.estimateBaseline(lookup)
+    val lookupRefined = ResultSpaceSize.estimate(lookup)
+    assertEquals(lookupBaseline.upper.evaluate, None)
+    assertEquals(lookupRefined.upper.evaluate, Some(BigInt(4)))
+    assertEquals(eval(lookup).paths.size, 3)
+
+    val source = S"map_source"
+    val outerHead = PathRef("map_outer").known(1)
+    val outerRest = SpaceMention("map_outer_rest")
+    val innerHead = PathRef("map_inner").known(1)
+    val innerRest = SpaceMention("map_inner_rest")
+    val emitted = Space.Singleton(Path.Concat(Path.Deref(outerHead), Path.Deref(innerHead)))
+    val nestedMap = Space.Iteration(
+      source,
+      outerHead,
+      outerRest,
+      Space.Iteration(Space.Mention(outerRest), innerHead, innerRest, emitted)
+    )
+    val sourceValue = SpaceValue(Set(
+      Syntax.parse("a.x"),
+      Syntax.parse("a.y"),
+      Syntax.parse("b.z"),
+      Syntax.parse("c.w")
+    ))
+    val context = SpaceContextMap(Map(source.variable -> sourceValue))
+    assertEquals(evaluated(ResultSpaceSize.estimateBaseline(nestedMap).upper, context), BigInt(16))
+    assertEquals(evaluated(ResultSpaceSize.estimate(nestedMap).upper, context), BigInt(4))
+    assertEquals(eval(nestedMap)(using emptyPathContext, context, emptyRoutines).paths.size, 4)
+  }
+
+  test("operation subset constraints cross opaque Z3 atoms") {
+    val source = S"relation_source"
+    val prefixes = S"relation_prefixes"
+    val other = S"relation_other"
+    val selected = Space.Restriction(source, prefixes)
+    val absorbed = source \/ selected
+    val residual = (selected \/ other) \ source
+    val sourceValue = SpaceValue(Set(Syntax.parse("a.x"), Syntax.parse("b.y"), Syntax.parse("c.z")))
+    val prefixValue = SpaceValue(Set(Syntax.parse("a"), Syntax.parse("c")))
+    val otherValue = SpaceValue(Set(Syntax.parse("b.y"), Syntax.parse("q")))
+    val context = SpaceContextMap(Map(
+      source.variable -> sourceValue,
+      prefixes.variable -> prefixValue,
+      other.variable -> otherValue
+    ))
+
+    assertEquals(evaluated(ResultSpaceSize.estimateBaseline(absorbed).upper, context), BigInt(6))
+    val refined = ResultSpaceSize.estimate(absorbed)
+    assertEquals(evaluated(refined.lower, context), BigInt(3))
+    assertEquals(refined.upper.evaluate(using emptyPathContext, context, emptyRoutines), Some(BigInt(3)))
+
+    assertEquals(evaluated(ResultSpaceSize.estimateBaseline(residual).upper, context), BigInt(5))
+    val residualRefined = ResultSpaceSize.estimate(residual)
+    assert(residualRefined.upper.show.contains("relations="), residualRefined.show)
+    assertEquals(residualRefined.upper.evaluate(using emptyPathContext, context, emptyRoutines), Some(BigInt(2)))
   }
 
   test("symbolic bounds contain exhaustive concrete denotations") {

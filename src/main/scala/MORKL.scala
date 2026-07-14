@@ -2399,6 +2399,12 @@ object Supercompiler:
     assumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
   ): ResultSizeEstimate = ResultSpaceSize.estimate(s, assumptions)
 
+  /** Normalize the source graph before constructing its result-cardinality graph. */
+  def optimizedResultSize(
+    s: Space,
+    assumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
+  ): ResultSizeEstimate = ResultSpaceSize.estimate(normalize(s).space, assumptions)
+
   def stats(s: Space): SpaceStats =
     def bumpSpace(x: SpaceStats, depth: Int): SpaceStats = x.copy(spaceNodes = x.spaceNodes + 1, depth = x.depth.max(depth))
     def bumpPath(x: SpaceStats, depth: Int): SpaceStats = x.copy(pathNodes = x.pathNodes + 1, depth = x.depth.max(depth))

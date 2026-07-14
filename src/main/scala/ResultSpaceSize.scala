@@ -11,6 +11,7 @@ enum SizeExpr:
   case PositiveDifference(left: SizeExpr, right: SizeExpr)
   case Positive(value: SizeExpr)
   case RangeCardinality(value: SizeExpr, start: Int, end: Int)
+  case Z3Cardinality(problem: Z3CardinalityProblem, direction: Z3BoundDirection, baseline: SizeExpr)
   case Infinity
 
   def show: String = this match
@@ -23,6 +24,8 @@ enum SizeExpr:
     case SizeExpr.PositiveDifference(left, right) => s"relu(${left.show} - ${right.show})"
     case SizeExpr.Positive(value) => s"positive(${value.show})"
     case SizeExpr.RangeCardinality(value, start, end) => s"rangeSize(${value.show}, $start, $end)"
+    case SizeExpr.Z3Cardinality(problem, direction, baseline) =>
+      s"z3${direction.toString.toLowerCase}(${problem.show}; baseline=${baseline.show})"
     case SizeExpr.Infinity => "∞"
 
   def evaluate(using
@@ -53,6 +56,20 @@ enum SizeExpr:
       value.evaluate.map(v => if v > 0 then BigInt(1) else BigInt(0)).orElse(Some(BigInt(1)))
     case SizeExpr.RangeCardinality(value, start, end) =>
       value.evaluate.map(SizeExpr.rangeCardinality(_, start, end))
+    case SizeExpr.Z3Cardinality(problem, direction, baseline) =>
+      val base = baseline.evaluate
+      val solved = problem.solve(direction)
+      direction match
+        case Z3BoundDirection.Lower => (base, solved) match
+          case (Some(a), Some(b)) => Some(a.max(b))
+          case (Some(a), None) => Some(a)
+          case (None, Some(b)) => Some(b)
+          case (None, None) => None
+        case Z3BoundDirection.Upper => (base, solved) match
+          case (Some(a), Some(b)) => Some(a.min(b))
+          case (Some(a), None) => Some(a)
+          case (None, Some(b)) => Some(b)
+          case (None, None) => None
     case SizeExpr.Infinity => None
 
 object SizeExpr:
@@ -198,8 +215,26 @@ object ResultSpaceSize:
   def estimate(
     space: Space,
     assumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
+  ): ResultSizeEstimate = Z3ResultSpaceSize.estimate(space, assumptions)
+
+  /** Original compositional interval analysis, retained as the mandatory
+    * solver fallback and as a pointwise baseline for refinement checks.
+    */
+  def estimateBaseline(
+    space: Space,
+    assumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
   ): ResultSizeEstimate =
-    analyze(space, assumptions, Set.empty, Set.empty)
+    analyze(space, assumptions, Set.empty, Set.empty, operationLaws = false)
+
+  /** Compositional operation laws used by the mixed Z3 graph.  This is kept
+    * separate from [[estimateBaseline]] so every refinement can still be
+    * checked pointwise against the original interval analysis.
+    */
+  def estimateOperationLaws(
+    space: Space,
+    assumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
+  ): ResultSizeEstimate =
+    analyze(space, assumptions, Set.empty, Set.empty, operationLaws = true)
 
   private def dependsOnBound(
     space: Space,
@@ -233,6 +268,36 @@ object ResultSpaceSize:
     case Path.Deref(ref) => ref.lengthHint > 0
     case Path.Concat(left, right) => pathDefinitelyHeaded(left) || pathDefinitelyHeaded(right)
     case Path.GroundedPP(_, _) | Path.GroundedSP(_, _) => false
+
+  /** A known path length is enough to bound a lookup into a finite relation,
+    * even when the path's value is supplied by an iterator.  Path references
+    * introduced by iteration carry a one-item length hint.
+    */
+  private def knownPathLength(path: Path): Option[Int] = path match
+    case Path.Constant(PathValue(items)) => Some(items.length)
+    case Path.Deref(ref) if ref.lengthHint >= 0 => Some(ref.lengthHint)
+    case Path.Concat(left, right) =>
+      for
+        leftLength <- knownPathLength(left)
+        rightLength <- knownPathLength(right)
+      yield leftLength + rightLength
+    case _ => None
+
+  /** Largest result fiber of a literal relation for an arbitrary prefix of a
+    * fixed length.  Missing prefixes have an empty fiber, so only represented
+    * prefixes need to be counted.
+    */
+  private def maximumLiteralFiber(value: SpaceValue, prefixLength: Int): BigInt =
+    if prefixLength < 0 then BigInt(value.paths.size)
+    else
+      value.paths.iterator
+        .filter(_.items.length >= prefixLength)
+        .toVector
+        .groupBy(_.items.take(prefixLength))
+        .valuesIterator
+        .map(_.size)
+        .maxOption
+        .fold(BigInt(0))(BigInt(_))
 
   /** True when every possible member is headed (the empty set is vacuously so). */
   private def headedOnly(space: Space): Boolean = space match
@@ -276,9 +341,10 @@ object ResultSpaceSize:
     space: Space,
     assumptions: Map[SpaceMention, ResultSizeEstimate],
     boundSpaces: Set[SpaceMention],
-    boundPaths: Set[PathRef]
+    boundPaths: Set[PathRef],
+    operationLaws: Boolean
   ): ResultSizeEstimate =
-    def rec(next: Space): ResultSizeEstimate = analyze(next, assumptions, boundSpaces, boundPaths)
+    def rec(next: Space): ResultSizeEstimate = analyze(next, assumptions, boundSpaces, boundPaths, operationLaws)
     space match
       case Space.Empty => ResultSizeEstimate.empty
       case Space.Mention(variable) =>
@@ -348,18 +414,49 @@ object ResultSpaceSize:
             if exactZero(source) then ResultSizeEstimate.empty
             else
               val bodyAssumptions = assumptions.updated(rest, ResultSizeEstimate(source.upper, SizeExpr.One))
-              val branch = analyze(body, bodyAssumptions, boundSpaces + rest, boundPaths + symbol)
-              val upper = SizeExpr.multiply(source.upper, branch.upper)
-              val lower =
-                if headedOnly(src) then SizeExpr.multiply(SizeExpr.positive(source.lower), branch.lower)
+              val branch = analyze(body, bodyAssumptions, boundSpaces + rest, boundPaths + symbol, operationLaws)
+              val independent = operationLaws && !dependsOnBound(body, Set(rest), Set(symbol))
+              // ∪ src.map(x => ∪ tails(x).map(y => body(x, y))) has at most
+              // |src| * |body| results when body does not inspect the inner
+              // tail set.  The tail groups partition the headed source paths;
+              // multiplying by |src| once more would count that partition
+              // twice.
+              val flattenedMapUpper =
+                if operationLaws then body match
+                  case Space.Iteration(Space.Mention(variable), innerSymbol, innerRest, innerBody)
+                      if variable == rest && !dependsOnBound(innerBody, Set(innerRest), Set.empty) =>
+                    val innerAssumptions = bodyAssumptions.updated(
+                      innerRest,
+                      ResultSizeEstimate(source.upper, SizeExpr.One)
+                    )
+                    val perElement = analyze(
+                      innerBody,
+                      innerAssumptions,
+                      boundSpaces ++ Set(rest, innerRest),
+                      boundPaths ++ Set(symbol, innerSymbol),
+                      operationLaws
+                    )
+                    Some(perElement.upper)
+                  case _ => None
+                else None
+              val upper =
+                flattenedMapUpper match
+                  case Some(perElement) => SizeExpr.multiply(source.upper, perElement)
+                  case None if independent => SizeExpr.multiply(SizeExpr.positive(source.upper), branch.upper)
+                  case None => SizeExpr.multiply(source.upper, branch.upper)
+              val headedGuard =
+                if headedOnly(src) then SizeExpr.positive(source.lower)
+                else if operationLaws then SizeExpr.positive(SizeExpr.positiveDifference(source.lower, SizeExpr.One))
                 else SizeExpr.Zero
+              val lower =
+                SizeExpr.multiply(headedGuard, branch.lower)
               ResultSizeEstimate(upper, lower)
       case Space.Fold(src, _, acc, symbol, rest, body, _) =>
         val source = rec(src)
         if exactZero(source) then ResultSizeEstimate.empty
         else
           val bodyAssumptions = assumptions.updated(rest, ResultSizeEstimate(source.upper, SizeExpr.One))
-          val branch = analyze(body, bodyAssumptions, boundSpaces + rest, boundPaths ++ Set(acc, symbol))
+          val branch = analyze(body, bodyAssumptions, boundSpaces + rest, boundPaths ++ Set(acc, symbol), operationLaws)
           ResultSizeEstimate(
             SizeExpr.multiply(source.upper, branch.upper),
             if headedOnly(src) then SizeExpr.multiply(SizeExpr.positive(source.lower), branch.lower) else SizeExpr.Zero
@@ -368,13 +465,24 @@ object ResultSpaceSize:
         val base = rec(initial)
         ResultSizeEstimate(SizeExpr.Infinity, base.lower)
       case Space.Wrap(src, _) => rec(src)
+      case Space.Unwrap(src, Path.Constant(PathValue(Nil))) if operationLaws => rec(src)
+      case Space.Unwrap(Space.Literal(value), prefix) if operationLaws && knownPathLength(prefix).nonEmpty =>
+        val fiberUpper = SizeExpr.const(maximumLiteralFiber(value, knownPathLength(prefix).get))
+        val exact = opaque(space, boundSpaces, boundPaths)
+        ResultSizeEstimate(SizeExpr.minimum(exact.upper, fiberUpper), exact.lower)
+      case Space.Unwrap(src, _) if operationLaws =>
+        val source = rec(src)
+        val exact = opaque(space, boundSpaces, boundPaths)
+        ResultSizeEstimate(SizeExpr.minimum(exact.upper, source.upper), exact.lower)
       case Space.Unwrap(_, _) => opaque(space, boundSpaces, boundPaths)
       case Space.TailsUnion(src) =>
         val source = rec(src)
         if exactZero(source) then ResultSizeEstimate.empty
         else ResultSizeEstimate(
           source.upper,
-          if headedOnly(src) then SizeExpr.positive(source.lower) else SizeExpr.Zero
+          if headedOnly(src) then SizeExpr.positive(source.lower)
+          else if operationLaws then SizeExpr.positive(SizeExpr.positiveDifference(source.lower, SizeExpr.One))
+          else SizeExpr.Zero
         )
       case Space.TailsIntersection(src) =>
         val source = rec(src)
@@ -385,19 +493,30 @@ object ResultSpaceSize:
         if exactZero(source) then ResultSizeEstimate.empty
         else ResultSizeEstimate(
           SizeExpr.Infinity,
-          if headedOnly(src) then SizeExpr.positive(source.lower) else SizeExpr.Zero
+          if operationLaws then
+            if headedOnly(src) then source.lower
+            else SizeExpr.positiveDifference(source.lower, SizeExpr.One)
+          else if headedOnly(src) then SizeExpr.positive(source.lower)
+          else SizeExpr.Zero
         )
       case Space.SuffixClosure(src) =>
         val source = rec(src)
         if exactZero(source) then ResultSizeEstimate.empty
         else ResultSizeEstimate(
           SizeExpr.Infinity,
-          if headedOnly(src) then SizeExpr.positive(source.lower) else SizeExpr.Zero
+          if operationLaws then
+            if headedOnly(src) then source.lower
+            else SizeExpr.positiveDifference(source.lower, SizeExpr.One)
+          else if headedOnly(src) then SizeExpr.positive(source.lower)
+          else SizeExpr.Zero
         )
       case Space.TailsClosure(src) =>
         val source = rec(src)
         if exactZero(source) then ResultSizeEstimate.empty
-        else ResultSizeEstimate(SizeExpr.Infinity, SizeExpr.positive(source.lower))
+        else ResultSizeEstimate(
+          SizeExpr.Infinity,
+          if operationLaws then source.lower else SizeExpr.positive(source.lower)
+        )
       case Space.Range(src, start, end) =>
         val source = rec(src)
         if exactZero(source) then ResultSizeEstimate.empty
@@ -427,6 +546,8 @@ object ResultSpaceSizeAudit:
   private var unknownLower = 0L
   private var exactUpper = 0L
   private var exactLower = 0L
+  private var improvedUpper = 0L
+  private var improvedLower = 0L
   private var upperGapSum = BigInt(0)
   private var lowerGapSum = BigInt(0)
   private val upperGapCounts = mutable.LinkedHashMap.from(
@@ -497,7 +618,30 @@ object ResultSpaceSizeAudit:
       case Some(previous) if previous.gap.getOrElse(BigInt(-1)) >= value.gap.getOrElse(BigInt(-1)) => ()
       case _ => target(key) = value
 
-  private def record(space: Space, actual: BigInt, estimate: ResultSizeEstimate, lower: Option[BigInt], upper: Option[BigInt]): Unit = synchronized {
+  private def record(
+    space: Space,
+    actual: BigInt,
+    estimate: ResultSizeEstimate,
+    lower: Option[BigInt],
+    upper: Option[BigInt],
+    baselineLower: Option[BigInt],
+    baselineUpper: Option[BigInt]
+  ): Unit = synchronized {
+    (baselineLower, lower) match
+      case (Some(base), Some(refined)) if refined < base =>
+        throw AssertionError(s"refined lower bound $refined is weaker than baseline $base for ${space.show}")
+      case (Some(_), None) =>
+        throw AssertionError(s"refined lower bound became unknown while baseline was finite for ${space.show}")
+      case (Some(base), Some(refined)) if refined > base => improvedLower += 1
+      case _ => ()
+    (baselineUpper, upper) match
+      case (Some(base), Some(refined)) if refined > base =>
+        throw AssertionError(s"refined upper bound $refined is weaker than baseline $base for ${space.show}")
+      case (Some(_), None) =>
+        throw AssertionError(s"refined upper bound became unbounded while baseline was finite for ${space.show}")
+      case (Some(base), Some(refined)) if refined < base => improvedUpper += 1
+      case (None, Some(_)) => improvedUpper += 1
+      case _ => ()
     observations += 1
     val expression = short(space.show)
     val shownEstimate = short(estimate.show)
@@ -543,9 +687,12 @@ object ResultSpaceSizeAudit:
       active.set(true)
       try
         val estimate = ResultSpaceSize.estimate(space)
+        val baseline = ResultSpaceSize.estimateBaseline(space)
         val lower = estimate.lower.evaluate
         val upper = estimate.upper.evaluate
-        record(space, BigInt(result.paths.size), estimate, lower, upper)
+        val baselineLower = baseline.lower.evaluate
+        val baselineUpper = baseline.upper.evaluate
+        record(space, BigInt(result.paths.size), estimate, lower, upper, baselineLower, baselineUpper)
       finally active.set(false)
 
   def reset(label: String): Unit = synchronized {
@@ -556,6 +703,8 @@ object ResultSpaceSizeAudit:
     unknownLower = 0L
     exactUpper = 0L
     exactLower = 0L
+    improvedUpper = 0L
+    improvedLower = 0L
     upperGapSum = BigInt(0)
     lowerGapSum = BigInt(0)
     upperGapCounts.keys.foreach(upperGapCounts(_) = 0L)
@@ -597,6 +746,8 @@ object ResultSpaceSizeAudit:
        |- Unbounded upper bounds: $unboundedUpper (${percent(unboundedUpper, observations)})
        |- Exact finite upper bounds: $exactUpper (${percent(exactUpper, finiteUpper)})
        |- Exact lower bounds: $exactLower (${percent(exactLower, observations - unknownLower)})
+       |- Upper bounds improved over baseline: $improvedUpper (${percent(improvedUpper, observations)})
+       |- Lower bounds improved over baseline: $improvedLower (${percent(improvedLower, observations)})
        |- Unknown lower bounds: $unknownLower
        |- Mean finite upper overestimate: ${mean(upperGapSum, finiteUpper)} paths
        |- Mean lower underestimate: ${mean(lowerGapSum, observations - unknownLower)} paths

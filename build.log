@@ -5371,3 +5371,107 @@ Full-suite and random-corpus result-size audit:
 - Full-suite worst cases: largest unbounded-upper result 339; largest finite upper was 2,316,673,043,953,008,053,236,882,700,427,523,658,046,124,800 for actual 28,512; largest lower deficit was actual 178,098 versus lower 0. These are deeply nested iteration/permutation programs where independent upper products compound and lower collision guarantees are unavailable.
 - Added `RESULT_SPACE_SIZE_AUDIT.md` with both complete aggregate distributions and the least-tight cases. The clearest tightening opportunities are correlated iteration groups, structurally repeated/idempotent operands, and iteration bodies with heavily colliding outputs.
 - `git diff --check` passes after the audit hook, runner, and report additions.
+
+2026-07-14T01:37:19+01:00
+
+Z3 constraint-based result-space refinement:
+- Confirmed the existing executable dependency at `/opt/homebrew/bin/z3` (`Z3 4.15.4`) and added an external SMT-LIB integration; no new JVM dependency was introduced.
+- Translated `union`, `intersection`, and subtraction into Boolean set formulae. Cardinality optimization assigns non-negative integer variables to active Venn regions, constrains every opaque atom by its existing compositional lower/upper bounds, then asks Z3 for the minimum and maximum result cardinalities.
+- Added Z3 subset/disjointness proofs for correlated Boolean components nested under other operations. This recognizes absorption and repeated-operand laws such as `x \/ (x /\ y) = x`, `x /\ (x \/ y) = x`, `x /\ (x /\ y) = x /\ y`, and `(x \/ y) \\ x ⊆ y`.
+- Retained `ResultSpaceSize.estimateBaseline` as the mandatory fallback. Refined lowers are combined with `max`, refined uppers with `min`; timeout, missing solver, solver failure, or configured complexity limits return the baseline. The audit now fails on any pointwise weakening as well as any soundness violation.
+- Bounded solver work by default to eight distinct atoms, 256 Boolean nodes, and a one-second solver timeout. A linear pre-scan bypasses all normalization and solver work when a Boolean component has no repeated atom or exceeds the node budget.
+- Added exhaustive Z3 regression tests over all 256 assignments of two sets from a four-path universe. Focused `ResultSpaceSizeTest` passes, including all original symbolic and concrete-denotation checks.
+
+Final cardinality audits:
+- Canonical 1,000-program corpus: all sound, no baseline weakening, 964 finite uppers (96.40%), 36 unbounded (3.60%), 313 exact finite uppers (32.47%), and 213 exact lowers (21.30%). Z3 improved 88 uppers and 12 lowers. Relative to the baseline run, exact finite uppers rose 301 -> 313, exact lowers 205 -> 213, unbounded uppers fell 37 -> 36, mean finite upper gap fell 23,106,409.808 -> 23,069,574.850, and mean lower gap fell 3.904 -> 3.845.
+- Final complete audited MUnit suite passed, including every Trie/reference/zipper/graph executor, fuzzer/oracle, supercompiler example, and independent egg program; the same four pre-existing ignores remain. Across 487,583 concrete observations all bounds were sound and none weakened the baseline. Z3 improved 789 uppers and 554 lowers; 358,528 finite uppers were exact (76.50%), 235,859 lowers were exact (48.37%), and no lower was unknown.
+- Least-tight results remain dominated by independent nested iteration/permutation products: full-suite actual 28,512 versus finite upper 2,316,673,043,953,008,053,236,882,700,427,523,658,046,124,800, and lower actual 178,098 versus zero. Random-corpus worst finite upper remains actual 3 versus 20,661,046,784; worst lower remains actual 256 versus 15. Full distributions and comparison details are in `RESULT_SPACE_SIZE_AUDIT.md`.
+
+Final non-long benchmarks and asymptotics:
+- Reran `trieBenchmarkReport`, `zipperAlgebraBenchmarkReport`, `zipperIterRangeTailMicroReport`, `zipperLargeBenchmarkReport`, `trieAlgebraAsymptoticBenchmark`, and `independentProductBenchmark`; excluded `constantFoldExecutorReport`, the explicitly long focused sweep.
+- Against the immediately preceding checked reports, measurable-row geometric-mean current/prior ratios were: Trie report eval Set 1.077x, evalTrie 0.968x, and execT 0.749x; zipper-algebra evalTrie 0.783x and evalZ 0.759x; zipper-large evalTrie 0.727x and evalZ 0.925x. Range-tail current timings changed 4.215 -> 4.143 ms, 23.185 -> 22.039 ms, and 84.520 -> 83.698 ms. These repeated-report timings retain their known row-to-row noise and show no aggregate runtime regression attributable to an analysis that is not called by the executor.
+- Direct Trie asymptotics at 1,024 -> 65,536 keys were union 5,261 -> 298,927 ns, intersection 4,896 -> 375,672 ns, restriction 9,943 -> 464,630 ns, and disjoint subtraction 10.5 -> 4.0 ns: the linear/constant classes are unchanged.
+- Independent-product rewrite still validates equality before timing and reports original/optimized speedups of 6.93x, 11.59x, 16.74x, and 34.01x for 32, 64, 128, and 256 heads. Compiled `execT` remains in the 0.207-0.571 ms range.
+- Dedicated analyzer medians on balanced uncorrelated unions from 1,024 through 32,768 leaves gave refined/baseline ratios 0.97x, 0.95x, 1.01x, 1.00x, 0.98x, and 1.01x. Refined construction grew 0.188 -> 8.707 ms for 32x input, matching the baseline's linear scaling.
+- `git diff --check` passes.
+
+2026-07-14T01:51:40+01:00
+
+Strict paired canonical-corpus comparison:
+- Generated the canonical corpus exactly once with `SpaceFuzzerCorpus.generate(1000, 20260708L, 5, 400)` and evaluated both the retained baseline and Z3 refinement over that same `Vector[Record]`, binding each program to exactly `S"x" -> record.example.arg`.
+- Ordered SHA-256 over `(id, program.show, sorted input paths, sorted expected-result paths)` is `3b2d244cfef1f12bd0988b5d1f88d1bd66ee13e74b8d6de5d97eb44b0d940046`. Inputs contain 6,191 paths total (1 minimum, 27 maximum, 6.191 mean); programs contain 16,395 AST nodes (2 minimum, 47 maximum).
+- The baseline half reproduced the previously reported values exactly: 963 finite / 37 unbounded uppers, 301 exact finite uppers, 205 exact lowers, mean finite upper gap 23,106,409.808, and mean lower gap 3.904. This verifies the same programs and inputs rather than only the same generator configuration.
+- Z3 produced 964 finite / 36 unbounded uppers, 313 exact finite uppers, 213 exact lowers, mean finite upper gap 23,069,574.850, and mean lower gap 3.845.
+- Pairwise: 87 finite uppers tightened, one changed from unbounded to finite, 12 lowers tightened, 912 uppers and 988 lowers were unchanged, and none weakened. On the identical 963 finite-on-both programs, mean upper gap fell 23,106,409.808 -> 23,093,530.793, reducing the summed upper gap by 12,402,491.
+- Program 13 is the newly finite case: five input paths, nine actual result paths, baseline `∞`, refined upper 10. Largest finite reduction is program 173: actual 3, baseline 12,922,650, refined 745,290. Largest lower increase is program 85: actual 39, baseline 0, refined 27.
+- Added the fingerprint, paired summary, and largest paired changes to `RESULT_SPACE_SIZE_AUDIT.md`.
+
+2026-07-14T01:58:30+01:00
+
+Larger-program Z3 topology investigation:
+- Drew paired 1,000-program corpora with the same seed `20260708L` and result cap 400 at generator depths 5, 7, 9, and 12. Mean/max AST sizes grew from 16.40/47 to 29.04/118, 42.08/242, and 93.72/547 nodes.
+- Connected Boolean components did not grow proportionally: maximum Boolean nodes per component were only 10, 12, 16, and 18; maximum distinct atoms were 9, 12, 15, and 19. Iteration, composition, restriction, unwrap, range, and closure operations divide the expression into opaque cardinality atoms.
+- Z3-eligible programs increased 264 -> 347 -> 366 -> 473, but upper improvements were 88 -> 78 -> 77 -> 25 and lower improvements 12 -> 2 -> 10 -> 3. At depth 12, 275/296 programs with at least 128 AST nodes were eligible, yet only ten uppers and one lower improved in that size bucket. No bound weakened at any depth.
+- Baseline/refined analysis and evaluation totals were 35.3/437.5 ms at depth 5, 49.3/729.8 ms at depth 7, 52.8/616.0 ms at depth 9, and 48.5/970.6 ms at depth 12. The larger ordinary programs therefore confirm that local Boolean tightening is usually dominated by opaque iteration/product bounds higher in the expression.
+- Added a connected-Boolean control corpus: 240 programs over eight atoms, 33-257 full AST nodes, covering union absorption, intersection absorption, and difference cancellation. Every program is a single correlated Boolean component under the solver limits.
+- On the control corpus Z3 improved 204/240 uppers and 50/240 lowers, reducing mean upper gap 22.463 -> 4.608 and mean lower gap 8.142 -> 6.383 with zero regressions. This confirms the solver materially improves a graph that actually preserves correlation.
+- The control also exposed a serious cost: baseline analysis took 19.6 ms total versus 10,949.7 ms refined (about 559x). The current bottom-up normalizer launches many external relation queries. A proper next step is one shared SMT encoding and incremental solver session per connected component, with subformula variables, instead of process/query-per-relation normalization.
+- Recorded the depth trend, connected control, diagnosis, and cost in `RESULT_SPACE_SIZE_AUDIT.md`.
+
+2026-07-14T11:06:31+01:00
+
+Optimized-program mixed constraint graphs and operation laws:
+- Added a separate operation-law abstract interpretation while preserving `estimateBaseline` byte-for-byte as the comparison baseline. The mixed public result takes the maximum lower and minimum upper, so no law or solver result can weaken it.
+- Wrote the cardinality laws for restriction, composition, iteration, unwrap, range, TailsUnion/TailsIntersection, and prefix/suffix/tails closures in `RESULT_SPACE_SIZE_LAWS.md`. Range retains its exact `RangeBounds` relation only for exact source size because mixed signed endpoints make cardinality non-monotone.
+- Independent iteration bodies now contribute one guarded copy rather than source-cardinality copies. A source lower bound of at least two proves a headed group because a set contains at most one epsilon. Fixed-prefix Unwrap is bounded by its source, prefix/suffix closures retain every headed source path, and tails closure retains the complete source.
+- Added `Supercompiler.optimizedResultSize`, which fully normalizes a source before constructing the mixed result-cardinality graph.
+- Focused `ResultSpaceSizeTest` passes all five tests. The exhaustive matrix checks 5,888 concrete denotations spanning iteration, composition, restriction, unwrap, range, and all closure operations.
+- Fully normalized and denotationally checked four deterministic 1,000-program corpora at depths 5, 7, 9, and 12. Normalization changed 837, 859, 788, and 792 programs and removed repeated Boolean atoms from 248, 321, 334, and 424. Z3-eligible optimized programs fell to 19, 28, 36, and 45, while mixed refined upper/lower improvements remained 196/98, 239/78, 230/82, and 195/95.
+- On the exact canonical 1,000-program vector, fingerprint `3b2d244cfef1f12bd0988b5d1f88d1bd66ee13e74b8d6de5d97eb44b0d940046`, the unchanged baseline again produced 963 finite uppers, 301 exact finite uppers, and 205 exact lowers. The final mixed result produced 1,000 finite uppers, 343 exact uppers, and 232 exact lowers; 278 uppers and 101 lowers tightened with zero regressions. Mean upper/lower gaps fell from 23,106,409.808/3.904 to 1,588,939.079/3.689.
+- The final complete audited suite passed with the same four pre-existing ignored tests. Across 489,909 concrete observations every bound was sound, 12,903 uppers and 13,492 lowers improved, none weakened the baseline, and no lower was unknown.
+- An initial mixed-analyzer scaling run exposed an avoidable second traversal for graphs without operation-law nodes. The correlation pre-scan now records operation opportunities and reuses the baseline when none exist. Final refined/baseline medians on balanced distinct-leaf unions were 0.82x, 1.02x, 1.01x, 0.97x, 1.00x, and 1.01x for 1,024 through 32,768 leaves; the linear asymptotic class and baseline-level constant factor are preserved.
+- Trie execution never calls the optional cardinality analysis. The previously completed non-long Trie/zipper report runs remain the behavioral performance comparison, and the complete executor suite remained unchanged.
+- `git diff --check` passes.
+
+2026-07-14T11:12:48+01:00
+
+Open pure Game-of-Life inspection and glider execution:
+- Inspected the actual pure `LifeExample.nextStep`/`neigh` program and the bounded arbitrary-input `gol-full-open` proof case. The proof universe uses `Cell, hit, -1, 0, 1, 2`, maximum path length three, and a 43-bit finite-set encoding.
+- The open Z3 obligation declares arbitrary `S_field` plus iteration head/tail bitvectors and asserts that expanded source differs from source-optimized output. Running Z3 on `gol_full_open_space_optimized_open.smt2` returned `unsat`; the checked-in proof report also records raw and optimized graph round trips as `unsat`.
+- The fully source-optimized open routine contains 38,662 rendered characters. Its mixed result-size graph replaces the opaque helper-call infinity with the finite coordinate-relation ceiling 149,769, while retaining lower bound zero because arbitrary fields may produce no next generation.
+- Evaluated the exact fallback glider `bob$2bo$3o!` for five calls to the pure `nextStep`. Reference evaluation, the Trie executor, the fully source-optimized program, and an independent B3/S23 neighbor counter agreed after every step. Every generation contained five live cells; step five was `Cell.1.2, Cell.2.3, Cell.2.4, Cell.3.2, Cell.3.3`.
+
+2026-07-14T11:24:53+01:00
+
+Concrete open-Game-of-Life bound evaluation:
+- Evaluated the already-constructed symbolic bounds only after binding the open `field` to concrete spaces, avoiding the trivial opaque-call cardinality evaluation that would simply execute the whole concrete call.
+- For empty/singleton/blinker/block/glider fields, actual next sizes were 0/0/3/4/5. Raw naive, raw mixed-Z3, and fully expanded naive bounds were `[0,0]` for empty and `[0,∞]` for every nonempty case.
+- Fully expanded mixed-Z3 bounds were respectively `[0,0]`, `[0,22,430,753,362]`, `[0,1,816,891,022,250]`, `[0,5,742,272,860,432]`, and `[0,14,019,220,850,650]`.
+- Every glider generation through state five contains five input cells and produces five next cells, so every per-step optimized mixed-Z3 bound is `[0,14,019,220,850,650]`; the other three analyses remain `[0,∞]`.
+
+2026-07-14T12:00:00+01:00
+
+Relational operation-graph refinement, first checkpoint:
+- Added literal prefix-fiber bounds for dynamic `Unwrap`: a known iterator path length now bounds a lookup by the largest matching fiber rather than by the entire literal relation.
+- Added a flattened nested-iteration upper law for `union(source.map(...))`: when the inner body does not inspect its tail set, the inner head groups partition the outer tails, so the source cardinality is multiplied only once.
+- Focused `ResultSpaceSizeTest` passed all five tests, including 5,888 exhaustive concrete denotations.
+
+2026-07-14T11:47:00+01:00
+
+Relational operation-graph refinement, second checkpoint:
+- Extended `Z3CardinalityProblem` with explicit atom subset/disjointness relations. The Venn encoding now sets every region forbidden by those relations to zero before minimizing or maximizing cardinality.
+- Selector operations export sound structural facts: intersection, subtraction, restriction, raffination, and range are subsets of their selected input; subtraction is disjoint from subsets of its removed operand; matching restriction/raffination pairs are disjoint.
+- The correlation scan detects cross-atom operation relations while the component remains within the eight-atom solver budget, preserving the linear fast path for large unrelated unions.
+- Added direct regressions for literal fibers, flattened nested maps, structural absorption, and a three-atom Z3 residual where `restriction(source, p) ⊆ source` reduces the upper bound from 5 to 2.
+- Focused `ResultSpaceSizeTest` passed all seven tests, including the 5,888-denotation exhaustive matrix.
+- Fully expanded Life bounds improved from 22,430,753,362 / 1,816,891,022,250 / 5,742,272,860,432 / 14,019,220,850,650 to 10 / 30 / 40 / 50 for singleton / blinker / block / glider inputs. The empty case remains exact zero; all five glider transitions remain actual 5 within `[0,50]`.
+
+2026-07-14T12:02:00+01:00
+
+Relational operation-graph final verification:
+- Re-ran the exact canonical vector `SpaceFuzzerCorpus.generate(1000, 20260708L, 5, 400)` with fingerprint `3b2d244cfef1f12bd0988b5d1f88d1bd66ee13e74b8d6de5d97eb44b0d940046`. All bounds were sound and no bound weakened the baseline.
+- Baseline/refined results were: finite uppers 963/1000, exact uppers 301/347, exact lowers 205/233, and mean upper/lower gaps 23,106,409.808/3.904 versus 13,924.974/3.686. There were 335 upper and 103 lower improvements.
+- On the identical 963 baseline-finite cases, mean upper gap fell to 1,278.962 and total upper slack fell by 22,250,241,005 paths.
+- The complete audited MUnit suite passed with the same four pre-existing ignores. Across 489,942 observations every finite bound contained the concrete result, 15,548 uppers and 13,493 lowers improved, and no baseline bound weakened.
+- Analyzer scaling on balanced unrelated unions remained linear from 1,024 through 32,768 leaves. Refined/baseline median ratios were 1.10x, 1.14x, 1.10x, 1.04x, 1.21x, and 1.03x; 32x more leaves took 0.194 -> 8.914 ms.
+- `git diff --check` passes. Updated `RESULT_SPACE_SIZE_LAWS.md` and `RESULT_SPACE_SIZE_AUDIT.md` with the new relational, fiber, map, paired-corpus, distribution, and full-suite results.

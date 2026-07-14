@@ -4,6 +4,6 @@ This isolates `SpaceZipper.Iteration(..., RangeTail(0, -1))`, the path used by r
 
 | source heads | tail fanout | result paths | old emulation ms | current ms | old / current |
 |---:|---:|---:|---:|---:|---:|
-| 32 | 12 | 352 | 5.330 | 4.215 | 1.26 x |
-| 96 | 16 | 1,440 | 23.182 | 23.185 | 1.00 x |
-| 192 | 16 | 2,880 | 83.157 | 84.520 | 0.98 x |
+| 32 | 12 | 352 | 6.241 | 4.143 | 1.51 x |
+| 96 | 16 | 1,440 | 21.623 | 22.039 | 0.98 x |
+| 192 | 16 | 2,880 | 82.128 | 83.698 | 0.98 x |
