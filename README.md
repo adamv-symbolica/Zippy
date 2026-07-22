@@ -5,7 +5,7 @@ suite for **MORKL**, an algebra over finite sets of structured paths.
 
 For the language itself, start with the functional pearl:
 
-> **[Zippy: An Algebra for Path Sets](ALGEBRA.md)**
+> **[Zippy: An Algebra for Path Sets](docs/ALGEBRA.md)**
 
 That paper introduces the algebra through family queries, graph algorithms,
 Game of Life, semi-naive Datalog, and fuzzy temperature search. This README is
@@ -26,7 +26,7 @@ The project contains working implementations of:
 
 This is an active research codebase. Correctness gates are extensive, but the
 proof report deliberately distinguishes bounded evidence from unbounded proofs.
-See [Proof Status](#proof-status) and [`fallbacks.md`](fallbacks.md).
+See [Proof Status](#proof-status) and [`fallbacks.md`](docs/fallbacks.md).
 
 ## Repository Layout
 
@@ -111,7 +111,7 @@ misleading wall-clock timeout.
 
 ### Proof Status
 
-The current [`proofs/PROOF_REPORT.md`](proofs/PROOF_REPORT.md) status is
+The current [`docs/proofs/PROOF_REPORT.md`](docs/proofs/PROOF_REPORT.md) status is
 `PASS_WITH_PROOF_DEBT`.
 
 The operational manifest contains:
@@ -181,11 +181,11 @@ row is timed.
 
 See:
 
-- [`TRIE_RUNTIME.md`](TRIE_RUNTIME.md)
-- [`TRIE_BENCHMARKS.md`](TRIE_BENCHMARKS.md)
-- [`ZIPPER_ALGEBRA_BENCHMARKS.md`](ZIPPER_ALGEBRA_BENCHMARKS.md)
-- [`ZIPPER_LARGE_BENCHMARKS.md`](ZIPPER_LARGE_BENCHMARKS.md)
-- [`SUPERCOMPILER.md`](SUPERCOMPILER.md)
+- [`TRIE_RUNTIME.md`](docs/TRIE_RUNTIME.md)
+- [`TRIE_BENCHMARKS.md`](docs/TRIE_BENCHMARKS.md)
+- [`ZIPPER_ALGEBRA_BENCHMARKS.md`](docs/ZIPPER_ALGEBRA_BENCHMARKS.md)
+- [`ZIPPER_LARGE_BENCHMARKS.md`](docs/ZIPPER_LARGE_BENCHMARKS.md)
+- [`SUPERCOMPILER.md`](docs/SUPERCOMPILER.md)
 
 ## Datasets
 
@@ -212,4 +212,4 @@ The repository also includes a reproducible NOAA slice under
   complete scheduler bisimulation.
 - The main path-set track must compile with `valued/` removed.
 
-The complete current inventory is maintained in [`fallbacks.md`](fallbacks.md).
+The complete current inventory is maintained in [`fallbacks.md`](docs/fallbacks.md).
