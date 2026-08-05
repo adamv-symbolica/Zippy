@@ -5504,3 +5504,23 @@ Reference-hint graph rebuild final addendum:
 - Audited every `RecursiveOpGraph` constructor and copied path/space formal hint tables through optimal sharing, push-out, and loop-invariant-hoisting rebuilds.
 - Extended the formal graph round-trip regression across all three rebuild passes.
 - Re-ran the complete MUnit suite on this exact final tree: all tests passed with the same four pre-existing ignores. `git diff --check` remains clean.
+
+2026-08-05T22:40:52+01:00
+
+Z3 path-length propagation, first checkpoint:
+- Added symbolic lower/upper path-length expressions and a binder-aware recursive analysis for every Path and Space constructor. The empty interval is represented as [infinity, 0]; unknown nonempty lengths use [0, infinity].
+- Added a Z3 Venn-region feasibility model for union, intersection, and subtraction. It consumes the existing result-cardinality bounds plus structural subset/disjointness constraints, rejects length-incompatible regions, and never weakens the compositional fallback.
+- The requested impossible-intersection/product regression passes: the compositional interval [2, 21] refines to the exact concrete interval [2, 6].
+- Added raw/normalized public entry points on Supercompiler, SupercompiledRoutine, and SupercompiledProgram.
+- The focused all-construct test passes. The first canonical 1,000-program audit exposed dynamic iterator mentions inside auxiliary cardinality expressions; treating unavailable dynamic cardinalities as unknown retained soundness without forcing evaluation outside their lexical scope.
+- On the exact corpus SpaceFuzzerCorpus.generate(1000, 20260708L, 5, 400), all 1,000 lower and upper bounds were sound. All uppers were finite; 851 lowers and 831 uppers were exact. Z3 tightened 49 lowers and 36 uppers over the compositional baseline. Mean gaps were 0.233 lower and 0.303 upper path items; worst gaps were 5 and 7.
+
+2026-08-05T22:53:04+01:00
+
+Z3 path-length propagation, final verification:
+- Added an early eight-atom cutoff to the Boolean encoder before relation construction, preserving linear behavior for oversized independent unions.
+- Seven-sample median refined graph-construction times for balanced 1,024/2,048/4,096/8,192/16,384/32,768-leaf unions were 13.626/10.801/13.983/27.708/57.053/114.014 ms. Warm bound evaluation remained below 1 ms at every size.
+- Re-ran the exact canonical 1,000-program corpus after the cutoff. Results were unchanged: all 1,000 bounds sound, 1,000 finite uppers, 851 exact lowers, 831 exact uppers, 49 lower and 36 upper Z3 improvements, and worst lower/upper gaps 5/7.
+- Added RESULT_PATH_LENGTH_LAWS.md and RESULT_PATH_LENGTH_AUDIT.md plus atlas entries documenting every constructor law, the Z3 region model, distribution, and scaling guard.
+- Re-ran the complete MUnit suite on the final source tree. All tests passed with the same four pre-existing ignores; Trie execution and the independent-product optimizer regressions remained behaviorally unchanged.
+- git diff --check passes.

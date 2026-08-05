@@ -25,6 +25,7 @@ flowchart LR
 | `Supercompiler.scala` | Binder-safe substitution/canonicalization, embedding/MSG whistle, process-tree driving and residual routines. | Complements `MORKL.Supercompiler` source passes; residuals run through normal evaluators/backends. |
 | `ResultSpaceSize.scala` | Symbolic lower/upper cardinality expressions, per-operator bounds, audit reporting. | Analyses source/normalized programs; optional Z3 refinement tightens Boolean correlations. |
 | `Z3ResultSpaceSize.scala` | Emits and runs bounded Z3 optimization/query problems. | Refines `ResultSpaceSize` estimates; absence of Z3 remains a safe no-refinement case. |
+| `ResultPathLength.scala` | Symbolic lower/upper path-length expressions and binder-aware propagation through every path/space constructor. | Uses Z3 Venn-region feasibility, cardinality bounds, and structural relations to remove impossible length regions without weakening the compositional fallback. |
 | `Fuzzer.scala` | Dependent distributions, symbolic locations, path-space generator, reproducible corpus writer. | Produces differential inputs and corpora consumed by test fuzzers. |
 | `ProofArtifacts.scala` | Generates SMT-LIB/TPTP/egg proof artifacts and manifests. | Source of truth for `tools/proof_pipeline.py`; writes generated proof directories. |
 | `valued/.../ValuedTrieSpace.scala` | Optional path-to-payload trie, lattice merge, direct valued evaluator, concrete cursor. | Sidecar only: no production dependency; payload laws require stronger hypotheses. |
@@ -38,6 +39,7 @@ flowchart LR
 | Domain references | `ReferenceExamplesTest.scala` | Independent Datalog, Life, puzzle, NOAA, and n-queens checks. |
 | Supercompilation | `SupercompilerProcessTest.scala` | Binding, matching/generalization, termination, residual-size/soundness checks. |
 | Size analysis | `ResultSpaceSizeTest.scala`, `ResultSpaceSizeAuditRunner.scala` | Bound soundness/refinement and audit report generation. |
+| Path-length analysis | `ResultPathLengthTest.scala`, `ResultPathLengthAuditRunner.scala`, `RESULT_PATH_LENGTH_LAWS.md`, `RESULT_PATH_LENGTH_AUDIT.md` | Full-constructor propagation, correlated Z3 refinement, laws, scaling, and paired random-corpus soundness. |
 | Proof emitters | `IllustrativeEggArtifacts.scala`, `CornerstoneProofArtifacts.scala`, `OpenProgramProofArtifacts.scala`, `ZipperEgg*.scala` | Generate root egg models, cornerstone/open-program certificates, and executable zipper witnesses. |
 | Benchmarks | `TrieBenchmarks.scala`, `TrieAlgebraAsymptoticBenchmark.scala`, `ZipperAlgebraBenchmarks.scala`, `ZipperLargeBenchmarks.scala`, `IndependentProductBenchmark.scala` | Write checked-in performance reports; correctness-check before timing. |
 | Valued sidecar | `valued/.../ValuedTrieSpaceTest.scala` | Validates payload lattice and concrete cursor semantics independently. |

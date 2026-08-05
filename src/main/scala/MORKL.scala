@@ -2612,6 +2612,13 @@ case class SupercompiledRoutine(routine: Routine, report: SupercompileReport, gr
     assumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
   ): ResultSizeEstimate = ResultSpaceSize.estimate(routine.body, assumptions)
 
+  def resultPathLength(
+    assumptions: Map[SpaceMention, PathLengthEstimate] = Map.empty,
+    pathAssumptions: Map[PathRef, PathLengthEstimate] = Map.empty,
+    sizeAssumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
+  ): PathLengthEstimate =
+    ResultPathLength.estimate(routine.body, assumptions, pathAssumptions, sizeAssumptions)
+
   def semanticEquals(original: Routine)(using pc: PathContext = PathContext.emptyMap,
                                         sc: SpaceContext = SpaceContextMap(Map.empty),
                                         rc: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty): Boolean =
@@ -2650,6 +2657,23 @@ object Supercompiler:
     s: Space,
     assumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
   ): ResultSizeEstimate = ResultSpaceSize.estimate(normalize(s).space, assumptions)
+
+  def resultPathLength(
+    s: Space,
+    assumptions: Map[SpaceMention, PathLengthEstimate] = Map.empty,
+    pathAssumptions: Map[PathRef, PathLengthEstimate] = Map.empty,
+    sizeAssumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
+  ): PathLengthEstimate =
+    ResultPathLength.estimate(s, assumptions, pathAssumptions, sizeAssumptions)
+
+  /** Normalize the source graph before constructing its path-length graph. */
+  def optimizedResultPathLength(
+    s: Space,
+    assumptions: Map[SpaceMention, PathLengthEstimate] = Map.empty,
+    pathAssumptions: Map[PathRef, PathLengthEstimate] = Map.empty,
+    sizeAssumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
+  ): PathLengthEstimate =
+    ResultPathLength.estimate(normalize(s).space, assumptions, pathAssumptions, sizeAssumptions)
 
   def stats(s: Space): SpaceStats =
     def bumpSpace(x: SpaceStats, depth: Int): SpaceStats = x.copy(spaceNodes = x.spaceNodes + 1, depth = x.depth.max(depth))

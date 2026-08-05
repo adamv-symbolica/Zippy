@@ -693,6 +693,13 @@ case class SupercompiledProgram(top: Space,
     assumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
   ): ResultSizeEstimate = ResultSpaceSize.estimate(top, assumptions)
 
+  def resultPathLength(
+    assumptions: Map[SpaceMention, PathLengthEstimate] = Map.empty,
+    pathAssumptions: Map[PathRef, PathLengthEstimate] = Map.empty,
+    sizeAssumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
+  ): PathLengthEstimate =
+    ResultPathLength.estimate(top, assumptions, pathAssumptions, sizeAssumptions)
+
 object SC:
   import Space.*
   import Matching.LiteralEmbeddingPolicy
