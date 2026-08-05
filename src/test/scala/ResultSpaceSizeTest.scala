@@ -10,6 +10,134 @@ class ResultSpaceSizeTest extends FunSuite:
       fail(s"expected a finite expression, got ${expression.show}")
     )
 
+  test("reference hints cover binders, uses, freshening, and exact space mentions") {
+    assertEquals(PathRef("same").known(1), PathRef("same"))
+    assertEquals(SpaceMention("same").known(2), SpaceMention("same"))
+
+    val head = PathRef("hint_head")
+    val rest = SpaceMention("hint_rest")
+    val source = Space.Literal(SpaceValue(Set(
+      Syntax.parse("a.x"), Syntax.parse("a.y"),
+      Syntax.parse("b.z"), Syntax.parse("b.w")
+    )))
+    val raw = Space.Iteration(
+      source,
+      head,
+      rest,
+      Space.Union(Space.Singleton(Path.Deref(head)), Space.Mention(rest))
+    )
+
+    val tagged = ReferenceHints.tag(raw)
+    val (taggedHead, taggedRest, taggedBody) = tagged match
+      case Space.Iteration(_, symbol, tails, body) => (symbol, tails, body)
+      case other => fail(s"expected iteration, got ${other.show}")
+    assertEquals(taggedHead.lengthHint, 1)
+    assertEquals(taggedRest.sizeHint, 2)
+    val (mentions, refs) = collect(taggedBody)(
+      { case Space.Mention(sm) => sm },
+      { case Path.Deref(pr) => pr }
+    )
+    assert(mentions.map(_._2).filter(_.s == rest.s).forall(_.sizeHint == 2))
+    assert(refs.map(_._2).filter(_.s == head.s).forall(_.lengthHint == 1))
+
+    val fold = ReferenceHints.tag(Space.Fold(
+      source,
+      Path.Constant(Syntax.parse("seed.value")),
+      PathRef("hint_acc"),
+      PathRef("hint_fold_head"),
+      SpaceMention("hint_fold_rest"),
+      Space.Singleton(Path.Deref(PathRef("hint_acc"))),
+      Path.Constant(Syntax.parse("next.value"))
+    ))
+    fold match
+      case Space.Fold(_, _, acc, symbol, tails, Space.Singleton(Path.Deref(bodyAcc)), _) =>
+        assertEquals(acc.lengthHint, 2)
+        assertEquals(bodyAcc.lengthHint, 2)
+        assertEquals(symbol.lengthHint, 1)
+        assertEquals(tails.sizeHint, 2)
+      case other => fail(s"expected tagged fold, got ${other.show}")
+
+    val identityAcc = PathRef("identity_acc")
+    ReferenceHints.tag(Space.Fold(
+      source,
+      Path.Constant(Syntax.parse("seed.value")),
+      identityAcc,
+      PathRef("identity_fold_head"),
+      SpaceMention("identity_fold_rest"),
+      Space.Singleton(Path.Deref(identityAcc)),
+      Path.Deref(identityAcc)
+    )) match
+      case Space.Fold(_, _, acc, _, _, Space.Singleton(Path.Deref(bodyAcc)), Path.Deref(updateAcc)) =>
+        assertEquals(acc.lengthHint, 2)
+        assertEquals(bodyAcc.lengthHint, 2)
+        assertEquals(updateAcc.lengthHint, 2)
+      case other => fail(s"expected identity fold, got ${other.show}")
+
+    val uneven = ReferenceHints.tag(Space.Iteration(
+      Space.Literal(SpaceValue(Set(
+        Syntax.parse("a.x"), Syntax.parse("a.y"), Syntax.parse("b.z")
+      ))),
+      PathRef("uneven_head"),
+      SpaceMention("uneven_rest"),
+      Space.Mention(SpaceMention("uneven_rest"))
+    ))
+    uneven match
+      case Space.Iteration(_, symbol, tails, Space.Mention(bodyTails)) =>
+        assertEquals(symbol.lengthHint, 1)
+        assertEquals(tails.sizeHint, -1)
+        assertEquals(bodyTails.sizeHint, -1)
+      case other => fail(s"expected uneven iteration, got ${other.show}")
+
+    Matching.canon(tagged) match
+      case Space.Iteration(_, symbol, tails, _) =>
+        assertEquals(symbol.lengthHint, 1)
+        assertEquals(tails.sizeHint, 2)
+      case other => fail(s"expected canonical iteration, got ${other.show}")
+
+    val formalPath = PathRef("formal_path").known(4)
+    val formalSpace = SpaceMention("formal_space").known(3)
+    val formalGraph = transpile(Routine(
+      RoutinePtr("formal_hint_roundtrip"),
+      Vector(formalPath),
+      Vector(formalSpace),
+      Space.Union(Space.Singleton(Path.Deref(formalPath)), Space.Mention(formalSpace))
+    ))
+    Vector(
+      formalGraph,
+      optimize_sharing(formalGraph),
+      push_out(formalGraph),
+      hoist_loop_invariant_subgraphs(formalGraph)
+    ).foreach { roundtripGraph =>
+      val formalStack = scala.collection.mutable.Stack(new Array[Path | Space | Null](roundtripGraph.nodes.length))
+      untranspile(roundtripGraph, formalStack)
+      formalStack.top.last.asInstanceOf[Space] match
+        case Space.Union(Space.Singleton(Path.Deref(path)), Space.Mention(space)) =>
+          assertEquals(path.lengthHint, 4)
+          assertEquals(space.sizeHint, 3)
+        case other => fail(s"expected formal-reference round trip, got ${other.show}")
+    }
+
+    val graph = transpile(Routine(RoutinePtr("hint_roundtrip"), Vector.empty, Vector.empty, raw))
+    val stack = scala.collection.mutable.Stack(new Array[Path | Space | Null](graph.nodes.length))
+    untranspile(graph, stack)
+    stack.top.last.asInstanceOf[Space] match
+      case Space.Iteration(_, symbol, tails, body) =>
+        assertEquals(symbol.lengthHint, 1)
+        assertEquals(tails.sizeHint, 2)
+        val (roundtripMentions, roundtripRefs) = collect(body)(
+          { case Space.Mention(sm) => sm },
+          { case Path.Deref(pr) => pr }
+        )
+        assert(roundtripMentions.map(_._2).forall(_.sizeHint == 2))
+        assert(roundtripRefs.map(_._2).forall(_.lengthHint == 1))
+      case other => fail(s"expected round-tripped iteration, got ${other.show}")
+
+    val known = SpaceMention("known_size").known(3)
+    val knownEstimate = ResultSpaceSize.estimateOperationLaws(Space.Mention(known))
+    assertEquals(knownEstimate.upper.evaluate, Some(BigInt(3)))
+    assertEquals(knownEstimate.lower.evaluate, Some(BigInt(3)))
+  }
+
   test("symbolic cardinality rules preserve useful path-set bounds") {
     val left = S"left"
     val right = S"right"

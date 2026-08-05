@@ -26,7 +26,8 @@ object PathItem:
 
 case class PathRef(s: String):
   val lengthHint = -1
-  def known(length: Int): PathRef = new PathRef(s) { override val lengthHint = length }
+  def known(length: Int): PathRef =
+    if lengthHint == length then this else new PathRef(s) { override val lengthHint = length }
 
 enum Path:
   case Deref(pr: PathRef)
@@ -173,7 +174,10 @@ object SpaceContext:
     val pm = m
     override def resolve(pr: SpaceMention): SpaceValue = pm(pr)
 
-case class SpaceMention(s: String)
+case class SpaceMention(s: String):
+  val sizeHint = -1
+  def known(size: Int): SpaceMention =
+    if sizeHint == size then this else new SpaceMention(s) { override val sizeHint = size }
 
 enum Space:
   case Empty
@@ -244,6 +248,222 @@ object RangeBounds:
     val lo = lower(start).max(0).min(size)
     val hi = upper(end).max(0).min(size)
     if hi <= lo then 0 -> 0 else lo -> hi
+
+/** Exact, optional metadata for references bound inside a space expression.
+  * Hints never participate in reference identity: equality remains name-based,
+  * and `-1` means unknown.  This pass makes binder knowledge visible on every
+  * corresponding dereference/mention, including after alpha-renaming and graph
+  * reconstruction.
+  */
+object ReferenceHints:
+  def pathLength(path: Path): Option[Int] = path match
+    case Path.Deref(ref) => Option.when(ref.lengthHint >= 0)(ref.lengthHint)
+    case Path.Constant(PathValue(items)) => Some(items.length)
+    case Path.Concat(left, right) =>
+      for
+        l <- pathLength(left)
+        r <- pathLength(right)
+      yield l + r
+    case Path.GroundedPP(_, _) | Path.GroundedSP(_, _) => None
+
+  def spaceSize(space: Space): Option[Int] = space match
+    case Space.Empty => Some(0)
+    case Space.Mention(mention) => Option.when(mention.sizeHint >= 0)(mention.sizeHint)
+    case Space.Singleton(_) => Some(1)
+    case Space.Literal(value) => Some(value.paths.size)
+    case Space.Union(left, right) if left == right => spaceSize(left)
+    case Space.Union(left, right) => (spaceSize(left), spaceSize(right)) match
+      case (Some(0), size) => size
+      case (size, Some(0)) => size
+      case _ => None
+    case Space.Intersection(left, right) if left == right => spaceSize(left)
+    case Space.Intersection(left, right) => (spaceSize(left), spaceSize(right)) match
+      case (Some(0), _) | (_, Some(0)) => Some(0)
+      case _ => None
+    case Space.Subtraction(left, right) if left == right => Some(0)
+    case Space.Subtraction(left, right) => (spaceSize(left), spaceSize(right)) match
+      case (Some(0), _) => Some(0)
+      case (size, Some(0)) => size
+      case _ => None
+    case Space.Restriction(left, prefixes) => (spaceSize(left), spaceSize(prefixes)) match
+      case (Some(0), _) | (_, Some(0)) => Some(0)
+      case _ => None
+    case Space.Raffination(left, prefixes) => (spaceSize(left), spaceSize(prefixes)) match
+      case (Some(0), _) => Some(0)
+      case (size, Some(0)) => size
+      case _ => None
+    case Space.Composition(left, right) => (spaceSize(left), spaceSize(right)) match
+      case (Some(0), _) | (_, Some(0)) => Some(0)
+      case (Some(1), size) => size
+      case (size, Some(1)) => size
+      case _ => None
+    case Space.Wrap(src, _) => spaceSize(src)
+    case Space.Range(src, start, end) => spaceSize(src).map { size =>
+      val (lo, hi) = RangeBounds.normalize(size, start, end)
+      hi - lo
+    }
+    case _ => None
+
+  private def headed(path: Path): Boolean = path match
+    case Path.Constant(PathValue(items)) => items.nonEmpty
+    case Path.Deref(ref) => ref.lengthHint > 0
+    case Path.Concat(left, right) => headed(left) || headed(right)
+    case _ => false
+
+  /** Exact size of every tail group, when it is uniform.  Epsilon contributes
+    * no group and therefore does not invalidate a uniform headed-group size.
+    */
+  private def uniformTailGroupSize(source: Space): Option[Int] = source match
+    case Space.Literal(SpaceValue(paths)) =>
+      val groupSizes = paths.iterator.collect { case PathValue(head :: tail) => head -> PathValue(tail) }
+        .toVector.groupMap(_._1)(_._2).valuesIterator.map(_.distinct.size).toSet
+      if groupSizes.size == 1 then groupSizes.headOption else None
+    case Space.Singleton(path) if headed(path) => Some(1)
+    case Space.Mention(mention) if mention.sizeHint == 1 => Some(1)
+    case _ => None
+
+  private def hinted(ref: PathRef, length: Option[Int]): PathRef =
+    length.filter(_ >= 0).fold(ref)(ref.known)
+
+  private def hinted(mention: SpaceMention, size: Option[Int]): SpaceMention =
+    size.filter(_ >= 0).fold(mention)(mention.known)
+
+  def tag(
+    space: Space,
+    initialPathHints: Map[PathRef, Int] = Map.empty,
+    initialSpaceHints: Map[SpaceMention, Int] = Map.empty
+  ): Space =
+    final class HintEnvironment(
+      val pathHints: Map[PathRef, Int],
+      val spaceHints: Map[SpaceMention, Int]
+    )
+    val pathMemo = java.util.IdentityHashMap[Path, java.util.IdentityHashMap[HintEnvironment, Path]]()
+    val spaceMemo = java.util.IdentityHashMap[Space, java.util.IdentityHashMap[HintEnvironment, Space]]()
+
+    def recp(path: Path, environment: HintEnvironment): Path =
+      var byEnvironment = pathMemo.get(path)
+      if byEnvironment == null then
+        byEnvironment = java.util.IdentityHashMap()
+        pathMemo.put(path, byEnvironment)
+      val cached = byEnvironment.get(environment)
+      if cached != null then cached
+      else
+        val tagged = recpUncached(path, environment)
+        byEnvironment.put(environment, tagged)
+        tagged
+
+    def recs(value: Space, environment: HintEnvironment): Space =
+      var byEnvironment = spaceMemo.get(value)
+      if byEnvironment == null then
+        byEnvironment = java.util.IdentityHashMap()
+        spaceMemo.put(value, byEnvironment)
+      val cached = byEnvironment.get(environment)
+      if cached != null then cached
+      else
+        val tagged = recsUncached(value, environment)
+        byEnvironment.put(environment, tagged)
+        tagged
+
+    def recpUncached(path: Path, environment: HintEnvironment): Path = path match
+      case Path.Deref(ref) => Path.Deref(hinted(ref, environment.pathHints.get(ref)))
+      case Path.Constant(_) => path
+      case Path.Concat(left, right) => Path.Concat(recp(left, environment), recp(right, environment))
+      case Path.GroundedPP(value, f) => Path.GroundedPP(recp(value, environment), f)
+      case Path.GroundedSP(value, f) => Path.GroundedSP(recs(value, environment), f)
+
+    def recsUncached(value: Space, environment: HintEnvironment): Space = value match
+      case Space.Empty | Space.Literal(_) => value
+      case Space.Mention(mention) => Space.Mention(hinted(mention, environment.spaceHints.get(mention)))
+      case Space.Call(routine, refs, mentions) =>
+        Space.Call(routine, refs.map(recp(_, environment)), mentions.map(recs(_, environment)))
+      case Space.Singleton(path) => Space.Singleton(recp(path, environment))
+      case Space.Union(left, right) => Space.Union(recs(left, environment), recs(right, environment))
+      case Space.Intersection(left, right) => Space.Intersection(recs(left, environment), recs(right, environment))
+      case Space.Subtraction(left, right) => Space.Subtraction(recs(left, environment), recs(right, environment))
+      case Space.Restriction(left, right) => Space.Restriction(recs(left, environment), recs(right, environment))
+      case Space.Raffination(left, right) => Space.Raffination(recs(left, environment), recs(right, environment))
+      case Space.Composition(left, right) => Space.Composition(recs(left, environment), recs(right, environment))
+      case Space.Iteration(src, symbol, rest, body) =>
+        val taggedSource = recs(src, environment)
+        val taggedSymbol = symbol.known(1)
+        val restSize = Option.when(rest.sizeHint >= 0)(rest.sizeHint).orElse(uniformTailGroupSize(taggedSource))
+        val taggedRest = hinted(rest, restSize)
+        val bodyEnvironment = HintEnvironment(
+          environment.pathHints.updated(symbol, 1),
+          restSize.fold(environment.spaceHints)(environment.spaceHints.updated(rest, _))
+        )
+        Space.Iteration(
+          taggedSource,
+          taggedSymbol,
+          taggedRest,
+          recs(body, bodyEnvironment)
+        )
+      case Space.Fold(src, initial, acc, symbol, rest, body, update) =>
+        val taggedSource = recs(src, environment)
+        val taggedInitial = recp(initial, environment)
+        val initialLength = pathLength(taggedInitial)
+        val updateProbeEnvironment = HintEnvironment(
+          environment.pathHints.updated(symbol, 1) ++ initialLength.map(acc -> _),
+          environment.spaceHints
+        )
+        val taggedUpdate0 = recp(update, updateProbeEnvironment)
+        val accumulatorLength =
+          val updateLength = pathLength(taggedUpdate0)
+          Option.when(initialLength.nonEmpty && initialLength == updateLength)(initialLength.get)
+            .orElse(Option.when(acc.lengthHint >= 0)(acc.lengthHint))
+        val taggedAcc = hinted(acc, accumulatorLength)
+        val taggedSymbol = symbol.known(1)
+        val restSize = Option.when(rest.sizeHint >= 0)(rest.sizeHint).orElse(uniformTailGroupSize(taggedSource))
+        val taggedRest = hinted(rest, restSize)
+        val bodyEnvironment = HintEnvironment(
+          environment.pathHints.updated(symbol, 1) ++ accumulatorLength.map(acc -> _),
+          restSize.fold(environment.spaceHints)(environment.spaceHints.updated(rest, _))
+        )
+        Space.Fold(
+          taggedSource,
+          taggedInitial,
+          taggedAcc,
+          taggedSymbol,
+          taggedRest,
+          recs(body, bodyEnvironment),
+          recp(update, bodyEnvironment)
+        )
+      case Space.Fixpoint(initial, variable, step) =>
+        val taggedInitial = recs(initial, environment)
+        val variableSize = Option.when(variable.sizeHint >= 0)(variable.sizeHint).orElse(step match
+          case Space.Mention(mention) if mention == variable => spaceSize(taggedInitial)
+          case _ => None
+        )
+        val taggedVariable = hinted(variable, variableSize)
+        Space.Fixpoint(
+          taggedInitial,
+          taggedVariable,
+          recs(step, HintEnvironment(
+            environment.pathHints,
+            variableSize.fold(environment.spaceHints)(environment.spaceHints.updated(variable, _))
+          ))
+        )
+      case Space.Wrap(src, prefix) => Space.Wrap(recs(src, environment), recp(prefix, environment))
+      case Space.Unwrap(src, prefix) => Space.Unwrap(recs(src, environment), recp(prefix, environment))
+      case Space.TailsUnion(src) => Space.TailsUnion(recs(src, environment))
+      case Space.TailsIntersection(src) => Space.TailsIntersection(recs(src, environment))
+      case Space.PrefixClosure(src) => Space.PrefixClosure(recs(src, environment))
+      case Space.SuffixClosure(src) => Space.SuffixClosure(recs(src, environment))
+      case Space.TailsClosure(src) => Space.TailsClosure(recs(src, environment))
+      case Space.GroundedPS(path, f) => Space.GroundedPS(recp(path, environment), f)
+      case Space.GroundedSS(src, f) => Space.GroundedSS(recs(src, environment), f)
+      case Space.Range(src, start, end) => Space.Range(recs(src, environment), start, end)
+
+    recs(space, HintEnvironment(initialPathHints, initialSpaceHints))
+
+  def tag(routine: Routine): Routine =
+    val pathHints = routine.refs.iterator.collect {
+      case ref if ref.lengthHint >= 0 => ref -> ref.lengthHint
+    }.toMap
+    val spaceHints = routine.mentions.iterator.collect {
+      case mention if mention.sizeHint >= 0 => mention -> mention.sizeHint
+    }.toMap
+    routine.copy(body = tag(routine.body, pathHints, spaceHints))
 
 
 case class SpaceValue(paths: Set[PathValue]):
@@ -497,6 +717,11 @@ class RecursiveOpGraph(var root: Node[(Int, Int)],
   val literalPool: ArrayBuffer[SpaceValue] =
     if sharedLiteralPool != null then sharedLiteralPool
     else parent.map(_.literalPool).getOrElse(ArrayBuffer.empty[SpaceValue])
+  val pathReferenceHints = collection.mutable.HashMap.empty[String, Int]
+  val spaceReferenceHints = collection.mutable.HashMap.empty[String, Int]
+  def copyReferenceHintsFrom(source: RecursiveOpGraph): Unit =
+    pathReferenceHints ++= source.pathReferenceHints
+    spaceReferenceHints ++= source.spaceReferenceHints
   private val pathValueCache = collection.mutable.HashMap.empty[String, PathValue]
   private val intPathValueCache = collection.mutable.HashMap.empty[String, List[Int]]
   private val literalValueCache = collection.mutable.HashMap.empty[String, SpaceValue]
@@ -552,10 +777,13 @@ class RecursiveOpGraph(var root: Node[(Int, Int)],
     None
 
 def transpile(r: Routine, caller: Option[RecursiveOpGraph] = None): RecursiveOpGraph =
-  val g = RecursiveOpGraph(Node("Routine", r.name.s, "space", Vector()), caller, ArrayBuffer.empty)
-  for (pr, i) <- r.refs.zipWithIndex do
+  val routine = ReferenceHints.tag(r)
+  val g = RecursiveOpGraph(Node("Routine", routine.name.s, "space", Vector()), caller, ArrayBuffer.empty)
+  for (pr, i) <- routine.refs.zipWithIndex do
+    if pr.lengthHint >= 0 then g.pathReferenceHints(pr.s) = pr.lengthHint
     g.store(Node("ExtractPathRef", pr.s, "path", Vector()))
-  for (sm, i) <- r.mentions.zipWithIndex do
+  for (sm, i) <- routine.mentions.zipWithIndex do
+    if sm.sizeHint >= 0 then g.spaceReferenceHints(sm.s) = sm.sizeHint
     g.store(Node("ExtractSpaceMention", sm.s, "space", Vector()))
 
   def ensureSpaceOutput(pos: (Int, Int)): Unit =
@@ -622,7 +850,7 @@ def transpile(r: Routine, caller: Option[RecursiveOpGraph] = None): RecursiveOpG
       case Space.Iteration(src, symbol, rest, templates) =>
         val s = recs(src)
         val rog = transpile(Routine(
-          RoutinePtr(r.name.s + "_" + symbol.s),
+          RoutinePtr(routine.name.s + "_" + symbol.s),
           Vector(symbol),
           Vector(rest),
           templates
@@ -638,7 +866,7 @@ def transpile(r: Routine, caller: Option[RecursiveOpGraph] = None): RecursiveOpG
             Space.Wrap(Space.Singleton(update), Path.Constant(GraphFoldTags.Update))
           )
         val rog = transpile(Routine(
-          RoutinePtr(r.name.s + "_fold_" + symbol.s),
+          RoutinePtr(routine.name.s + "_fold_" + symbol.s),
           Vector(acc, symbol),
           Vector(rest),
           packed
@@ -648,7 +876,7 @@ def transpile(r: Routine, caller: Option[RecursiveOpGraph] = None): RecursiveOpG
       case Space.Fixpoint(initial, variable, step) =>
         val init = recs(initial)
         val rog = transpile(Routine(
-          RoutinePtr(r.name.s + "_fix_" + variable.s),
+          RoutinePtr(routine.name.s + "_fix_" + variable.s),
           Vector.empty,
           Vector(variable),
           step
@@ -662,7 +890,7 @@ def transpile(r: Routine, caller: Option[RecursiveOpGraph] = None): RecursiveOpG
       case Space.Range(x, start, end) =>
         g.store(Node("Range", s"$start:$end", "space", Vector(recs(x))))
 
-  r.body match
+  routine.body match
 //    case Space.Union(x, Space.Call(name, refs, mentions)) if name.s == r.name.s =>
       // r(a) = x(a) \/ r(g(a))  =  r(a) = x(a) \/ x(g(a)) \/ r(g(g(a)))
       // r(a) = x(a) \/ x(g(a)) \/ x(g(g(a))) \/ x(g(g(g((a)))) \/ ...
@@ -826,18 +1054,24 @@ def untranspile(rog: RecursiveOpGraph,
     case _ => None
   def taggedSingletonPath(packed: Space, tag: PathValue): Option[Path] =
     taggedSpace(packed, tag).collect { case Space.Singleton(path) => path }
+  def pathReference(name: String): PathRef =
+    val ref = PathRef(name)
+    rog.pathReferenceHints.get(name).fold(ref)(ref.known)
+  def spaceReference(name: String): SpaceMention =
+    val mention = SpaceMention(name)
+    rog.spaceReferenceHints.get(name).fold(mention)(mention.known)
   while c < rog.nodes.length do
     rog.nodes(c) match
       case Left(Node(op, constant, kind, inputs)) => kind match
         case "path" => s(c) = (op match
-          case "ExtractPathRef" => Path.Deref(PathRef(constant)) // stack should already prepared
+          case "ExtractPathRef" => Path.Deref(pathReference(constant)) // stack should already prepared
           case "Constant" => Path.Constant(rog.pathValue(constant))
           case "Concat" => Path.Concat(inputs(0).pget, inputs(1).pget))
         case "space" => s(c) = (op match
           case "Empty" => Space.Empty
           case "Call" =>
             throw RuntimeException(s"untranspile cannot reconstruct Call[$constant] without routine signature metadata")
-          case "ExtractSpaceMention" => Space.Mention(SpaceMention(constant)) // stack should already prepared
+          case "ExtractSpaceMention" => Space.Mention(spaceReference(constant)) // stack should already prepared
           case "Alias" => inputs(0).sget
           case "Singleton" => Space.Singleton(inputs(0).pget)
           case "Literal" => Space.Literal(rog.literalValue(constant))
@@ -869,7 +1103,12 @@ def untranspile(rog: RecursiveOpGraph,
             stack.push(new Array(sg.nodes.length))
             untranspile(sg, stack, index)
             val popped = stack.pop()
-            s(c) = Space.Iteration(inputs(0).sget, popped(0).asInstanceOf[Path.Deref].pr, popped(1).asInstanceOf[Space.Mention].variable, popped.last.asInstanceOf[Space])
+            s(c) = ReferenceHints.tag(Space.Iteration(
+              inputs(0).sget,
+              popped(0).asInstanceOf[Path.Deref].pr,
+              popped(1).asInstanceOf[Space.Mention].variable,
+              popped.last.asInstanceOf[Space]
+            ))
           case "Fold" =>
             stack.push(new Array(sg.nodes.length))
             untranspile(sg, stack, index)
@@ -881,7 +1120,7 @@ def untranspile(rog: RecursiveOpGraph,
             val update = taggedSingletonPath(packed, GraphFoldTags.Update).getOrElse {
               throw IllegalStateException(s"Fold subgraph did not contain ${GraphFoldTags.Update.show} singleton update tag")
             }
-            s(c) = Space.Fold(
+            s(c) = ReferenceHints.tag(Space.Fold(
               inputs(0).sget,
               inputs(1).pget,
               popped(0).asInstanceOf[Path.Deref].pr,
@@ -889,12 +1128,16 @@ def untranspile(rog: RecursiveOpGraph,
               popped(2).asInstanceOf[Space.Mention].variable,
               body,
               update
-            )
+            ))
           case "Fixpoint" =>
             stack.push(new Array(sg.nodes.length))
             untranspile(sg, stack, index)
             val popped = stack.pop()
-            s(c) = Space.Fixpoint(inputs(0).sget, SpaceMention(constant), popped.last.asInstanceOf[Space])
+            s(c) = ReferenceHints.tag(Space.Fixpoint(
+              inputs(0).sget,
+              popped(0).asInstanceOf[Space.Mention].variable,
+              popped.last.asInstanceOf[Space]
+            ))
     c += 1
   end while
 
@@ -1005,6 +1248,7 @@ def optimize_sharing(g: RecursiveOpGraph,
                      parent: Option[RecursiveOpGraph] = None): RecursiveOpGraph =
   val parent0 = parent.orElse(g.parent)
   val r = RecursiveOpGraph(g.root, parent0, ArrayBuffer.empty, parent0.map(_.literalPool).getOrElse(g.literalPool))
+  r.copyReferenceHintsFrom(g)
   val l = g.level
   stack.addOne(LongMap.withDefault[(Int, Int)](x => l -> x.toInt) -> LongMap.withDefault[(Int, Int)](x => l -> x.toInt))
   def forward(pos: (Int, Int)): Option[(Int, Int)] =
@@ -1048,6 +1292,7 @@ def optimize_sharing(g: RecursiveOpGraph,
 
 def push_out(g: RecursiveOpGraph, stack: ArrayBuffer[LongMap[(Int, Int)]] = ArrayBuffer.empty, parent: Option[RecursiveOpGraph] = None): RecursiveOpGraph =
   val r = RecursiveOpGraph(g.root, parent, ArrayBuffer.empty, parent.map(_.literalPool).getOrElse(g.literalPool))
+  r.copyReferenceHintsFrom(g)
   val lb = g.level
   var jb = 0
   var added = 0
@@ -1117,6 +1362,7 @@ def hoist_loop_invariant_subgraphs(g: RecursiveOpGraph): RecursiveOpGraph =
     require(src.level == remaps.length,
       s"cannot rebuild graph at level ${src.level} with ${remaps.length} active remap frames")
     val out = RecursiveOpGraph(src.root, parent, ArrayBuffer.empty, parent.map(_.literalPool).getOrElse(src.literalPool))
+    out.copyReferenceHintsFrom(src)
     val frame = collection.mutable.Map.empty[Int, (Int, Int)]
     remaps += frame
 
@@ -1865,7 +2111,7 @@ object Lower:
   val TailsUnion_Iteration = subs(_: Space)(PartialFunction.empty, {
     case Space.TailsUnion(src) =>
       val name = SpaceMention("s" + src.hashCode().toHexString)
-      Space.Iteration(src, PathRef("_"), name, Space.Mention(name))
+      ReferenceHints.tag(Space.Iteration(src, PathRef("_").known(1), name, Space.Mention(name)))
   })
 
   val Literal_ConstantsUnion = subs(_: Space)(PartialFunction.empty, {
@@ -2473,7 +2719,7 @@ object Supercompiler:
                 passes: Vector[(String, Space => Space)] = defaultSourcePasses,
                 maxRounds: Int = 128,
                 deadline: CompileDeadline = CompileBudget.Default.start()): NormalizeResult =
-    var current = s
+    var current = ReferenceHints.tag(s)
     var currentStats = stats(current)
     val steps = Vector.newBuilder[SupercompileStep]
     val timings = Vector.newBuilder[OptimizationTiming]
@@ -2486,9 +2732,10 @@ object Supercompiler:
         val before = current
         val beforeStats = currentStats
         val start = System.nanoTime()
-        val after = pass(current)
+        val transformed = pass(current)
+        val changedPass = before != transformed
+        val after = if changedPass then ReferenceHints.tag(transformed) else before
         val elapsed = (System.nanoTime() - start).toDouble / 1_000_000.0
-        val changedPass = before != after
         val afterStats =
           if changedPass then stats(after)
           else beforeStats
@@ -2500,7 +2747,7 @@ object Supercompiler:
           changed = true
         deadline.check(s"source pass $name")
       round += 1
-    NormalizeResult(current, steps.result(), timings.result(), round, !changed)
+    NormalizeResult(ReferenceHints.tag(current), steps.result(), timings.result(), round, !changed)
 
   def lowerFixpointCalls(s: Space, ctx: PartialFunction[RoutinePtr, Routine]): Space =
     case class RecursiveArc(target: RoutinePtr, arg: Space)
@@ -3133,27 +3380,29 @@ object Syntax:
     def \|(y: Space) = Space.Raffination(x, y)
     infix def x(y: Space) = Space.Composition(x, y)
     def apply(p: Path) = Space.Unwrap(x, p)
-    infix def iter(h: Path.Deref, t: Space.Mention, rhs: Space): Space = Space.Iteration(x, h.pr.known(1), t.variable, subs(rhs)(ppre = { case `h` => Path.Deref(h.pr.known(1)) }))
+    infix def iter(h: Path.Deref, t: Space.Mention, rhs: Space): Space = ReferenceHints.tag(
+      Space.Iteration(x, h.pr.known(1), t.variable, subs(rhs)(ppre = { case `h` => Path.Deref(h.pr.known(1)) }))
+    )
     infix def iter(h2: (Path.Deref, Path.Deref), t: Space.Mention, rhs: Space): Space =
       val sm = SpaceMention(s"r${h2._2.pr.s}${rhs.hashCode().toHexString}")
-      Space.Iteration(x, h2._1.pr.known(1), sm, Space.Iteration(Space.Mention(sm), h2._2.pr.known(1), t.variable,
-        subs(rhs)(ppre = { case Path.Deref(pr) if pr == h2._1.pr || pr == h2._2.pr => Path.Deref(pr.known(1)) })))
+      ReferenceHints.tag(Space.Iteration(x, h2._1.pr.known(1), sm, Space.Iteration(Space.Mention(sm), h2._2.pr.known(1), t.variable,
+        subs(rhs)(ppre = { case Path.Deref(pr) if pr == h2._1.pr || pr == h2._2.pr => Path.Deref(pr.known(1)) }))))
     infix def iter(h3: (Path.Deref, Path.Deref, Path.Deref), t: Space.Mention, rhs: Space): Space =
       val sm2 = SpaceMention(s"r${h3._2.pr.s}${rhs.hashCode().toHexString}")
       val sm3 = SpaceMention(s"r${h3._3.pr.s}${rhs.hashCode().toHexString}")
-      Space.Iteration(x, h3._1.pr.known(1), sm2,
+      ReferenceHints.tag(Space.Iteration(x, h3._1.pr.known(1), sm2,
         Space.Iteration(Space.Mention(sm2), h3._2.pr.known(1), sm3,
           Space.Iteration(Space.Mention(sm3), h3._3.pr.known(1), t.variable,
-            subs(rhs)(ppre = { case Path.Deref(pr) if pr == h3._1.pr || pr == h3._2.pr || pr == h3._3.pr => Path.Deref(pr.known(1)) }))))
+            subs(rhs)(ppre = { case Path.Deref(pr) if pr == h3._1.pr || pr == h3._2.pr || pr == h3._3.pr => Path.Deref(pr.known(1)) })))))
     infix def iter(h4: (Path.Deref, Path.Deref, Path.Deref, Path.Deref), t: Space.Mention, rhs: Space): Space =
       val sm2 = SpaceMention(s"r${h4._2.pr.s}${rhs.hashCode().toHexString}")
       val sm3 = SpaceMention(s"r${h4._3.pr.s}${rhs.hashCode().toHexString}")
       val sm4 = SpaceMention(s"r${h4._4.pr.s}${rhs.hashCode().toHexString}")
-      Space.Iteration(x, h4._1.pr.known(1), sm2,
+      ReferenceHints.tag(Space.Iteration(x, h4._1.pr.known(1), sm2,
         Space.Iteration(Space.Mention(sm2), h4._2.pr.known(1), sm3,
           Space.Iteration(Space.Mention(sm3), h4._3.pr.known(1), sm4,
             Space.Iteration(Space.Mention(sm4), h4._4.pr.known(1), t.variable,
-              subs(rhs)(ppre = { case Path.Deref(pr) if pr == h4._1.pr || pr == h4._2.pr || pr == h4._3.pr || pr == h4._4.pr => Path.Deref(pr.known(1)) })))))
+              subs(rhs)(ppre = { case Path.Deref(pr) if pr == h4._1.pr || pr == h4._2.pr || pr == h4._3.pr || pr == h4._4.pr => Path.Deref(pr.known(1)) }))))))
     infix def iterk(k: Int, t: Space.Mention, rhs: Path => Space): Space =
       val rhsh = rhs.hashCode().toHexString
       val prs = Vector.tabulate(k)(i => PathRef(s"${i}h$rhsh").known(1))
@@ -3166,11 +3415,11 @@ object Syntax:
           })
         else
           Space.Iteration(ss(i), prs(i), sms(i), rec(i + 1))
-      val res = rec(0)
+      val res = ReferenceHints.tag(rec(0))
 //      if rhs(Path.ZERO) != Space.Empty then println(s"iter${k} wrapper=${Space.Empty.iterk(k, t, {case _ => Space.Empty}).show}")
       res
     infix def fold(initial: Path, acc: String, symbol: String, rest: String, rhs: Space, update: Path): Space =
-      Space.Fold(x, initial, PathRef(acc), PathRef(symbol), SpaceMention(rest), rhs, update)
+      ReferenceHints.tag(Space.Fold(x, initial, PathRef(acc), PathRef(symbol).known(1), SpaceMention(rest), rhs, update))
     def iterh(h: Path.Deref, run: Space): Space = x.iter(h, S"_", run)
     def itert(t: Space.Mention, run: Space): Space = x.iter(P"_", t, run)
     def tee(run: Space): Space = x.iter(P"_", S"_", run)
@@ -3185,7 +3434,7 @@ object Syntax:
           case Space.Mention(sm) => sm
           case other => throw IllegalArgumentException(s"routine space parameters must be mentions, got ${other.show}")
         }
-        Routine(rp, refPtrs, mentionPtrs, s)
+        ReferenceHints.tag(Routine(rp, refPtrs, mentionPtrs, s))
       case other => throw IllegalArgumentException(s"routine definition must start from a call, got ${other.show}")
 
   extension (st: SpaceValue.type)
@@ -3242,7 +3491,7 @@ object Syntax:
   def nonEmpty(x: Space): Space =
     val epsilon = Space.Singleton(Path.ZERO)
     val symbol = PathRef(s"__nonempty_${x.hashCode().toHexString}").known(1)
-    Space.Union(
+    ReferenceHints.tag(Space.Union(
       Space.Intersection(x, epsilon),
       Space.Iteration(
         Space.Range(x, 0, 1),
@@ -3250,7 +3499,7 @@ object Syntax:
         SpaceMention("_"),
         epsilon
       )
-    )
+    ))
   def \/(s: Space): Space = Space.TailsUnion(s)
   def /\(s: Space): Space = Space.TailsIntersection(s)
   def mod(rs: Routine*): PartialFunction[RoutinePtr, Routine] = ((rp: RoutinePtr) => rs.find(_.name == rp)).unlift

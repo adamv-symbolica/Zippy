@@ -5475,3 +5475,32 @@ Relational operation-graph final verification:
 - The complete audited MUnit suite passed with the same four pre-existing ignores. Across 489,942 observations every finite bound contained the concrete result, 15,548 uppers and 13,493 lowers improved, and no baseline bound weakened.
 - Analyzer scaling on balanced unrelated unions remained linear from 1,024 through 32,768 leaves. Refined/baseline median ratios were 1.10x, 1.14x, 1.10x, 1.04x, 1.21x, and 1.03x; 32x more leaves took 0.194 -> 8.914 ms.
 - `git diff --check` passes. Updated `RESULT_SPACE_SIZE_LAWS.md` and `RESULT_SPACE_SIZE_AUDIT.md` with the new relational, fiber, map, paired-corpus, distribution, and full-suite results.
+
+2026-08-05T21:39:00+01:00
+
+Reference-hint propagation, first checkpoint:
+- Added exact `sizeHint` metadata to `SpaceMention`, analogous to `PathRef.lengthHint`; both retain name-only equality and use `-1` for unknown.
+- Added lexical `ReferenceHints.tag`: iteration/fold heads are tagged length one throughout their bodies, stable fold accumulators retain exact length, and uniformly sized iteration tail groups tag both their binder and mentions.
+- Added exact local inference for literal/singleton/empty spaces, identity set cases, singleton products, wrap, and range.
+- Alpha-renaming and substitution preserve both hint kinds; normalization retags after every structural rewrite.
+- The first temporary-mirror command failed because the prior `/tmp/morkl-z3-size` directory had expired. Rebuilt `/tmp/morkl-hints`; the complete main source set then compiled successfully with only the pre-existing unreachable-case warning.
+
+2026-08-05T21:58:15+01:00
+
+Reference-hint propagation, final verification:
+- Completed lexical tagging for every path-reference and space-mention binder/use across iteration, fold, fixpoint, routine formals, syntax construction, substitution, canonicalization, MSG holes, source normalization, and operation-graph reconstruction.
+- `SpaceMention.sizeHint` is exact metadata analogous to `PathRef.lengthHint`; both use `-1` for unknown and remain name-only for equality. Exact known mention sizes now feed the result-cardinality analysis.
+- Added sound exact inference for constant path lengths, literal/singleton/empty spaces, identity set cases, singleton products, wrap/range, uniform iterator tail fibers, stable fold accumulators, and identity fixpoints. Non-uniform tail fibers remain deliberately untagged.
+- Preserved hints through alpha-renaming and operation-graph formal extraction. Added regressions for binder/use coverage, identity-fold updates, non-uniform tails, name-only equality, freshening, exact cardinality use, and both nested and formal graph round trips.
+- A disposable mirror refresh accidentally removed its synthetic `package morkl` headers and failed compilation; the repository was unaffected. Rebuilt `/tmp/morkl-hints2` with the required headers before subsequent runs.
+- The final complete MUnit suite passed with the same four pre-existing ignored tests. Trie, zipper, source evaluator, operation-graph executor, random algebra, Game of Life, Datalog, puzzle, n-queens, and supercompiler tests all remained green.
+- The final audited suite observed 489,942 concrete results and found every finite bound sound. It retained 480,486 finite uppers, 361,735 exact finite uppers, 239,530 exact lowers, 15,548 upper improvements, 13,493 lower improvements, and zero unknown lowers.
+- Initial nested-binder timing exposed structural hashing of lexical environments; identity-keyed memoization removed it. Final batched `ReferenceHints.tag` medians for 1,024/2,048/4,096/8,192/16,384/32,768 balanced leaves were 0.098/0.193/0.466/0.901/2.661/6.035 ms. For 64/128/256/512 nested binders they were 0.020/0.057/0.100/0.157 ms, preserving the linear traversal class.
+- `git diff --check` passes.
+
+2026-08-05T22:00:50+01:00
+
+Reference-hint graph rebuild final addendum:
+- Audited every `RecursiveOpGraph` constructor and copied path/space formal hint tables through optimal sharing, push-out, and loop-invariant-hoisting rebuilds.
+- Extended the formal graph round-trip regression across all three rebuild passes.
+- Re-ran the complete MUnit suite on this exact final tree: all tests passed with the same four pre-existing ignores. `git diff --check` remains clean.

@@ -348,7 +348,9 @@ object ResultSpaceSize:
     space match
       case Space.Empty => ResultSizeEstimate.empty
       case Space.Mention(variable) =>
-        assumptions.getOrElse(variable, ResultSizeEstimate.exact(SizeExpr.sizeOf(space)))
+        assumptions.getOrElse(variable,
+          if variable.sizeHint >= 0 then ResultSizeEstimate.exact(SizeExpr.const(variable.sizeHint))
+          else ResultSizeEstimate.exact(SizeExpr.sizeOf(space)))
       case Space.Singleton(_) => ResultSizeEstimate.exact(SizeExpr.One)
       case Space.Literal(value) => ResultSizeEstimate.exact(SizeExpr.const(value.paths.size))
       case Space.Union(left, right) =>
@@ -413,7 +415,10 @@ object ResultSpaceSize:
             val source = rec(src)
             if exactZero(source) then ResultSizeEstimate.empty
             else
-              val bodyAssumptions = assumptions.updated(rest, ResultSizeEstimate(source.upper, SizeExpr.One))
+              val restEstimate =
+                if rest.sizeHint >= 0 then ResultSizeEstimate.exact(SizeExpr.const(rest.sizeHint))
+                else ResultSizeEstimate(source.upper, SizeExpr.One)
+              val bodyAssumptions = assumptions.updated(rest, restEstimate)
               val branch = analyze(body, bodyAssumptions, boundSpaces + rest, boundPaths + symbol, operationLaws)
               val independent = operationLaws && !dependsOnBound(body, Set(rest), Set(symbol))
               // ∪ src.map(x => ∪ tails(x).map(y => body(x, y))) has at most
@@ -455,7 +460,10 @@ object ResultSpaceSize:
         val source = rec(src)
         if exactZero(source) then ResultSizeEstimate.empty
         else
-          val bodyAssumptions = assumptions.updated(rest, ResultSizeEstimate(source.upper, SizeExpr.One))
+          val restEstimate =
+            if rest.sizeHint >= 0 then ResultSizeEstimate.exact(SizeExpr.const(rest.sizeHint))
+            else ResultSizeEstimate(source.upper, SizeExpr.One)
+          val bodyAssumptions = assumptions.updated(rest, restEstimate)
           val branch = analyze(body, bodyAssumptions, boundSpaces + rest, boundPaths ++ Set(acc, symbol), operationLaws)
           ResultSizeEstimate(
             SizeExpr.multiply(source.upper, branch.upper),
