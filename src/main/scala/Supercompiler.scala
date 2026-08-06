@@ -1,3 +1,5 @@
+package morkl
+
 import scala.collection.mutable
 import scala.util.Try
 

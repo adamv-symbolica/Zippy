@@ -1,3 +1,5 @@
+package morkl
+
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 import scala.collection.concurrent.TrieMap

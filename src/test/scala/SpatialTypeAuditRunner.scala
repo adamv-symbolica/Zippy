@@ -1,3 +1,5 @@
+package morkl
+
 @main def spatialTypeRandomAudit(
   count: Int = 1000,
   seed: Long = 20260708L,
@@ -113,3 +115,63 @@
       elapsed
     }
     println(f"spatial scaling: leaves=$leaves%6d medianMs=${median(samples)}%.3f")
+
+/** Open-input companion to [[spatialTypeRandomAudit]]. It reuses the exact
+  * same generated programs and concrete witnesses, but analysis receives only
+  * one declared input envelope, never `SpatialType.exact(example.arg)`. */
+@main def spatialTypeOpenRandomAudit(
+  count: Int = 1000,
+  seed: Long = 20260708L,
+  maxDepth: Int = 5,
+  maxResult: Int = 400,
+  extended: Boolean = false,
+): Unit =
+  val records = SpaceFuzzerCorpus.generate(count, seed, maxDepth, maxResult, extended)
+  val declaredInput = SpatialType.fromStrata(Vector(SpatialStratum(
+    PathLengthEstimate.unknown,
+    ResultSizeEstimate(SizeExpr.const(28), SizeExpr.One),
+  )))
+  var finiteUpper = 0
+  var exactSize = 0
+  val sizeSlack = collection.mutable.Map.empty[String, Int].withDefaultValue(0)
+
+  def bucket(value: Option[BigInt]): String = value match
+    case None => "infinity"
+    case Some(n) if n == 0 => "0"
+    case Some(n) if n <= 2 => "1-2"
+    case Some(n) if n <= 8 => "3-8"
+    case Some(n) if n <= 32 => "9-32"
+    case Some(_) => "33+"
+
+  records.foreach { record =>
+    val example = record.example
+    given PathContext = PathContextMap(Map.empty)
+    given SpaceContext = SpaceContextMap(Map(SpaceFuzzer.argM -> example.arg))
+    given PartialFunction[RoutinePtr, Routine] = PartialFunction.empty
+    val assumptions = SpatialAssumptions(
+      spaces = Map(SpaceFuzzer.argM -> declaredInput),
+      config = if extended then SpatialAnalysisConfig(analysisNodeBudget = 1000)
+        else SpatialAnalysisConfig(),
+    )
+    val spatial = SpatialTypeAnalysis.output(example.program, assumptions)
+    val actualSize = BigInt(example.result.paths.size)
+    val actualMin = BigInt(example.result.paths.map(_.items.length).min)
+    val actualMax = BigInt(example.result.paths.map(_.items.length).max)
+    val lower = spatial.size.lower.annotatedBound(Z3BoundDirection.Lower).getOrElse(BigInt(0))
+    val upper = spatial.size.upper.annotatedBound(Z3BoundDirection.Upper)
+    val minLength = spatial.pathLength.lower.annotatedBound(Z3BoundDirection.Lower).getOrElse(BigInt(0))
+    val maxLength = spatial.pathLength.upper.annotatedBound(Z3BoundDirection.Upper)
+    require(lower <= actualSize && upper.forall(_ >= actualSize),
+      s"open program ${record.id}: size [$lower,${upper.getOrElse("∞")}] misses $actualSize; ${example.program.show}; ${spatial.show}")
+    require(minLength <= actualMin && maxLength.forall(_ >= actualMax),
+      s"open program ${record.id}: length [$minLength,${maxLength.getOrElse("∞")}] misses [$actualMin,$actualMax]; ${example.program.show}; ${spatial.show}")
+    upper.foreach { value =>
+      finiteUpper += 1
+      if value == actualSize && lower == actualSize then exactSize += 1
+    }
+    sizeSlack.update(bucket(upper.map(_ - actualSize)), sizeSlack(bucket(upper.map(_ - actualSize))) + 1)
+  }
+
+  val distribution = sizeSlack.toVector.sortBy(_._1).map((name, n) => s"$name=$n").mkString(",")
+  println(s"spatial open audit: programs=$count sound=$count extended=$extended finiteUppers=$finiteUpper " +
+    s"exactSizes=$exactSize upperSlack={$distribution}")

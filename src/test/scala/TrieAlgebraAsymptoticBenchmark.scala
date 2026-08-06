@@ -1,4 +1,6 @@
-object TrieAlgebraAsymptoticBenchmark:
+package morkl
+
+object TrieAlgebraAsymptoticBenchData:
   private var sink = 0
 
   private def wide(size: Int, offset: Int = 0): TrieSpace =
@@ -40,4 +42,4 @@ object TrieAlgebraAsymptoticBenchmark:
     rows.result().mkString("\n")
 
 @main def trieAlgebraAsymptoticBenchmark(): Unit =
-  println(TrieAlgebraAsymptoticBenchmark.csv())
+  println(TrieAlgebraAsymptoticBenchData.csv())

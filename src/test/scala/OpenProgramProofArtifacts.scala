@@ -1,3 +1,5 @@
+package morkl
+
 import morkl.ProofArtifacts as PA
 import morkl.Syntax.{*, given}
 

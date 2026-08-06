@@ -1,3 +1,5 @@
+package morkl
+
 import scala.util.{Random, Try}
 import scala.collection.mutable.{ArrayBuffer, LongMap, Stack}
 import scala.collection.Searching

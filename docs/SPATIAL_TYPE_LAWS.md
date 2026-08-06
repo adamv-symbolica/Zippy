@@ -1,6 +1,11 @@
 # Spatial abstract-interpretation laws
 
-This document records the semantic properties used by `SpatialTypeAnalysis`, the laws now emitted as first-order obligations, and the boundaries where a tempting stronger law is false. The FOL source of truth is `ProofArtifacts.spatialIntervalCoreTptp` and its complete-lattice, transfer, and reduced-product extensions.
+This document records two related layers. The generated FOL obligations model
+the semantic set-interval lattice `[must,may]`; they do **not** by themselves
+prove the Scala stratum/cardinality implementation sound. The implementation
+now has explicit `bottom`, `join`, `meet`, `lessOrEqual`, reduction, and
+widening, but the end-to-end theorem `eval(e,ρ) ∈ γ(analyze(e,ρ#))` remains
+open. Executable audits are regression evidence, not a substitute for it.
 
 ## Information carried by the implementation
 
@@ -23,9 +28,13 @@ The analysis currently uses all of the following information.
 | Pointwise iterator chain | A canonical nested iterator chain consuming one complete source path has upper `source size * leaf-per-path upper`, avoiding independent regrouping products. |
 | Total source caps | Selectors cannot exceed their source; composition cannot exceed the product of operand totals. These caps reduce stratum-derived totals. |
 | Semantic type annotation | `SpatialRoutineAnnotations.resultLaws` contributes a proved must/may cardinality envelope. It is an analysis input and is intersected with, never substituted for, constructor analysis. |
-| Finite relational count | `FiniteIntConstraintProblem` exactly counts assignments for finite domains with all-different, disequality, and diagonal-distance constraints. |
+| Finite relational count | `FiniteIntConstraintProblem` counts assignments within an explicit node budget and falls back to no refinement when exhausted. |
 | Fiber degree | For exact patterns, minimum/maximum degree, edges, keys, and average edge/key ratio. Abstract dependent degree propagation is intentionally future work. |
 | Bounded representation | Above the pattern limit, patterns are summarized into length strata. Summarization enlarges concretization; it never truncates alternatives. |
+| Inconsistent state | `SpatialType.bottom` represents contradictory evidence and absorbs meet and deterministic transfer. |
+| Fixpoint invariant | Ascending iteration plus checked widening returns only a post-fixpoint; failure to establish one returns top in every spatial component. |
+| Analysis cost | Symbolic pointwise work/allocation uppers are propagated. Full asymptotic comparison and symbolic degree-driven join cost remain future work. |
+| Decorated tree | Intermediate results retain their lexical bound-space/path environments for optimizer consumers. |
 
 ## Semantic interval lattice
 
@@ -64,14 +73,18 @@ It is **not distributive**. Normalization can turn an inconsistent meet into bot
 
 ## Reduced product
 
-The implementation is more precise than a single `[must,may]` interval. Its semantic interpretation is a reduced product:
+The implementation is a finite projection of this model. Its intended semantic interpretation is a reduced product:
 
 ```text
 γᵣ(shape × size × length × dependencies)
   = γshape ∩ γsize ∩ γlength ∩ γdependencies.
 ```
 
-Componentwise refinement is monotone in the product order. A reduction must preserve this intersection exactly, and repeated reduction is idempotent. The FOL obligations abstract the non-shape components behind `qgamma`; executable random tests instantiate them with the actual Z3 size and length projections.
+Componentwise refinement is monotone in the product order. `SpatialType.reduce`
+clamps strata by totals, projects strata back to total/length components,
+detects constant contradictions, and iterates to an idempotent result. The FOL
+obligations abstract non-shape components behind `qgamma`; they specify the
+target property rather than verify this Scala reduction.
 
 A semantic contract can equivalently contribute a must-set `C_L` and may-set
 `C_U`. Its interval reduction is
@@ -98,7 +111,8 @@ The concrete semantic laws currently used at cornerstone boundaries are:
 | connected finite component | every nonempty legal seed saturates the named component | exact zero for empty seed, otherwise component capacity |
 | finite constraint solutions | finite variable domains and relational constraints are part of the input annotation | exact abstract constraint count |
 
-These are explicit boundary annotations. There is no raw exact-cardinality law,
+These are explicit boundary annotations. Exact consequences are intersected
+with structural intervals and produce bottom on contradiction. There is no raw exact-cardinality law,
 so an observed result size cannot be fed back as an unexplained bound. The
 generic analyzer does not infer a
 graph closure, legal puzzle state, or queens constraint merely from an
@@ -125,7 +139,7 @@ The product, restriction, and closure formulas rely on concrete monotonicity. Ra
 
 `Range` is not monotone under source inclusion: inserting an earlier path changes rank-based selection. An arbitrary iteration body is also not monotone because it may subtract or inspect a changing bound tail. If the template is monotone in its tail argument, however, source iteration is monotone and `[Iter(L,F), Iter(U,F)]` is sound. This positivity condition is proved explicitly rather than silently assumed.
 
-## FOL proof obligations
+## FOL model obligations
 
 The generated `spatial_*_fo.p` obligations cover:
 
@@ -139,7 +153,10 @@ The generated `spatial_*_fo.p` obligations cover:
 
 Each generated problem has a lean, operator-specific prelude. Abstract values and abstract collections are guarded by predicates because TPTP FOL is untyped. Transformer equations are guarded by `L ⊆ U`; without that guard, different invalid interval representatives all denote bottom but could be mapped to different outputs, making the theory inconsistent.
 
-`SpatialTypeLatticeTest` independently enumerates the 28 abstract values over a three-element path universe. It checks all binary/triple bounded-lattice laws, universal properties for every collection of up to three abstract values plus the full lattice, the closed-form order, exact abstraction, best union/intersection/subtraction formulas, and explicit non-distributivity witnesses.
+`SpatialTypeLatticeTest` independently enumerates the 28 semantic interval
+values over a three-element universe. It also exercises the production
+bottom/join/meet/order/widening API, but the enumeration is an oracle for the
+semantic model, not a representation-isomorphism proof.
 
 Executable semantic checks complement FOL where cardinality arithmetic is not
 encoded: all 512 three-node directed graphs satisfy `E <= |TC(E)| <= E^2`; all
@@ -147,7 +164,7 @@ encoded: all 512 three-node directed graphs satisfy `E <= |TC(E)| <= E^2`; all
 constraint component matches n-queens counts through size six. These checks run
 after abstract interpretation and have no data path back into its annotations.
 
-## Stronger statements enabled next
+## Remaining proof obligations
 
 The complete lattice makes the following future obligations well-formed rather than ad hoc:
 

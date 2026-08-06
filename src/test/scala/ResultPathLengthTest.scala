@@ -1,3 +1,5 @@
+package morkl
+
 import munit.FunSuite
 
 class ResultPathLengthTest extends FunSuite:

@@ -22,18 +22,18 @@ only propagated one-sided bounds and Z3 constraints over annotated atom
 envelopes; opaque operations remain at zero/infinity rather than being run.
 
 The analysis combines constructor transfer with semantic reduced-product
-contracts. A contract contributes a proved lower or upper envelope and is
-intersected with the structural result. The raw expression can consequently be
-`min(structural, semantic)`; the table presents the simpler semantic envelope.
+contracts. Provenance is explicit below: “structural” means derived from syntax
+and input types; “asserted” means a theorem/CSP supplied in `resultLaws`. The
+reduced result is their intersection, never a substitution.
 
-| Program | Input abstraction | Previous open bound | Improved bound | Path information |
+| Program | Structurally derived | Asserted annotation | Reduced result | Path information |
 | --- | --- | --- | --- | --- |
-| Aunt query | `P` people; `Pe`, `Ce`, `F` parent, child, female facts | `[0, P*min(Pe,F)]` | `[0, P*min(Pe,Ce,F)]` | exact length 3, `Aunt.person.aunt` |
-| Semi-naive Datalog closure | `E` distinct directed edges | `[positive(E), 2E^8+E^3]` | `[E,E^2]` | exact length 2 |
-| Pure Game of Life | `L` live `Cell.x.y` paths | `[0,8L^4]` for `L>0` | `[0,9L]` | exact length 3; eight affine neighbor shapes retained |
-| Full 8-puzzle closure | one legal symbolic 3x3 board | `[1,infinity]` | exactly `9!/2 = 181440` | exact length 9 |
-| Temperature restriction | `W` symbolic world cells | `[0,W]` | `[0,W]` | exact length 4 and source schema retained |
-| 4-queens generator | four finite row variables | enormous finite source upper | exactly `2` | exact length 4 |
+| Aunt query | schema and conservative join product | `upper ≤ P*min(Pe,Ce,F)` | structural ∩ asserted | exact length 3, `Aunt.person.aunt` |
+| Semi-naive Datalog closure | large fixpoint exceeds the configured structural budget and becomes top | direct edges retained; `upper ≤ E²` | `[E,E²]` | unknown length |
+| Pure Game of Life | the pure `neigh` helper derives eight affine alternatives; the full step exceeds the report budget | radius-one image: `upper ≤ 9L` | `[0,9L]` | length `[1,∞]` under the report budget |
+| Full 8-puzzle closure | large fixpoint exceeds the configured structural budget and becomes top | legal nonempty seed saturates `9!/2` component | exactly `181440` | unknown length |
+| Temperature restriction | `[0,W]`, source schema | none | `[0,W]` | exact length 4 |
+| 4-queens generator | generator structure derives four-coordinate paths | finite-domain CSP has 2 solutions | exactly `2` | exact length 4 |
 
 ## Aunt query
 
@@ -70,9 +70,9 @@ unwrap(Fixpoint(semiNaiveInitial(edges), state,
 For `E` distinct directed edges, the closure contains every direct edge, so its
 lower cardinality is `E`. Every reachable pair is an ordered pair of endpoints
 drawn from edges; the elementary edge-witness bound gives at most `E^2`
-distinct pairs. Thus the abstract result is `[E,E^2]`, with exact path length
-two. The structural fixpoint polynomial is retained internally and intersected
-with the quadratic theorem.
+distinct pairs. Thus the abstract cardinality is `[E,E^2]`. The cardinality
+statement comes from the explicit closure theorem; the configured report
+budget returns top for the large structural fixpoint, including its length.
 
 The contract was exhaustively checked on all 512 directed graphs over three
 vertices, including loops and the empty graph.
@@ -85,7 +85,7 @@ The open input is:
 field = Cell.cell.x[-63..63].cell.y[-63..63] [L]
 ```
 
-Pure arithmetic interpretation retains the eight affine alternatives
+Pure arithmetic interpretation of the `neigh` helper retains the eight affine alternatives
 `Cell.(x+dx).(y+dy)` for non-zero `(dx,dy)` in `{-1,0,1}^2`. More importantly,
 the full next-generation output is a subset of the radius-one image of the
 input: any surviving or born cell must be in one of nine positions associated
@@ -133,7 +133,8 @@ such a witness is part of the input annotation.
 Each of four columns is abstracted as a finite row domain `1..4`. The relational
 component imposes `AllDifferent` and every diagonal constraint
 `abs(row_i-row_j) != abs(i-j)`. Its finite constraint count is exactly two, so
-the MORKL output has exact cardinality two and path length four, while retaining
+the MORKL output has exact cardinality two. The resource-limited full-generator
+analysis retains the structurally derived exact path length four and has
 `exactValue=None`.
 
 The same generic constraint domain derives `1,0,0,2,10,4` for board sizes one
@@ -141,8 +142,10 @@ through six directly from annotated finite domains and constraints.
 
 ## Remaining precision boundary
 
-All six analyses preserve exact output path length and none materializes a
-concrete output. The principal remaining gaps are dependent relation fibers
+None of the six analyses materializes a concrete output. Aunt and temperature
+retain exact output length, including queens; the resource-limited Datalog,
+Life, and puzzle reports deliberately lose it rather than exposing an
+unchecked partial analysis. The principal remaining gaps are dependent relation fibers
 for the Aunt query, a first-class graph/degree domain rather than supplied
 closure contracts, a symbolic arithmetic expression for parameterized puzzle
 and queens sizes, and lower coverage facts for spatial restrictions.

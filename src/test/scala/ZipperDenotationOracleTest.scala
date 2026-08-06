@@ -1,3 +1,5 @@
+package morkl
+
 import munit.FunSuite
 
 class ZipperDenotationOracleTest extends FunSuite:

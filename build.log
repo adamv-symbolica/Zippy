@@ -5602,3 +5602,19 @@ Strict annotation-only spatial-analysis correction:
 - Annotation-only SpaceFuzzerCorpus.generate(1000,20260708L,5,400): 1000/1000 sound; 373 exact sizes; 874 exact lengths; 988 exact-length stratum audits; size lower/upper improvements 597/571; length lower/upper improvements 127/210; zero unbounded total-size, global-length, or audited-stratum uppers. This supersedes the earlier 444/904 evaluator-scored precision figures.
 - Added execution tripwires for grounded routines, literal Range, and opaque size/length atoms. The five-step glider now propagates abstract intermediates and uses concrete execution only afterward for validation.
 - The direct Scala CLI invocation first hit the known unwrapped-package layout and exposed an overloaded-default compile error, which was fixed. The established package-wrapped mirror then passed the complete MUnit suite with the same four pre-existing ignores. git diff --check passes.
+2026-08-06 review: added package morkl declarations; direct src/main compile passes.
+2026-08-06 review: implemented SpatialType bottom/reduction/lattice primitives, bounded constraint counting, analysis config, sound unknown-length tails/iteration/unwrap guards, and Kleene fixpoint with checked widening/top fallback; direct compile passes.
+2026-08-06 review: SpatialTypeTest passes, including fixpoint/tails/contract/reduction/decorated-analysis review regressions.
+2026-08-06 review: production lattice API test passes; added pointwise cost domain, deterministic legacy-vs-extended fuzzer split, and corrected documentation provenance/FOL scope.
+
+2026-08-06 review completion verification:
+- Fixed two additional reduced-product soundness bugs found by the fixed-seed audit: optional constant-pattern strata remain optional under union, and impossible path-length strata normalize to empty unless independently required nonempty.
+- Full Scala/MUnit suite passes with the same four existing ignored tests; trie, zipper, graph, optimizer, cornerstone, path-length, size, and spatial-type suites all passed.
+- Canonical concrete spatial audit: 1,000/1,000 sound; exact sizes 494, exact lengths 879, exact strata checked 988, no unbounded size/length/stratum bounds.
+- Canonical open-input audit over the identical seed/program/input witnesses: 1,000/1,000 sound; 1,000 finite uppers, 24 exact sizes; upper slack distribution 0=97, 1-2=36, 3-8=23, 9-32=440, 33+=404.
+- Proof pipeline no-generation run passed all Scala invariants, Z3 laws and negative controls, open/full example equivalences, termination checks, and egg executions; Vampire was intentionally skipped in this verification run.
+- Non-long benchmarks all completed; constantFoldExecutorReport remains excluded because it is the repository's explicitly long-row sweep.
+- Independent product original/optimized speedups: 6.86x, 10.76x, 14.69x, 34.22x at 32/64/128/256 heads; compiled execT 0.5995/0.3776/0.2046/0.2952 ms.
+- Trie algebra 1,024->65,536 scaling: union 5,176->313,583 ns, intersection 5,464->351,516 ns, restriction 9,974->487,901 ns, disjoint subtraction 10.7->4.0 ns; linear/constant asymptotic classes preserved.
+- Paired checked-report geometric changes (old/current, >1 means current faster): Trie eval Set 0.991x, evalTrie 0.964x, evalZ 0.969x, execT 0.999x; zipper-algebra evalTrie 0.930x, evalZ 0.890x; zipper-large evalTrie 0.923x, evalZ 1.194x; range-tail current implementation 1.051x. Short-run scatter is consistent with prior report noise, while execT and asymptotic classes show no regression.
+- Extended open-corpus smoke (10 programs, depth 3): 10/10 sound; 6 finite uppers; slack 1-2=1, 9-32=4, 33+=1, infinity=4.

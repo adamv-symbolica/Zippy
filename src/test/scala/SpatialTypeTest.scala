@@ -1,3 +1,5 @@
+package morkl
+
 import munit.FunSuite
 import morkl.Syntax.{*, given}
 
@@ -226,4 +228,133 @@ class SpatialTypeTest extends FunSuite:
         length.lower.evaluate.foreach(bound => assert(spatialMin >= bound, expression.show))
         length.upper.evaluate.foreach(bound => assert(spatialMax <= bound, expression.show))
     }
+  }
+
+  test("fixpoint reaches a checked post-fixpoint before exposing shapes") {
+    val variable = SpaceMention("fixpoint_probe")
+    val universe = SpaceValue("a", "x.a", "x.x.a")
+    val fix = Space.Fixpoint(
+      Space.Literal(SpaceValue("a")),
+      variable,
+      Space.Intersection(
+        Space.Union(
+          Space.Mention(variable),
+          Space.Wrap(Space.Mention(variable), Path.Constant(Syntax.parse("x"))),
+        ),
+        Space.Literal(universe),
+      ),
+    )
+    val expression = Space.Unwrap(fix, Path.ZERO)
+    given PathContext = noPaths
+    given SpaceContext = SpaceContextMap(Map.empty)
+    given PartialFunction[RoutinePtr, Routine] = noRoutines
+
+    val actual = eval(expression)
+    val result = SpatialTypeAnalysis.output(expression)
+    assertEquals(actual, universe)
+    assertEquals(actual.paths.map(_.items.length), Set(1, 2, 3))
+    assert(result.pathLength.upper.annotatedBound(Z3BoundDirection.Upper).forall(_ >= 3), result.show)
+    val represented = result.strata.flatMap(_.exactLength).toSet
+    assert(Set(1, 2, 3).subsetOf(represented), result.show)
+  }
+
+  test("tails does not assume an interval-length path is headed") {
+    val source = SpaceMention("maybe_epsilon")
+    val sourceType = SpatialType.fromStrata(Vector(SpatialStratum(
+      PathLengthEstimate(PathLengthExpr.Zero, PathLengthExpr.One),
+      ResultSizeEstimate.exact(SizeExpr.One),
+    )))
+    val result = SpatialTypeAnalysis.output(
+      Space.TailsUnion(Space.Mention(source)),
+      SpatialAssumptions(spaces = Map(source -> sourceType)),
+    )
+    assertEquals(result.size.lower.annotatedBound(Z3BoundDirection.Lower), Some(BigInt(0)))
+
+    given PathContext = noPaths
+    given SpaceContext = SpaceContextMap(Map(source -> SpaceValue(PathValue(Nil))))
+    given PartialFunction[RoutinePtr, Routine] = noRoutines
+    assertEquals(eval(Space.TailsUnion(Space.Mention(source))), SpaceValue())
+  }
+
+  test("semantic result laws intersect structural facts and expose contradictions") {
+    val seed = SpaceMention("law_seed")
+    val routine = Routine(
+      RoutinePtr("contradictory_result_law"),
+      Vector.empty,
+      Vector(seed),
+      Space.Literal(SpaceValue("only")),
+    )
+    val seedType = SpatialType.exact(SpaceValue("seed"))
+    val connected = SpatialTypeAnalysis.outputRoutineAbstract(
+      routine,
+      SpatialRoutineAnnotations(
+        spaces = Map(seed -> seedType),
+        resultLaws = Vector(SpatialBoundLaw.ConnectedFiniteComponent(seed, SizeExpr.const(181440))),
+      ),
+      PartialFunction.empty,
+    )
+    val constrained = SpatialTypeAnalysis.outputRoutineAbstract(
+      routine,
+      SpatialRoutineAnnotations(
+        spaces = Map(seed -> seedType),
+        resultLaws = Vector(SpatialBoundLaw.FiniteConstraintSolutions(
+          FiniteIntConstraintProblem(
+            domains = Vector(Vector(1, 2), Vector(1, 2)),
+            constraints = Vector(FiniteIntConstraint.NotEqual(0, 1)),
+          ))),
+      ),
+      PartialFunction.empty,
+    )
+    assert(connected.isBottom, connected.show)
+    assert(constrained.isBottom, constrained.show)
+  }
+
+  test("repeated union mentions remain coherent across total and strata") {
+    val source = SpaceMention("same_source")
+    val count = SizeExpr.symbol("N")
+    val sourceType = SpatialType.fromStrata(Vector(SpatialStratum(
+      PathLengthEstimate.exact(PathLengthExpr.const(2)),
+      ResultSizeEstimate.exact(count),
+      Some(SpatialPattern(Vector(SpatialItem.Constant(PathItem("k")), SpatialItem.Unknown("v")))),
+    )))
+    val expression = Space.Union(
+      Space.Mention(source),
+      Space.Union(Space.Mention(source), Space.Mention(source)),
+    )
+    val result = SpatialTypeAnalysis.output(expression, SpatialAssumptions(spaces = Map(source -> sourceType)))
+    assertEquals(result.size, ResultSizeEstimate.exact(count))
+    assertEquals(result.strataAt(2).map(_.cardinality), Vector(ResultSizeEstimate.exact(count)))
+  }
+
+  test("union preserves optionality of a known singleton pattern") {
+    val ranged = Space.Range(Space.Literal(SpaceValue("b", "c")), 0, 1)
+    val expression = Space.Union(
+      Space.Singleton(Path.Constant(PathValue(List(PathItem("a"))))),
+      ranged,
+    )
+    val result = SpatialTypeAnalysis.output(expression)
+    assert(!result.isBottom)
+    assertEquals(result.size, ResultSizeEstimate(SizeExpr.const(2), SizeExpr.One))
+    assert(result.strata.exists(stratum =>
+      stratum.pattern.flatMap(_.constantValue).contains(PathValue(List(PathItem("b")))) &&
+        stratum.cardinality.lower == SizeExpr.Zero))
+  }
+
+  test("decorated analysis retains lexical iterator bindings") {
+    val source = SpaceMention("decorated_source")
+    val head = PathRef("decorated_head").known(1)
+    val rest = SpaceMention("decorated_rest")
+    val body = Space.Union(Space.Singleton(Path.Deref(head)), Space.Mention(rest))
+    val expression = Space.Iteration(Space.Mention(source), head, rest, body)
+    val decorated = SpatialTypeAnalysis.outputDecorated(
+      expression,
+      SpatialAssumptions(spaces = Map(source -> SpatialType.exact(SpaceValue("a.b")))),
+    )
+    val bodyObservation = decorated.at(body).headOption.getOrElse(fail("body was not decorated"))
+    assert(bodyObservation.paths.contains(head))
+    assert(bodyObservation.spaces.contains(rest))
+    assertEquals(decorated.root, SpatialTypeAnalysis.output(
+      expression,
+      SpatialAssumptions(spaces = Map(source -> SpatialType.exact(SpaceValue("a.b")))),
+    ))
   }

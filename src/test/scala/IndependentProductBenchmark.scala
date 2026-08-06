@@ -1,3 +1,5 @@
+package morkl
+
 import morkl.Syntax.{*, given}
 
 object IndependentProductBenchmarkData:

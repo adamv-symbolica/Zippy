@@ -1,3 +1,5 @@
+package morkl
+
 import morkl.Syntax.{*, given}
 import scala.language.implicitConversions
 import java.util.Locale

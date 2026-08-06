@@ -1,3 +1,5 @@
+package morkl
+
 import munit.FunSuite
 
 /** Finite executable model of the semantic lattice used by the FOL spatial
@@ -146,4 +148,26 @@ class SpatialTypeLatticeTest extends FunSuite:
         }
       case Bottom => fail("interval enumeration cannot contain bottom")
     }
+  }
+
+  test("production spatial types expose bottom, join, meet, order, and widening") {
+    val one = SpatialType.lengths(1 -> ResultSizeEstimate.exact(SizeExpr.One))
+    val two = SpatialType.lengths(2 -> ResultSizeEstimate.exact(SizeExpr.const(2)))
+    val joined = SpatialType.join(one, two)
+    assert(SpatialType.lessOrEqual(SpatialType.bottom, one))
+    assert(SpatialType.lessOrEqual(one, joined))
+    assert(SpatialType.lessOrEqual(two, joined))
+    assertEquals(SpatialType.join(SpatialType.bottom, one), one)
+    assertEquals(SpatialType.meet(SpatialType.bottom, one), SpatialType.bottom)
+    assertEquals(SpatialType.join(one, one), one)
+    assertEquals(SpatialType.meet(one, one), one)
+
+    val contradiction = SpatialType.reduce(one.copy(size = ResultSizeEstimate(
+      SizeExpr.One, SizeExpr.const(2))))
+    assert(contradiction.isBottom)
+
+    val widened = SpatialType.widenCardinalities(joined)
+    assertEquals(widened.size.upper, SizeExpr.Infinity)
+    assert(SpatialType.lessOrEqual(joined, widened))
+    assertEquals(widened.pathLength, joined.pathLength)
   }

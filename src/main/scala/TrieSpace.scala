@@ -1,3 +1,5 @@
+package morkl
+
 import scala.collection.immutable.{IntMap, TrieIntMapOps}
 import scala.collection.mutable
 

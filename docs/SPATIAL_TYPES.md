@@ -12,7 +12,7 @@ A `SpatialType` is a finite union of `SpatialStratum` values. Each stratum carri
 - a lower/upper cardinality interval;
 - optionally, a symbolic path pattern.
 
-Patterns contain constants, unknown items, or affine integer items such as `coord.x-1`. Provably different lengths and patterns are disjoint, so their cardinality lower bounds add; possibly overlapping regions use the conservative maximum lower bound. The complete type also exposes total-size and global path-length projections.
+Patterns contain constants, unknown items, or affine integer items such as `coord.x-1`. Provably different lengths and patterns are disjoint, so their cardinality lower bounds add; possibly overlapping regions use the conservative maximum lower bound. The complete type also exposes total-size and global path-length projections, an explicit inconsistent value (`bottom`), and a first-order symbolic work/allocation upper bound.
 
 `SpatialAssumptions` maps free space mentions and path references to input types. `SpatialPrefixCoverage(k, xs, lengths)` is an optional dependency asserting that path `k` prefixes a represented fiber of `xs` at the selected lengths. This small dependency is necessary for positive restriction lower bounds: knowing only that `k` has length three cannot prove that an arbitrary length-four path starts with `k`.
 
@@ -40,12 +40,15 @@ subset-of-image multiplicity, source containment, directed-closure bounds, a
 finite universe, or a connected finite component. The only generic exact-count
 law accepts an annotated `FiniteIntConstraintProblem`; there is deliberately no
 raw `ExactCardinality(number)` hook. Structural and semantic evidence form a
-reduced product: neither side can weaken the other.
+reduced product: neither side can weaken the other. An exact semantic claim
+that contradicts an exact structural result produces `bottom`; it is never
+substituted for the structural result.
 
 `FiniteIntConstraintProblem` is the first small relational component. It counts
 finite-domain assignments subject to all-different, disequality, and absolute-
 difference constraints. The 4-queens report uses it to prove two outputs without
-executing the zero-argument MORKL generator. See
+executing the zero-argument MORKL generator. Counting has a deterministic node
+budget; budget exhaustion contributes no refinement. See
 [CORNERSTONE_ABSTRACT_INTERPRETATIONS.md](CORNERSTONE_ABSTRACT_INTERPRETATIONS.md)
 for all six open-program results.
 
@@ -111,7 +114,7 @@ separate evaluator call runs only after analysis to check soundness.
 
 ## Graph fibers
 
-`fiberDegree(prefixLength)` reports minimum degree, maximum degree, edge count, key count, and the average as an edge/key ratio. It is exact for constant-pattern types and conservative for abstract patterns. For `{edge.a.b, edge.a.c, edge.b.c}` at prefix length two it reports minimum degree 1, maximum degree 2, three edges, two keys, and average `3/2`.
+`fiberDegree(prefixLength)` reports minimum degree, maximum degree, edge count, key count, and the average as an edge/key ratio. It is exact for constant-pattern types; for symbolic types its current conservative interval is usually uninformative and should be treated as unavailable. For `{edge.a.b, edge.a.c, edge.b.c}` at prefix length two it reports minimum degree 1, maximum degree 2, three edges, two keys, and average `3/2`.
 
 The domain deliberately keeps this summary separate from individual strata. A later dependent extension can propagate degree summaries through symbolic vertices without changing the current input-to-output API.
 
@@ -130,6 +133,24 @@ uses `positive(x) <= x`, and removes a dominated branch of a minimum/maximum
 when a structural proof succeeds. It deliberately leaves incomparable
 polynomials intact.
 
+## Fixpoints, intermediate results, and cost
+
+`Fixpoint` is interpreted by ascending iteration. Before returning a widened
+shape invariant, the analyzer applies the step again and requires a
+post-fixpoint in the implementation order. Cardinalities may widen to infinity;
+if that check or the resource limit fails, every spatial component becomes top.
+One-unrolling shapes are never exposed as a fixpoint invariant.
+
+`outputDecorated` returns the root and every intermediate result together with
+the lexical path/space bindings under which it was analyzed. Repeated loop-body
+entries are intentional. Optimizers can therefore consume inner facts without
+re-running subtrees or reconstructing iterator bindings.
+
+The cost component currently propagates symbolic pointwise work and allocation
+uppers from operand sizes. This is a foundation, not yet the requested complete
+asymptotic model: symbolic fiber degrees, dominant-monomial comparison, and
+parameterized loop-iteration counts remain open.
+
 ## One-way validation
 
 Validation is deliberately downstream of analysis:
@@ -147,22 +168,28 @@ Opaque `SizeOf`/minimum-length/maximum-length atoms contribute only their safe
 zero/infinity envelope; the legacy `evaluate` helper is reserved for downstream
 concrete validation.
 
-The canonical corpus `SpaceFuzzerCorpus.generate(1000, 20260708L, 5, 400)` was evaluated with the same concrete inputs used to construct its spatial assumptions:
+The opt-in extended corpus generates `Empty`, raffination, fold, bounded
+fixpoints, every closure/tails form, and grounded space operations in addition
+to the original operators. The default generator deliberately preserves the
+canonical seed's historical program/input sequence for paired comparisons. A
+concrete-input run is a soundness oracle for those witnesses, not evidence of
+open-program precision. The open audit instead uses a declared
+ranged-length/cardinality input type and checks concrete witnesses only after
+analysis.
 
-- all 1,000 total-size projections contained the concrete result;
-- all 1,000 path-length projections contained the concrete result;
-- every finite spatial projection was at least as tight as the corresponding Z3 result-size or path-length projection;
-- 988 programs also had fully exact-length strata, and every per-length cardinality interval contained its concrete count;
-- 373 total sizes and 874 global length intervals were exact;
-- spatial structure tightened 597 size lowers, 571 size uppers, 127 length lowers, and 210 length uppers beyond the annotation-only scalar analyses;
-- no total-size, global-length, or exact-length-stratum upper remained unbounded.
+For `generate(1000, 20260708L, 5, 400)`, the concrete-input audit was
+1,000/1,000 sound, with 494 exact sizes, 879 exact global length intervals,
+988 exact-length stratum checks, and no unbounded audited projection. The
+identical programs and witnesses under the declared open input type were also
+1,000/1,000 sound: all upper bounds were finite, 24 sizes were exact, and upper
+slack was distributed as 97 exact, 36 within 1–2, 23 within 3–8, 440 within
+9–32, and 404 at 33 or more. A deterministic extended-corpus smoke run remains
+separate because it is not the historical paired corpus.
 
-These are the corrected annotation-only figures. Earlier `444/904` figures used
-the legacy concrete resolver while scoring symbolic bounds and are superseded;
-the analyzer itself did not use those results, but they must not appear in an
-abstract-interpretation precision report.
-
-Pattern retention is capped (64 by default). Overflow is merged into length strata with preserved cardinality bounds; alternatives are never truncated. This bounds symbolic arithmetic growth without making the abstraction unsound.
+Pattern retention is capped (64 by default). The cap is an explicit
+`SpatialAnalysisConfig` field in the assumptions rather than a JVM-global flag.
+Overflow is merged into length strata with preserved cardinality bounds;
+alternatives are never truncated.
 
 The permanent `spatialTypeScalingAudit` guard measures balanced unions. On the
 final implementation, seven-sample medians for 1,024/2,048/4,096/8,192/16,384/

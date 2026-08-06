@@ -1,3 +1,5 @@
+package morkl
+
 /** Symbolic natural-number expressions used by result-space cardinality analysis.
   * `None` from [[evaluate]] denotes an unbounded/unknown finite upper bound.
   */
@@ -213,7 +215,8 @@ object SizeExpr:
       case SizeExpr.Add(nested) => nested
       case other => Vector(other)
     }.filterNot(_ == Zero).toVector
-    terms match
+    if terms.contains(SizeExpr.Infinity) then SizeExpr.Infinity
+    else terms match
       case Vector() => Zero
       case Vector(term) => term
       case result if result.forall(_.isInstanceOf[SizeExpr.Const]) =>
@@ -272,6 +275,8 @@ object SizeExpr:
     else (left, right) match
       case (SizeExpr.Const(a), SizeExpr.Const(b)) => a <= b
       case (SizeExpr.Positive(value), other) if value == other => true
+      case (SizeExpr.IfZero(lc, lz, ln), SizeExpr.IfZero(rc, rz, rn)) if lc == rc =>
+        noGreater(lz, rz) && noGreater(ln, rn)
       case (SizeExpr.Minimum(leftTerms), SizeExpr.Minimum(rightTerms)) =>
         rightTerms.forall(rightTerm => leftTerms.exists(noGreater(_, rightTerm)))
       case (SizeExpr.Minimum(terms), other) => terms.exists(noGreater(_, other))
@@ -289,6 +294,12 @@ object SizeExpr:
         }
         if unmatched.size == factors(l).size then false
         else noGreater(multiply(unmatched*), multiply(remaining.toVector*))
+
+  /** Sound, deliberately incomplete decision procedure for the pointwise
+    * natural-number order.  Abstract domains use this to detect convergence
+    * and contradictions without evaluating a MORKL program. */
+  def provablyNoGreater(left: SizeExpr, right: SizeExpr): Boolean =
+    noGreater(left, right)
 
   private def undominatedMinimum(values: Vector[SizeExpr]): Vector[SizeExpr] =
     values.filterNot(value => values.exists(other => other != value && noGreater(other, value)))
