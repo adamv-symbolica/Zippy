@@ -5524,3 +5524,81 @@ Z3 path-length propagation, final verification:
 - Added RESULT_PATH_LENGTH_LAWS.md and RESULT_PATH_LENGTH_AUDIT.md plus atlas entries documenting every constructor law, the Z3 region model, distribution, and scaling guard.
 - Re-ran the complete MUnit suite on the final source tree. All tests passed with the same four pre-existing ignores; Trie execution and the independent-product optimizer regressions remained behaviorally unchanged.
 - git diff --check passes.
+
+2026-08-06T00:18:49+01:00
+
+Spatial abstract interpretation, first checkpoint:
+- Replaced the output-side otypes WIP with a SpatialType product domain carrying symbolic path patterns, path-length strata, per-stratum cardinality intervals, and scalar size/length projections.
+- Added affine symbolic path items and uniform literal-relation fiber interpretation. Open pure LifeExample.neigh now yields eight distinct affine output patterns, all length two, with exact total cardinality eight.
+- Lifted the encoded if-empty iterator into an exact piecewise SizeExpr.IfZero expression; S union S.on_empty(G) has exact size ifZero(S, G, S).
+- Added optional SpatialPrefixCoverage dependencies. With k known to prefix the length-4 and length-6 strata of xs, TailsUnion(xs restricted by k) yields length-3 [1,7] and length-5 [1,9] strata in the concrete regression. Without this dependency, a positive lower bound would be unsound from lengths alone.
+- Focused spatial tests pass for restriction, control flow, Game-of-Life arithmetic, and independent comparison against both Z3 result-size bounds and path-length projections.
+
+2026-08-06T00:35:00+01:00
+
+Spatial abstract interpretation, final verification:
+- Replaced the output-side otypes experiment with the input-to-output SpatialType product domain: symbolic affine path patterns, length strata, per-stratum cardinalities, total size/length projections, guarded control-flow strata, optional prefix-coverage facts, and exact constant subdomain evaluation.
+- Open pure LifeExample.neigh derives exactly eight distinct affine length-two patterns. Exact spatial inputs remain exact through five glider steps. The encoded s union s.on_empty(g) has exact symbolic size ifZero(S, G, S).
+- Re-ran SpaceFuzzerCorpus.generate(1000, 20260708L, 5, 400): 1000/1000 sound total-size and path-length bounds; 988 exact-length-stratum audits sound; 436 exact sizes; 904 exact length intervals. Spatial structure tightened size lower/upper bounds in 488/378 cases and length lower/upper bounds in 105/116 cases over the standalone Z3 analyses, and was weaker in none.
+- Balanced 1024/2048/4096/8192/16384/32768-leaf union medians were 40.931/59.910/61.913/115.842/232.997/464.938 ms. Doubling at the large end remains linear; the 64-pattern cap soundly summarizes overflow instead of truncating it.
+- Re-ran the complete MUnit suite. All tests passed with the same four pre-existing ignores, including trie behavior, independent-product optimization, pure Game of Life, Z3 size/path analyses, and the six new spatial-type regressions.
+- Added SPATIAL_TYPES.md and atlas entries; git diff --check passes.
+
+2026-08-06T01:24:53+01:00
+
+Spatial abstract-interpretation lattice and FOL obligations:
+- Formalized the semantic envelope as the complete normalized interval lattice bottom + [must,may], with concretization, closed-form precision order, top/bottom, exact abstraction, arbitrary suprema/infima, binary join/meet, and reduced-product gamma.
+- Added 43 generated spatial Vampire obligations covering the lattice universal properties and algebra, monotonicity/variance, transfer soundness, union/difference best-correctness, positive iteration, safe non-monotone Range/tails-meet envelopes, and reduced-product reduction laws.
+- Ran every checked-in spatial_*.p obligation with Vampire 5.0.1, four-way parallel, 30-second per-problem budget: 43/43 SZS Theorem; zero timeout, contradictory-axiom, parse, or missing-status results.
+- Added the exhaustive finite SpatialTypeLatticeTest oracle: 28 abstract values over a three-element universe, all pair/triple bounded-lattice laws, arbitrary-sup/inf universal checks for collections through size three plus the full lattice, closed order/exactness, and best union/intersection/subtraction formulas. It found and now records the important counterlaw that the normalized interval lattice is not distributive.
+- Added SPATIAL_TYPE_LAWS.md listing every implementation property, transfer equation, variance condition, known non-law, proof obligation family, and stronger enabled follow-up theorem.
+- Fixed proof_pipeline.py display_path to always return str; py_compile passes. The integrated runner now reports its pre-existing package-layout/open-report generation blocker instead of crashing; the directly generated manifest and all spatial Vampire artifacts pass independently.
+- Re-ran the complete MUnit suite through the established package-prepended mirror. All tests passed with the same four pre-existing ignores, including the five new lattice-oracle tests and all prior spatial/trie/Game-of-Life checks.
+- git diff --check passes.
+
+2026-08-06T11:24:00+01:00
+
+Cornerstone spatial-interpretation report:
+- Enumerated the six committed CornerstoneProofArtifacts cases: aunt, semi-naive Datalog, pure Game of Life, one 15-puzzle expansion, temperature restriction, and 4-queens.
+- Ran SpatialTypeAnalysis over each original source expression, its normalized source form, and an exact closed-input wrapper, then compared every result with reference evaluation.
+- Exact closed interpretations were: aunt 3 paths of length 3; Datalog 21 paths of length 2; GOL 4 paths of length 3; 15-puzzle 2 paths of length 16; temperature 1 path of length 4; and n-queens 2 paths of length 4.
+- The direct compositional interpretation was exact for temperature; it retained exact output path lengths everywhere. Useful non-executing cardinality envelopes included aunt [3,9], GOL [0,50], and normalized 15-puzzle [0,32]. Recursive Datalog and combinatorial n-queens still expose opaque or very broad size atoms before the exact constant subdomain resolves them.
+- The report runner compiled with the established Scala 3.8.1/source-3.3, MUnit, and collection-contrib settings. The first dependency-free invocation failed before running because it omitted the repository test dependencies; the corrected invocation completed all six cases.
+
+2026-08-06T11:55:31+01:00
+
+Open cornerstone abstract-interpretation correction:
+- Added SpatialTypeAnalysis.outputRoutineAbstract and Supercompiler.abstractSpatialType. These entry points always analyze from annotations and never switch to concrete evaluation, including for zero-argument generators; the existing exact-input API is unchanged.
+- Replaced concrete cornerstone fixtures with unrestricted symbolic cardinalities and relation/path schemas. Every reported cornerstone now has exactValue=None.
+- Lowered semi-naive Datalog structurally to Space.Fixpoint before analysis. For E annotated edge paths, the result has length two and computed size [positive(E), 2*E^8 + E^3].
+- Replaced the one-step 15-puzzle report with full 3x3/8-puzzle closure Fixpoint(start, reachable, reachable union step3(reachable)). A single symbolic length-nine board yields result length nine and size [1, infinity], without enumerating a state universe.
+- Open results: Aunt length 3 and [0, people*min(parentEdges,femalePeople)]; GOL length 3 with eight affine neighbor shapes and [0, 8*liveCells^4*min(1,liveCells)]; temperature length 4 and [0,worldCells]; 4-queens length 4 with the existing very loose finite source upper.
+- Added CornerstoneSpatialTypeTest, including a throwing zero-argument grounded routine proving the always-abstract entry does not execute. Added CORNERSTONE_ABSTRACT_INTERPRETATIONS.md and documented the API distinction.
+- Focused cornerstone tests passed. The first full suite run had no assertion failure but the generated zipper egg test exceeded its two-minute aggregate-run timeout at 137 seconds; the test passed alone in 37.945 seconds. A warm full-suite rerun then passed completely with the same four pre-existing ignores; the egg test completed in 36.032 seconds. Trie execution and all existing spatial, Z3, proof, GOL, Datalog, puzzle, and n-queens tests passed.
+- git diff --check passes.
+
+2026-08-06T14:05:00+01:00
+
+Cornerstone spatial abstract-interpretation completion:
+- Added group-sensitive Iteration bounds: constant heads are one group, affine heads use their finite domain, bound tails represent whole fibers, and complete nested iterator chains receive a pointwise source-cardinality cap.
+- Propagated total source/product caps through selectors and composition, and reduced semantic total bounds back into every output stratum.
+- Added SpatialBoundLaw reduced-product contracts for subset images, containment, directed transitive closure, finite universes, connected finite components, independent upper bounds, and exact cardinalities.
+- Added the finite relational constraint domain (all-different, disequality, absolute-difference disequality); it derives the known n-queens counts 1,0,0,2,10,4 through size six without executing MORKL.
+- Tightened the open cornerstone bounds: Aunt [0,P*min(Pe,Ce,F)]; semi-naive transitive closure [E,E^2]; Game of Life [0,9L] plus the retained structural cap and eight affine shapes; 8-puzzle exactly 181440; temperature [0,W]; 4-queens exactly 2. Every path length remains exact and every exactValue remains empty.
+- Added sound natural SizeExpr normalization for flattened extrema/products, idempotent Boolean factors, positive(x)<=x, and proved dominance; no heuristic polynomial comparison is used.
+- Added exhaustive contract checks over all 512 three-node directed graphs and all 512 subsets of a 3x3 Life field, plus explicit constant-head and pointwise-iterator regressions.
+- Added and generated three FOL contract obligations: reduction soundness, reduction refinement, and stronger-consistent-contract refinement. Vampire 5.0.1 proves all three as SZS Theorem.
+- Canonical SpaceFuzzerCorpus.generate(1000,20260708L,5,400): 1000/1000 sound, 444 exact sizes, 904 exact global length intervals, 988 exact-length stratum audits, size lower/upper improvements 489/407, length lower/upper improvements 105/116; no projection weaker than scalar Z3.
+- Balanced-union seven-sample spatial-analysis medians for 1024/2048/4096/8192/16384/32768 leaves: 14.446/22.566/32.240/62.584/122.296/241.800 ms. Large-end doubling remains linear and is faster than the prior 40.931/59.910/61.913/115.842/232.997/464.938 ms run.
+- Re-ran the complete MUnit suite through the established package-wrapped source mirror. All tests passed with the same four pre-existing ignores; Trie execution, graph execution, independent-product optimization, GOL, Datalog, puzzle, n-queens, Z3 size/length, and spatial lattice behavior are unchanged.
+
+2026-08-06T13:06:33+01:00
+
+Strict annotation-only spatial-analysis correction:
+- Removed all concrete-evaluator shortcuts from spatial routine analysis and the remaining evaluator call in the literal-Range transfer.
+- Added explicit SpatialRoutineAnnotations boundaries and annotation-only size/path/Z3 bound resolution. Opaque atoms contribute zero/infinity and are never executed.
+- Removed the raw ExactCardinality(number) law; queens now derives its exact count from the annotated finite constraint problem.
+- Cornerstone bounds are unchanged and none has an exact concrete SpaceValue.
+- Annotation-only SpaceFuzzerCorpus.generate(1000,20260708L,5,400): 1000/1000 sound; 373 exact sizes; 874 exact lengths; 988 exact-length stratum audits; size lower/upper improvements 597/571; length lower/upper improvements 127/210; zero unbounded total-size, global-length, or audited-stratum uppers. This supersedes the earlier 444/904 evaluator-scored precision figures.
+- Added execution tripwires for grounded routines, literal Range, and opaque size/length atoms. The five-step glider now propagates abstract intermediates and uses concrete execution only afterward for validation.
+- The direct Scala CLI invocation first hit the known unwrapped-package layout and exposed an overloaded-default compile error, which was fixed. The established package-wrapped mirror then passed the complete MUnit suite with the same four pre-existing ignores. git diff --check passes.

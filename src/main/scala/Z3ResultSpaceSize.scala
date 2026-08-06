@@ -78,6 +78,14 @@ case class Z3CardinalityProblem(
     val bounds = atoms.map { atom => atom.lower.evaluate -> atom.upper.evaluate }
     Z3CardinalitySolver.solve(formula, bounds, relations, direction)
 
+  /** Solve from abstract atom annotations only. Opaque atoms remain unknown
+    * instead of being measured by the concrete evaluator. */
+  def solveAnnotated(direction: Z3BoundDirection): Option[BigInt] =
+    val bounds = atoms.map { atom =>
+      atom.lower.annotatedBound(Z3BoundDirection.Lower) -> atom.upper.annotatedBound(Z3BoundDirection.Upper)
+    }
+    Z3CardinalitySolver.solve(formula, bounds, relations, direction)
+
 private object Z3CardinalitySolver:
   private case class Solution(lower: Option[BigInt], upper: Option[BigInt])
   private val cache = TrieMap.empty[String, Solution]

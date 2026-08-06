@@ -2619,6 +2619,14 @@ case class SupercompiledRoutine(routine: Routine, report: SupercompileReport, gr
   ): PathLengthEstimate =
     ResultPathLength.estimate(routine.body, assumptions, pathAssumptions, sizeAssumptions)
 
+  def spatialType(
+    pathInputs: Map[PathRef, SpatialPathType] = Map.empty,
+    spaceInputs: Map[SpaceMention, SpatialType] = Map.empty,
+    routines: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty,
+    prefixCoverage: Set[SpatialPrefixCoverage] = Set.empty
+  ): SpatialType =
+    SpatialTypeAnalysis.outputRoutine(routine, pathInputs, spaceInputs, routines, prefixCoverage)
+
   def semanticEquals(original: Routine)(using pc: PathContext = PathContext.emptyMap,
                                         sc: SpaceContext = SpaceContextMap(Map.empty),
                                         rc: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty): Boolean =
@@ -2674,6 +2682,48 @@ object Supercompiler:
     sizeAssumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
   ): PathLengthEstimate =
     ResultPathLength.estimate(normalize(s).space, assumptions, pathAssumptions, sizeAssumptions)
+
+  def spatialType(
+    s: Space,
+    assumptions: SpatialAssumptions = SpatialAssumptions(),
+    routines: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty
+  ): SpatialType = SpatialTypeAnalysis.output(s, assumptions, routines)
+
+  def spatialType(
+    routine: Routine,
+    pathInputs: Map[PathRef, SpatialPathType],
+    spaceInputs: Map[SpaceMention, SpatialType],
+    routines: PartialFunction[RoutinePtr, Routine],
+    prefixCoverage: Set[SpatialPrefixCoverage]
+  ): SpatialType =
+    SpatialTypeAnalysis.outputRoutine(routine, pathInputs, spaceInputs, routines, prefixCoverage)
+
+  /** Analyze an open routine from annotations only. */
+  def abstractSpatialType(
+    routine: Routine,
+    pathInputs: Map[PathRef, SpatialPathType],
+    spaceInputs: Map[SpaceMention, SpatialType],
+    routines: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty,
+    prefixCoverage: Set[SpatialPrefixCoverage] = Set.empty,
+    boundLaws: Vector[SpatialBoundLaw] = Vector.empty
+  ): SpatialType =
+    SpatialTypeAnalysis.outputRoutineAbstract(
+      routine, pathInputs, spaceInputs, routines, prefixCoverage, boundLaws)
+
+  /** Analyze an open routine from one explicit spatial input annotation. */
+  def abstractSpatialType(
+    routine: Routine,
+    annotations: SpatialRoutineAnnotations,
+    routines: PartialFunction[RoutinePtr, Routine]
+  ): SpatialType =
+    SpatialTypeAnalysis.outputRoutineAbstract(routine, annotations, routines)
+
+  /** Normalize source operations before spatial abstract interpretation. */
+  def optimizedSpatialType(
+    s: Space,
+    assumptions: SpatialAssumptions = SpatialAssumptions(),
+    routines: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty
+  ): SpatialType = SpatialTypeAnalysis.output(normalize(s).space, assumptions, routines)
 
   def stats(s: Space): SpaceStats =
     def bumpSpace(x: SpaceStats, depth: Int): SpaceStats = x.copy(spaceNodes = x.spaceNodes + 1, depth = x.depth.max(depth))
@@ -3342,49 +3392,12 @@ def itypes(s: Space): SpaceValue =
     case Space.Range(x, _, _) => recs(x)
   SpaceValue(recs(s))
 
-def otypes(s: Space): SpaceValue =
-  def recp(x: Path): PathValue = x match
-    case Path.Deref(pr) => PathValue(PathItem.variable(pr.s)::Nil)
-    case Path.Constant(pi) => pi
-    case Path.Concat(l, r) => PathValue(recp(l).items ++ recp(r).items)
-    case Path.GroundedPP(p, f) => recp(p)
-    case Path.GroundedSP(s, f) => PathValue(PathItem.variable("grounded")::Nil)
-
-  import Syntax.x
-  def recs(x: Space): Set[PathValue] = x match
-    case Space.Empty =>  Set.empty
-    case Space.Call(r, refs, mentions) =>
-      val refts = refs.foldLeft(Set.empty[PathValue])((a, p) => a.incl(recp(p)))
-      mentions.foldLeft(refts)((a, s) => a.union(recs(s)))
-    case Space.Mention(sm) => Set(PathValue(PathItem.variable(sm.s)::Nil))
-    case Space.Singleton(p) => Set(recp(p))
-    case Space.Literal(sv) => Set.empty
-    case Space.Union(x, y) => recs(x) union recs(y)
-//    case Space.Intersection(x, y) => recs(x) union recs(y)
-    case Space.Intersection(x, y) => eval(Space.Union(Space.Literal(SpaceValue(recs(x))) x Space.Singleton(Path.Constant(PathValue(PathItem.variable("_")::Nil))),
-                                                      Space.Literal(SpaceValue(recs(y))) x Space.Singleton(Path.Constant(PathValue(PathItem.variable("_")::Nil))))).paths
-    case Space.Subtraction(x, y) => recs(x) union recs(y)
-//    case Space.Restriction(x, prefixes) => recs(x) union recs(prefixes)
-    case Space.Restriction(x, prefixes) => eval(Space.Union(Space.Literal(SpaceValue(recs(x))) x Space.Singleton(Path.Constant(PathValue(PathItem.variable("_")::Nil))),
-      Space.Literal(SpaceValue(recs(prefixes))))).paths
-    case Space.Composition(x, y) => recs(x) union recs(y)
-    case Space.Raffination(x, y) => recs(x) union recs(y)
-    case Space.Wrap(src, p) => eval(Space.Composition(Space.Singleton(Path.Constant(recp(p))), Space.Literal(SpaceValue(recs(src))))).paths
-    case Space.Unwrap(src, p) => recs(src) // .incl(recp(p))
-    case Space.TailsUnion(src) => recs(src)
-    case Space.TailsIntersection(src) => recs(src)
-    case Space.PrefixClosure(src) => recs(src)
-    case Space.SuffixClosure(src) => recs(src)
-    case Space.TailsClosure(src) => recs(src)
-    case Space.Iteration(src, symbol, rest, templates) =>
-      recs(templates)
-    case Space.Fold(src, initial, acc, symbol, rest, templates, update) =>
-      recs(templates).incl(recp(update))
-    case Space.Fixpoint(initial, variable, step) => recs(step)
-    case Space.GroundedPS(p, f) => Set(recp(p))
-    case Space.GroundedSS(s, f) => recs(s)
-    case Space.Range(x, _, _) => recs(x)
-  SpaceValue(recs(s))
+/** Spatial output type. This replaces the former shape-only `otypes` WIP. */
+def otypes(
+  s: Space,
+  assumptions: SpatialAssumptions = SpatialAssumptions(),
+  routines: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty
+): SpatialType = SpatialTypeAnalysis.output(s, assumptions, routines)
 
 object Syntax:
   import Path.*

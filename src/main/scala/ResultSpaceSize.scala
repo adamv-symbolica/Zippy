@@ -3,6 +3,7 @@
   */
 enum SizeExpr:
   case Const(value: BigInt)
+  case Symbol(name: String)
   case SizeOf(space: Space)
   case Add(terms: Vector[SizeExpr])
   case Multiply(factors: Vector[SizeExpr])
@@ -11,11 +12,122 @@ enum SizeExpr:
   case PositiveDifference(left: SizeExpr, right: SizeExpr)
   case Positive(value: SizeExpr)
   case RangeCardinality(value: SizeExpr, start: Int, end: Int)
+  case IfZero(condition: SizeExpr, ifZero: SizeExpr, ifNonZero: SizeExpr)
   case Z3Cardinality(problem: Z3CardinalityProblem, direction: Z3BoundDirection, baseline: SizeExpr)
   case Infinity
 
+  /** Resolve only information already present in the abstract expression.
+    * Unlike `evaluate`, this never interprets a MORKL path or space. */
+  def annotatedValue: Option[BigInt] = this match
+    case SizeExpr.Const(value) => Some(value)
+    case SizeExpr.Symbol(_) | SizeExpr.SizeOf(_) | SizeExpr.Infinity => None
+    case SizeExpr.Add(terms) =>
+      terms.foldLeft(Option(BigInt(0)))((sum, term) => for a <- sum; b <- term.annotatedValue yield a + b)
+    case SizeExpr.Multiply(factors) =>
+      val values = factors.map(_.annotatedValue)
+      if values.contains(Some(BigInt(0))) then Some(BigInt(0))
+      else values.foldLeft(Option(BigInt(1)))((product, value) => for a <- product; b <- value yield a * b)
+    case SizeExpr.Maximum(terms) =>
+      if terms.exists(_.annotatedValue.isEmpty) then None else terms.flatMap(_.annotatedValue).maxOption
+    case SizeExpr.Minimum(terms) =>
+      val values = terms.map(_.annotatedValue)
+      if values.contains(Some(BigInt(0))) then Some(BigInt(0))
+      else if values.forall(_.nonEmpty) then values.flatten.minOption
+      else None
+    case SizeExpr.PositiveDifference(left, right) =>
+      (left.annotatedValue, right.annotatedValue) match
+        case (Some(a), Some(b)) => Some((a - b).max(BigInt(0)))
+        case (Some(a), None) if a == 0 => Some(BigInt(0))
+        case _ => None
+    case SizeExpr.Positive(value) =>
+      value.annotatedValue.map(v => if v > 0 then BigInt(1) else BigInt(0))
+    case SizeExpr.RangeCardinality(value, start, end) =>
+      value.annotatedValue.map(SizeExpr.rangeCardinality(_, start, end))
+    case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
+      condition.annotatedValue match
+        case Some(value) => (if value == 0 then ifZero else ifNonZero).annotatedValue
+        case None if ifZero == ifNonZero => ifZero.annotatedValue
+        case None => None
+    case SizeExpr.Z3Cardinality(problem, direction, baseline) =>
+      val base = baseline.annotatedValue
+      val solved = problem.solveAnnotated(direction)
+      direction match
+        case Z3BoundDirection.Lower => (base, solved) match
+          case (Some(a), Some(b)) => Some(a.max(b))
+          case (Some(a), None) => Some(a)
+          case (None, Some(b)) => Some(b)
+          case (None, None) => None
+        case Z3BoundDirection.Upper => (base, solved) match
+          case (Some(a), Some(b)) => Some(a.min(b))
+          case (Some(a), None) => Some(a)
+          case (None, Some(b)) => Some(b)
+          case (None, None) => None
+
+  /** Resolve a sound one-sided bound using only annotations. Unknown natural
+    * values contribute zero to lower bounds and infinity to upper bounds. */
+  def annotatedBound(direction: Z3BoundDirection): Option[BigInt] =
+    def lower(value: SizeExpr): BigInt = value match
+      case SizeExpr.Const(n) => n
+      case SizeExpr.Symbol(_) | SizeExpr.SizeOf(_) | SizeExpr.Infinity => BigInt(0)
+      case SizeExpr.Add(terms) => terms.map(lower).sum
+      case SizeExpr.Multiply(factors) => factors.map(lower).product
+      case SizeExpr.Maximum(terms) => terms.map(lower).maxOption.getOrElse(BigInt(0))
+      case SizeExpr.Minimum(terms) => terms.map(lower).minOption.getOrElse(BigInt(0))
+      case SizeExpr.PositiveDifference(left, right) =>
+        upper(right).fold(BigInt(0))(r => (lower(left) - r).max(BigInt(0)))
+      case SizeExpr.Positive(inner) => if lower(inner) > 0 then BigInt(1) else BigInt(0)
+      case SizeExpr.RangeCardinality(inner, start, end) =>
+        inner.annotatedValue.map(SizeExpr.rangeCardinality(_, start, end)).getOrElse(BigInt(0))
+      case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
+        condition.annotatedValue match
+          case Some(n) => lower(if n == 0 then ifZero else ifNonZero)
+          case None => lower(ifZero).min(lower(ifNonZero))
+      case value @ SizeExpr.Z3Cardinality(_, storedDirection, _) =>
+        value.annotatedValue.orElse(z3Bound(value, storedDirection)).getOrElse(BigInt(0))
+    def upper(value: SizeExpr): Option[BigInt] = value match
+      case SizeExpr.Const(n) => Some(n)
+      case SizeExpr.Symbol(_) | SizeExpr.SizeOf(_) | SizeExpr.Infinity => None
+      case SizeExpr.Add(terms) =>
+        terms.foldLeft(Option(BigInt(0)))((sum, term) => for a <- sum; b <- upper(term) yield a + b)
+      case SizeExpr.Multiply(factors) =>
+        val values = factors.map(upper)
+        if values.contains(Some(BigInt(0))) then Some(BigInt(0))
+        else values.foldLeft(Option(BigInt(1)))((product, factor) => for a <- product; b <- factor yield a * b)
+      case SizeExpr.Maximum(terms) =>
+        val values = terms.map(upper)
+        if values.forall(_.nonEmpty) then values.flatten.maxOption else None
+      case SizeExpr.Minimum(terms) => terms.flatMap(upper).minOption
+      case SizeExpr.PositiveDifference(left, _) => upper(left)
+      case SizeExpr.Positive(inner) => upper(inner).map(n => if n == 0 then BigInt(0) else BigInt(1)).orElse(Some(BigInt(1)))
+      case SizeExpr.RangeCardinality(inner, start, end) =>
+        inner.annotatedValue.map(SizeExpr.rangeCardinality(_, start, end)).orElse(upper(inner))
+      case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
+        condition.annotatedValue match
+          case Some(n) => upper(if n == 0 then ifZero else ifNonZero)
+          case None => for a <- upper(ifZero); b <- upper(ifNonZero) yield a.max(b)
+      case value @ SizeExpr.Z3Cardinality(_, storedDirection, _) =>
+        value.annotatedValue.orElse(z3Bound(value, storedDirection))
+    def z3Bound(value: SizeExpr, storedDirection: Z3BoundDirection): Option[BigInt] = value match
+      case SizeExpr.Z3Cardinality(problem, _, baseline) =>
+        val base = storedDirection match
+          case Z3BoundDirection.Lower => Some(lower(baseline))
+          case Z3BoundDirection.Upper => upper(baseline)
+        val solved = problem.solveAnnotated(storedDirection)
+        storedDirection match
+          case Z3BoundDirection.Lower => Some(base.getOrElse(BigInt(0)).max(solved.getOrElse(BigInt(0))))
+          case Z3BoundDirection.Upper => (base, solved) match
+            case (Some(a), Some(b)) => Some(a.min(b))
+            case (some @ Some(_), None) => some
+            case (None, some @ Some(_)) => some
+            case _ => None
+      case _ => None
+    direction match
+      case Z3BoundDirection.Lower => Some(lower(this))
+      case Z3BoundDirection.Upper => upper(this)
+
   def show: String = this match
     case SizeExpr.Const(value) => value.toString
+    case SizeExpr.Symbol(name) => name
     case SizeExpr.SizeOf(space) => s"|${space.show}|"
     case SizeExpr.Add(terms) => terms.map(_.show).mkString("(", " + ", ")")
     case SizeExpr.Multiply(factors) => factors.map(_.show).mkString("(", " * ", ")")
@@ -24,6 +136,8 @@ enum SizeExpr:
     case SizeExpr.PositiveDifference(left, right) => s"relu(${left.show} - ${right.show})"
     case SizeExpr.Positive(value) => s"positive(${value.show})"
     case SizeExpr.RangeCardinality(value, start, end) => s"rangeSize(${value.show}, $start, $end)"
+    case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
+      s"ifZero(${condition.show}, ${ifZero.show}, ${ifNonZero.show})"
     case SizeExpr.Z3Cardinality(problem, direction, baseline) =>
       s"z3${direction.toString.toLowerCase}(${problem.show}; baseline=${baseline.show})"
     case SizeExpr.Infinity => "∞"
@@ -34,6 +148,7 @@ enum SizeExpr:
     rc: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty
   ): Option[BigInt] = this match
     case SizeExpr.Const(value) => Some(value)
+    case SizeExpr.Symbol(_) => None
     case SizeExpr.SizeOf(space) => Some(BigInt(eval(space).paths.size))
     case SizeExpr.Add(terms) =>
       terms.foldLeft(Option(BigInt(0)))((sum, term) => for a <- sum; b <- term.evaluate yield a + b)
@@ -56,6 +171,11 @@ enum SizeExpr:
       value.evaluate.map(v => if v > 0 then BigInt(1) else BigInt(0)).orElse(Some(BigInt(1)))
     case SizeExpr.RangeCardinality(value, start, end) =>
       value.evaluate.map(SizeExpr.rangeCardinality(_, start, end))
+    case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
+      condition.evaluate match
+        case Some(value) => (if value == 0 then ifZero else ifNonZero).evaluate
+        case None if ifZero == ifNonZero => ifZero.evaluate
+        case None => None
     case SizeExpr.Z3Cardinality(problem, direction, baseline) =>
       val base = baseline.evaluate
       val solved = problem.solve(direction)
@@ -81,12 +201,18 @@ object SizeExpr:
     SizeExpr.Const(value)
 
   def sizeOf(space: Space): SizeExpr = SizeExpr.SizeOf(space)
+  def symbol(name: String): SizeExpr =
+    require(name.nonEmpty, "size symbol must have a name")
+    SizeExpr.Symbol(name)
 
   private def sameInstance(left: SizeExpr, right: SizeExpr): Boolean =
     left.asInstanceOf[AnyRef] eq right.asInstanceOf[AnyRef]
 
   def add(values: SizeExpr*): SizeExpr =
-    val terms = values.filterNot(_ == Zero).toVector
+    val terms = values.iterator.flatMap {
+      case SizeExpr.Add(nested) => nested
+      case other => Vector(other)
+    }.filterNot(_ == Zero).toVector
     terms match
       case Vector() => Zero
       case Vector(term) => term
@@ -95,10 +221,19 @@ object SizeExpr:
       case result => SizeExpr.Add(result)
 
   def multiply(values: SizeExpr*): SizeExpr =
-    val factors = values.toVector
+    val factors = values.iterator.flatMap {
+      case SizeExpr.Multiply(nested) => nested
+      case other => Vector(other)
+    }.toVector
     if factors.contains(Zero) then Zero
     else
-      val result = factors.filterNot(_ == One)
+      val result = factors.filterNot(_ == One).foldLeft(Vector.empty[SizeExpr]) { (kept, factor) =>
+        val idempotent = factor match
+          case SizeExpr.Positive(_) => true
+          case SizeExpr.PositiveDifference(SizeExpr.Const(one), _) if one == 1 => true
+          case _ => false
+        if idempotent && kept.contains(factor) then kept else kept :+ factor
+      }
       if result.exists { factor =>
         result.exists {
           case SizeExpr.PositiveDifference(SizeExpr.Const(one), other) if one == 1 => other == factor
@@ -124,25 +259,89 @@ object SizeExpr:
     else if guardedByZero(right, left) then Some(add(left, right))
     else None
 
+  private def factors(value: SizeExpr): Vector[SizeExpr] = value match
+    case SizeExpr.Multiply(values) => values
+    case other => Vector(other)
+
+  /** A deliberately incomplete, but sound, order decision procedure for
+    * natural-valued expressions.  It is used only for normalization; failure
+    * to prove an order leaves both alternatives in place.
+    */
+  private def noGreater(left: SizeExpr, right: SizeExpr): Boolean =
+    if left == right || left == Zero || right == SizeExpr.Infinity then true
+    else (left, right) match
+      case (SizeExpr.Const(a), SizeExpr.Const(b)) => a <= b
+      case (SizeExpr.Positive(value), other) if value == other => true
+      case (SizeExpr.Minimum(leftTerms), SizeExpr.Minimum(rightTerms)) =>
+        rightTerms.forall(rightTerm => leftTerms.exists(noGreater(_, rightTerm)))
+      case (SizeExpr.Minimum(terms), other) => terms.exists(noGreater(_, other))
+      case (other, SizeExpr.Minimum(terms)) => terms.forall(noGreater(other, _))
+      case (SizeExpr.Maximum(terms), other) => terms.forall(noGreater(_, other))
+      case (other, SizeExpr.Maximum(terms)) => terms.exists(noGreater(other, _))
+      case (l, r) =>
+        val remaining = collection.mutable.ArrayBuffer.from(factors(r))
+        val unmatched = factors(l).filter { factor =>
+          val index = remaining.indexOf(factor)
+          if index < 0 then true
+          else
+            remaining.remove(index)
+            false
+        }
+        if unmatched.size == factors(l).size then false
+        else noGreater(multiply(unmatched*), multiply(remaining.toVector*))
+
+  private def undominatedMinimum(values: Vector[SizeExpr]): Vector[SizeExpr] =
+    values.filterNot(value => values.exists(other => other != value && noGreater(other, value)))
+
+  private def undominatedMaximum(values: Vector[SizeExpr]): Vector[SizeExpr] =
+    values.filterNot(value => values.exists(other => other != value && noGreater(value, other)))
+
   def maximum(values: SizeExpr*): SizeExpr =
-    val terms = values.filterNot(_ == Zero).toVector
+    val flattened = values.iterator.flatMap {
+      case SizeExpr.Maximum(nested) => nested
+      case other => Vector(other)
+    }.filterNot(_ == Zero).toVector.distinct
+    val terms = undominatedMaximum(flattened)
     if terms.contains(SizeExpr.Infinity) then SizeExpr.Infinity
     else
       terms match
         case Vector() => Zero
         case Vector(value) => value
+        case result if result.forall(_.isInstanceOf[SizeExpr.Const]) =>
+          const(result.collect { case SizeExpr.Const(value) => value }.max)
         case Vector(left, right) if sameInstance(left, right) => left
         case Vector(left, right) => exclusiveMaximum(left, right).getOrElse(SizeExpr.Maximum(terms))
         case result => SizeExpr.Maximum(result)
 
   def minimum(values: SizeExpr*): SizeExpr =
-    val terms = values.filterNot(_ == SizeExpr.Infinity).toVector
+    val flattened = values.iterator.flatMap {
+      case SizeExpr.Minimum(nested) => nested
+      case other => Vector(other)
+    }.filterNot(_ == SizeExpr.Infinity).toVector.distinct
+    val terms = undominatedMinimum(flattened)
     if terms.contains(Zero) then Zero
     else terms match
       case Vector() => SizeExpr.Infinity
       case Vector(value) => value
+      case result if result.forall(_.isInstanceOf[SizeExpr.Const]) =>
+        const(result.collect { case SizeExpr.Const(value) => value }.min)
       case Vector(left, right) if sameInstance(left, right) => left
+      case Vector(left, right) if additiveSubset(left, right) => left
+      case Vector(left, right) if additiveSubset(right, left) => right
       case result => SizeExpr.Minimum(result)
+
+  private def additiveSubset(left: SizeExpr, right: SizeExpr): Boolean =
+    def terms(value: SizeExpr): Vector[SizeExpr] = value match
+      case SizeExpr.Add(values) => values
+      case other => Vector(other)
+    val remaining = collection.mutable.ArrayBuffer.from(terms(right))
+    terms(left).forall { term =>
+      val index = remaining.indexOf(term)
+      if index < 0 then false
+      else
+        remaining.remove(index)
+        true
+    }
 
   def positiveDifference(left: SizeExpr, right: SizeExpr): SizeExpr = (left, right) match
     case (SizeExpr.Const(a), SizeExpr.Const(b)) => const((a - b).max(BigInt(0)))
@@ -165,6 +364,11 @@ object SizeExpr:
   def isZero(value: SizeExpr): SizeExpr =
     if definitelyPositive(value) then Zero else positiveDifference(One, value)
 
+  def ifZero(condition: SizeExpr, ifZero: SizeExpr, ifNonZero: SizeExpr): SizeExpr = condition match
+    case SizeExpr.Const(value) => if value == 0 then ifZero else ifNonZero
+    case _ if ifZero == ifNonZero => ifZero
+    case _ => SizeExpr.IfZero(condition, ifZero, ifNonZero)
+
   private def definitelyPositive(value: SizeExpr): Boolean = value match
     case SizeExpr.Const(v) => v > 0
     case SizeExpr.Add(terms) => terms.exists(definitelyPositive)
@@ -172,6 +376,8 @@ object SizeExpr:
     case SizeExpr.Maximum(terms) => terms.exists(definitelyPositive)
     case SizeExpr.Minimum(terms) => terms.forall(definitelyPositive)
     case SizeExpr.Positive(inner) => definitelyPositive(inner)
+    case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
+      definitelyPositive(ifZero) && definitelyPositive(ifNonZero)
     case SizeExpr.Infinity => true
     case _ => false
 

@@ -700,6 +700,11 @@ case class SupercompiledProgram(top: Space,
   ): PathLengthEstimate =
     ResultPathLength.estimate(top, assumptions, pathAssumptions, sizeAssumptions)
 
+  def spatialType(
+    assumptions: SpatialAssumptions = SpatialAssumptions(),
+    routineInputs: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty
+  ): SpatialType = SpatialTypeAnalysis.output(top, assumptions, routineInputs)
+
 object SC:
   import Space.*
   import Matching.LiteralEmbeddingPolicy

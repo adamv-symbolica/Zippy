@@ -2,6 +2,21 @@ import munit.FunSuite
 import morkl.Syntax.{*, given}
 
 class ResultSpaceSizeTest extends FunSuite:
+  test("natural expression normalization removes proved dominated bounds") {
+    val p = SizeExpr.symbol("P")
+    val a = SizeExpr.symbol("A")
+    val b = SizeExpr.symbol("B")
+    val c = SizeExpr.symbol("C")
+    val broad = SizeExpr.multiply(p, SizeExpr.minimum(a, b))
+    val tight = SizeExpr.multiply(p, SizeExpr.minimum(a, b, c))
+    assertEquals(SizeExpr.minimum(broad, tight), tight)
+    assertEquals(SizeExpr.maximum(a, SizeExpr.positive(a)), a)
+    assertEquals(
+      SizeExpr.multiply(SizeExpr.positive(a), SizeExpr.positive(a)),
+      SizeExpr.positive(a),
+    )
+  }
+
   private val emptyPathContext = PathContextMap(Map.empty)
   private val emptyRoutines = PartialFunction.empty[RoutinePtr, Routine]
 

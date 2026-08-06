@@ -380,9 +380,9 @@ def validate_symbol_coverage_artifacts(artifacts: list[Artifact], root: Path) ->
     )
 
 
-def display_path(path: Path, root: Path) -> Path | str:
+def display_path(path: Path, root: Path) -> str:
     try:
-        return path.relative_to(root)
+        return str(path.relative_to(root))
     except ValueError:
         return str(path)
 

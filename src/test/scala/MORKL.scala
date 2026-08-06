@@ -1239,7 +1239,7 @@ class SpacialType extends FunSuite:
     val code = Routines.child_routine.body
     assert(code.show.nonEmpty)
     assert(itypes(code).paths.nonEmpty)
-    assert(otypes(code).paths.nonEmpty)
+    assert(otypes(code).strata.nonEmpty)
 
   }
 end SpacialType

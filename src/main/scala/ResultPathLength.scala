@@ -20,6 +20,83 @@ enum PathLengthExpr:
   case Z3Bound(problem: Z3PathLengthProblem, direction: Z3BoundDirection, baseline: PathLengthExpr)
   case Infinity
 
+  /** Resolve only lengths propagated through annotations and syntax. This
+    * never evaluates a path, space, grounded function, or routine call. */
+  def annotatedValue: Option[BigInt] = this match
+    case PathLengthExpr.Const(value) => Some(value)
+    case PathLengthExpr.PathLengthOf(_) | PathLengthExpr.MinimumLengthOf(_) |
+         PathLengthExpr.MaximumLengthOf(_) | PathLengthExpr.Infinity => None
+    case PathLengthExpr.Add(terms) =>
+      terms.foldLeft(Option(BigInt(0))) { (acc, term) =>
+        for left <- acc; right <- term.annotatedValue yield left + right
+      }
+    case PathLengthExpr.Maximum(terms) =>
+      if terms.exists(_.annotatedValue.isEmpty) then None else terms.flatMap(_.annotatedValue).maxOption
+    case PathLengthExpr.Minimum(terms) =>
+      val values = terms.map(_.annotatedValue)
+      if values.contains(Some(BigInt(0))) then Some(BigInt(0))
+      else if values.forall(_.nonEmpty) then values.flatten.minOption
+      else None
+    case PathLengthExpr.PositiveDifference(left, right) =>
+      (left.annotatedValue, right.annotatedValue) match
+        case (Some(l), Some(r)) => Some((l - r).max(BigInt(0)))
+        case (Some(l), None) if l == 0 => Some(BigInt(0))
+        case _ => None
+    case PathLengthExpr.Z3Bound(problem, direction, baseline) =>
+      val fallback = baseline.annotatedValue
+      problem.solveAnnotated(direction) match
+        case None => fallback
+        case Some(None) =>
+          direction match
+            case Z3BoundDirection.Lower => None
+            case Z3BoundDirection.Upper => fallback
+        case Some(Some(refined)) =>
+          direction match
+            case Z3BoundDirection.Lower => fallback.map(_.max(refined))
+            case Z3BoundDirection.Upper => Some(fallback.fold(refined)(_.min(refined)))
+
+  /** Resolve a sound one-sided path-length bound from annotations only. */
+  def annotatedBound(direction: Z3BoundDirection): Option[BigInt] =
+    def lower(value: PathLengthExpr): BigInt = value match
+      case PathLengthExpr.Const(n) => n
+      case PathLengthExpr.PathLengthOf(_) | PathLengthExpr.MinimumLengthOf(_) |
+           PathLengthExpr.MaximumLengthOf(_) | PathLengthExpr.Infinity => BigInt(0)
+      case PathLengthExpr.Add(terms) => terms.map(lower).sum
+      case PathLengthExpr.Maximum(terms) => terms.map(lower).maxOption.getOrElse(BigInt(0))
+      case PathLengthExpr.Minimum(terms) => terms.map(lower).minOption.getOrElse(BigInt(0))
+      case PathLengthExpr.PositiveDifference(left, right) =>
+        upper(right).fold(BigInt(0))(r => (lower(left) - r).max(BigInt(0)))
+      case value @ PathLengthExpr.Z3Bound(_, storedDirection, _) =>
+        value.annotatedValue.orElse(z3Bound(value, storedDirection)).getOrElse(BigInt(0))
+    def upper(value: PathLengthExpr): Option[BigInt] = value match
+      case PathLengthExpr.Const(n) => Some(n)
+      case PathLengthExpr.PathLengthOf(_) | PathLengthExpr.MinimumLengthOf(_) |
+           PathLengthExpr.MaximumLengthOf(_) | PathLengthExpr.Infinity => None
+      case PathLengthExpr.Add(terms) =>
+        terms.foldLeft(Option(BigInt(0)))((sum, term) => for a <- sum; b <- upper(term) yield a + b)
+      case PathLengthExpr.Maximum(terms) =>
+        val values = terms.map(upper)
+        if values.forall(_.nonEmpty) then values.flatten.maxOption else None
+      case PathLengthExpr.Minimum(terms) => terms.flatMap(upper).minOption
+      case PathLengthExpr.PositiveDifference(left, _) => upper(left)
+      case value @ PathLengthExpr.Z3Bound(_, storedDirection, _) =>
+        value.annotatedValue.orElse(z3Bound(value, storedDirection))
+    def z3Bound(value: PathLengthExpr, storedDirection: Z3BoundDirection): Option[BigInt] = value match
+      case PathLengthExpr.Z3Bound(problem, _, baseline) =>
+        val base = storedDirection match
+          case Z3BoundDirection.Lower => Some(lower(baseline))
+          case Z3BoundDirection.Upper => upper(baseline)
+        problem.solveAnnotated(storedDirection) match
+          case None => base
+          case Some(None) => if storedDirection == Z3BoundDirection.Upper then base else None
+          case Some(Some(refined)) => storedDirection match
+            case Z3BoundDirection.Lower => Some(base.getOrElse(BigInt(0)).max(refined))
+            case Z3BoundDirection.Upper => Some(base.fold(refined)(_.min(refined)))
+      case _ => None
+    direction match
+      case Z3BoundDirection.Lower => Some(lower(this))
+      case Z3BoundDirection.Upper => upper(this)
+
   def show: String = this match
     case PathLengthExpr.Const(value) => value.toString
     case PathLengthExpr.PathLengthOf(path) => s"len(${path.show})"
@@ -400,6 +477,14 @@ case class Z3PathLengthProblem(
       catch case _: NoSuchElementException => None
     val lengthBounds = lengths.map(length => safelyLength(length.lower) -> safelyLength(length.upper))
     val sizeBounds = cardinalities.map(size => safelySize(size.lower) -> safelySize(size.upper))
+    Z3PathLengthSolver.solve(formula, lengthBounds, sizeBounds, relations, direction)
+
+  /** Solver entry using only abstract annotations; opaque atoms are unknown. */
+  def solveAnnotated(direction: Z3BoundDirection): Option[Option[BigInt]] =
+    val lengthBounds = lengths.map(length =>
+      length.lower.annotatedBound(Z3BoundDirection.Lower) -> length.upper.annotatedBound(Z3BoundDirection.Upper))
+    val sizeBounds = cardinalities.map(size =>
+      size.lower.annotatedBound(Z3BoundDirection.Lower) -> size.upper.annotatedBound(Z3BoundDirection.Upper))
     Z3PathLengthSolver.solve(formula, lengthBounds, sizeBounds, relations, direction)
 
 private object Z3PathLengthSolver:

@@ -1339,6 +1339,192 @@ object ProofArtifacts:
 
   val rangeSetTptp: String = trieSetTptp
 
+  /** Semantic core of the spatial abstract domain.
+    *
+    * Abstract values are normalized path-set intervals `[must, may]`, plus
+    * bottom.  Their order is precision order: a smaller value admits fewer
+    * concrete spaces.  The actual `SpatialType` implementation is a reduced
+    * product of this envelope with pattern, cardinality, path-length, and
+    * dependency components; the generic `rproduct` axioms below capture that
+    * reduction without pretending that cardinality is first-order definable.
+    */
+  val spatialTypeLatticeTptp: String = block(
+    trieSetTptp,
+    "",
+    "% Extensional path sets and subset.",
+    "fof(spatial_set_empty, axiom, ! [P] : ~p_mem(P,sempty)).",
+    "fof(spatial_set_universe, axiom, ! [P] : p_mem(P,suniverse)).",
+    "fof(spatial_subset, axiom, ! [A,B] : (ssubset(A,B) <=> ! [P] : (p_mem(P,A) => p_mem(P,B)))).",
+    "fof(spatial_set_extensional, axiom, ! [A,B] : ((! [P] : (p_mem(P,A) <=> p_mem(P,B))) => A = B)).",
+    "",
+    "% Interval concretization and its extensional precision order.",
+    "fof(spatial_type_bottom, axiom, atype(abot)).",
+    "fof(spatial_type_interval, axiom, ! [L,U] : atype(aint(L,U))).",
+    "fof(spatial_gamma_bottom, axiom, ! [S] : ~agamma(S,abot)).",
+    "fof(spatial_gamma_interval, axiom, ! [S,L,U] : (agamma(S,aint(L,U)) <=> (ssubset(L,U) & ssubset(L,S) & ssubset(S,U)))).",
+    "fof(spatial_gamma_typed, axiom, ! [S,A] : (agamma(S,A) => atype(A))).",
+    "fof(spatial_abstract_extensional, axiom, ! [A,B] : ((atype(A) & atype(B) & ! [S] : (agamma(S,A) <=> agamma(S,B))) => A = B)).",
+    "fof(spatial_abstract_exhaustive, axiom, ! [A] : (atype(A) => (A = abot | ? [L,U] : (ssubset(L,U) & A = aint(L,U))))).",
+    "fof(spatial_order, axiom, ! [A,B] : ((atype(A) & atype(B)) => (aleq(A,B) <=> ! [S] : (agamma(S,A) => agamma(S,B))))).",
+    "fof(spatial_order_typed, axiom, ! [A,B] : (aleq(A,B) => (atype(A) & atype(B)))).",
+    "fof(spatial_top, axiom, atop = aint(sempty,suniverse)).",
+    "fof(spatial_exact, axiom, ! [S] : aexact(S) = aint(S,S)).",
+    "fof(spatial_normalize_valid, axiom, ! [L,U] : (ssubset(L,U) => anorm(L,U) = aint(L,U))).",
+    "fof(spatial_normalize_invalid, axiom, ! [L,U] : (~ssubset(L,U) => anorm(L,U) = abot)).",
+    "",
+    "% Complete lattice operations. Inconsistent interval meets normalize to bottom.",
+    "fof(spatial_join_bottom_left, axiom, ! [A] : (atype(A) => ajoin(abot,A) = A)).",
+    "fof(spatial_join_bottom_right, axiom, ! [A] : (atype(A) => ajoin(A,abot) = A)).",
+    "fof(spatial_join_interval, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => ajoin(aint(L1,U1),aint(L2,U2)) = aint(sinter(L1,L2),sunion(U1,U2)))).",
+    "fof(spatial_meet_bottom_left, axiom, ! [A] : (atype(A) => ameet(abot,A) = abot)).",
+    "fof(spatial_meet_bottom_right, axiom, ! [A] : (atype(A) => ameet(A,abot) = abot)).",
+    "fof(spatial_meet_interval, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => ameet(aint(L1,U1),aint(L2,U2)) = anorm(sunion(L1,L2),sinter(U1,U2)))).",
+    "",
+    "% Arbitrary joins/meets make the interval quotient a complete lattice.",
+    "fof(spatial_collection_empty_type, axiom, acollection(acol_empty)).",
+    "fof(spatial_collection_all_type, axiom, acollection(acol_all)).",
+    "fof(spatial_collection_empty, axiom, ! [A] : ~acol_mem(A,acol_empty)).",
+    "fof(spatial_collection_all, axiom, ! [A] : (acol_mem(A,acol_all) <=> atype(A))).",
+    "fof(spatial_collection_singleton_type, axiom, ! [A] : (atype(A) => acollection(acol_singleton(A)))).",
+    "fof(spatial_collection_pair_type, axiom, ! [A,B] : ((atype(A) & atype(B)) => acollection(acol_pair(A,B)))).",
+    "fof(spatial_collection_singleton, axiom, ! [A,B] : (atype(B) => (acol_mem(A,acol_singleton(B)) <=> A = B))).",
+    "fof(spatial_collection_pair, axiom, ! [A,B,C] : ((atype(B) & atype(C)) => (acol_mem(A,acol_pair(B,C)) <=> (A = B | A = C)))).",
+    "fof(spatial_collection_members_typed, axiom, ! [A,C] : (acol_mem(A,C) => (atype(A) & acollection(C)))).",
+    "fof(spatial_sup_typed, axiom, ! [C] : (acollection(C) => atype(asup(C)))).",
+    "fof(spatial_inf_typed, axiom, ! [C] : (acollection(C) => atype(ainf(C)))).",
+    "fof(spatial_sup_upper, axiom, ! [C,A] : (acol_mem(A,C) => aleq(A,asup(C)))).",
+    "fof(spatial_sup_least, axiom, ! [C,B] : ((acollection(C) & atype(B) & ! [A] : (acol_mem(A,C) => aleq(A,B))) => aleq(asup(C),B))).",
+    "fof(spatial_inf_lower, axiom, ! [C,A] : (acol_mem(A,C) => aleq(ainf(C),A))).",
+    "fof(spatial_inf_greatest, axiom, ! [C,B] : ((acollection(C) & atype(B) & ! [A] : (acol_mem(A,C) => aleq(B,A))) => aleq(B,ainf(C)))).",
+    "fof(spatial_binary_join_as_sup, axiom, ! [A,B] : ((atype(A) & atype(B)) => ajoin(A,B) = asup(acol_pair(A,B)))).",
+    "fof(spatial_binary_meet_as_inf, axiom, ! [A,B] : ((atype(A) & atype(B)) => ameet(A,B) = ainf(acol_pair(A,B)))).",
+    "",
+    "% Best interval transformers for the monotone/antitone MORKL set operators.",
+    "fof(spatial_abs_union, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => abs_union(aint(L1,U1),aint(L2,U2)) = anorm(sunion(L1,L2),sunion(U1,U2)))).",
+    "fof(spatial_abs_intersection, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => abs_intersection(aint(L1,U1),aint(L2,U2)) = anorm(sinter(L1,L2),sinter(U1,U2)))).",
+    "fof(spatial_abs_diff, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => abs_diff(aint(L1,U1),aint(L2,U2)) = anorm(sdiff(L1,U2),sdiff(U1,L2)))).",
+    "fof(spatial_abs_product, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => abs_product(aint(L1,U1),aint(L2,U2)) = anorm(sproduct(L1,L2),sproduct(U1,U2)))).",
+    "fof(spatial_abs_restriction, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => abs_restriction(aint(L1,U1),aint(L2,U2)) = anorm(srestriction(L1,L2),srestriction(U1,U2)))).",
+    "fof(spatial_abs_raffination, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => abs_raffination(aint(L1,U1),aint(L2,U2)) = anorm(sraffination(L1,U2),sraffination(U1,L2)))).",
+    "fof(spatial_abs_wrap, axiom, ! [L,U,Prefix] : (ssubset(L,U) => abs_wrap(aint(L,U),Prefix) = anorm(swrap(L,Prefix),swrap(U,Prefix)))).",
+    "fof(spatial_abs_unwrap, axiom, ! [L,U,Prefix] : (ssubset(L,U) => abs_unwrap(aint(L,U),Prefix) = anorm(sunwrap(L,Prefix),sunwrap(U,Prefix)))).",
+    "fof(spatial_abs_tails_union, axiom, ! [L,U] : (ssubset(L,U) => abs_tails_union(aint(L,U)) = anorm(stails_union(L),stails_union(U)))).",
+    "fof(spatial_abs_prefix_closure, axiom, ! [L,U] : (ssubset(L,U) => abs_prefix_closure(aint(L,U)) = anorm(sprefix_closure(L),sprefix_closure(U)))).",
+    "fof(spatial_abs_suffix_closure, axiom, ! [L,U] : (ssubset(L,U) => abs_suffix_closure(aint(L,U)) = anorm(ssuffix_closure(L),ssuffix_closure(U)))).",
+    "fof(spatial_abs_tails_closure, axiom, ! [L,U] : (ssubset(L,U) => abs_tails_closure(aint(L,U)) = anorm(stails_closure(L),stails_closure(U)))).",
+    "",
+    "% Range and universal tails meet are not monotone; these are their sound envelopes.",
+    "fof(spatial_abs_range_safe, axiom, ! [L,U,Start,End] : (ssubset(L,U) => abs_range_safe(aint(L,U),Start,End) = anorm(sempty,U))).",
+    "fof(spatial_abs_range_full, axiom, ! [A] : abs_range_full(A) = A).",
+    "fof(spatial_abs_range_empty, axiom, ! [A] : abs_range_empty(A) = aexact(sempty)).",
+    "fof(spatial_abs_tails_intersection, axiom, ! [L,U] : (ssubset(L,U) => abs_tails_intersection(aint(L,U)) = anorm(sempty,stails_union(U)))).",
+    "",
+    "% Iteration is monotone only when its template is monotone in the bound tail.",
+    "fof(spatial_template_monotone, axiom, ! [F] : (template_monotone(F) <=> ! [I,A,B] : (ssubset(A,B) => ssubset(sapply(F,I,A),sapply(F,I,B))))).",
+    "fof(spatial_abs_positive_iter, axiom, ! [L,U,F] : (ssubset(L,U) => abs_positive_iter(aint(L,U),F) = anorm(siter(L,F),siter(U,F)))).",
+    "",
+    "% Generic reduced product used for shape x size x length x dependencies.",
+    "fof(spatial_reduced_gamma, axiom, ! [S,A,Q] : (rgamma(S,rproduct(A,Q)) <=> (agamma(S,A) & qgamma(S,Q)))).",
+    "fof(spatial_property_order, axiom, ! [Q1,Q2] : (qleq(Q1,Q2) <=> ! [S] : (qgamma(S,Q1) => qgamma(S,Q2)))).",
+    "fof(spatial_reduced_order, axiom, ! [R1,R2] : (rleq(R1,R2) <=> ! [S] : (rgamma(S,R1) => rgamma(S,R2)))).",
+    "fof(spatial_reduced_extensional, axiom, ! [R1,R2] : ((! [S] : (rgamma(S,R1) <=> rgamma(S,R2))) => R1 = R2)).",
+    "fof(spatial_reduce_preserves_gamma, axiom, ! [S,R] : (rgamma(S,rreduce(R)) <=> rgamma(S,R))).",
+  )
+
+  /** Lean, explicitly sorted-by-predicate version used by the standalone
+    * spatial obligations. Keeping unrelated trie/zipper axioms out of these
+    * problems both improves proof search and makes contradictory-axiom status
+    * a real failure rather than an accidental proof.
+    */
+  val spatialIntervalCoreTptp: String = block(
+    "fof(spatial_set_empty, axiom, ! [P] : ~p_mem(P,sempty)).",
+    "fof(spatial_set_universe, axiom, ! [P] : p_mem(P,suniverse)).",
+    "fof(spatial_set_union, axiom, ! [P,A,B] : (p_mem(P,sunion(A,B)) <=> (p_mem(P,A) | p_mem(P,B)))).",
+    "fof(spatial_set_intersection, axiom, ! [P,A,B] : (p_mem(P,sinter(A,B)) <=> (p_mem(P,A) & p_mem(P,B)))).",
+    "fof(spatial_set_diff, axiom, ! [P,A,B] : (p_mem(P,sdiff(A,B)) <=> (p_mem(P,A) & ~p_mem(P,B)))).",
+    "fof(spatial_subset, axiom, ! [A,B] : (ssubset(A,B) <=> ! [P] : (p_mem(P,A) => p_mem(P,B)))).",
+    "fof(spatial_set_extensional, axiom, ! [A,B] : ((! [P] : (p_mem(P,A) <=> p_mem(P,B))) => A = B)).",
+    "fof(spatial_type_bottom, axiom, atype(abot)).",
+    "fof(spatial_type_interval, axiom, ! [L,U] : atype(aint(L,U))).",
+    "fof(spatial_gamma_bottom, axiom, ! [S] : ~agamma(S,abot)).",
+    "fof(spatial_gamma_interval, axiom, ! [S,L,U] : (agamma(S,aint(L,U)) <=> (ssubset(L,U) & ssubset(L,S) & ssubset(S,U)))).",
+    "fof(spatial_gamma_typed, axiom, ! [S,A] : (agamma(S,A) => atype(A))).",
+    "fof(spatial_abstract_extensional, axiom, ! [A,B] : ((atype(A) & atype(B) & ! [S] : (agamma(S,A) <=> agamma(S,B))) => A = B)).",
+    "fof(spatial_abstract_exhaustive, axiom, ! [A] : (atype(A) => (A = abot | ? [L,U] : (ssubset(L,U) & A = aint(L,U))))).",
+    "fof(spatial_order, axiom, ! [A,B] : ((atype(A) & atype(B)) => (aleq(A,B) <=> ! [S] : (agamma(S,A) => agamma(S,B))))).",
+    "fof(spatial_order_typed, axiom, ! [A,B] : (aleq(A,B) => (atype(A) & atype(B)))).",
+    "fof(spatial_top, axiom, atop = aint(sempty,suniverse)).",
+    "fof(spatial_exact, axiom, ! [S] : aexact(S) = aint(S,S)).",
+    "fof(spatial_normalize_valid, axiom, ! [L,U] : (ssubset(L,U) => anorm(L,U) = aint(L,U))).",
+    "fof(spatial_normalize_invalid, axiom, ! [L,U] : (~ssubset(L,U) => anorm(L,U) = abot)).",
+  )
+
+  val spatialCompleteLatticeTptp: String = block(
+    spatialIntervalCoreTptp,
+    "% Previously proved order lemmas, exposed for compositional lattice proofs.",
+    "fof(lemma_spatial_interval_order_closed, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => (aleq(aint(L1,U1),aint(L2,U2)) <=> (ssubset(L2,L1) & ssubset(U1,U2))))).",
+    "fof(lemma_spatial_order_reflexive, axiom, ! [A] : (atype(A) => aleq(A,A))).",
+    "fof(lemma_spatial_order_transitive, axiom, ! [A,B,C] : ((aleq(A,B) & aleq(B,C)) => aleq(A,C))).",
+    "fof(lemma_spatial_order_antisymmetric, axiom, ! [A,B] : ((aleq(A,B) & aleq(B,A)) => A = B)).",
+    "fof(lemma_spatial_bottom_least, axiom, ! [A] : (atype(A) => aleq(abot,A))).",
+    "fof(lemma_spatial_top_greatest, axiom, ! [A] : (atype(A) => aleq(A,atop))).",
+    "fof(spatial_join_bottom_left, axiom, ! [A] : (atype(A) => ajoin(abot,A) = A)).",
+    "fof(spatial_join_bottom_right, axiom, ! [A] : (atype(A) => ajoin(A,abot) = A)).",
+    "fof(spatial_join_interval, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => ajoin(aint(L1,U1),aint(L2,U2)) = aint(sinter(L1,L2),sunion(U1,U2)))).",
+    "fof(spatial_meet_bottom_left, axiom, ! [A] : (atype(A) => ameet(abot,A) = abot)).",
+    "fof(spatial_meet_bottom_right, axiom, ! [A] : (atype(A) => ameet(A,abot) = abot)).",
+    "fof(spatial_meet_interval, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => ameet(aint(L1,U1),aint(L2,U2)) = anorm(sunion(L1,L2),sinter(U1,U2)))).",
+    "fof(spatial_collection_empty_type, axiom, acollection(acol_empty)).",
+    "fof(spatial_collection_all_type, axiom, acollection(acol_all)).",
+    "fof(spatial_collection_empty, axiom, ! [A] : ~acol_mem(A,acol_empty)).",
+    "fof(spatial_collection_all, axiom, ! [A] : (acol_mem(A,acol_all) <=> atype(A))).",
+    "fof(spatial_collection_singleton_type, axiom, ! [A] : (atype(A) => acollection(acol_singleton(A)))).",
+    "fof(spatial_collection_pair_type, axiom, ! [A,B] : ((atype(A) & atype(B)) => acollection(acol_pair(A,B)))).",
+    "fof(spatial_collection_singleton, axiom, ! [A,B] : (atype(B) => (acol_mem(A,acol_singleton(B)) <=> A = B))).",
+    "fof(spatial_collection_pair, axiom, ! [A,B,C] : ((atype(B) & atype(C)) => (acol_mem(A,acol_pair(B,C)) <=> (A = B | A = C)))).",
+    "fof(spatial_collection_members_typed, axiom, ! [A,C] : (acol_mem(A,C) => (atype(A) & acollection(C)))).",
+    "fof(spatial_sup_typed, axiom, ! [C] : (acollection(C) => atype(asup(C)))).",
+    "fof(spatial_inf_typed, axiom, ! [C] : (acollection(C) => atype(ainf(C)))).",
+    "fof(spatial_sup_upper, axiom, ! [C,A] : (acol_mem(A,C) => aleq(A,asup(C)))).",
+    "fof(spatial_sup_least, axiom, ! [C,B] : ((acollection(C) & atype(B) & ! [A] : (acol_mem(A,C) => aleq(A,B))) => aleq(asup(C),B))).",
+    "fof(spatial_inf_lower, axiom, ! [C,A] : (acol_mem(A,C) => aleq(ainf(C),A))).",
+    "fof(spatial_inf_greatest, axiom, ! [C,B] : ((acollection(C) & atype(B) & ! [A] : (acol_mem(A,C) => aleq(B,A))) => aleq(B,ainf(C)))).",
+  )
+
+  val spatialLatticeLawTptp: String = block(
+    spatialCompleteLatticeTptp,
+    "% Binary universal properties are proved independently before use here.",
+    "fof(lemma_spatial_join_upper_left, axiom, ! [A,B] : ((atype(A) & atype(B)) => aleq(A,ajoin(A,B)))).",
+    "fof(lemma_spatial_join_upper_right, axiom, ! [A,B] : ((atype(A) & atype(B)) => aleq(B,ajoin(A,B)))).",
+    "fof(lemma_spatial_join_least, axiom, ! [A,B,C] : ((atype(A) & atype(B) & atype(C) & aleq(A,C) & aleq(B,C)) => aleq(ajoin(A,B),C))).",
+    "fof(lemma_spatial_meet_lower_left, axiom, ! [A,B] : ((atype(A) & atype(B)) => aleq(ameet(A,B),A))).",
+    "fof(lemma_spatial_meet_lower_right, axiom, ! [A,B] : ((atype(A) & atype(B)) => aleq(ameet(A,B),B))).",
+    "fof(lemma_spatial_pair_inf_greatest, axiom, ! [A,B,C] : ((atype(A) & atype(B) & atype(C) & aleq(C,A) & aleq(C,B)) => aleq(C,ainf(acol_pair(A,B))))).",
+    "fof(lemma_spatial_meet_greatest, axiom, ! [A,B,C] : ((atype(A) & atype(B) & atype(C) & aleq(C,A) & aleq(C,B)) => aleq(C,ameet(A,B)))).",
+  )
+
+  val spatialReducedProductTptp: String = block(
+    spatialIntervalCoreTptp,
+    "% Previously discharged elementary subset lemmas, exposed to make the",
+    "% reduced-product obligations compositional rather than search-sensitive.",
+    "fof(lemma_spatial_subset_reflexive, axiom, ! [A] : ssubset(A,A)).",
+    "fof(lemma_spatial_subset_transitive, axiom, ! [A,B,C] : ((ssubset(A,B) & ssubset(B,C)) => ssubset(A,C))).",
+    "fof(lemma_spatial_union_below, axiom, ! [A,B,C] : ((ssubset(A,C) & ssubset(B,C)) => ssubset(sunion(A,B),C))).",
+    "fof(lemma_spatial_intersection_above, axiom, ! [A,B,C] : ((ssubset(C,A) & ssubset(C,B)) => ssubset(C,sinter(A,B)))).",
+    "fof(lemma_spatial_union_monotone, axiom, ! [A1,A2,B1,B2] : ((ssubset(A1,A2) & ssubset(B1,B2)) => ssubset(sunion(A1,B1),sunion(A2,B2)))).",
+    "fof(lemma_spatial_intersection_monotone, axiom, ! [A1,A2,B1,B2] : ((ssubset(A1,A2) & ssubset(B1,B2)) => ssubset(sinter(A1,B1),sinter(A2,B2)))).",
+    "fof(lemma_spatial_interval_order_closed, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => (aleq(aint(L1,U1),aint(L2,U2)) <=> (ssubset(L2,L1) & ssubset(U1,U2))))).",
+    "fof(spatial_reduced_gamma, axiom, ! [S,A,Q] : (rgamma(S,rproduct(A,Q)) <=> (agamma(S,A) & qgamma(S,Q)))).",
+    "fof(spatial_property_order, axiom, ! [Q1,Q2] : (qleq(Q1,Q2) <=> ! [S] : (qgamma(S,Q1) => qgamma(S,Q2)))).",
+    "fof(spatial_reduced_order, axiom, ! [R1,R2] : (rleq(R1,R2) <=> ! [S] : (rgamma(S,R1) => rgamma(S,R2)))).",
+    "fof(spatial_reduced_extensional, axiom, ! [R1,R2] : ((! [S] : (rgamma(S,R1) <=> rgamma(S,R2))) => R1 = R2)).",
+    "fof(spatial_reduce_preserves_gamma, axiom, ! [S,R] : (rgamma(S,rreduce(R)) <=> rgamma(S,R))).",
+    "% A semantic contract contributes a must-set CL and a may-set CU.",
+    "fof(spatial_contract_reduction, axiom, ! [L,U,CL,CU] : (abs_contract(aint(L,U),CL,CU) = anorm(sunion(L,CL),sinter(U,CU)))).",
+  )
+
+  private def spatialTransferTptp(lines: String*): String = block((spatialIntervalCoreTptp +: lines)*)
+
   val keySetTptp: String = block(
     "% Finite child-key set algebra used by the zipper scheduler.",
     "% This is intentionally separated from path-set denotation: key sets are",
@@ -1600,6 +1786,313 @@ object ProofArtifacts:
 
   def vampireProblems: Vector[VampireProblem] =
     val base = (0 to 4).toVector.map(trieSetMemberProblem) ++ (0 to 4).toVector.map(zipperTrieMemberProblem)
+    val spatial = Vector(
+      VampireProblem(
+        "spatial_interval_order_closed_form_fo",
+        spatialIntervalCoreTptp,
+        "fof(conj, conjecture, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => (aleq(aint(L1,U1),aint(L2,U2)) <=> (ssubset(L2,L1) & ssubset(U1,U2))))).",
+      ),
+      VampireProblem(
+        "spatial_order_partial_order_fo",
+        spatialIntervalCoreTptp,
+        "fof(conj, conjecture, ((! [A] : (atype(A) => aleq(A,A))) & (! [A,B,C] : ((atype(A) & atype(B) & atype(C) & aleq(A,B) & aleq(B,C)) => aleq(A,C))) & (! [A,B] : ((atype(A) & atype(B) & aleq(A,B) & aleq(B,A)) => A = B)))).",
+      ),
+      VampireProblem(
+        "spatial_bottom_top_bounds_fo",
+        spatialIntervalCoreTptp,
+        "fof(conj, conjecture, ! [A] : (atype(A) => (aleq(abot,A) & aleq(A,atop)))).",
+      ),
+      VampireProblem(
+        "spatial_exact_concretization_fo",
+        spatialIntervalCoreTptp,
+        "fof(conj, conjecture, ! [S,T] : (agamma(T,aexact(S)) <=> T = S)).",
+      ),
+      VampireProblem(
+        "spatial_join_upper_left_fo",
+        spatialCompleteLatticeTptp,
+        "fof(conj, conjecture, ! [A,B] : ((atype(A) & atype(B)) => aleq(A,ajoin(A,B)))).",
+      ),
+      VampireProblem(
+        "spatial_join_upper_right_fo",
+        spatialCompleteLatticeTptp,
+        "fof(conj, conjecture, ! [A,B] : ((atype(A) & atype(B)) => aleq(B,ajoin(A,B)))).",
+      ),
+      VampireProblem(
+        "spatial_join_interval_least_fo",
+        spatialCompleteLatticeTptp,
+        "fof(conj, conjecture, ! [L1,U1,L2,U2,LC,UC] : ((ssubset(L1,U1) & ssubset(L2,U2) & ssubset(LC,UC) & aleq(aint(L1,U1),aint(LC,UC)) & aleq(aint(L2,U2),aint(LC,UC))) => aleq(ajoin(aint(L1,U1),aint(L2,U2)),aint(LC,UC)))).",
+      ),
+      VampireProblem(
+        "spatial_join_least_fo",
+        block(
+          spatialCompleteLatticeTptp,
+          "fof(lemma_spatial_join_interval_least, axiom, ! [L1,U1,L2,U2,LC,UC] : ((ssubset(L1,U1) & ssubset(L2,U2) & ssubset(LC,UC) & aleq(aint(L1,U1),aint(LC,UC)) & aleq(aint(L2,U2),aint(LC,UC))) => aleq(ajoin(aint(L1,U1),aint(L2,U2)),aint(LC,UC))))."
+        ),
+        "fof(conj, conjecture, ! [A,B,C] : ((atype(A) & atype(B) & atype(C) & aleq(A,C) & aleq(B,C)) => aleq(ajoin(A,B),C))).",
+      ),
+      VampireProblem(
+        "spatial_meet_lower_left_fo",
+        spatialCompleteLatticeTptp,
+        "fof(conj, conjecture, ! [A,B] : ((atype(A) & atype(B)) => aleq(ameet(A,B),A))).",
+      ),
+      VampireProblem(
+        "spatial_meet_lower_right_fo",
+        spatialCompleteLatticeTptp,
+        "fof(conj, conjecture, ! [A,B] : ((atype(A) & atype(B)) => aleq(ameet(A,B),B))).",
+      ),
+      VampireProblem(
+        "spatial_meet_interval_consistent_fo",
+        spatialCompleteLatticeTptp,
+        "fof(conj, conjecture, ! [L1,U1,L2,U2,LC,UC] : ((ssubset(L1,U1) & ssubset(L2,U2) & ssubset(LC,UC) & aleq(aint(LC,UC),aint(L1,U1)) & aleq(aint(LC,UC),aint(L2,U2))) => ssubset(sunion(L1,L2),sinter(U1,U2)))).",
+      ),
+      VampireProblem(
+        "spatial_meet_interval_greatest_fo",
+        block(
+          spatialCompleteLatticeTptp,
+          "fof(lemma_spatial_meet_interval_consistent, axiom, ! [L1,U1,L2,U2,LC,UC] : ((ssubset(L1,U1) & ssubset(L2,U2) & ssubset(LC,UC) & aleq(aint(LC,UC),aint(L1,U1)) & aleq(aint(LC,UC),aint(L2,U2))) => ssubset(sunion(L1,L2),sinter(U1,U2))))."
+        ),
+        "fof(conj, conjecture, ! [L1,U1,L2,U2,LC,UC] : ((ssubset(L1,U1) & ssubset(L2,U2) & ssubset(LC,UC) & aleq(aint(LC,UC),aint(L1,U1)) & aleq(aint(LC,UC),aint(L2,U2))) => aleq(aint(LC,UC),ameet(aint(L1,U1),aint(L2,U2))))).",
+      ),
+      VampireProblem(
+        "spatial_pair_inf_greatest_fo",
+        spatialCompleteLatticeTptp,
+        "fof(conj, conjecture, ! [A,B,C] : ((atype(A) & atype(B) & atype(C) & aleq(C,A) & aleq(C,B)) => aleq(C,ainf(acol_pair(A,B))))).",
+      ),
+      VampireProblem(
+        "spatial_meet_greatest_bridge_fo",
+        block(
+          "fof(spatial_binary_meet_as_inf, axiom, ! [A,B] : ((atype(A) & atype(B)) => ameet(A,B) = ainf(acol_pair(A,B)))).",
+          "fof(lemma_spatial_pair_inf_greatest, axiom, ! [A,B,C] : ((atype(A) & atype(B) & atype(C) & aleq(C,A) & aleq(C,B)) => aleq(C,ainf(acol_pair(A,B)))))."
+        ),
+        "fof(conj, conjecture, ! [A,B,C] : ((atype(A) & atype(B) & atype(C) & aleq(C,A) & aleq(C,B)) => aleq(C,ameet(A,B)))).",
+      ),
+      VampireProblem(
+        "spatial_join_idempotent_fo",
+        spatialLatticeLawTptp,
+        "fof(conj, conjecture, ! [A] : (atype(A) => ajoin(A,A) = A)).",
+      ),
+      VampireProblem(
+        "spatial_meet_idempotent_fo",
+        spatialLatticeLawTptp,
+        "fof(conj, conjecture, ! [A] : (atype(A) => ameet(A,A) = A)).",
+      ),
+      VampireProblem(
+        "spatial_join_commutative_fo",
+        spatialLatticeLawTptp,
+        "fof(conj, conjecture, ! [A,B] : ((atype(A) & atype(B)) => ajoin(A,B) = ajoin(B,A))).",
+      ),
+      VampireProblem(
+        "spatial_meet_commutative_fo",
+        spatialLatticeLawTptp,
+        "fof(conj, conjecture, ! [A,B] : ((atype(A) & atype(B)) => ameet(A,B) = ameet(B,A))).",
+      ),
+      VampireProblem(
+        "spatial_join_associative_fo",
+        spatialLatticeLawTptp,
+        "fof(conj, conjecture, ! [A,B,C] : ((atype(A) & atype(B) & atype(C)) => ajoin(ajoin(A,B),C) = ajoin(A,ajoin(B,C)))).",
+      ),
+      VampireProblem(
+        "spatial_meet_associative_fo",
+        spatialLatticeLawTptp,
+        "fof(conj, conjecture, ! [A,B,C] : ((atype(A) & atype(B) & atype(C)) => ameet(ameet(A,B),C) = ameet(A,ameet(B,C)))).",
+      ),
+      VampireProblem(
+        "spatial_meet_join_absorption_fo",
+        spatialLatticeLawTptp,
+        "fof(conj, conjecture, ! [A,B] : ((atype(A) & atype(B)) => ameet(A,ajoin(A,B)) = A)).",
+      ),
+      VampireProblem(
+        "spatial_join_meet_absorption_fo",
+        spatialLatticeLawTptp,
+        "fof(conj, conjecture, ! [A,B] : ((atype(A) & atype(B)) => ajoin(A,ameet(A,B)) = A)).",
+      ),
+      VampireProblem(
+        "spatial_complete_lattice_empty_extrema_fo",
+        spatialCompleteLatticeTptp,
+        "fof(conj, conjecture, (asup(acol_empty) = abot & ainf(acol_empty) = atop)).",
+      ),
+      VampireProblem(
+        "spatial_union_transfer_sound_fo",
+        spatialTransferTptp(
+          "fof(spatial_abs_union, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => abs_union(aint(L1,U1),aint(L2,U2)) = anorm(sunion(L1,L2),sunion(U1,U2))))."
+        ),
+        "fof(conj, conjecture, ! [S1,S2,L1,U1,L2,U2] : ((agamma(S1,aint(L1,U1)) & agamma(S2,aint(L2,U2))) => agamma(sunion(S1,S2),abs_union(aint(L1,U1),aint(L2,U2))))).",
+      ),
+      VampireProblem(
+        "spatial_intersection_transfer_sound_fo",
+        spatialTransferTptp(
+          "fof(spatial_abs_intersection, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => abs_intersection(aint(L1,U1),aint(L2,U2)) = anorm(sinter(L1,L2),sinter(U1,U2))))."
+        ),
+        "fof(conj, conjecture, ! [S1,S2,L1,U1,L2,U2] : ((agamma(S1,aint(L1,U1)) & agamma(S2,aint(L2,U2))) => agamma(sinter(S1,S2),abs_intersection(aint(L1,U1),aint(L2,U2))))).",
+      ),
+      VampireProblem(
+        "spatial_diff_transfer_sound_fo",
+        spatialTransferTptp(
+          "fof(spatial_abs_diff, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => abs_diff(aint(L1,U1),aint(L2,U2)) = anorm(sdiff(L1,U2),sdiff(U1,L2))))."
+        ),
+        "fof(conj, conjecture, ! [S1,S2,L1,U1,L2,U2] : ((agamma(S1,aint(L1,U1)) & agamma(S2,aint(L2,U2))) => agamma(sdiff(S1,S2),abs_diff(aint(L1,U1),aint(L2,U2))))).",
+      ),
+      VampireProblem(
+        "spatial_product_monotone_fo",
+        spatialTransferTptp(
+          "fof(spatial_set_product, axiom, ! [P,A,B] : (p_mem(P,sproduct(A,B)) <=> ? [Q,R] : (p_mem(Q,A) & p_mem(R,B) & p_append(Q,R,P))))."
+        ),
+        "fof(conj, conjecture, ! [A1,A2,B1,B2] : ((ssubset(A1,A2) & ssubset(B1,B2)) => ssubset(sproduct(A1,B1),sproduct(A2,B2)))).",
+      ),
+      VampireProblem(
+        "spatial_product_transfer_sound_fo",
+        spatialTransferTptp(
+          "fof(spatial_set_product, axiom, ! [P,A,B] : (p_mem(P,sproduct(A,B)) <=> ? [Q,R] : (p_mem(Q,A) & p_mem(R,B) & p_append(Q,R,P)))).",
+          "fof(lemma_spatial_product_monotone, axiom, ! [A1,A2,B1,B2] : ((ssubset(A1,A2) & ssubset(B1,B2)) => ssubset(sproduct(A1,B1),sproduct(A2,B2)))).",
+          "fof(spatial_abs_product, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => abs_product(aint(L1,U1),aint(L2,U2)) = anorm(sproduct(L1,L2),sproduct(U1,U2))))."
+        ),
+        "fof(conj, conjecture, ! [S1,S2,L1,U1,L2,U2] : ((agamma(S1,aint(L1,U1)) & agamma(S2,aint(L2,U2))) => agamma(sproduct(S1,S2),abs_product(aint(L1,U1),aint(L2,U2))))).",
+      ),
+      VampireProblem(
+        "spatial_restriction_monotone_fo",
+        spatialTransferTptp(
+          "fof(spatial_set_restriction, axiom, ! [P,A,B] : (p_mem(P,srestriction(A,B)) <=> (p_mem(P,A) & ? [Q] : (p_mem(Q,B) & p_prefix(Q,P)))))."
+        ),
+        "fof(conj, conjecture, ! [A1,A2,B1,B2] : ((ssubset(A1,A2) & ssubset(B1,B2)) => ssubset(srestriction(A1,B1),srestriction(A2,B2)))).",
+      ),
+      VampireProblem(
+        "spatial_restriction_transfer_sound_fo",
+        spatialTransferTptp(
+          "fof(spatial_set_restriction, axiom, ! [P,A,B] : (p_mem(P,srestriction(A,B)) <=> (p_mem(P,A) & ? [Q] : (p_mem(Q,B) & p_prefix(Q,P))))).",
+          "fof(lemma_spatial_restriction_monotone, axiom, ! [A1,A2,B1,B2] : ((ssubset(A1,A2) & ssubset(B1,B2)) => ssubset(srestriction(A1,B1),srestriction(A2,B2)))).",
+          "fof(spatial_abs_restriction, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => abs_restriction(aint(L1,U1),aint(L2,U2)) = anorm(srestriction(L1,L2),srestriction(U1,U2))))."
+        ),
+        "fof(conj, conjecture, ! [S1,S2,L1,U1,L2,U2] : ((agamma(S1,aint(L1,U1)) & agamma(S2,aint(L2,U2))) => agamma(srestriction(S1,S2),abs_restriction(aint(L1,U1),aint(L2,U2))))).",
+      ),
+      VampireProblem(
+        "spatial_raffination_variance_fo",
+        spatialTransferTptp(
+          "fof(spatial_set_raffination, axiom, ! [P,A,B] : (p_mem(P,sraffination(A,B)) <=> (p_mem(P,A) & ~ ? [Q] : (p_mem(Q,B) & p_prefix(Q,P)))))."
+        ),
+        "fof(conj, conjecture, ! [A1,A2,B1,B2] : ((ssubset(A1,A2) & ssubset(B1,B2)) => ssubset(sraffination(A1,B2),sraffination(A2,B1)))).",
+      ),
+      VampireProblem(
+        "spatial_raffination_transfer_sound_fo",
+        spatialTransferTptp(
+          "fof(spatial_set_raffination, axiom, ! [P,A,B] : (p_mem(P,sraffination(A,B)) <=> (p_mem(P,A) & ~ ? [Q] : (p_mem(Q,B) & p_prefix(Q,P))))).",
+          "fof(lemma_spatial_raffination_variance, axiom, ! [A1,A2,B1,B2] : ((ssubset(A1,A2) & ssubset(B1,B2)) => ssubset(sraffination(A1,B2),sraffination(A2,B1)))).",
+          "fof(spatial_abs_raffination, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => abs_raffination(aint(L1,U1),aint(L2,U2)) = anorm(sraffination(L1,U2),sraffination(U1,L2))))."
+        ),
+        "fof(conj, conjecture, ! [S1,S2,L1,U1,L2,U2] : ((agamma(S1,aint(L1,U1)) & agamma(S2,aint(L2,U2))) => agamma(sraffination(S1,S2),abs_raffination(aint(L1,U1),aint(L2,U2))))).",
+      ),
+      VampireProblem(
+        "spatial_wrap_unwrap_transfer_sound_fo",
+        spatialTransferTptp(
+          "fof(spatial_set_wrap, axiom, ! [P,A,Prefix] : (p_mem(P,swrap(A,Prefix)) <=> ? [Tail] : (p_mem(Tail,A) & p_append(Prefix,Tail,P)))).",
+          "fof(spatial_set_unwrap, axiom, ! [P,A,Prefix] : (p_mem(P,sunwrap(A,Prefix)) <=> ? [Full] : (p_append(Prefix,P,Full) & p_mem(Full,A)))).",
+          "fof(spatial_abs_wrap, axiom, ! [L,U,Prefix] : (ssubset(L,U) => abs_wrap(aint(L,U),Prefix) = anorm(swrap(L,Prefix),swrap(U,Prefix)))).",
+          "fof(spatial_abs_unwrap, axiom, ! [L,U,Prefix] : (ssubset(L,U) => abs_unwrap(aint(L,U),Prefix) = anorm(sunwrap(L,Prefix),sunwrap(U,Prefix))))."
+        ),
+        "fof(conj, conjecture, ! [S,L,U,Prefix] : (agamma(S,aint(L,U)) => (agamma(swrap(S,Prefix),abs_wrap(aint(L,U),Prefix)) & agamma(sunwrap(S,Prefix),abs_unwrap(aint(L,U),Prefix))))).",
+      ),
+      VampireProblem(
+        "spatial_closure_transfer_sound_fo",
+        spatialTransferTptp(
+          "fof(spatial_set_tails_union, axiom, ! [P,S] : (p_mem(P,stails_union(S)) <=> ? [I] : p_mem(cons(I,P),S))).",
+          "fof(spatial_set_prefix_closure, axiom, ! [P,S] : (p_mem(P,sprefix_closure(S)) <=> (~(P = nil) & ? [Q] : (p_mem(Q,S) & p_prefix(P,Q))))).",
+          "fof(spatial_set_suffix_closure, axiom, ! [P,S] : (p_mem(P,ssuffix_closure(S)) <=> (~(P = nil) & ? [Prefix,Full] : (p_append(Prefix,P,Full) & p_mem(Full,S))))).",
+          "fof(spatial_set_tails_closure, axiom, ! [P,S] : (p_mem(P,stails_closure(S)) <=> (snonempty(S) & (P = nil | p_mem(P,ssuffix_closure(S)))))).",
+          "fof(spatial_set_nonempty, axiom, ! [S] : (snonempty(S) <=> ? [P] : p_mem(P,S))).",
+          "fof(spatial_abs_tails_union, axiom, ! [L,U] : (ssubset(L,U) => abs_tails_union(aint(L,U)) = anorm(stails_union(L),stails_union(U)))).",
+          "fof(spatial_abs_prefix_closure, axiom, ! [L,U] : (ssubset(L,U) => abs_prefix_closure(aint(L,U)) = anorm(sprefix_closure(L),sprefix_closure(U)))).",
+          "fof(spatial_abs_suffix_closure, axiom, ! [L,U] : (ssubset(L,U) => abs_suffix_closure(aint(L,U)) = anorm(ssuffix_closure(L),ssuffix_closure(U)))).",
+          "fof(spatial_abs_tails_closure, axiom, ! [L,U] : (ssubset(L,U) => abs_tails_closure(aint(L,U)) = anorm(stails_closure(L),stails_closure(U))))."
+        ),
+        "fof(conj, conjecture, ! [S,L,U] : (agamma(S,aint(L,U)) => (agamma(stails_union(S),abs_tails_union(aint(L,U))) & agamma(sprefix_closure(S),abs_prefix_closure(aint(L,U))) & agamma(ssuffix_closure(S),abs_suffix_closure(aint(L,U))) & agamma(stails_closure(S),abs_tails_closure(aint(L,U)))))).",
+      ),
+      VampireProblem(
+        "spatial_range_safe_transfer_fo",
+        spatialTransferTptp(
+          "fof(spatial_set_range, axiom, ! [P,S,Start,End] : (p_mem(P,srange(S,Start,End)) => p_mem(P,S))).",
+          "fof(spatial_abs_range_safe, axiom, ! [L,U,Start,End] : (ssubset(L,U) => abs_range_safe(aint(L,U),Start,End) = anorm(sempty,U)))."
+        ),
+        "fof(conj, conjecture, ! [S,L,U,Start,End] : (agamma(S,aint(L,U)) => agamma(srange(S,Start,End),abs_range_safe(aint(L,U),Start,End)))).",
+      ),
+      VampireProblem(
+        "spatial_tails_intersection_safe_transfer_fo",
+        spatialTransferTptp(
+          "fof(spatial_set_child, axiom, ! [P,S,I] : (p_mem(P,schild(S,I)) <=> p_mem(cons(I,P),S))).",
+          "fof(spatial_set_nonempty, axiom, ! [S] : (snonempty(S) <=> ? [P] : p_mem(P,S))).",
+          "fof(spatial_set_tails_union, axiom, ! [P,S] : (p_mem(P,stails_union(S)) <=> ? [I] : p_mem(cons(I,P),S))).",
+          "fof(spatial_set_tails_intersection, axiom, ! [P,S] : (p_mem(P,stails_intersection(S)) <=> ((? [I] : snonempty(schild(S,I))) & ! [I] : (snonempty(schild(S,I)) => p_mem(P,schild(S,I)))))).",
+          "fof(spatial_abs_tails_intersection, axiom, ! [L,U] : (ssubset(L,U) => abs_tails_intersection(aint(L,U)) = anorm(sempty,stails_union(U))))."
+        ),
+        "fof(conj, conjecture, ! [S,L,U] : (agamma(S,aint(L,U)) => agamma(stails_intersection(S),abs_tails_intersection(aint(L,U))))).",
+      ),
+      VampireProblem(
+        "spatial_positive_iteration_monotone_fo",
+        spatialTransferTptp(
+          "fof(spatial_set_child, axiom, ! [P,S,I] : (p_mem(P,schild(S,I)) <=> p_mem(cons(I,P),S))).",
+          "fof(spatial_set_nonempty, axiom, ! [S] : (snonempty(S) <=> ? [P] : p_mem(P,S))).",
+          "fof(spatial_set_iter, axiom, ! [P,S,F] : (p_mem(P,siter(S,F)) <=> ? [I] : (snonempty(schild(S,I)) & p_mem(P,sapply(F,I,schild(S,I)))))).",
+          "fof(spatial_template_monotone, axiom, ! [F] : (template_monotone(F) <=> ! [I,A,B] : (ssubset(A,B) => ssubset(sapply(F,I,A),sapply(F,I,B)))))."
+        ),
+        "fof(conj, conjecture, ! [A,B,F] : ((ssubset(A,B) & template_monotone(F)) => ssubset(siter(A,F),siter(B,F)))).",
+      ),
+      VampireProblem(
+        "spatial_positive_iteration_transfer_sound_fo",
+        spatialTransferTptp(
+          "fof(spatial_set_child, axiom, ! [P,S,I] : (p_mem(P,schild(S,I)) <=> p_mem(cons(I,P),S))).",
+          "fof(spatial_set_nonempty, axiom, ! [S] : (snonempty(S) <=> ? [P] : p_mem(P,S))).",
+          "fof(spatial_set_iter, axiom, ! [P,S,F] : (p_mem(P,siter(S,F)) <=> ? [I] : (snonempty(schild(S,I)) & p_mem(P,sapply(F,I,schild(S,I)))))).",
+          "fof(spatial_template_monotone, axiom, ! [F] : (template_monotone(F) <=> ! [I,A,B] : (ssubset(A,B) => ssubset(sapply(F,I,A),sapply(F,I,B))))).",
+          "fof(lemma_spatial_positive_iteration_monotone, axiom, ! [A,B,F] : ((ssubset(A,B) & template_monotone(F)) => ssubset(siter(A,F),siter(B,F)))).",
+          "fof(spatial_abs_positive_iter, axiom, ! [L,U,F] : (ssubset(L,U) => abs_positive_iter(aint(L,U),F) = anorm(siter(L,F),siter(U,F))))."
+        ),
+        "fof(conj, conjecture, ! [S,L,U,F] : ((agamma(S,aint(L,U)) & template_monotone(F)) => agamma(siter(S,F),abs_positive_iter(aint(L,U),F)))).",
+      ),
+      VampireProblem(
+        "spatial_union_best_correct_fo",
+        spatialTransferTptp(
+          "fof(lemma_spatial_interval_order_closed, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => (aleq(aint(L1,U1),aint(L2,U2)) <=> (ssubset(L2,L1) & ssubset(U1,U2))))).",
+          "fof(spatial_abs_union, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => abs_union(aint(L1,U1),aint(L2,U2)) = anorm(sunion(L1,L2),sunion(U1,U2))))."
+        ),
+        "fof(conj, conjecture, ! [L1,U1,L2,U2,C] : ((ssubset(L1,U1) & ssubset(L2,U2) & ! [S1,S2] : ((agamma(S1,aint(L1,U1)) & agamma(S2,aint(L2,U2))) => agamma(sunion(S1,S2),C))) => aleq(abs_union(aint(L1,U1),aint(L2,U2)),C))).",
+      ),
+      VampireProblem(
+        "spatial_diff_best_correct_fo",
+        spatialTransferTptp(
+          "fof(lemma_spatial_interval_order_closed, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => (aleq(aint(L1,U1),aint(L2,U2)) <=> (ssubset(L2,L1) & ssubset(U1,U2))))).",
+          "fof(spatial_abs_diff, axiom, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => abs_diff(aint(L1,U1),aint(L2,U2)) = anorm(sdiff(L1,U2),sdiff(U1,L2))))."
+        ),
+        "fof(conj, conjecture, ! [L1,U1,L2,U2,C] : ((ssubset(L1,U1) & ssubset(L2,U2) & ! [S1,S2] : ((agamma(S1,aint(L1,U1)) & agamma(S2,aint(L2,U2))) => agamma(sdiff(S1,S2),C))) => aleq(abs_diff(aint(L1,U1),aint(L2,U2)),C))).",
+      ),
+      VampireProblem(
+        "spatial_reduced_product_projection_fo",
+        spatialReducedProductTptp,
+        "fof(conj, conjecture, ! [S,A,Q] : (rgamma(S,rproduct(A,Q)) => (agamma(S,A) & qgamma(S,Q)))).",
+      ),
+      VampireProblem(
+        "spatial_reduced_product_monotone_fo",
+        spatialReducedProductTptp,
+        "fof(conj, conjecture, ! [A1,A2,Q1,Q2] : ((aleq(A1,A2) & qleq(Q1,Q2)) => rleq(rproduct(A1,Q1),rproduct(A2,Q2)))).",
+      ),
+      VampireProblem(
+        "spatial_reduction_gamma_idempotent_fo",
+        spatialReducedProductTptp,
+        "fof(conj, conjecture, ! [S,R] : ((rgamma(S,rreduce(R)) <=> rgamma(S,R)) & rreduce(rreduce(R)) = rreduce(R))).",
+      ),
+      VampireProblem(
+        "spatial_contract_reduction_sound_fo",
+        spatialReducedProductTptp,
+        "fof(conj, conjecture, ! [S,L,U,CL,CU] : ((agamma(S,aint(L,U)) & ssubset(CL,S) & ssubset(S,CU)) => agamma(S,abs_contract(aint(L,U),CL,CU)))).",
+      ),
+      VampireProblem(
+        "spatial_contract_reduction_refines_fo",
+        spatialReducedProductTptp,
+        "fof(conj, conjecture, ! [L,U,CL,CU] : (ssubset(L,U) => aleq(abs_contract(aint(L,U),CL,CU),aint(L,U)))).",
+      ),
+      VampireProblem(
+        "spatial_stronger_contract_refines_fo",
+        spatialReducedProductTptp,
+        "fof(conj, conjecture, ! [L,U,CL1,CU1,CL2,CU2] : ((ssubset(L,U) & ssubset(CL1,CL2) & ssubset(CU2,CU1) & ssubset(sunion(L,CL2),sinter(U,CU2))) => aleq(abs_contract(aint(L,U),CL2,CU2),abs_contract(aint(L,U),CL1,CU1)))).",
+      ),
+    )
     val direct = Vector(
       VampireProblem(
         "eager_union_set_equiv",
@@ -2586,7 +3079,7 @@ object ProofArtifacts:
         ),
       )
     }
-    base ++ direct ++ ctor
+    base ++ spatial ++ direct ++ ctor
 
   case class EggProblem(name: String, program: String, expected: String = "exit-0", note: String = "")
 
