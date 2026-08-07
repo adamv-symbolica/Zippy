@@ -86,9 +86,9 @@ class SpatialTypeTest extends FunSuite:
     val literal = SpaceValue(PathValue(List(PathItem("kept"))))
     val routine = Routine(RoutinePtr("guarded"), Vector.empty, Vector(input),
       Space.Intersection(Space.Mention(input), Space.Literal(literal)))
-    val annotated = Supercompiler.specializeSpatially(routine,
+    val annotated = SpatialCompilation.specialize(routine,
       SpatialRoutineAnnotations(spaces = Map(input -> SpatialType.empty)))
-    val unannotated = Supercompiler.specializeSpatially(routine, SpatialRoutineAnnotations())
+    val unannotated = SpatialCompilation.specialize(routine, SpatialRoutineAnnotations())
 
     assertEquals(annotated.residual.body, Space.Empty)
     assert(annotated.facts.nonEmpty)
@@ -96,9 +96,52 @@ class SpatialTypeTest extends FunSuite:
     assert(!annotated.applicableTo(Map(input -> literal)))
     assertNotEquals(unannotated.residual.body, Space.Empty)
 
+    val accepted = SpatialCompilation.selectApplicable(
+      routine,
+      SpatialRoutineAnnotations(spaces = Map(input -> SpatialType.empty)),
+      Map(input -> SpaceValue()),
+      Map.empty,
+    )
+    val rejected = SpatialCompilation.selectApplicable(
+      routine,
+      SpatialRoutineAnnotations(spaces = Map(input -> SpatialType.empty)),
+      Map(input -> literal),
+      Map.empty,
+    )
+    assert(accepted.usedSpatialSpecialization)
+    assertEquals(accepted.routine.body, Space.Empty)
+    assert(!rejected.usedSpatialSpecialization)
+    assertEquals(rejected.routine, routine)
+
     given PathContext = PathContextMap(Map.empty)
     given SpaceContext = SpaceContextMap(Map(input -> SpaceValue()))
     assertEquals(eval(annotated.residual.body), eval(routine.body))
+  }
+
+  test("production compilation selects an applicable guarded spatial residual") {
+    val input = SpaceMention("compiled_input")
+    val a = PathValue(List(PathItem("a")))
+    val argument = SpaceValue(a, PathValue(List(PathItem("b"))))
+    val routine = Routine(
+      RoutinePtr("compiled_spatial_residual"),
+      Vector.empty,
+      Vector(input),
+      Space.Intersection(
+        Space.Mention(input),
+        Space.Singleton(Path.Constant(a)),
+      ),
+    )
+    val compiled = Supercompiler.specialize(
+      routine,
+      spaceArgs = Map(input -> Space.Literal(argument)),
+      buildGraph = false,
+    )
+
+    assert(compiled.report.spatialRewriteFacts.exists(_.isInstanceOf[SpatialRewriteFact.ConstantFolded]))
+    assert(compiled.report.changed)
+    given PathContext = PathContextMap(Map.empty)
+    given SpaceContext = SpaceContextMap(Map(input -> argument))
+    assertEquals(eval(compiled.routine.body), eval(routine.body))
   }
 
   test("iteration cost records groups and reference/trie models differ") {

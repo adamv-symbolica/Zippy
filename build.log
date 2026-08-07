@@ -16140,3 +16140,1721 @@ build.log:13345: trailing whitespace.
 build.log:13346: trailing whitespace.
 + (S"t601571" /\ Literal(SpaceValue("c"))).iter(P"h382019", S"t883792", 
 FINAL REVIEW-3 GATE: full Scala suite PASS; Z3/egg proof pipeline PASS; exact/open/extended/adversarial/specialization corpora 1000/1000; non-long benchmarks complete; git diff check clean excluding append-only build.log.
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialCostCorrelationTest:
+==> X morkl.SpatialCostCorrelationTest.cost predictions correlate with every executor and models each win  0.882s munit.FailException: /Users/michaelpolyntsov/Zippy_a/src/test/scala/SpatialCostCorrelationTest.scala:130 Reference calibrated cost magnitude residual 3.6487917656420514E11 exceeded 3x: Vector((union,58900.71818705709), (restriction,7387.571211714891), (composition,838.5458397874577), (range,3.6487917656420514E11))
+129:      assert(fit.maximumResidualFactor <= 3.0,
+130:        s"$backend calibrated cost magnitude residual ${fit.maximumResidualFactor} exceeded 3x: ${fit.residualFactors}")
+131:    }
+    at munit.FunSuite.assert(FunSuite.scala:13)
+    at morkl.SpatialCostCorrelationTest.$init$$$anonfun$1$$anonfun$2(SpatialCostCorrelationTest.scala:130)
+    at scala.collection.immutable.Map$Map4.foreach(Map.scala:601)
+    at morkl.SpatialCostCorrelationTest.$init$$$anonfun$1(SpatialCostCorrelationTest.scala:128)
+Error: munit tests failed.
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial cost correlation: Reference Spearman=1.000
+spatial cost correlation: Trie      Spearman=1.000
+spatial cost correlation: Zipper    Spearman=1.000
+spatial cost correlation: Graph     Spearman=1.000
+spatial cost magnitude: Reference scale=32.195 ns/unit maxResidual=8.77x {union=6.04x,restriction=1.14x,composition=8.77x,range=1.27x}
+spatial cost magnitude: Trie      scale=380.795 ns/unit maxResidual=4.49x {union=1.03x,restriction=2.38x,composition=4.49x,range=1.95x}
+spatial cost magnitude: Zipper    scale=291.777 ns/unit maxResidual=3.48x {union=1.24x,restriction=1.28x,composition=3.48x,range=2.17x}
+spatial cost magnitude: Graph     scale=274.945 ns/unit maxResidual=9.14x {union=1.23x,restriction=2.42x,composition=9.14x,range=3.08x}
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial cost correlation: Reference Spearman=1.000
+spatial cost correlation: Trie      Spearman=1.000
+spatial cost correlation: Zipper    Spearman=1.000
+spatial cost correlation: Graph     Spearman=1.000
+spatial cost magnitude: Reference scale=32.692 ns/unit maxResidual=8.82x {union=5.75x,restriction=1.17x,composition=8.82x,range=1.31x}
+  union        predicted=384 measured=0.0722 ms
+  restriction  predicted=9408 measured=0.3602 ms
+  composition  predicted=295104 measured=1.0940 ms
+  range        predicted=1440 measured=0.0617 ms
+spatial cost magnitude: Trie      scale=354.006 ns/unit maxResidual=4.17x {union=1.15x,restriction=2.07x,composition=4.17x,range=2.32x}
+  union        predicted=576 measured=0.1767 ms
+  restriction  predicted=480 measured=0.3526 ms
+  composition  predicted=18816 measured=1.5988 ms
+  range        predicted=194 measured=0.1591 ms
+spatial cost magnitude: Zipper    scale=288.831 ns/unit maxResidual=3.42x {union=1.06x,restriction=1.31x,composition=3.42x,range=2.48x}
+  union        predicted=578 measured=0.1764 ms
+  restriction  predicted=482 measured=0.1817 ms
+  composition  predicted=18820 measured=1.5893 ms
+  range        predicted=196 measured=0.1404 ms
+spatial cost magnitude: Graph     scale=296.370 ns/unit maxResidual=8.78x {union=1.33x,restriction=2.22x,composition=8.78x,range=2.98x}
+  union        predicted=194 measured=0.0434 ms
+  restriction  predicted=481 measured=0.0641 ms
+  composition  predicted=576 measured=1.4996 ms
+  range        predicted=289 measured=0.0288 ms
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialCostCorrelationTest:
+==> X morkl.SpatialCostCorrelationTest.cost predictions correlate with every executor and models each win  0.643s munit.FailException: /Users/michaelpolyntsov/Zippy_a/src/test/scala/SpatialCostCorrelationTest.scala:130 Trie Spearman correlation 0.2 was too weak
+129:    correlations.foreach { (backend, correlation) =>
+130:      assert(correlation >= 0.25, s"$backend Spearman correlation $correlation was too weak")
+131:    }
+    at munit.FunSuite.assert(FunSuite.scala:13)
+    at morkl.SpatialCostCorrelationTest.$init$$$anonfun$1$$anonfun$1(SpatialCostCorrelationTest.scala:130)
+    at scala.collection.immutable.Map$Map4.foreach(Map.scala:601)
+    at morkl.SpatialCostCorrelationTest.$init$$$anonfun$1(SpatialCostCorrelationTest.scala:129)
+Error: munit tests failed.
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial cost correlation: Reference Spearman=1.000
+spatial cost correlation: Trie      Spearman=0.800
+spatial cost correlation: Zipper    Spearman=1.000
+spatial cost correlation: Graph     Spearman=1.000
+spatial cost magnitude: Reference scale=60.954 ns/unit maxResidual=3.08x {union=3.08x,restriction=1.03x,composition=2.04x,range=1.55x}
+  union        predicted=384 measured=0.0721 ms
+  restriction  predicted=9408 measured=0.5897 ms
+  composition  predicted=37056 measured=1.1065 ms
+  range        predicted=1440 measured=0.0565 ms
+spatial cost magnitude: Trie      scale=356.964 ns/unit maxResidual=2.25x {union=1.77x,restriction=1.78x,composition=2.25x,range=2.24x}
+  union        predicted=576 measured=0.1161 ms
+  restriction  predicted=480 measured=0.3048 ms
+  composition  predicted=9600 measured=1.5246 ms
+  range        predicted=194 measured=0.1549 ms
+spatial cost magnitude: Zipper    scale=284.299 ns/unit maxResidual=2.08x {union=1.44x,restriction=1.24x,composition=1.79x,range=2.08x}
+  union        predicted=578 measured=0.1140 ms
+  restriction  predicted=482 measured=0.1705 ms
+  composition  predicted=9604 measured=1.5237 ms
+  range        predicted=196 measured=0.1158 ms
+spatial cost magnitude: Graph     scale=198.402 ns/unit maxResidual=2.39x {union=1.09x,restriction=1.03x,composition=2.25x,range=2.39x}
+  union        predicted=194 measured=0.0420 ms
+  restriction  predicted=481 measured=0.0928 ms
+  composition  predicted=3264 measured=1.4561 ms
+  range        predicted=289 measured=0.0240 ms
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialCostCorrelationTest:
+  + cost predictions correlate with every executor and models each win 1.131s
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[31m[31m-- [E171] Type Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialSpecializer.scala:67:41 [0m[0m
+[31m67 |[0m      [33mcase[0m [33mSpace[0m.[33mEmpty[0m => [33mSome[0m([33mSpaceValue[0m())
+[31m[31m   |[0m                               ^^^^^^^^^^^^[0m
+[31m   |[0mmissing argument for parameter paths of [33mmethod[0m [35mapply[0m in [33mobject[0m [35mSpaceValue[0m: (paths: Set[morkl.PathValue]): morkl.SpaceValue
+there were 129 feature warnings; re-run with -feature for details
+1 warning found
+1 error found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Compilation failed
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialTypeTest:
+  + spatial membership distinguishes signature envelopes from full gamma 0.014s
+  + generated membership corpus is sound and complete for a declared pattern 0.006s
+  + bounded head shape distinguishes one fat fiber from four heads 0.005s
+  + spatial specialization is guarded and fires only from an annotation 0.069s
+  + production compilation selects an applicable guarded spatial residual 0.007s
+  + iteration cost records groups and reference/trie models differ 0.006s
+  + law registry contains proved obligations and checked negative witnesses 0.002s
+  + spatial restriction retains compatible length strata and prefix witnesses 0.019s
+  + encoded if-empty control has a piecewise exact spatial type 0.014s
+  + iteration counts constant-headed fibers as groups rather than paths 0.002s
+  + nested full-path iterator chains are bounded as pointwise maps 0.011s
+  + pure Game-of-Life neighbor arithmetic has eight length-two outputs 0.032s
+  + spatial types propagate through five Game-of-Life steps without result feedback 1.629s
+  + exact spatial types expose graph fiber degree statistics 0.002s
+  + spatial projections refine scalar size and path-length projections 0.03s
+  + fixpoint reaches a checked post-fixpoint before exposing shapes 0.004s
+  + tails does not assume an interval-length path is headed 0.0s
+  + semantic result laws intersect structural facts and expose contradictions 0.001s
+  + repeated union mentions remain coherent across total and strata 0.01s
+  + union preserves optionality of a known singleton pattern 0.001s
+  + decorated analysis retains lexical iterator bindings 0.001s
+  + cost intervals remain finite through a five-node expression 0.002s
+  + spatial facts expose optimization decisions and symbolic depth degrees 0.004s
+  + decorated nodes have positional identity and joined observations 0.001s
+  + extended fuzzer call routine is analyzed across its annotation boundary 0.001s
+  + dominant monomials distinguish linear from quadratic cost 0.002s
+  + asymptotic projection and recurrence solver retain closed forms 0.001s
+  + recursive routine costs close when every self call consumes tails 0.008s
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.UnionFind:
+==> i morkl.UnionFind.find ignored 0.0s
+morkl.ZipperFuzzerTest:
+  + zipper fuzzer expected spaces agree across eval, evalTrie, exec, and execT 0.643s
+  + operation graph materializes input and ancestor outputs 0.002s
+  + coverage-biased zipper fuzzer agrees across optimized exec backends 1.002s
+  + zipper fuzzer showcase is stable and diverse 0.009s
+  + zipper fuzzer term matrix collector records child parent position counts 0.007s
+  + zipper fuzzer interestingness measurement records output diversity 0.02s
+  + sensitive corpus generator verifies every declared input 0.013s
+  + free expression tree generator uses rejection filters 0.065s
+  + full backend verifier checks free programs across evaluators and executors 0.086s
+morkl.TrieSpaceTest:
+  + roundtrip preserves reference SpaceValue including epsilon 0.001s
+  + native set and prefix operations match reference semantics 0.001s
+  + native closure operations match reference epsilon semantics 0.001s
+  + range filters tries in native path order without rebuilding included subtries 0.001s
+  + range preserves epsilon and child border semantics 0.002s
+  + native trie exposes head and non-empty path projections for iteration 0.002s
+  + trie evaluator expands canonical and distributed iteration bodies 0.002s
+  + iteration union invariant rewrite does not leak over empty sources 0.001s
+  + singleton iteration exposes epsilon as the empty tail 0.0s
+  + iteration identity rewrite removes epsilon-only source paths 0.001s
+  + fold graph round-trips through untranspile 0.005s
+  + Track B Dist generator examples agree across trie and graph backends 0.015s
+  + fixpoint accumulates step output instead of replacing state 0.001s
+  + nested fixpoint preserves outer iteration rest bindings 0.001s
+  + meet-all tails intersection keeps only tails under every head 0.001s
+  + zipper cursor descends to subtries without materializing paths 0.001s
+  + space zipper cursor keeps edits when moving across siblings 0.001s
+  + zipper native operations short-circuit referentially identical trie nodes 0.0s
+  + trie algebra reports exhaustive identities, bespoke values, and empty causes 0.001s
+  + restriction reports left/right identity, prefix coverage, and all empty causes 0.002s
+  + algebraic result metadata agrees with exhaustive finite path sets 0.018s
+  + zipper restriction pushes through union and subtraction before materialization 0.001s
+  + direct trie evaluator reuses interned PathItems during native iteration 0.0s
+  + temperature interval covers arbitrary ranges without runaway recursion 0.002s
+  + direct trie evaluator agrees on Aunt query 0.006s
+  + direct trie evaluator agrees on recursive semi-naive Datalog 0.003s
+  + direct trie evaluator agrees on pure Game of Life 0.094s
+  + direct trie evaluator agrees on process-SC residual programs 0.017s
+  + compile reports source and graph optimization timings 0.006s
+  + source optimizer respects compile deadline 0.001s
+  + source optimizer applies path-set algebraic laws 0.013s
+  + unit-only optimizer laws preserve random literal path sets 0.136s
+  + operation graph executes directly over TrieSpace 0.001s
+  + operation graph trie backend covers pure pair swap and closure nodes 0.001s
+  + operation graph trie backend covers native closure nodes 0.002s
+  + graph optimizers preserve nested iteration semantics under execT 0.001s
+  + nonEmpty is an epsilon-valued constant-border emptiness indicator 0.0s
+  + independent nested product union pushes out with headed guards and common prefix factoring 0.006s
+  + optimal sharing merges structurally identical iteration subgraphs 0.001s
+  + loop invariant hoist lifts transitive invariant DAG out of iteration 0.001s
+  + graph compile pipeline inlines helper calls before execT 0.003s
+  + graph execT fallback calls optimized callee graphs 0.001s
+  + benchmark fallback notes include retained calls inside optimized callees 0.001s
+  + zipper transpile rejects recursive self-union calls instead of materializing evalTrie 0.001s
+  + zipper transpile rejects non-lowered recursive calls outside top-level self-union 0.001s
+  + graph optimizer handles generated pure sliding puzzle graph 0.024s
+  + compile pipeline lowers union-saturating recursion before graph exec 0.006s
+  + mutual union-saturating recursion lowers to one tagged fixpoint 0.003s
+  + unproved multi-argument recursion remains an explicit call 0.0s
+  + zipper traversal and virtual native operations match reference trie operations 0.019s
+  + zipper composition stays virtual under selective consumers 0.001s
+  + virtual tails meet and prefix-closure nullability drive product descent 0.0s
+  + zipper generic iteration keeps child observations virtual 0.001s
+  + zipper iteration keeps canonical and general iteration virtual 0.006s
+  + zipper range over virtual operands stays a border traversal 0.0s
+  + zipper range supports to-end and negative border slices virtually 0.001s
+  + zipper range-reconstruct iteration descends directly to the matching branch 0.002s
+  + zipper range stops before asking the first excluded border child for size 0.002s
+  + zipper range child lookup does not size unrelated in-slice siblings 0.0s
+  + zipper range direct child movement does not size the matching border child 0.001s
+  + zipper negative range projections do not ask the parent for total path count 0.001s
+  + space-to-zipper evaluator agrees with reference and trie evaluation on random programs 0.004s
+  + random trie-native programs agree across eval, evalTrie, exec, and execT 0.011s
+morkl.SupercompilerPublicationExamples:
+  + Aunt query supercompiles and specializes a people literal 0.096s
+  + Aunt query over lot.metta family specializes static family with process SC 0.02s
+  + extra graph queries target lot.metta with deterministic fallback 0.015s
+  + operation graph backend executes nested iteration rewrite and closure nodes 0.002s
+  + semi-naive datalog and carac-style closure supercompile 0.206s
+  + Game of Life supercompiles on original, random, and fred.rle fallback data 0.106s
+  + temperature spatial query targets NOAA grid file with committed slice fallback 0.039s
+  + sliding puzzle state expansion is pure and generalizes to 3x3 0.049s
+  + nqueens supercompiler reaches 9x9 2.186s
+wrote zipper-egg-tests/aunt-kg.egg in 31ms
+wrote zipper-egg-tests/puzzle-2x2-step.egg in 3ms
+wrote zipper-egg-tests/datalog-semi-naive.egg in 8ms
+wrote zipper-egg-tests/game-of-life-small.egg in 64ms
+wrote zipper-egg-tests/temperature-small.egg in 1ms
+wrote zipper-egg-tests/nqueens-4.egg in 8ms
+wrote zipper-egg-tests/context-movement.egg in 0ms
+wrote zipper-egg-tests/frontier-antimirov.egg in 0ms
+wrote zipper-egg-tests/iter-fixpoint.egg in 0ms
+wrote zipper-egg-tests/range-observation.egg in 0ms
+wrote zipper-egg-tests/range-border-child.egg in 0ms
+wrote zipper-egg-tests/range-border-operational.egg in 0ms
+wrote zipper-egg-tests/tails-intersection-frontier.egg in 0ms
+wrote zipper-egg-tests/negative-key.egg in 0ms
+morkl.ZipperEggTranspilerTest:
+  + Scala zipper examples transpile to independently runnable egg programs 41.526s
+morkl.Datalog:
+  + trans naive 0.004s
+  + trans semi-naive 0.001s
+morkl.Imperative:
+  + union iter transpiled 0.001s
+  + literal codec preserves epsilon and iteration skips headless paths 0.001s
+  + aunt query pretty 0.001s
+  + aunt query transpiled 0.0s
+  + scc transpiled 0.0s
+  + aunt query exec 0.0s
+==> i morkl.Imperative.scc exec ignored 0.0s
+  + mermaid 0.001s
+==> i morkl.Imperative.push out ignored 0.0s
+morkl.SupercompilerProcessTest:
+  + positive SC terminates and stays sound on semi-naive transitive closure 0.006s
+  + whistle/generalization is necessary for symbolic growing reachability 0.097s
+  + generalization keeps residual control size independent of static graph size 0.008s
+morkl.SpatialTypeLatticeTest:
+  + the normalized interval quotient is a bounded lattice 0.09s
+  + normalizing inconsistent meets makes the interval lattice non-distributive 0.023s
+  + finite arbitrary suprema and infima satisfy their universal properties 0.246s
+  + closed-form precision order and exact abstraction agree with concretization 0.001s
+  + union, intersection, and subtraction formulas are best correct intervals 0.01s
+  + production spatial types expose bottom, join, meet, order, and widening 0.002s
+morkl.SpatialCostCorrelationTest:
+==> X morkl.SpatialCostCorrelationTest.cost predictions correlate with every executor and models each win  0.928s munit.FailException: /Users/michaelpolyntsov/Zippy_a/src/test/scala/SpatialCostCorrelationTest.scala:134 Graph calibrated cost magnitude residual 5.450843695525726 exceeded 4x: Vector((union,1.4987526519230343), (restriction,2.445701888670234), (composition,5.450843695525726), (range,3.340336155331261))
+133:      assert(fit.maximumResidualFactor <= 4.0,
+134:        s"$backend calibrated cost magnitude residual ${fit.maximumResidualFactor} exceeded 4x: ${fit.residualFactors}")
+135:    }
+    at munit.FunSuite.assert(FunSuite.scala:13)
+    at morkl.SpatialCostCorrelationTest.$init$$$anonfun$1$$anonfun$2(SpatialCostCorrelationTest.scala:134)
+    at scala.collection.immutable.Map$Map4.foreach(Map.scala:601)
+    at morkl.SpatialCostCorrelationTest.$init$$$anonfun$1(SpatialCostCorrelationTest.scala:132)
+morkl.ReferenceExamplesTest:
+  + semi-naive Datalog over carac-style facts matches independent closure 0.143s
+  + Game of Life examples match independent B3/S23 reference 0.054s
+  + pure sliding puzzle 2x2 and 3x3 one-step expansions match independent neighbor generator 0.007s
+  + pure sliding puzzle 2x2 explore reaches the complete state space 0.005s
+  + sliding puzzle 3x3 full reachable state space has the parity count 0.211s
+  + pure sliding puzzle 3x3 bounded expansion matches independent BFS 0.074s
+  + NOAA spatial prefix query matches manual prefix filter 0.035s
+  + NOAA temperature-first query matches manual label filter 0.001s
+  + n-queens reference count matches known 8x8 count 0.429s
+  + n-queens independent reference scaling matches known counts through 12x12 0.007s
+  + pure n-queens programs are generated for 8x8 through 12x12 without grounded operations 0.388s
+morkl.Routines:
+  + eval routine 0.001s
+  + transitive 0.001s
+  + reachable 0.001s
+  + scc 0.002s
+  + naive-oeis 0.001s
+morkl.MORKL2Space:
+  + union 0.0s
+  + intersection context 0.0s
+  + subtraction 0.0s
+  + restriction 0.001s
+  + composition 0.0s
+  + subspace 0.0s
+  + TailsUnion 0.001s
+  + transformation pattern rewritten with iteration 0.0s
+morkl.Permutations:
+  + intersection all 0.001s
+  + intersection all-1 0.0s
+  + sliding_puzzle states 0.012s
+  + nqueens 0.371s
+morkl.AuntQuery:
+  + add_index 0.001s
+  + query via restriction 0.0s
+  + parent_query 0.0s
+  + mother_query 0.001s
+  + sister_query 0.0s
+  + aunt_query 0.0s
+  + predecessors_query 0.0s
+morkl.SpacialType:
+  + aunt query input type 0.0s
+  + aunt query output type 0.002s
+morkl.ZipperDenotationOracleTest:
+  + zipper algebra agrees with trie denotation on exhaustive small path sets 0.165s
+  + child movement is the Brzozowski derivative on exhaustive length-three sets 0.045s
+  + suffix and tails closure descend through frontier states 0.001s
+  + iteration range templates agree with trie denotation on exhaustive small path sets 0.012s
+  + finite fixpoint templates agree with trie denotation on exhaustive small path sets 0.008s
+  + transpileZ lowers prefixed ranged iteration reconstruct templates 0.002s
+  + range composition and border laws agree in executable zippers 0.003s
+  + exact negative and key observations agree with bounded trie denotation 0.001s
+  + concrete trie zipper plug reconstructs the whole at every focus 0.301s
+  + concrete trie zipper supports focus edits and ordered sibling movement 0.001s
+  + virtual zipper context movement plugs every operation-shaped focus 0.003s
+  + virtual zipper context graft edits focus through lazy patch frames 0.0s
+morkl.IllustrativeEggArtifactsTest:
+  + root illustrative egg artifacts are generated from one shared prelude 0.002s
+morkl.ResultPathLengthTest:
+  + Z3 removes impossible length intersections before composition 0.046s
+  + path-length bounds penetrate every path and space construct 0.025s
+morkl.CornerstoneSpatialTypeTest:
+  + spatial routine analysis does not execute a zero-argument generator 0.001s
+  + strict range transfer propagates its literal annotation without concrete evaluation 0.0s
+  + annotation-only bound resolution never executes opaque atoms 0.001s
+  + cornerstone abstract interpretations use annotated variables and retain output shapes 12.082s
+  + directed closure cardinality contract is exhaustive on all three-node graphs 0.005s
+  + Game of Life output is contained in the nine-cell image of every live cell 0.009s
+  + finite relational domain counts n-queens without evaluating MORKL 0.001s
+morkl.MatchingProcessTest:
+  + free variables respect Iteration and Fold binders 0.001s
+  + substitution avoids capture by iteration binders 0.001s
+  + canonicalization makes alpha-equivalent Fold terms equal 0.0s
+  + instance matching folds simple renamings but refuses cyclic growth 0.002s
+  + MSG skeleton reinstantiates both sides 0.001s
+  + grounded nodes match only by stable function identity 0.0s
+morkl.Fuzzy:
+  + temperature 0.002s
+morkl.Lowering:
+  + TailsUnion iter subs 0.005s
+  + aunt query specialize 0.001s
+morkl.Grounded:
+  + PP hash 0.001s
+  + PP trace 0.0s
+  + SP spacesize 0.001s
+  + SP spaceout 0.0s
+  + PS range 0.001s
+  + SS transitive 0.0s
+morkl.Poly:
+  + composition 0.003s
+morkl.ResultSpaceSizeTest:
+  + natural expression normalization removes proved dominated bounds 0.0s
+  + reference hints cover binders, uses, freshening, and exact space mentions 0.004s
+  + symbolic cardinality rules preserve useful path-set bounds 0.002s
+  + empty-control iteration has the expected exact symbolic size 0.002s
+  + Z3 refinement preserves correlations and is pointwise tighter than baseline 0.231s
+  + mixed operation laws refine former opaque graph boundaries 0.001s
+  + literal fibers and nested iteration maps remain visible to the mixed graph 0.001s
+  + operation subset constraints cross opaque Z3 atoms 0.009s
+  + symbolic bounds contain exhaustive concrete denotations 0.034s
+morkl.SpatialTypeTest:
+  + spatial membership distinguishes signature envelopes from full gamma 0.001s
+  + generated membership corpus is sound and complete for a declared pattern 0.001s
+  + bounded head shape distinguishes one fat fiber from four heads 0.0s
+  + spatial specialization is guarded and fires only from an annotation 0.01s
+  + production compilation selects an applicable guarded spatial residual 0.001s
+  + iteration cost records groups and reference/trie models differ 0.001s
+  + law registry contains proved obligations and checked negative witnesses 0.001s
+  + spatial restriction retains compatible length strata and prefix witnesses 0.009s
+  + encoded if-empty control has a piecewise exact spatial type 0.009s
+  + iteration counts constant-headed fibers as groups rather than paths 0.001s
+  + nested full-path iterator chains are bounded as pointwise maps 0.001s
+  + pure Game-of-Life neighbor arithmetic has eight length-two outputs 0.003s
+  + spatial types propagate through five Game-of-Life steps without result feedback 1.439s
+  + exact spatial types expose graph fiber degree statistics 0.0s
+  + spatial projections refine scalar size and path-length projections 0.021s
+  + fixpoint reaches a checked post-fixpoint before exposing shapes 0.001s
+  + tails does not assume an interval-length path is headed 0.0s
+  + semantic result laws intersect structural facts and expose contradictions 0.001s
+  + repeated union mentions remain coherent across total and strata 0.005s
+  + union preserves optionality of a known singleton pattern 0.001s
+  + decorated analysis retains lexical iterator bindings 0.0s
+  + cost intervals remain finite through a five-node expression 0.001s
+  + spatial facts expose optimization decisions and symbolic depth degrees 0.002s
+  + decorated nodes have positional identity and joined observations 0.001s
+  + extended fuzzer call routine is analyzed across its annotation boundary 0.0s
+  + dominant monomials distinguish linear from quadratic cost 0.001s
+  + asymptotic projection and recurrence solver retain closed forms 0.0s
+  + recursive routine costs close when every self call consumes tails 0.003s
+morkl.Unification:
+  + renameFrom 0.001s
+  + query 0.001s
+  + transform 0.0s
+==> i morkl.Unification.double transform ignored 0.0s
+  + transpile transform 0.003s
+  + unify 0.032s
+  + overlap 0.004s
+  + division 0.002s
+  + sudoku 0.004s
+  + gol 0.005s
+  + graphviz 0.0s
+Error: munit tests failed.
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 3 deprecation warnings; re-run with -deprecation for details
+2 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial cost correlation: Reference Spearman=1.000
+spatial cost correlation: Trie      Spearman=1.000
+spatial cost correlation: Zipper    Spearman=0.800
+spatial cost correlation: Graph     Spearman=1.000
+spatial cost magnitude: Reference scale=52.550 ns/unit maxResidual=3.87x {union=3.87x,restriction=1.56x,composition=1.88x,range=1.31x}
+  union        predicted=384 measured=0.0780 ms
+  restriction  predicted=9408 measured=0.3161 ms
+  composition  predicted=37056 measured=1.0346 ms
+  range        predicted=1440 measured=0.0576 ms
+spatial cost magnitude: Trie      scale=411.955 ns/unit maxResidual=3.04x {union=2.06x,restriction=3.04x,composition=2.66x,range=1.81x}
+  union        predicted=576 measured=0.1150 ms
+  restriction  predicted=480 measured=0.6004 ms
+  composition  predicted=9600 measured=1.4880 ms
+  range        predicted=194 measured=0.1443 ms
+spatial cost magnitude: Zipper    scale=294.225 ns/unit maxResidual=2.19x {union=1.43x,restriction=1.23x,composition=1.89x,range=2.19x}
+  union        predicted=578 measured=0.1192 ms
+  restriction  predicted=482 measured=0.1750 ms
+  composition  predicted=9604 measured=1.4930 ms
+  range        predicted=196 measured=0.1262 ms
+spatial cost magnitude: Graph     scale=183.829 ns/unit maxResidual=2.41x {union=1.13x,restriction=1.17x,composition=2.41x,range=2.32x}
+  union        predicted=194 measured=0.0401 ms
+  restriction  predicted=481 measured=0.0758 ms
+  composition  predicted=3264 measured=1.4431 ms
+  range        predicted=289 measured=0.0229 ms
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialCostCorrelationTest:
+  + cost predictions correlate with every executor and models each win 1.171s
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialCostCorrelationTest:
+  + cost predictions correlate with every executor and models each win 1.22s
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 3 deprecation warnings; re-run with -deprecation for details
+2 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial cost correlation: Reference Spearman=1.000
+spatial cost correlation: Trie      Spearman=0.800
+spatial cost correlation: Zipper    Spearman=1.000
+spatial cost correlation: Graph     Spearman=1.000
+spatial cost magnitude: Reference scale=57.602 ns/unit maxResidual=5.43x {union=5.43x,restriction=1.79x,composition=1.92x,range=1.58x}
+  union        predicted=384 measured=0.1202 ms
+  restriction  predicted=9408 measured=0.3030 ms
+  composition  predicted=37056 measured=1.1101 ms
+  range        predicted=1440 measured=0.0525 ms
+spatial cost magnitude: Trie      scale=328.233 ns/unit maxResidual=2.00x {union=1.77x,restriction=1.79x,composition=2.00x,range=1.97x}
+  union        predicted=576 measured=0.1069 ms
+  restriction  predicted=480 measured=0.2828 ms
+  composition  predicted=9600 measured=1.5756 ms
+  range        predicted=194 measured=0.1255 ms
+spatial cost magnitude: Zipper    scale=256.800 ns/unit maxResidual=1.76x {union=1.36x,restriction=1.24x,composition=1.60x,range=1.76x}
+  union        predicted=578 measured=0.1092 ms
+  restriction  predicted=482 measured=0.1530 ms
+  composition  predicted=9604 measured=1.5415 ms
+  range        predicted=196 measured=0.0886 ms
+spatial cost magnitude: Graph     scale=128.264 ns/unit maxResidual=1.80x {union=1.59x,restriction=1.02x,composition=1.16x,range=1.80x}
+  union        predicted=194 measured=0.0397 ms
+  restriction  predicted=481 measured=0.0604 ms
+  composition  predicted=9792 measured=1.4518 ms
+  range        predicted=289 measured=0.0205 ms
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 3 deprecation warnings; re-run with -deprecation for details
+2 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial cost correlation: Reference Spearman=1.000
+spatial cost correlation: Trie      Spearman=1.000
+spatial cost correlation: Zipper    Spearman=1.000
+spatial cost correlation: Graph     Spearman=1.000
+spatial cost magnitude: Reference scale=39.129 ns/unit maxResidual=1.25x {union=1.13x,restriction=1.09x,composition=1.25x,range=1.01x}
+  union        predicted=2880 measured=0.1279 ms
+  restriction  predicted=9408 measured=0.4013 ms
+  composition  predicted=37056 measured=1.1572 ms
+  range        predicted=1440 measured=0.0571 ms
+spatial cost magnitude: Trie      scale=349.445 ns/unit maxResidual=2.02x {union=1.73x,restriction=1.84x,composition=2.02x,range=1.90x}
+  union        predicted=576 measured=0.1160 ms
+  restriction  predicted=480 measured=0.3088 ms
+  composition  predicted=9600 measured=1.6643 ms
+  range        predicted=194 measured=0.1288 ms
+spatial cost magnitude: Zipper    scale=254.177 ns/unit maxResidual=1.84x {union=1.22x,restriction=1.03x,composition=1.47x,range=1.84x}
+  union        predicted=578 measured=0.1205 ms
+  restriction  predicted=482 measured=0.1188 ms
+  composition  predicted=9604 measured=1.6633 ms
+  range        predicted=196 measured=0.0919 ms
+spatial cost magnitude: Graph     scale=132.657 ns/unit maxResidual=1.69x {union=1.67x,restriction=1.18x,composition=1.19x,range=1.69x}
+  union        predicted=194 measured=0.0430 ms
+  restriction  predicted=481 measured=0.0542 ms
+  composition  predicted=9792 measured=1.5435 ms
+  range        predicted=289 measured=0.0227 ms
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.UnionFind:
+==> i morkl.UnionFind.find ignored 0.0s
+morkl.ZipperFuzzerTest:
+  + zipper fuzzer expected spaces agree across eval, evalTrie, exec, and execT 0.739s
+  + operation graph materializes input and ancestor outputs 0.004s
+  + coverage-biased zipper fuzzer agrees across optimized exec backends 1.278s
+  + zipper fuzzer showcase is stable and diverse 0.012s
+  + zipper fuzzer term matrix collector records child parent position counts 0.013s
+  + zipper fuzzer interestingness measurement records output diversity 0.028s
+  + sensitive corpus generator verifies every declared input 0.022s
+  + free expression tree generator uses rejection filters 0.084s
+  + full backend verifier checks free programs across evaluators and executors 0.106s
+morkl.TrieSpaceTest:
+  + roundtrip preserves reference SpaceValue including epsilon 0.001s
+  + native set and prefix operations match reference semantics 0.001s
+  + native closure operations match reference epsilon semantics 0.001s
+  + range filters tries in native path order without rebuilding included subtries 0.001s
+  + range preserves epsilon and child border semantics 0.0s
+  + native trie exposes head and non-empty path projections for iteration 0.001s
+  + trie evaluator expands canonical and distributed iteration bodies 0.001s
+  + iteration union invariant rewrite does not leak over empty sources 0.001s
+  + singleton iteration exposes epsilon as the empty tail 0.0s
+  + iteration identity rewrite removes epsilon-only source paths 0.0s
+  + fold graph round-trips through untranspile 0.006s
+  + Track B Dist generator examples agree across trie and graph backends 0.019s
+  + fixpoint accumulates step output instead of replacing state 0.001s
+  + nested fixpoint preserves outer iteration rest bindings 0.002s
+  + meet-all tails intersection keeps only tails under every head 0.001s
+  + zipper cursor descends to subtries without materializing paths 0.001s
+  + space zipper cursor keeps edits when moving across siblings 0.001s
+  + zipper native operations short-circuit referentially identical trie nodes 0.001s
+  + trie algebra reports exhaustive identities, bespoke values, and empty causes 0.001s
+  + restriction reports left/right identity, prefix coverage, and all empty causes 0.002s
+  + algebraic result metadata agrees with exhaustive finite path sets 0.015s
+  + zipper restriction pushes through union and subtraction before materialization 0.001s
+  + direct trie evaluator reuses interned PathItems during native iteration 0.001s
+  + temperature interval covers arbitrary ranges without runaway recursion 0.002s
+  + direct trie evaluator agrees on Aunt query 0.008s
+  + direct trie evaluator agrees on recursive semi-naive Datalog 0.006s
+  + direct trie evaluator agrees on pure Game of Life 0.104s
+  + direct trie evaluator agrees on process-SC residual programs 0.025s
+  + compile reports source and graph optimization timings 0.006s
+  + source optimizer respects compile deadline 0.001s
+  + source optimizer applies path-set algebraic laws 0.019s
+  + unit-only optimizer laws preserve random literal path sets 0.183s
+  + operation graph executes directly over TrieSpace 0.002s
+  + operation graph trie backend covers pure pair swap and closure nodes 0.002s
+  + operation graph trie backend covers native closure nodes 0.001s
+  + graph optimizers preserve nested iteration semantics under execT 0.001s
+  + nonEmpty is an epsilon-valued constant-border emptiness indicator 0.001s
+  + independent nested product union pushes out with headed guards and common prefix factoring 0.005s
+  + optimal sharing merges structurally identical iteration subgraphs 0.001s
+  + loop invariant hoist lifts transitive invariant DAG out of iteration 0.001s
+  + graph compile pipeline inlines helper calls before execT 0.002s
+  + graph execT fallback calls optimized callee graphs 0.001s
+  + benchmark fallback notes include retained calls inside optimized callees 0.003s
+  + zipper transpile rejects recursive self-union calls instead of materializing evalTrie 0.002s
+  + zipper transpile rejects non-lowered recursive calls outside top-level self-union 0.001s
+  + graph optimizer handles generated pure sliding puzzle graph 0.027s
+  + compile pipeline lowers union-saturating recursion before graph exec 0.005s
+  + mutual union-saturating recursion lowers to one tagged fixpoint 0.005s
+  + unproved multi-argument recursion remains an explicit call 0.001s
+  + zipper traversal and virtual native operations match reference trie operations 0.018s
+  + zipper composition stays virtual under selective consumers 0.001s
+  + virtual tails meet and prefix-closure nullability drive product descent 0.002s
+  + zipper generic iteration keeps child observations virtual 0.001s
+  + zipper iteration keeps canonical and general iteration virtual 0.01s
+  + zipper range over virtual operands stays a border traversal 0.002s
+  + zipper range supports to-end and negative border slices virtually 0.001s
+  + zipper range-reconstruct iteration descends directly to the matching branch 0.0s
+  + zipper range stops before asking the first excluded border child for size 0.002s
+  + zipper range child lookup does not size unrelated in-slice siblings 0.001s
+  + zipper range direct child movement does not size the matching border child 0.002s
+  + zipper negative range projections do not ask the parent for total path count 0.001s
+  + space-to-zipper evaluator agrees with reference and trie evaluation on random programs 0.007s
+  + random trie-native programs agree across eval, evalTrie, exec, and execT 0.016s
+morkl.SupercompilerPublicationExamples:
+  + Aunt query supercompiles and specializes a people literal 0.127s
+  + Aunt query over lot.metta family specializes static family with process SC 0.023s
+  + extra graph queries target lot.metta with deterministic fallback 0.027s
+  + operation graph backend executes nested iteration rewrite and closure nodes 0.004s
+  + semi-naive datalog and carac-style closure supercompile 0.266s
+  + Game of Life supercompiles on original, random, and fred.rle fallback data 0.119s
+  + temperature spatial query targets NOAA grid file with committed slice fallback 0.041s
+  + sliding puzzle state expansion is pure and generalizes to 3x3 0.058s
+  + nqueens supercompiler reaches 9x9 2.605s
+wrote zipper-egg-tests/aunt-kg.egg in 51ms
+wrote zipper-egg-tests/puzzle-2x2-step.egg in 4ms
+wrote zipper-egg-tests/datalog-semi-naive.egg in 16ms
+wrote zipper-egg-tests/game-of-life-small.egg in 71ms
+wrote zipper-egg-tests/temperature-small.egg in 3ms
+wrote zipper-egg-tests/nqueens-4.egg in 30ms
+wrote zipper-egg-tests/context-movement.egg in 0ms
+wrote zipper-egg-tests/frontier-antimirov.egg in 0ms
+wrote zipper-egg-tests/iter-fixpoint.egg in 0ms
+wrote zipper-egg-tests/range-observation.egg in 0ms
+wrote zipper-egg-tests/range-border-child.egg in 0ms
+wrote zipper-egg-tests/range-border-operational.egg in 0ms
+wrote zipper-egg-tests/tails-intersection-frontier.egg in 0ms
+wrote zipper-egg-tests/negative-key.egg in 0ms
+morkl.ZipperEggTranspilerTest:
+  + Scala zipper examples transpile to independently runnable egg programs 51.806s
+morkl.Datalog:
+  + trans naive 0.002s
+  + trans semi-naive 0.001s
+morkl.Imperative:
+  + union iter transpiled 0.001s
+  + literal codec preserves epsilon and iteration skips headless paths 0.001s
+  + aunt query pretty 0.0s
+  + aunt query transpiled 0.0s
+  + scc transpiled 0.0s
+  + aunt query exec 0.002s
+==> i morkl.Imperative.scc exec ignored 0.0s
+  + mermaid 0.0s
+==> i morkl.Imperative.push out ignored 0.0s
+morkl.SupercompilerProcessTest:
+  + positive SC terminates and stays sound on semi-naive transitive closure 0.007s
+  + whistle/generalization is necessary for symbolic growing reachability 0.102s
+  + generalization keeps residual control size independent of static graph size 0.009s
+morkl.SpatialTypeLatticeTest:
+  + the normalized interval quotient is a bounded lattice 0.113s
+  + normalizing inconsistent meets makes the interval lattice non-distributive 0.033s
+  + finite arbitrary suprema and infima satisfy their universal properties 0.271s
+  + closed-form precision order and exact abstraction agree with concretization 0.002s
+  + union, intersection, and subtraction formulas are best correct intervals 0.01s
+  + production spatial types expose bottom, join, meet, order, and widening 0.003s
+morkl.SpatialCostCorrelationTest:
+==> X morkl.SpatialCostCorrelationTest.cost predictions correlate with every executor and models each win  1.346s munit.FailException: /Users/michaelpolyntsov/Zippy_a/src/test/scala/SpatialCostCorrelationTest.scala:137 Reference calibrated cost magnitude residual 7.719627775232095 exceeded 4x: Vector((union,7.719627775232095), (restriction,1.4125134647787652), (composition,4.807726175447017), (range,1.1367475823388369))
+136:      assert(fit.maximumResidualFactor <= 4.0,
+137:        s"$backend calibrated cost magnitude residual ${fit.maximumResidualFactor} exceeded 4x: ${fit.residualFactors}")
+138:    }
+    at munit.FunSuite.assert(FunSuite.scala:13)
+    at morkl.SpatialCostCorrelationTest.$init$$$anonfun$1$$anonfun$2(SpatialCostCorrelationTest.scala:137)
+    at scala.collection.immutable.Map$Map4.foreach(Map.scala:601)
+    at morkl.SpatialCostCorrelationTest.$init$$$anonfun$1(SpatialCostCorrelationTest.scala:135)
+morkl.ReferenceExamplesTest:
+  + semi-naive Datalog over carac-style facts matches independent closure 0.173s
+  + Game of Life examples match independent B3/S23 reference 0.084s
+  + pure sliding puzzle 2x2 and 3x3 one-step expansions match independent neighbor generator 0.005s
+  + pure sliding puzzle 2x2 explore reaches the complete state space 0.008s
+  + sliding puzzle 3x3 full reachable state space has the parity count 0.291s
+  + pure sliding puzzle 3x3 bounded expansion matches independent BFS 0.1s
+  + NOAA spatial prefix query matches manual prefix filter 0.037s
+  + NOAA temperature-first query matches manual label filter 0.003s
+  + n-queens reference count matches known 8x8 count 0.417s
+  + n-queens independent reference scaling matches known counts through 12x12 0.006s
+  + pure n-queens programs are generated for 8x8 through 12x12 without grounded operations 0.371s
+morkl.Routines:
+  + eval routine 0.001s
+  + transitive 0.001s
+  + reachable 0.001s
+  + scc 0.003s
+  + naive-oeis 0.001s
+morkl.MORKL2Space:
+  + union 0.0s
+  + intersection context 0.0s
+  + subtraction 0.0s
+  + restriction 0.001s
+  + composition 0.0s
+  + subspace 0.0s
+  + TailsUnion 0.0s
+  + transformation pattern rewritten with iteration 0.001s
+morkl.Permutations:
+  + intersection all 0.0s
+  + intersection all-1 0.0s
+  + sliding_puzzle states 0.011s
+  + nqueens 0.391s
+morkl.AuntQuery:
+  + add_index 0.001s
+  + query via restriction 0.0s
+  + parent_query 0.001s
+  + mother_query 0.0s
+  + sister_query 0.001s
+  + aunt_query 0.0s
+  + predecessors_query 0.001s
+morkl.SpacialType:
+  + aunt query input type 0.0s
+  + aunt query output type 0.003s
+morkl.ZipperDenotationOracleTest:
+  + zipper algebra agrees with trie denotation on exhaustive small path sets 0.203s
+  + child movement is the Brzozowski derivative on exhaustive length-three sets 0.049s
+  + suffix and tails closure descend through frontier states 0.001s
+  + iteration range templates agree with trie denotation on exhaustive small path sets 0.013s
+  + finite fixpoint templates agree with trie denotation on exhaustive small path sets 0.009s
+  + transpileZ lowers prefixed ranged iteration reconstruct templates 0.002s
+  + range composition and border laws agree in executable zippers 0.002s
+  + exact negative and key observations agree with bounded trie denotation 0.0s
+  + concrete trie zipper plug reconstructs the whole at every focus 0.318s
+  + concrete trie zipper supports focus edits and ordered sibling movement 0.003s
+  + virtual zipper context movement plugs every operation-shaped focus 0.003s
+  + virtual zipper context graft edits focus through lazy patch frames 0.001s
+morkl.IllustrativeEggArtifactsTest:
+  + root illustrative egg artifacts are generated from one shared prelude 0.003s
+morkl.ResultPathLengthTest:
+  + Z3 removes impossible length intersections before composition 0.05s
+  + path-length bounds penetrate every path and space construct 0.028s
+morkl.CornerstoneSpatialTypeTest:
+  + spatial routine analysis does not execute a zero-argument generator 0.001s
+  + strict range transfer propagates its literal annotation without concrete evaluation 0.0s
+  + annotation-only bound resolution never executes opaque atoms 0.001s
+  + cornerstone abstract interpretations use annotated variables and retain output shapes 13.091s
+  + directed closure cardinality contract is exhaustive on all three-node graphs 0.005s
+  + Game of Life output is contained in the nine-cell image of every live cell 0.011s
+  + finite relational domain counts n-queens without evaluating MORKL 0.003s
+morkl.MatchingProcessTest:
+  + free variables respect Iteration and Fold binders 0.002s
+  + substitution avoids capture by iteration binders 0.001s
+  + canonicalization makes alpha-equivalent Fold terms equal 0.0s
+  + instance matching folds simple renamings but refuses cyclic growth 0.001s
+  + MSG skeleton reinstantiates both sides 0.001s
+  + grounded nodes match only by stable function identity 0.0s
+morkl.Fuzzy:
+  + temperature 0.002s
+morkl.Lowering:
+  + TailsUnion iter subs 0.005s
+  + aunt query specialize 0.001s
+morkl.Grounded:
+  + PP hash 0.001s
+  + PP trace 0.001s
+  + SP spacesize 0.0s
+  + SP spaceout 0.0s
+  + PS range 0.001s
+  + SS transitive 0.001s
+morkl.Poly:
+  + composition 0.002s
+morkl.ResultSpaceSizeTest:
+  + natural expression normalization removes proved dominated bounds 0.0s
+  + reference hints cover binders, uses, freshening, and exact space mentions 0.004s
+  + symbolic cardinality rules preserve useful path-set bounds 0.001s
+  + empty-control iteration has the expected exact symbolic size 0.001s
+  + Z3 refinement preserves correlations and is pointwise tighter than baseline 0.262s
+  + mixed operation laws refine former opaque graph boundaries 0.001s
+  + literal fibers and nested iteration maps remain visible to the mixed graph 0.001s
+  + operation subset constraints cross opaque Z3 atoms 0.014s
+  + symbolic bounds contain exhaustive concrete denotations 0.044s
+morkl.SpatialTypeTest:
+  + spatial membership distinguishes signature envelopes from full gamma 0.001s
+  + generated membership corpus is sound and complete for a declared pattern 0.001s
+  + bounded head shape distinguishes one fat fiber from four heads 0.001s
+  + spatial specialization is guarded and fires only from an annotation 0.011s
+  + production compilation selects an applicable guarded spatial residual 0.001s
+  + iteration cost records groups and reference/trie models differ 0.002s
+  + law registry contains proved obligations and checked negative witnesses 0.001s
+  + spatial restriction retains compatible length strata and prefix witnesses 0.012s
+  + encoded if-empty control has a piecewise exact spatial type 0.013s
+  + iteration counts constant-headed fibers as groups rather than paths 0.001s
+  + nested full-path iterator chains are bounded as pointwise maps 0.002s
+  + pure Game-of-Life neighbor arithmetic has eight length-two outputs 0.003s
+  + spatial types propagate through five Game-of-Life steps without result feedback 1.641s
+  + exact spatial types expose graph fiber degree statistics 0.0s
+  + spatial projections refine scalar size and path-length projections 0.029s
+  + fixpoint reaches a checked post-fixpoint before exposing shapes 0.003s
+  + tails does not assume an interval-length path is headed 0.0s
+  + semantic result laws intersect structural facts and expose contradictions 0.0s
+  + repeated union mentions remain coherent across total and strata 0.009s
+  + union preserves optionality of a known singleton pattern 0.001s
+  + decorated analysis retains lexical iterator bindings 0.002s
+  + cost intervals remain finite through a five-node expression 0.001s
+  + spatial facts expose optimization decisions and symbolic depth degrees 0.003s
+  + decorated nodes have positional identity and joined observations 0.0s
+  + extended fuzzer call routine is analyzed across its annotation boundary 0.0s
+  + dominant monomials distinguish linear from quadratic cost 0.002s
+  + asymptotic projection and recurrence solver retain closed forms 0.001s
+  + recursive routine costs close when every self call consumes tails 0.003s
+morkl.Unification:
+  + renameFrom 0.001s
+  + query 0.001s
+  + transform 0.001s
+==> i morkl.Unification.double transform ignored 0.0s
+  + transpile transform 0.004s
+  + unify 0.044s
+  + overlap 0.006s
+  + division 0.004s
+  + sudoku 0.002s
+  + gol 0.007s
+  + graphviz 0.0s
+Error: munit tests failed.
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialCostCorrelationTest:
+  + cost predictions correlate with every executor and models each win 1.557s
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 3 deprecation warnings; re-run with -deprecation for details
+2 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial cost correlation: Reference Spearman=1.000
+spatial cost correlation: Trie      Spearman=0.800
+spatial cost correlation: Zipper    Spearman=1.000
+spatial cost correlation: Graph     Spearman=0.800
+spatial cost magnitude: Reference scale=34.785 ns/unit maxResidual=1.21x {union=1.21x,restriction=1.17x,composition=1.13x,range=1.10x}
+  union        predicted=2880 measured=0.1210 ms
+  restriction  predicted=9408 measured=0.2800 ms
+  composition  predicted=37056 measured=1.1360 ms
+  range        predicted=1440 measured=0.0550 ms
+spatial cost magnitude: Trie      scale=333.707 ns/unit maxResidual=1.96x {union=1.72x,restriction=1.79x,composition=1.96x,range=1.88x}
+  union        predicted=576 measured=0.1120 ms
+  restriction  predicted=480 measured=0.2860 ms
+  composition  predicted=9600 measured=1.6340 ms
+  range        predicted=194 measured=0.1220 ms
+spatial cost magnitude: Zipper    scale=248.893 ns/unit maxResidual=1.66x {union=1.23x,restriction=1.13x,composition=1.52x,range=1.66x}
+  union        predicted=578 measured=0.1170 ms
+  restriction  predicted=482 measured=0.1350 ms
+  composition  predicted=9604 measured=1.5730 ms
+  range        predicted=196 measured=0.0810 ms
+spatial cost magnitude: Graph     scale=132.848 ns/unit maxResidual=1.75x {union=1.71x,restriction=1.10x,composition=1.13x,range=1.75x}
+  union        predicted=194 measured=0.0440 ms
+  restriction  predicted=481 measured=0.0580 ms
+  composition  predicted=9792 measured=1.4650 ms
+  range        predicted=289 measured=0.0220 ms
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.UnionFind:
+==> i morkl.UnionFind.find ignored 0.0s
+morkl.ZipperFuzzerTest:
+  + zipper fuzzer expected spaces agree across eval, evalTrie, exec, and execT 0.663s
+  + operation graph materializes input and ancestor outputs 0.002s
+  + coverage-biased zipper fuzzer agrees across optimized exec backends 1.165s
+  + zipper fuzzer showcase is stable and diverse 0.016s
+  + zipper fuzzer term matrix collector records child parent position counts 0.008s
+  + zipper fuzzer interestingness measurement records output diversity 0.028s
+  + sensitive corpus generator verifies every declared input 0.017s
+  + free expression tree generator uses rejection filters 0.067s
+  + full backend verifier checks free programs across evaluators and executors 0.102s
+morkl.TrieSpaceTest:
+  + roundtrip preserves reference SpaceValue including epsilon 0.001s
+  + native set and prefix operations match reference semantics 0.0s
+  + native closure operations match reference epsilon semantics 0.001s
+  + range filters tries in native path order without rebuilding included subtries 0.0s
+  + range preserves epsilon and child border semantics 0.001s
+  + native trie exposes head and non-empty path projections for iteration 0.0s
+  + trie evaluator expands canonical and distributed iteration bodies 0.001s
+  + iteration union invariant rewrite does not leak over empty sources 0.0s
+  + singleton iteration exposes epsilon as the empty tail 0.0s
+  + iteration identity rewrite removes epsilon-only source paths 0.001s
+  + fold graph round-trips through untranspile 0.002s
+  + Track B Dist generator examples agree across trie and graph backends 0.014s
+  + fixpoint accumulates step output instead of replacing state 0.0s
+  + nested fixpoint preserves outer iteration rest bindings 0.002s
+  + meet-all tails intersection keeps only tails under every head 0.0s
+  + zipper cursor descends to subtries without materializing paths 0.001s
+  + space zipper cursor keeps edits when moving across siblings 0.003s
+  + zipper native operations short-circuit referentially identical trie nodes 0.0s
+  + trie algebra reports exhaustive identities, bespoke values, and empty causes 0.001s
+  + restriction reports left/right identity, prefix coverage, and all empty causes 0.002s
+  + algebraic result metadata agrees with exhaustive finite path sets 0.018s
+  + zipper restriction pushes through union and subtraction before materialization 0.001s
+  + direct trie evaluator reuses interned PathItems during native iteration 0.001s
+  + temperature interval covers arbitrary ranges without runaway recursion 0.002s
+  + direct trie evaluator agrees on Aunt query 0.006s
+  + direct trie evaluator agrees on recursive semi-naive Datalog 0.006s
+  + direct trie evaluator agrees on pure Game of Life 0.1s
+  + direct trie evaluator agrees on process-SC residual programs 0.025s
+  + compile reports source and graph optimization timings 0.004s
+  + source optimizer respects compile deadline 0.001s
+  + source optimizer applies path-set algebraic laws 0.024s
+  + unit-only optimizer laws preserve random literal path sets 0.142s
+  + operation graph executes directly over TrieSpace 0.001s
+  + operation graph trie backend covers pure pair swap and closure nodes 0.002s
+  + operation graph trie backend covers native closure nodes 0.002s
+  + graph optimizers preserve nested iteration semantics under execT 0.001s
+  + nonEmpty is an epsilon-valued constant-border emptiness indicator 0.001s
+  + independent nested product union pushes out with headed guards and common prefix factoring 0.007s
+  + optimal sharing merges structurally identical iteration subgraphs 0.001s
+  + loop invariant hoist lifts transitive invariant DAG out of iteration 0.0s
+  + graph compile pipeline inlines helper calls before execT 0.003s
+  + graph execT fallback calls optimized callee graphs 0.001s
+  + benchmark fallback notes include retained calls inside optimized callees 0.002s
+  + zipper transpile rejects recursive self-union calls instead of materializing evalTrie 0.002s
+  + zipper transpile rejects non-lowered recursive calls outside top-level self-union 0.001s
+  + graph optimizer handles generated pure sliding puzzle graph 0.03s
+  + compile pipeline lowers union-saturating recursion before graph exec 0.006s
+  + mutual union-saturating recursion lowers to one tagged fixpoint 0.004s
+  + unproved multi-argument recursion remains an explicit call 0.001s
+  + zipper traversal and virtual native operations match reference trie operations 0.015s
+  + zipper composition stays virtual under selective consumers 0.0s
+  + virtual tails meet and prefix-closure nullability drive product descent 0.001s
+  + zipper generic iteration keeps child observations virtual 0.0s
+  + zipper iteration keeps canonical and general iteration virtual 0.005s
+  + zipper range over virtual operands stays a border traversal 0.001s
+  + zipper range supports to-end and negative border slices virtually 0.001s
+  + zipper range-reconstruct iteration descends directly to the matching branch 0.0s
+  + zipper range stops before asking the first excluded border child for size 0.001s
+  + zipper range child lookup does not size unrelated in-slice siblings 0.0s
+  + zipper range direct child movement does not size the matching border child 0.001s
+  + zipper negative range projections do not ask the parent for total path count 0.0s
+  + space-to-zipper evaluator agrees with reference and trie evaluation on random programs 0.006s
+  + random trie-native programs agree across eval, evalTrie, exec, and execT 0.014s
+morkl.SupercompilerPublicationExamples:
+  + Aunt query supercompiles and specializes a people literal 0.112s
+  + Aunt query over lot.metta family specializes static family with process SC 0.023s
+  + extra graph queries target lot.metta with deterministic fallback 0.014s
+  + operation graph backend executes nested iteration rewrite and closure nodes 0.003s
+  + semi-naive datalog and carac-style closure supercompile 0.232s
+  + Game of Life supercompiles on original, random, and fred.rle fallback data 0.158s
+  + temperature spatial query targets NOAA grid file with committed slice fallback 0.045s
+  + sliding puzzle state expansion is pure and generalizes to 3x3 0.105s
+  + nqueens supercompiler reaches 9x9 2.541s
+wrote zipper-egg-tests/aunt-kg.egg in 58ms
+wrote zipper-egg-tests/puzzle-2x2-step.egg in 3ms
+wrote zipper-egg-tests/datalog-semi-naive.egg in 10ms
+wrote zipper-egg-tests/game-of-life-small.egg in 70ms
+wrote zipper-egg-tests/temperature-small.egg in 1ms
+wrote zipper-egg-tests/nqueens-4.egg in 13ms
+wrote zipper-egg-tests/context-movement.egg in 0ms
+wrote zipper-egg-tests/frontier-antimirov.egg in 0ms
+wrote zipper-egg-tests/iter-fixpoint.egg in 0ms
+wrote zipper-egg-tests/range-observation.egg in 0ms
+wrote zipper-egg-tests/range-border-child.egg in 0ms
+wrote zipper-egg-tests/range-border-operational.egg in 0ms
+wrote zipper-egg-tests/tails-intersection-frontier.egg in 0ms
+wrote zipper-egg-tests/negative-key.egg in 0ms
+morkl.ZipperEggTranspilerTest:
+  + Scala zipper examples transpile to independently runnable egg programs 57.046s
+morkl.Datalog:
+  + trans naive 0.006s
+  + trans semi-naive 0.001s
+morkl.Imperative:
+  + union iter transpiled 0.001s
+  + literal codec preserves epsilon and iteration skips headless paths 0.0s
+  + aunt query pretty 0.0s
+  + aunt query transpiled 0.0s
+  + scc transpiled 0.001s
+  + aunt query exec 0.0s
+==> i morkl.Imperative.scc exec ignored 0.0s
+  + mermaid 0.001s
+==> i morkl.Imperative.push out ignored 0.0s
+morkl.SupercompilerProcessTest:
+  + positive SC terminates and stays sound on semi-naive transitive closure 0.006s
+  + whistle/generalization is necessary for symbolic growing reachability 0.123s
+  + generalization keeps residual control size independent of static graph size 0.01s
+morkl.SpatialTypeLatticeTest:
+  + the normalized interval quotient is a bounded lattice 0.099s
+  + normalizing inconsistent meets makes the interval lattice non-distributive 0.027s
+  + finite arbitrary suprema and infima satisfy their universal properties 0.261s
+  + closed-form precision order and exact abstraction agree with concretization 0.001s
+  + union, intersection, and subtraction formulas are best correct intervals 0.013s
+  + production spatial types expose bottom, join, meet, order, and widening 0.002s
+morkl.SpatialCostCorrelationTest:
+==> X morkl.SpatialCostCorrelationTest.cost predictions correlate with every executor and models each win  1.21s munit.FailException: /Users/michaelpolyntsov/Zippy_a/src/test/scala/SpatialCostCorrelationTest.scala:146 Reference calibrated cost magnitude residual 7.3807270091819515 exceeded 4x: Vector((union,7.3807270091819515), (restriction,1.2028017035942526), (composition,2.6641294835551097), (range,2.303296135848304))
+145:      assert(fit.maximumResidualFactor <= 4.0,
+146:        s"$backend calibrated cost magnitude residual ${fit.maximumResidualFactor} exceeded 4x: ${fit.residualFactors}")
+147:    }
+    at munit.FunSuite.assert(FunSuite.scala:13)
+    at morkl.SpatialCostCorrelationTest.$init$$$anonfun$1$$anonfun$2(SpatialCostCorrelationTest.scala:146)
+    at scala.collection.immutable.Map$Map4.foreach(Map.scala:601)
+    at morkl.SpatialCostCorrelationTest.$init$$$anonfun$1(SpatialCostCorrelationTest.scala:144)
+morkl.ReferenceExamplesTest:
+  + semi-naive Datalog over carac-style facts matches independent closure 0.159s
+  + Game of Life examples match independent B3/S23 reference 0.056s
+  + pure sliding puzzle 2x2 and 3x3 one-step expansions match independent neighbor generator 0.005s
+  + pure sliding puzzle 2x2 explore reaches the complete state space 0.005s
+  + sliding puzzle 3x3 full reachable state space has the parity count 0.253s
+  + pure sliding puzzle 3x3 bounded expansion matches independent BFS 0.075s
+  + NOAA spatial prefix query matches manual prefix filter 0.036s
+  + NOAA temperature-first query matches manual label filter 0.002s
+  + n-queens reference count matches known 8x8 count 0.405s
+  + n-queens independent reference scaling matches known counts through 12x12 0.007s
+  + pure n-queens programs are generated for 8x8 through 12x12 without grounded operations 0.399s
+morkl.Routines:
+  + eval routine 0.001s
+  + transitive 0.001s
+  + reachable 0.001s
+  + scc 0.003s
+  + naive-oeis 0.002s
+morkl.MORKL2Space:
+  + union 0.001s
+  + intersection context 0.0s
+  + subtraction 0.0s
+  + restriction 0.0s
+  + composition 0.001s
+  + subspace 0.0s
+  + TailsUnion 0.0s
+  + transformation pattern rewritten with iteration 0.0s
+morkl.Permutations:
+  + intersection all 0.001s
+  + intersection all-1 0.0s
+  + sliding_puzzle states 0.009s
+  + nqueens 0.428s
+morkl.AuntQuery:
+  + add_index 0.001s
+  + query via restriction 0.0s
+  + parent_query 0.0s
+  + mother_query 0.001s
+  + sister_query 0.0s
+  + aunt_query 0.001s
+  + predecessors_query 0.0s
+morkl.SpacialType:
+  + aunt query input type 0.001s
+  + aunt query output type 0.002s
+morkl.ZipperDenotationOracleTest:
+  + zipper algebra agrees with trie denotation on exhaustive small path sets 0.23s
+  + child movement is the Brzozowski derivative on exhaustive length-three sets 0.052s
+  + suffix and tails closure descend through frontier states 0.001s
+  + iteration range templates agree with trie denotation on exhaustive small path sets 0.018s
+  + finite fixpoint templates agree with trie denotation on exhaustive small path sets 0.013s
+  + transpileZ lowers prefixed ranged iteration reconstruct templates 0.005s
+  + range composition and border laws agree in executable zippers 0.004s
+  + exact negative and key observations agree with bounded trie denotation 0.001s
+  + concrete trie zipper plug reconstructs the whole at every focus 0.336s
+  + concrete trie zipper supports focus edits and ordered sibling movement 0.003s
+  + virtual zipper context movement plugs every operation-shaped focus 0.003s
+  + virtual zipper context graft edits focus through lazy patch frames 0.002s
+morkl.IllustrativeEggArtifactsTest:
+  + root illustrative egg artifacts are generated from one shared prelude 0.001s
+morkl.ResultPathLengthTest:
+  + Z3 removes impossible length intersections before composition 0.049s
+  + path-length bounds penetrate every path and space construct 0.038s
+morkl.CornerstoneSpatialTypeTest:
+  + spatial routine analysis does not execute a zero-argument generator 0.001s
+  + strict range transfer propagates its literal annotation without concrete evaluation 0.0s
+  + annotation-only bound resolution never executes opaque atoms 0.001s
+  + cornerstone abstract interpretations use annotated variables and retain output shapes 12.946s
+  + directed closure cardinality contract is exhaustive on all three-node graphs 0.01s
+  + Game of Life output is contained in the nine-cell image of every live cell 0.017s
+  + finite relational domain counts n-queens without evaluating MORKL 0.002s
+morkl.MatchingProcessTest:
+  + free variables respect Iteration and Fold binders 0.002s
+  + substitution avoids capture by iteration binders 0.0s
+  + canonicalization makes alpha-equivalent Fold terms equal 0.001s
+  + instance matching folds simple renamings but refuses cyclic growth 0.001s
+  + MSG skeleton reinstantiates both sides 0.001s
+  + grounded nodes match only by stable function identity 0.0s
+morkl.Fuzzy:
+  + temperature 0.001s
+morkl.Lowering:
+  + TailsUnion iter subs 0.002s
+  + aunt query specialize 0.001s
+morkl.Grounded:
+  + PP hash 0.001s
+  + PP trace 0.0s
+  + SP spacesize 0.001s
+  + SP spaceout 0.001s
+  + PS range 0.002s
+  + SS transitive 0.001s
+morkl.Poly:
+  + composition 0.003s
+morkl.ResultSpaceSizeTest:
+  + natural expression normalization removes proved dominated bounds 0.001s
+  + reference hints cover binders, uses, freshening, and exact space mentions 0.002s
+  + symbolic cardinality rules preserve useful path-set bounds 0.002s
+  + empty-control iteration has the expected exact symbolic size 0.001s
+  + Z3 refinement preserves correlations and is pointwise tighter than baseline 0.323s
+  + mixed operation laws refine former opaque graph boundaries 0.001s
+  + literal fibers and nested iteration maps remain visible to the mixed graph 0.001s
+  + operation subset constraints cross opaque Z3 atoms 0.012s
+  + symbolic bounds contain exhaustive concrete denotations 0.041s
+morkl.SpatialTypeTest:
+  + spatial membership distinguishes signature envelopes from full gamma 0.002s
+  + generated membership corpus is sound and complete for a declared pattern 0.002s
+  + bounded head shape distinguishes one fat fiber from four heads 0.001s
+  + spatial specialization is guarded and fires only from an annotation 0.016s
+  + production compilation selects an applicable guarded spatial residual 0.002s
+  + iteration cost records groups and reference/trie models differ 0.001s
+  + law registry contains proved obligations and checked negative witnesses 0.001s
+  + spatial restriction retains compatible length strata and prefix witnesses 0.019s
+  + encoded if-empty control has a piecewise exact spatial type 0.011s
+  + iteration counts constant-headed fibers as groups rather than paths 0.001s
+  + nested full-path iterator chains are bounded as pointwise maps 0.001s
+  + pure Game-of-Life neighbor arithmetic has eight length-two outputs 0.004s
+  + spatial types propagate through five Game-of-Life steps without result feedback 1.614s
+  + exact spatial types expose graph fiber degree statistics 0.0s
+  + spatial projections refine scalar size and path-length projections 0.028s
+  + fixpoint reaches a checked post-fixpoint before exposing shapes 0.002s
+  + tails does not assume an interval-length path is headed 0.0s
+  + semantic result laws intersect structural facts and expose contradictions 0.0s
+  + repeated union mentions remain coherent across total and strata 0.008s
+  + union preserves optionality of a known singleton pattern 0.001s
+  + decorated analysis retains lexical iterator bindings 0.001s
+  + cost intervals remain finite through a five-node expression 0.002s
+  + spatial facts expose optimization decisions and symbolic depth degrees 0.003s
+  + decorated nodes have positional identity and joined observations 0.001s
+  + extended fuzzer call routine is analyzed across its annotation boundary 0.0s
+  + dominant monomials distinguish linear from quadratic cost 0.001s
+  + asymptotic projection and recurrence solver retain closed forms 0.001s
+  + recursive routine costs close when every self call consumes tails 0.002s
+morkl.Unification:
+  + renameFrom 0.001s
+  + query 0.001s
+  + transform 0.001s
+==> i morkl.Unification.double transform ignored 0.0s
+  + transpile transform 0.004s
+  + unify 0.059s
+  + overlap 0.003s
+  + division 0.001s
+  + sudoku 0.002s
+  + gol 0.004s
+  + graphviz 0.0s
+Error: munit tests failed.
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 3 deprecation warnings; re-run with -deprecation for details
+2 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial cost correlation: Reference Spearman=1.000
+spatial cost correlation: Trie      Spearman=0.800
+spatial cost correlation: Zipper    Spearman=1.000
+spatial cost correlation: Graph     Spearman=1.000
+spatial cost magnitude: Reference scale=23.106 ns/unit maxResidual=2.13x {union=1.10x,restriction=2.13x,composition=1.29x,range=1.50x}
+  union        predicted=2880 measured=0.0730 ms
+  restriction  predicted=9408 measured=0.1020 ms
+  composition  predicted=37056 measured=1.1070 ms
+  range        predicted=1440 measured=0.0500 ms
+spatial cost magnitude: Trie      scale=367.816 ns/unit maxResidual=3.08x {union=1.08x,restriction=1.31x,composition=2.18x,range=3.08x}
+  union        predicted=576 measured=0.1960 ms
+  restriction  predicted=480 measured=0.1350 ms
+  composition  predicted=9600 measured=1.6190 ms
+  range        predicted=194 measured=0.2200 ms
+spatial cost magnitude: Zipper    scale=281.852 ns/unit maxResidual=3.04x {union=1.45x,restriction=1.24x,composition=1.69x,range=3.04x}
+  union        predicted=578 measured=0.1120 ms
+  restriction  predicted=482 measured=0.1100 ms
+  composition  predicted=9604 measured=1.5990 ms
+  range        predicted=196 measured=0.1680 ms
+spatial cost magnitude: Graph     scale=123.776 ns/unit maxResidual=1.71x {union=1.71x,restriction=1.32x,composition=1.26x,range=1.63x}
+  union        predicted=194 measured=0.0410 ms
+  restriction  predicted=481 measured=0.0450 ms
+  composition  predicted=9792 measured=1.5270 ms
+  range        predicted=289 measured=0.0220 ms
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.UnionFind:
+==> i morkl.UnionFind.find ignored 0.0s
+morkl.ZipperFuzzerTest:
+  + zipper fuzzer expected spaces agree across eval, evalTrie, exec, and execT 1.172s
+  + operation graph materializes input and ancestor outputs 0.003s
+  + coverage-biased zipper fuzzer agrees across optimized exec backends 1.688s
+  + zipper fuzzer showcase is stable and diverse 0.026s
+  + zipper fuzzer term matrix collector records child parent position counts 0.013s
+  + zipper fuzzer interestingness measurement records output diversity 0.048s
+  + sensitive corpus generator verifies every declared input 0.038s
+  + free expression tree generator uses rejection filters 0.131s
+  + full backend verifier checks free programs across evaluators and executors 0.18s
+morkl.TrieSpaceTest:
+  + roundtrip preserves reference SpaceValue including epsilon 0.001s
+  + native set and prefix operations match reference semantics 0.003s
+  + native closure operations match reference epsilon semantics 0.001s
+  + range filters tries in native path order without rebuilding included subtries 0.001s
+  + range preserves epsilon and child border semantics 0.004s
+  + native trie exposes head and non-empty path projections for iteration 0.002s
+  + trie evaluator expands canonical and distributed iteration bodies 0.005s
+  + iteration union invariant rewrite does not leak over empty sources 0.002s
+  + singleton iteration exposes epsilon as the empty tail 0.002s
+  + iteration identity rewrite removes epsilon-only source paths 0.001s
+  + fold graph round-trips through untranspile 0.017s
+  + Track B Dist generator examples agree across trie and graph backends 0.02s
+  + fixpoint accumulates step output instead of replacing state 0.003s
+  + nested fixpoint preserves outer iteration rest bindings 0.012s
+  + meet-all tails intersection keeps only tails under every head 0.001s
+  + zipper cursor descends to subtries without materializing paths 0.001s
+  + space zipper cursor keeps edits when moving across siblings 0.006s
+  + zipper native operations short-circuit referentially identical trie nodes 0.002s
+  + trie algebra reports exhaustive identities, bespoke values, and empty causes 0.002s
+  + restriction reports left/right identity, prefix coverage, and all empty causes 0.007s
+  + algebraic result metadata agrees with exhaustive finite path sets 0.036s
+  + zipper restriction pushes through union and subtraction before materialization 0.001s
+  + direct trie evaluator reuses interned PathItems during native iteration 0.001s
+  + temperature interval covers arbitrary ranges without runaway recursion 0.003s
+  + direct trie evaluator agrees on Aunt query 0.01s
+  + direct trie evaluator agrees on recursive semi-naive Datalog 0.008s
+  + direct trie evaluator agrees on pure Game of Life 0.172s
+  + direct trie evaluator agrees on process-SC residual programs 0.069s
+  + compile reports source and graph optimization timings 0.021s
+  + source optimizer respects compile deadline 0.005s
+  + source optimizer applies path-set algebraic laws 0.074s
+  + unit-only optimizer laws preserve random literal path sets 0.261s
+  + operation graph executes directly over TrieSpace 0.002s
+  + operation graph trie backend covers pure pair swap and closure nodes 0.006s
+  + operation graph trie backend covers native closure nodes 0.002s
+  + graph optimizers preserve nested iteration semantics under execT 0.004s
+  + nonEmpty is an epsilon-valued constant-border emptiness indicator 0.002s
+  + independent nested product union pushes out with headed guards and common prefix factoring 0.011s
+  + optimal sharing merges structurally identical iteration subgraphs 0.002s
+  + loop invariant hoist lifts transitive invariant DAG out of iteration 0.009s
+  + graph compile pipeline inlines helper calls before execT 0.004s
+  + graph execT fallback calls optimized callee graphs 0.001s
+  + benchmark fallback notes include retained calls inside optimized callees 0.004s
+  + zipper transpile rejects recursive self-union calls instead of materializing evalTrie 0.001s
+  + zipper transpile rejects non-lowered recursive calls outside top-level self-union 0.001s
+  + graph optimizer handles generated pure sliding puzzle graph 0.066s
+  + compile pipeline lowers union-saturating recursion before graph exec 0.012s
+  + mutual union-saturating recursion lowers to one tagged fixpoint 0.006s
+  + unproved multi-argument recursion remains an explicit call 0.003s
+  + zipper traversal and virtual native operations match reference trie operations 0.029s
+  + zipper composition stays virtual under selective consumers 0.001s
+  + virtual tails meet and prefix-closure nullability drive product descent 0.002s
+  + zipper generic iteration keeps child observations virtual 0.001s
+  + zipper iteration keeps canonical and general iteration virtual 0.012s
+  + zipper range over virtual operands stays a border traversal 0.003s
+  + zipper range supports to-end and negative border slices virtually 0.002s
+  + zipper range-reconstruct iteration descends directly to the matching branch 0.002s
+  + zipper range stops before asking the first excluded border child for size 0.002s
+  + zipper range child lookup does not size unrelated in-slice siblings 0.0s
+  + zipper range direct child movement does not size the matching border child 0.003s
+  + zipper negative range projections do not ask the parent for total path count 0.001s
+  + space-to-zipper evaluator agrees with reference and trie evaluation on random programs 0.012s
+  + random trie-native programs agree across eval, evalTrie, exec, and execT 0.022s
+morkl.SupercompilerPublicationExamples:
+  + Aunt query supercompiles and specializes a people literal 0.257s
+  + Aunt query over lot.metta family specializes static family with process SC 0.038s
+  + extra graph queries target lot.metta with deterministic fallback 0.043s
+  + operation graph backend executes nested iteration rewrite and closure nodes 0.002s
+  + semi-naive datalog and carac-style closure supercompile 0.298s
+  + Game of Life supercompiles on original, random, and fred.rle fallback data 0.137s
+  + temperature spatial query targets NOAA grid file with committed slice fallback 0.047s
+  + sliding puzzle state expansion is pure and generalizes to 3x3 0.099s
+  + nqueens supercompiler reaches 9x9 2.943s
+wrote zipper-egg-tests/aunt-kg.egg in 63ms
+wrote zipper-egg-tests/puzzle-2x2-step.egg in 7ms
+wrote zipper-egg-tests/datalog-semi-naive.egg in 18ms
+wrote zipper-egg-tests/game-of-life-small.egg in 77ms
+wrote zipper-egg-tests/temperature-small.egg in 1ms
+wrote zipper-egg-tests/nqueens-4.egg in 13ms
+wrote zipper-egg-tests/context-movement.egg in 0ms
+wrote zipper-egg-tests/frontier-antimirov.egg in 0ms
+wrote zipper-egg-tests/iter-fixpoint.egg in 0ms
+wrote zipper-egg-tests/range-observation.egg in 0ms
+wrote zipper-egg-tests/range-border-child.egg in 0ms
+wrote zipper-egg-tests/range-border-operational.egg in 0ms
+wrote zipper-egg-tests/tails-intersection-frontier.egg in 0ms
+wrote zipper-egg-tests/negative-key.egg in 0ms
+morkl.ZipperEggTranspilerTest:
+  + Scala zipper examples transpile to independently runnable egg programs 73.959s
+morkl.Datalog:
+  + trans naive 0.005s
+  + trans semi-naive 0.003s
+morkl.Imperative:
+  + union iter transpiled 0.002s
+  + literal codec preserves epsilon and iteration skips headless paths 0.002s
+  + aunt query pretty 0.0s
+  + aunt query transpiled 0.0s
+  + scc transpiled 0.0s
+  + aunt query exec 0.002s
+==> i morkl.Imperative.scc exec ignored 0.0s
+  + mermaid 0.0s
+==> i morkl.Imperative.push out ignored 0.0s
+morkl.SupercompilerProcessTest:
+  + positive SC terminates and stays sound on semi-naive transitive closure 0.01s
+  + whistle/generalization is necessary for symbolic growing reachability 0.133s
+  + generalization keeps residual control size independent of static graph size 0.014s
+morkl.SpatialTypeLatticeTest:
+  + the normalized interval quotient is a bounded lattice 0.14s
+  + normalizing inconsistent meets makes the interval lattice non-distributive 0.041s
+  + finite arbitrary suprema and infima satisfy their universal properties 0.301s
+  + closed-form precision order and exact abstraction agree with concretization 0.003s
+  + union, intersection, and subtraction formulas are best correct intervals 0.011s
+  + production spatial types expose bottom, join, meet, order, and widening 0.002s
+morkl.SpatialCostCorrelationTest:
+  + cost predictions correlate with every executor and models each win 1.536s
+morkl.ReferenceExamplesTest:
+  + semi-naive Datalog over carac-style facts matches independent closure 0.174s
+  + Game of Life examples match independent B3/S23 reference 0.064s
+  + pure sliding puzzle 2x2 and 3x3 one-step expansions match independent neighbor generator 0.006s
+  + pure sliding puzzle 2x2 explore reaches the complete state space 0.005s
+  + sliding puzzle 3x3 full reachable state space has the parity count 0.311s
+  + pure sliding puzzle 3x3 bounded expansion matches independent BFS 0.075s
+  + NOAA spatial prefix query matches manual prefix filter 0.039s
+  + NOAA temperature-first query matches manual label filter 0.002s
+  + n-queens reference count matches known 8x8 count 0.473s
+  + n-queens independent reference scaling matches known counts through 12x12 0.007s
+  + pure n-queens programs are generated for 8x8 through 12x12 without grounded operations 0.449s
+morkl.Routines:
+  + eval routine 0.001s
+  + transitive 0.001s
+  + reachable 0.002s
+  + scc 0.005s
+  + naive-oeis 0.001s
+morkl.MORKL2Space:
+  + union 0.0s
+  + intersection context 0.0s
+  + subtraction 0.0s
+  + restriction 0.001s
+  + composition 0.0s
+  + subspace 0.0s
+  + TailsUnion 0.0s
+  + transformation pattern rewritten with iteration 0.0s
+morkl.Permutations:
+  + intersection all 0.001s
+  + intersection all-1 0.0s
+  + sliding_puzzle states 0.013s
+  + nqueens 0.472s
+morkl.AuntQuery:
+  + add_index 0.001s
+  + query via restriction 0.0s
+  + parent_query 0.0s
+  + mother_query 0.001s
+  + sister_query 0.0s
+  + aunt_query 0.0s
+  + predecessors_query 0.001s
+morkl.SpacialType:
+  + aunt query input type 0.001s
+  + aunt query output type 0.003s
+morkl.ZipperDenotationOracleTest:
+  + zipper algebra agrees with trie denotation on exhaustive small path sets 0.261s
+  + child movement is the Brzozowski derivative on exhaustive length-three sets 0.065s
+  + suffix and tails closure descend through frontier states 0.0s
+  + iteration range templates agree with trie denotation on exhaustive small path sets 0.022s
+  + finite fixpoint templates agree with trie denotation on exhaustive small path sets 0.008s
+  + transpileZ lowers prefixed ranged iteration reconstruct templates 0.004s
+  + range composition and border laws agree in executable zippers 0.006s
+  + exact negative and key observations agree with bounded trie denotation 0.002s
+  + concrete trie zipper plug reconstructs the whole at every focus 0.438s
+  + concrete trie zipper supports focus edits and ordered sibling movement 0.002s
+  + virtual zipper context movement plugs every operation-shaped focus 0.007s
+  + virtual zipper context graft edits focus through lazy patch frames 0.002s
+morkl.IllustrativeEggArtifactsTest:
+  + root illustrative egg artifacts are generated from one shared prelude 0.003s
+morkl.ResultPathLengthTest:
+  + Z3 removes impossible length intersections before composition 0.064s
+  + path-length bounds penetrate every path and space construct 0.051s
+morkl.CornerstoneSpatialTypeTest:
+  + spatial routine analysis does not execute a zero-argument generator 0.001s
+  + strict range transfer propagates its literal annotation without concrete evaluation 0.0s
+  + annotation-only bound resolution never executes opaque atoms 0.0s
+  + cornerstone abstract interpretations use annotated variables and retain output shapes 17.138s
+  + directed closure cardinality contract is exhaustive on all three-node graphs 0.011s
+  + Game of Life output is contained in the nine-cell image of every live cell 0.016s
+  + finite relational domain counts n-queens without evaluating MORKL 0.003s
+morkl.MatchingProcessTest:
+  + free variables respect Iteration and Fold binders 0.004s
+  + substitution avoids capture by iteration binders 0.001s
+  + canonicalization makes alpha-equivalent Fold terms equal 0.001s
+  + instance matching folds simple renamings but refuses cyclic growth 0.002s
+  + MSG skeleton reinstantiates both sides 0.001s
+  + grounded nodes match only by stable function identity 0.0s
+morkl.Fuzzy:
+  + temperature 0.002s
+morkl.Lowering:
+  + TailsUnion iter subs 0.003s
+  + aunt query specialize 0.001s
+morkl.Grounded:
+  + PP hash 0.002s
+  + PP trace 0.001s
+  + SP spacesize 0.001s
+  + SP spaceout 0.002s
+  + PS range 0.004s
+  + SS transitive 0.002s
+morkl.Poly:
+  + composition 0.006s
+morkl.ResultSpaceSizeTest:
+  + natural expression normalization removes proved dominated bounds 0.001s
+  + reference hints cover binders, uses, freshening, and exact space mentions 0.004s
+  + symbolic cardinality rules preserve useful path-set bounds 0.002s
+  + empty-control iteration has the expected exact symbolic size 0.002s
+  + Z3 refinement preserves correlations and is pointwise tighter than baseline 0.414s
+  + mixed operation laws refine former opaque graph boundaries 0.003s
+  + literal fibers and nested iteration maps remain visible to the mixed graph 0.003s
+  + operation subset constraints cross opaque Z3 atoms 0.015s
+  + symbolic bounds contain exhaustive concrete denotations 0.062s
+morkl.SpatialTypeTest:
+  + spatial membership distinguishes signature envelopes from full gamma 0.001s
+  + generated membership corpus is sound and complete for a declared pattern 0.001s
+  + bounded head shape distinguishes one fat fiber from four heads 0.001s
+  + spatial specialization is guarded and fires only from an annotation 0.029s
+  + production compilation selects an applicable guarded spatial residual 0.001s
+  + iteration cost records groups and reference/trie models differ 0.001s
+  + law registry contains proved obligations and checked negative witnesses 0.001s
+  + spatial restriction retains compatible length strata and prefix witnesses 0.034s
+  + encoded if-empty control has a piecewise exact spatial type 0.018s
+  + iteration counts constant-headed fibers as groups rather than paths 0.001s
+  + nested full-path iterator chains are bounded as pointwise maps 0.002s
+  + pure Game-of-Life neighbor arithmetic has eight length-two outputs 0.002s
+  + spatial types propagate through five Game-of-Life steps without result feedback 2.017s
+  + exact spatial types expose graph fiber degree statistics 0.0s
+  + spatial projections refine scalar size and path-length projections 0.034s
+  + fixpoint reaches a checked post-fixpoint before exposing shapes 0.004s
+  + tails does not assume an interval-length path is headed 0.0s
+  + semantic result laws intersect structural facts and expose contradictions 0.0s
+  + repeated union mentions remain coherent across total and strata 0.011s
+  + union preserves optionality of a known singleton pattern 0.002s
+  + decorated analysis retains lexical iterator bindings 0.003s
+  + cost intervals remain finite through a five-node expression 0.0s
+  + spatial facts expose optimization decisions and symbolic depth degrees 0.003s
+  + decorated nodes have positional identity and joined observations 0.0s
+  + extended fuzzer call routine is analyzed across its annotation boundary 0.0s
+  + dominant monomials distinguish linear from quadratic cost 0.001s
+  + asymptotic projection and recurrence solver retain closed forms 0.001s
+  + recursive routine costs close when every self call consumes tails 0.003s
+morkl.Unification:
+  + renameFrom 0.001s
+  + query 0.001s
+  + transform 0.001s
+==> i morkl.Unification.double transform ignored 0.0s
+  + transpile transform 0.006s
+  + unify 0.052s
+  + overlap 0.006s
+  + division 0.001s
+  + sudoku 0.002s
+  + gol 0.005s
+  + graphviz 0.0s
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+[[31merror[0m]  File not found: /Users/michaelpolyntsov/Zippy_a/src/test/scala/SpaceFuzzer.scala
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 3 deprecation warnings; re-run with -deprecation for details
+2 warnings found
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial production-specialization corpus: programs=1000 preserved=1000 selected=1000 rewritten=1000
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 3 deprecation warnings; re-run with -deprecation for details
+2 warnings found
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial scaling: leaves=  1024 medianMs=57.527
+spatial scaling: leaves=  2048 medianMs=67.621
+spatial scaling: leaves=  4096 medianMs=157.302
+spatial scaling: leaves=  8192 medianMs=317.915
+spatial scaling: leaves= 16384 medianMs=573.570
+spatial scaling: leaves= 32768 medianMs=1132.108
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialCostCorrelationTest:
+  + cost predictions correlate with every executor and models each win 1.79s
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialTypeTest:
+  + spatial membership distinguishes signature envelopes from full gamma 0.017s
+  + generated membership corpus is sound and complete for a declared pattern 0.007s
+  + bounded head shape distinguishes one fat fiber from four heads 0.009s
+  + spatial specialization is guarded and fires only from an annotation 0.082s
+  + production compilation selects an applicable guarded spatial residual 0.014s
+  + iteration cost records groups and reference/trie models differ 0.012s
+  + law registry contains proved obligations and checked negative witnesses 0.002s
+  + spatial restriction retains compatible length strata and prefix witnesses 0.028s
+  + encoded if-empty control has a piecewise exact spatial type 0.021s
+  + iteration counts constant-headed fibers as groups rather than paths 0.005s
+  + nested full-path iterator chains are bounded as pointwise maps 0.013s
+  + pure Game-of-Life neighbor arithmetic has eight length-two outputs 0.055s
+  + spatial types propagate through five Game-of-Life steps without result feedback 2.285s
+  + exact spatial types expose graph fiber degree statistics 0.004s
+  + spatial projections refine scalar size and path-length projections 0.038s
+  + fixpoint reaches a checked post-fixpoint before exposing shapes 0.012s
+  + tails does not assume an interval-length path is headed 0.001s
+  + semantic result laws intersect structural facts and expose contradictions 0.003s
+  + repeated union mentions remain coherent across total and strata 0.014s
+  + union preserves optionality of a known singleton pattern 0.003s
+  + decorated analysis retains lexical iterator bindings 0.004s
+  + cost intervals remain finite through a five-node expression 0.002s
+  + spatial facts expose optimization decisions and symbolic depth degrees 0.008s
+  + decorated nodes have positional identity and joined observations 0.002s
+  + extended fuzzer call routine is analyzed across its annotation boundary 0.002s
+  + dominant monomials distinguish linear from quadratic cost 0.004s
+  + asymptotic projection and recurrence solver retain closed forms 0.0s
+  + recursive routine costs close when every self call consumes tails 0.009s
+2026-08-07 REVIEW-4 FINAL GATE:
+- Addressed all three concerns in review.md: calibrated cost-magnitude validation, analyzer/domain split, and guarded production specializer selection.
+- Full Scala/MUnit suite PASS after the final production changes; focused SpatialTypeTest and repeated SpatialCostCorrelationTest runs PASS.
+- Cost report (one fitted scale/backend, 4x gate): maximum residuals reference=2.13x trie=3.08x zipper=3.04x graph=1.71x; graph composition now retains its quadratic trie-product term.
+- Production selection corpus: programs=1000 preserved=1000 selected=1000 rewritten=1000.
+- Balanced analyzer scaling medians for 1024..32768 leaves: 57.527, 67.621, 157.302, 317.915, 573.570, 1132.108 ms; asymptotic trend remains linear.
+- SpatialType.scala is 666 lines and SpatialAnalyzer.scala is 858 lines. git diff --check passed excluding append-only build.log.

@@ -14,7 +14,7 @@ A `SpatialType` is a finite union of `SpatialStratum` values. Each stratum carri
 
 Patterns contain constants, unknown items, or affine integer items such as `coord.x-1`. Provably different lengths and patterns are disjoint, so their cardinality lower bounds add; possibly overlapping regions use the conservative maximum lower bound. A bounded head-indexed trie projection additionally records epsilon presence, tracked constant heads and their tail summaries, plus bounds and a tail summary for untracked heads. The complete type also exposes total-size and global path-length projections, an explicit inconsistent value (`bottom`), and lower/upper work, allocation, and round bounds for the reference, trie, zipper, and graph backends.
 
-The implementation is split by responsibility: `SpatialType.scala` contains the core stratum lattice and interpreter, `SpatialShape.scala` the bounded trie projection, `SpatialMembership.scala` concretization checks, `SpatialFacts.scala` resolved optimizer facts, `SpatialCostModel.scala` the cost domain and executor models, and `SpatialSpecializer.scala` guarded residualization.
+The implementation is split by responsibility: `SpatialType.scala` contains the core domain, bounds, and CSP values; `SpatialAnalyzer.scala` contains the abstract interpreter and transfer laws; `SpatialShape.scala` contains the bounded trie projection; `SpatialMembership.scala` concretization checks; `SpatialFacts.scala` resolved optimizer facts; `SpatialCostModel.scala` the cost domain and executor models; and `SpatialSpecializer.scala` guarded residualization and its compilation-stage selection API.
 
 ## Membership and guarded residuals
 
@@ -30,7 +30,7 @@ facts.
 
 Pattern inclusion is item-wise: a constant is included by the same constant, a compatible affine domain, or an unknown item; an affine item is included by a sufficiently wide affine item or unknown. Repeated affine variables must bind consistently during concrete membership. Thus a concrete `k.a` type is below a declared `k.?v` type.
 
-`Supercompiler.specializeSpatially` consumes only `SpatialRoutineAnnotations` and returns `SpecializedRoutine(precondition, residual, facts)`. It eliminates abstractly dead nodes, folds proved constants, and applies empty identities. `applicableTo` checks real space arguments with full gamma membership (and path arguments against their path types), so a conditionally valid residual cannot be installed unconditionally.
+`SpatialCompilation.specialize` consumes only `SpatialRoutineAnnotations` and returns `SpecializedRoutine(precondition, residual, facts)`. It eliminates abstractly dead nodes, folds proved constants, and applies empty identities. `applicableTo` checks real space arguments with full gamma membership (and path arguments against their path types), so a conditionally valid residual cannot be installed unconditionally. `Supercompiler.specialize` is the production consumer: it derives exact annotations only for syntactically concrete call arguments, calls `SpatialCompilation.selectApplicable`, and installs the residual only after that guard succeeds. The selected facts are retained in `SupercompileReport.spatialRewriteFacts`.
 
 `SpatialAssumptions` maps free space mentions and path references to input types. `SpatialPrefixCoverage(k, xs, lengths)` is an optional dependency asserting that path `k` prefixes a represented fiber of `xs` at the selected lengths. This small dependency is necessary for positive restriction lower bounds: knowing only that `k` has length three cannot prove that an arbitrary length-four path starts with `k`.
 
@@ -150,7 +150,7 @@ and average `3/2`.
 `SpatialBackendSelection.candidates` converts those facts into optimization
 recommendations: bounded-depth trie unrolling, common-prefix zipper pre-focus,
 and exact-value graph constant folding. An executable rewrite is instead
-returned by `Supercompiler.specializeSpatially`, whose precondition travels
+returned by `SpatialCompilation.specialize`, whose precondition travels
 with the residual.
 
 ## Cardinality-preserving caps
@@ -206,11 +206,19 @@ order.
 
 Cost addition no longer has a `TermLimit => Infinity` precision cliff. Small
 finite sums are stored as shallow chunks and large ones as named finite-sum
-atoms, while the rendering budget controls only presentation. The committed correlation test times reference, trie,
-zipper, and graph execution independently and also requires every cost model
-to be cheapest on at least one representative operation. The current fixed
-composition-scaling run reports Spearman correlations of 1.000, 0.800, 1.000,
-and 1.000 respectively.
+atoms, while the rendering budget controls only presentation. The committed cost
+test times reference, trie, zipper, and graph execution independently, requires
+every cost model to be cheapest on at least one representative operation, and
+checks both rank and magnitude. Rank is measured by Spearman correlation over a
+scaling family. Magnitude uses a mixed union/restriction/composition/range corpus,
+fits one geometric-mean nanoseconds-per-cost-unit constant per backend, and
+requires every observation's multiplicative residual to remain within 4x. The
+fitted scale is a machine-local calibration; the bounded residual is the permanent
+gate that exposes uniform and operation-specific magnitude mistakes which rank
+alone cannot detect.
+Measurements use current-thread CPU time when the JVM exposes it, sixteen warmups,
+and a nine-sample median so a loaded test JVM does not turn scheduler, GC, or JIT
+phase changes into false cost-model failures.
 
 ## One-way validation
 

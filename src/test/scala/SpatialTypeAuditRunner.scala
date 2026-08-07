@@ -242,10 +242,15 @@ package morkl
   records.foreach { record =>
     val routine = Routine(RoutinePtr(s"spatial_specialize_${record.id}"), Vector.empty,
       Vector(SpaceFuzzer.argM), record.example.program)
-    val specialized = SpatialElimination.specialize(routine,
+    val selection = SpatialCompilation.selectApplicable(
+      routine,
       SpatialRoutineAnnotations(spaces = Map(SpaceFuzzer.argM -> SpatialType.exact(record.example.arg))),
-      SpaceFuzzer.routines)
-    require(specialized.applicableTo(Map(SpaceFuzzer.argM -> record.example.arg)))
+      Map(SpaceFuzzer.argM -> record.example.arg),
+      Map.empty,
+      SpaceFuzzer.routines,
+    )
+    val specialized = selection.specialization.getOrElse(
+      throw IllegalStateException(s"${record.id}: exact argument did not select its guarded residual"))
     given PathContext = PathContextMap(Map.empty)
     given SpaceContext = SpaceContextMap(Map(SpaceFuzzer.argM -> record.example.arg))
     given PartialFunction[RoutinePtr, Routine] = SpaceFuzzer.routines
@@ -254,4 +259,4 @@ package morkl
       s"specialized ${record.id} changed meaning; original=${record.example.program.show}; residual=${specialized.residual.body.show}")
     if specialized.facts.nonEmpty then rewritten += 1
   }
-  println(s"spatial specialization corpus: programs=$count preserved=$count rewritten=$rewritten")
+  println(s"spatial production-specialization corpus: programs=$count preserved=$count selected=$count rewritten=$rewritten")

@@ -2589,9 +2589,10 @@ case class SupercompileReport(
   constantFoldExecTCalls: Int = 0,
   compileMs: Double = 0.0,
   maxCompileMillis: Long = CompileBudget.Default.maxMillis,
-  graphError: Option[String] = None
+  graphError: Option[String] = None,
+  spatialRewriteFacts: Vector[SpatialRewriteFact] = Vector.empty,
 ):
-  def changed: Boolean = steps.nonEmpty
+  def changed: Boolean = steps.nonEmpty || spatialRewriteFacts.nonEmpty
   def backendCompiled: Boolean = graphAfter.nonEmpty
   def sourceOptimizeMs: Double = sourceTimings.map(_.elapsedMs).sum
   def summary: String =
@@ -2607,7 +2608,10 @@ case class SupercompileReport(
       val total = constantFoldEvalMs + constantFoldEvalTrieMs + constantFoldEvalZMs + constantFoldExecTMs
       if calls == 0 then ""
       else f", const-fold eval $total%.3f ms (${constantFoldEvalCalls} eval, ${constantFoldEvalTrieCalls} evalTrie, ${constantFoldEvalZCalls} evalZ, ${constantFoldExecTCalls} execT)"
-    f"${name.s}: ${before.totalNodes} -> ${after.totalNodes} AST nodes, ${steps.size} pass changes, $convergence$graph$fold, compile $compileMs%.3f ms / budget ${maxCompileMillis} ms"
+    val spatial =
+      if spatialRewriteFacts.isEmpty then ""
+      else s", ${spatialRewriteFacts.size} guarded spatial rewrites"
+    f"${name.s}: ${before.totalNodes} -> ${after.totalNodes} AST nodes, ${steps.size} pass changes, $convergence$graph$fold$spatial, compile $compileMs%.3f ms / budget ${maxCompileMillis} ms"
 
 case class SupercompiledRoutine(routine: Routine, report: SupercompileReport, graph: Option[RecursiveOpGraph]):
   def resultSize(
@@ -2719,14 +2723,6 @@ object Supercompiler:
     routines: PartialFunction[RoutinePtr, Routine]
   ): SpatialType =
     SpatialTypeAnalysis.outputRoutineAbstract(routine, annotations, routines)
-
-  /** Produce a semantics-preserving residual guarded by the declared spatial
-    * input type. The guard uses full concretization membership. */
-  def specializeSpatially(
-    routine: Routine,
-    annotations: SpatialRoutineAnnotations,
-    routines: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty,
-  ): SpecializedRoutine = SpatialElimination.specialize(routine, annotations, routines)
 
   /** Normalize source operations before spatial abstract interpretation. */
   def optimizedSpatialType(
@@ -3211,7 +3207,8 @@ object Supercompiler:
               ctx: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty,
               maxRounds: Int = 128,
               buildGraph: Boolean = true,
-              maxCompileMillis: Long = CompileBudget.Default.maxMillis): SupercompiledRoutine =
+              maxCompileMillis: Long = CompileBudget.Default.maxMillis,
+              spatialRewriteFacts: Vector[SpatialRewriteFact] = Vector.empty): SupercompiledRoutine =
     val deadline = CompileBudget(maxCompileMillis).start()
     def timed[A](phase: String)(f: => A): (A, Double) =
       deadline.check(phase)
@@ -3283,7 +3280,8 @@ object Supercompiler:
       constantFoldEval.execTCalls,
       deadline.elapsedMs,
       maxCompileMillis,
-      graphError
+      graphError,
+      spatialRewriteFacts,
     )
     SupercompiledRoutine(out, report, graph)
 
@@ -3294,11 +3292,25 @@ object Supercompiler:
                  maxRounds: Int = 128,
                  buildGraph: Boolean = true,
                  maxCompileMillis: Long = CompileBudget.Default.maxMillis): SupercompiledRoutine =
-    val specializedBody = subs(r.body)(
+    val (spatialAnnotations, concreteSpaces, concretePaths) =
+      SpatialCompilation.exactArguments(spaceArgs, pathArgs)
+    val spatialSelection =
+      if concreteSpaces.nonEmpty || concretePaths.nonEmpty then
+        SpatialCompilation.selectApplicable(r, spatialAnnotations, concreteSpaces, concretePaths, ctx)
+      else SpatialCompilationSelection(r, None)
+    val spatiallySelected = spatialSelection.routine
+    val specializedBody = subs(spatiallySelected.body)(
       spost = { case Space.Mention(sm) if spaceArgs.contains(sm) => spaceArgs(sm) },
       ppost = { case Path.Deref(pr) if pathArgs.contains(pr) => pathArgs(pr) }
     )
-    compile(r.copy(body = specializedBody), ctx, maxRounds, buildGraph, maxCompileMillis)
+    compile(
+      spatiallySelected.copy(body = specializedBody),
+      ctx,
+      maxRounds,
+      buildGraph,
+      maxCompileMillis,
+      spatialSelection.specialization.toVector.flatMap(_.facts),
+    )
 
   def equivalent(original: Space,
                  compiled: Space)

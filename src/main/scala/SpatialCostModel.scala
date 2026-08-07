@@ -135,6 +135,11 @@ object SpatialCostModels:
       case Vector(left, right, _*) => Some(left -> right)
       case _ => None
 
+  private def log2ceil(value: SizeExpr): SizeExpr = value.annotatedValue match
+    case Some(number) if number <= 1 => SizeExpr.One
+    case Some(number) => SizeExpr.const(BigInt((number - 1).bitLength))
+    case None => SizeExpr.symbol(s"log2ceil(${value.show})")
+
   object Reference extends SpatialCostModel:
     val backend = SpatialBackend.Reference
     def operation(kind: SpatialCostOperation, inputs: Vector[SpatialCostMeasure], result: SpatialCostMeasure,
@@ -142,9 +147,17 @@ object SpatialCostModels:
       binary(inputs) match
         case Some((left, right)) =>
           val work = kind match
-            case SpatialCostOperation.Composition => mul(left.size.upper, right.size.upper, add(left.lengthUpper, right.lengthUpper))
+            case SpatialCostOperation.Composition =>
+              mul(left.size.upper, right.size.upper, add(left.lengthUpper, right.lengthUpper))
             case SpatialCostOperation.Restriction => mul(left.size.upper, right.size.upper, right.lengthUpper)
-            case SpatialCostOperation.Union | SpatialCostOperation.Intersection | SpatialCostOperation.Subtraction =>
+            case SpatialCostOperation.Union =>
+              // SpaceValue is an immutable HAMT set. A disjoint union hashes
+              // each path and updates several 5-bit trie levels; path equality
+              // also traverses its items. Seven is the maximum material HAMT
+              // depth for the 32-bit hashes used by this representation.
+              mul(SizeExpr.const(7), add(left.size.upper, right.size.upper),
+                SizeExpr.maximum(left.lengthUpper, right.lengthUpper))
+            case SpatialCostOperation.Intersection | SpatialCostOperation.Subtraction =>
               add(left.size.upper, right.size.upper)
             case _ => fallback.workUpper
           val allocation = kind match
@@ -157,7 +170,7 @@ object SpatialCostModels:
         case None => kind match
           case SpatialCostOperation.Range if inputs.nonEmpty =>
             val source = inputs.head
-            val log = SizeExpr.symbol(s"log2ceil(${source.size.upper.show})")
+            val log = log2ceil(source.size.upper)
             fallback.copy(workUpper = mul(source.size.upper, log, source.lengthUpper))
           case _ => fallback
 
@@ -168,7 +181,7 @@ object SpatialCostModels:
       binary(inputs) match
         case Some((left, right)) =>
           val work = kind match
-            case SpatialCostOperation.Composition => add(left.nodesUpper, mul(left.size.upper, right.nodesUpper))
+            case SpatialCostOperation.Composition => add(left.nodesUpper, mul(left.size.upper, right.size.upper))
             case SpatialCostOperation.Restriction => add(left.nodesUpper, right.nodesUpper)
             case SpatialCostOperation.Union | SpatialCostOperation.Intersection | SpatialCostOperation.Subtraction =>
               add(left.nodesUpper, right.nodesUpper)
@@ -193,8 +206,15 @@ object SpatialCostModels:
     def operation(kind: SpatialCostOperation, inputs: Vector[SpatialCostMeasure], result: SpatialCostMeasure,
       fallback: SpatialCostInterval): SpatialCostInterval = kind match
       case SpatialCostOperation.Union => fallback.copy(workUpper = SizeExpr.const(inputs.size), allocationUpper = SizeExpr.One)
-      case SpatialCostOperation.Composition => fallback.copy(
-        workUpper = add(inputs.map(_.nodesUpper)*), allocationUpper = SizeExpr.One)
+      case SpatialCostOperation.Composition => binary(inputs) match
+        // execT dispatch is constant, but the node still performs the native
+        // Cartesian trie product. Preserve that quadratic term instead of
+        // treating a graph operation node as its complete execution cost.
+        case Some((left, right)) => fallback.copy(
+          workUpper = add(left.nodesUpper, right.nodesUpper, mul(left.size.upper, right.size.upper)),
+          allocationUpper = SizeExpr.One,
+        )
+        case None => fallback.copy(workUpper = add((inputs.map(_.nodesUpper) :+ SizeExpr.One)*), allocationUpper = SizeExpr.One)
       case _ => fallback.copy(workUpper = add((inputs.map(_.nodesUpper) :+ SizeExpr.One)*), allocationUpper = SizeExpr.One)
 
   val all: Vector[SpatialCostModel] = Vector(Reference, Trie, Zipper, Graph)

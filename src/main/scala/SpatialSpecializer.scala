@@ -29,6 +29,53 @@ case class SpecializedRoutine(
     }
   }
 
+case class SpatialCompilationSelection(
+  routine: Routine,
+  specialization: Option[SpecializedRoutine],
+):
+  def usedSpatialSpecialization: Boolean = specialization.nonEmpty
+
+/** Production bridge from guarded abstract specialization to compilation. */
+object SpatialCompilation:
+  def specialize(
+    routine: Routine,
+    annotations: SpatialRoutineAnnotations,
+    routines: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty,
+  ): SpecializedRoutine = SpatialElimination.specialize(routine, annotations, routines)
+
+  /** Keep the residual only after its attached precondition accepts the
+    * concrete arguments that are about to enter compilation. */
+  def selectApplicable(
+    routine: Routine,
+    annotations: SpatialRoutineAnnotations,
+    spaces: Map[SpaceMention, SpaceValue],
+    paths: Map[PathRef, PathValue],
+    routines: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty,
+  ): SpatialCompilationSelection =
+    val specialized = specialize(routine, annotations, routines)
+    if specialized.applicableTo(spaces, paths) then
+      SpatialCompilationSelection(specialized.residual, Some(specialized))
+    else SpatialCompilationSelection(routine, None)
+
+  /** Extract only syntactically concrete call arguments. This is intentionally
+    * not an evaluator: unsupported argument syntax simply skips this stage. */
+  def exactArguments(
+    spaces: Map[SpaceMention, Space],
+    paths: Map[PathRef, Path],
+  ): (SpatialRoutineAnnotations, Map[SpaceMention, SpaceValue], Map[PathRef, PathValue]) =
+    def spaceValue(value: Space): Option[SpaceValue] = value match
+      case Space.Empty => Some(SpaceValue(Set.empty))
+      case Space.Literal(concrete) => Some(concrete)
+      case Space.Singleton(Path.Constant(path)) => Some(SpaceValue(Set(path)))
+      case _ => None
+    val concreteSpaces = spaces.flatMap((mention, value) => spaceValue(value).map(mention -> _))
+    val concretePaths = paths.collect { case (reference, Path.Constant(value)) => reference -> value }
+    val annotations = SpatialRoutineAnnotations(
+      spaces = concreteSpaces.view.mapValues(SpatialType.exact(_)).toMap,
+      paths = concretePaths.view.mapValues(SpatialPathType.constant).toMap,
+    )
+    (annotations, concreteSpaces, concretePaths)
+
 object SpatialElimination:
   /** Specialize only from declared abstract inputs. Concrete evaluation never
     * feeds this pass; the residual is guarded by full γ-membership. */
