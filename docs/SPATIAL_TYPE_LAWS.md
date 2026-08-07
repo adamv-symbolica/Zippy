@@ -17,6 +17,7 @@ The analysis currently uses all of the following information.
 | Symbolic path pattern | Ordered vector of symbolic items. Used by concatenation, prefix tests, unwrap, restriction, and exact-value recovery. |
 | Path-expression type | Alternative patterns plus a lower/upper length interval. A path expression still denotes one path; its patterns are alternatives. |
 | Spatial stratum | Pattern or length region together with a lower/upper cardinality. Provably disjoint strata have additive lower bounds; overlapping strata use their maximum lower bound. |
+| Bounded head shape | Epsilon presence, tracked constant heads with recursive tail summaries, and cardinality/tail summaries for untracked heads. It refines iteration groups, prefix counts, and per-depth degree without truncating overflow. |
 | Total size | Lower/upper result-space cardinality, including symbolic and `ifZero` expressions. |
 | Global path length | Minimum/maximum length projected from every nonempty stratum. |
 | Exact constant | A finite path set represented path-for-path while below the pattern cap. It is the constant abstract subdomain. |
@@ -29,11 +30,11 @@ The analysis currently uses all of the following information.
 | Total source caps | Selectors cannot exceed their source; composition cannot exceed the product of operand totals. These caps reduce stratum-derived totals. |
 | Semantic type annotation | `SpatialRoutineAnnotations.resultLaws` contributes a proved must/may cardinality envelope. It is an analysis input and is intersected with, never substituted for, constructor analysis. |
 | Finite relational count | `FiniteIntConstraintProblem` counts assignments within an explicit node budget and falls back to no refinement when exhausted. |
-| Fiber degree | Exact constants are counted directly. Symbolic constant/affine/unknown items yield per-level choice and fiber bounds; key-specific dependent correlation remains future work. |
+| Fiber degree | Exact constants are counted directly. The bounded head shape supplies prefix counts and per-level label bounds; flat constant/affine/unknown patterns provide an independent projection. Key-specific dependent correlation beyond the bounded shape remains future work. |
 | Bounded representation | Above the pattern limit, patterns are summarized into length strata. Summarization enlarges concretization; it never truncates alternatives. |
 | Inconsistent state | `SpatialType.bottom` represents contradictory evidence and absorbs meet and deterministic transfer. |
 | Fixpoint invariant | Ascending iteration plus checked widening returns only a post-fixpoint; failure to establish one returns top in every spatial component. |
-| Analysis cost | Symbolic lower/upper work/allocation intervals are propagated generically and per backend. A dominant-monomial antichain supplies the separate asymptotic order. |
+| Analysis cost | Symbolic lower/upper work/allocation/round intervals are propagated by one model per executor. Iteration and fixpoint are charged; recurrence and dominant-order projections remain symbolic. |
 | Decorated tree | Every occurrence has a positional child-index identity; repeated lexical observations are retained and joined for optimizer consumers. |
 
 ## Semantic interval lattice
@@ -69,6 +70,12 @@ infᵢ [Lᵢ,Uᵢ] = normalize([unionᵢ Lᵢ, intersectionᵢ Uᵢ])
 
 where an inconsistent interval normalizes to `⊥`. Bottom is ignored by a supremum and absorbs an infimum. The empty supremum is `⊥`; the empty infimum is `⊤`. Binary join and meet are the supremum and infimum of a pair. This is a complete bounded lattice and satisfies partial-order, universal-bound, idempotence, commutativity, associativity, and absorption laws.
 
+`SpatialType.joinAlternatives` is this lattice join. It is not the MORKL
+set-union transfer: the former combines alternative abstract states by taking
+the least common envelope, while the latter maps two simultaneously present
+operand sets through concrete union. Swapping them is generally unsound even
+though both functions combine two `SpatialType` values.
+
 It is **not distributive**. Normalization can turn an inconsistent meet into bottom, and both distributive equalities have finite counterexamples. Optimizers and reductions must not assume distributivity of abstract types even though concrete path sets form a Boolean algebra.
 
 ## Reduced product
@@ -76,8 +83,8 @@ It is **not distributive**. Normalization can turn an inconsistent meet into bot
 The implementation is a finite projection of this model. Its intended semantic interpretation is a reduced product:
 
 ```text
-γᵣ(shape × size × length × dependencies)
-  = γshape ∩ γsize ∩ γlength ∩ γdependencies.
+γᵣ(strata × trie-shape × size × length × dependencies)
+  = γstrata ∩ γtrie-shape ∩ γsize ∩ γlength ∩ γdependencies.
 ```
 
 Componentwise refinement is monotone in the product order. `SpatialType.reduce`
@@ -155,6 +162,12 @@ The generated `spatial_*_fo.p` obligations cover:
 - backend-selection bridges: bounded-depth trie unrolling, common-prefix zipper pre-focus, and exact graph constant folding, each derived from extensional backend semantics.
 
 Each generated problem has a lean, operator-specific prelude. Abstract values and abstract collections are guarded by predicates because TPTP FOL is untyped. Transformer equations are guarded by `L ⊆ U`; without that guard, different invalid interval representatives all denote bottom but could be mapped to different outputs, making the theory inconsistent.
+
+`SpatialLawRegistry` maps law names to their generated certificates and an
+explicit `Proved` or `Refuted` verdict. Refuted claims retain both a committed
+finite witness and an expected-`sat` bounded Z3 obligation. Current negative
+entries include right-union distribution of subtraction and commutativity of
+restriction; failed conjectures therefore remain visible in the proof story.
 
 `SpatialTypeLatticeTest` independently enumerates the 28 semantic interval
 values over a three-element universe. It also exercises the production

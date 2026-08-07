@@ -2720,6 +2720,14 @@ object Supercompiler:
   ): SpatialType =
     SpatialTypeAnalysis.outputRoutineAbstract(routine, annotations, routines)
 
+  /** Produce a semantics-preserving residual guarded by the declared spatial
+    * input type. The guard uses full concretization membership. */
+  def specializeSpatially(
+    routine: Routine,
+    annotations: SpatialRoutineAnnotations,
+    routines: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty,
+  ): SpecializedRoutine = SpatialElimination.specialize(routine, annotations, routines)
+
   /** Normalize source operations before spatial abstract interpretation. */
   def optimizedSpatialType(
     s: Space,

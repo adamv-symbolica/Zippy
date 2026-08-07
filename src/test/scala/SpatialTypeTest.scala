@@ -10,6 +10,139 @@ class SpatialTypeTest extends FunSuite:
   private def path(length: Int, prefix: String): PathValue =
     PathValue(List.tabulate(length)(index => PathItem(s"${prefix}_$index")))
 
+  test("spatial membership distinguishes signature envelopes from full gamma") {
+    val k = PathItem("k")
+    val declared = SpatialType.fromStrata(Vector(SpatialStratum(
+      PathLengthEstimate.exact(PathLengthExpr.const(2)),
+      ResultSizeEstimate(SizeExpr.const(3), SizeExpr.One),
+      Some(SpatialPattern(Vector(SpatialItem.Constant(k), SpatialItem.Unknown("v"))))
+    )))
+    val one = SpaceValue(PathValue(List(k, PathItem("a"))))
+    val two = SpaceValue(PathValue(List(k, PathItem("a"))), PathValue(List(k, PathItem("b"))))
+
+    assert(SpatialMembership.satisfies(one, declared))
+    assert(SpatialMembership.gammaMember(two, declared))
+    assert(SpatialType.lessOrEqual(SpatialType.exact(one), declared))
+    assert(!SpatialMembership.satisfies(SpaceValue(PathValue(List(PathItem("z"), PathItem("a")))), declared))
+    assert(!SpatialMembership.satisfies(SpaceValue(PathValue(List(k, PathItem("a"), PathItem("b")))), declared))
+
+    val twoRequiredClasses = SpatialType.fromStrata(Vector(
+      SpatialStratum(PathLengthEstimate.exact(PathLengthExpr.const(1)), ResultSizeEstimate.exact(SizeExpr.One),
+        Some(SpatialPattern(Vector(SpatialItem.Constant(PathItem("a")))))),
+      SpatialStratum(PathLengthEstimate.exact(PathLengthExpr.const(1)), ResultSizeEstimate.exact(SizeExpr.One),
+        Some(SpatialPattern(Vector(SpatialItem.Constant(PathItem("b"))))))
+    ), sizeOverride = Some(ResultSizeEstimate(SizeExpr.const(2), SizeExpr.One)))
+    val onlyA = SpaceValue(PathValue(List(PathItem("a"))))
+    assert(SpatialMembership.satisfies(onlyA, twoRequiredClasses))
+    assert(!SpatialMembership.gammaMember(onlyA, twoRequiredClasses))
+  }
+
+  test("generated membership corpus is sound and complete for a declared pattern") {
+    val k = PathItem("k")
+    val declared = SpatialType.fromStrata(Vector(SpatialStratum(
+      PathLengthEstimate.exact(PathLengthExpr.const(2)),
+      ResultSizeEstimate(SizeExpr.const(3), SizeExpr.One),
+      Some(SpatialPattern(Vector(SpatialItem.Constant(k), SpatialItem.Unknown("value"))))
+    )))
+    val universe = Vector("a", "b", "c").map(item => PathValue(List(k, PathItem(item)))) ++ Vector(
+      PathValue(List(PathItem("z"), PathItem("a"))),
+      PathValue(List(k)),
+    )
+    var accepted = 0
+    var rejected = 0
+    (0 until (1 << universe.size)).foreach { mask =>
+      val value = SpaceValue(universe.indices.collect { case index if (mask & (1 << index)) != 0 => universe(index) }.toSet)
+      val expected = value.paths.size >= 1 && value.paths.size <= 3 &&
+        value.paths.forall(path => path.items.size == 2 && path.items.head == k)
+      assertEquals(SpatialMembership.gammaMember(value, declared), expected, value.pretty)
+      assertEquals(SpatialMembership.satisfies(value, declared), expected, value.pretty)
+      if expected then accepted += 1 else rejected += 1
+    }
+    assertEquals(accepted, 7)
+    assertEquals(rejected, 25)
+  }
+
+  test("bounded head shape distinguishes one fat fiber from four heads") {
+    val fat = SpatialType.exact(SpaceValue(
+      PathValue(List(PathItem("a"), PathItem("0"))),
+      PathValue(List(PathItem("a"), PathItem("1"))),
+      PathValue(List(PathItem("a"), PathItem("2"))),
+      PathValue(List(PathItem("a"), PathItem("3"))),
+    ))
+    val wide = SpatialType.exact(SpaceValue(
+      PathValue(List(PathItem("a"), PathItem("0"))),
+      PathValue(List(PathItem("b"), PathItem("0"))),
+      PathValue(List(PathItem("c"), PathItem("0"))),
+      PathValue(List(PathItem("d"), PathItem("0"))),
+    ))
+    assertEquals(fat.shape.headCount, ResultSizeEstimate.exact(SizeExpr.One))
+    assertEquals(wide.shape.headCount, ResultSizeEstimate.exact(SizeExpr.const(4)))
+    assertEquals(fat.fiberDegree(1).keys, ResultSizeEstimate.exact(SizeExpr.One))
+    assertEquals(wide.fiberDegree(1).keys, ResultSizeEstimate.exact(SizeExpr.const(4)))
+  }
+
+  test("spatial specialization is guarded and fires only from an annotation") {
+    val input = SpaceMention("input")
+    val literal = SpaceValue(PathValue(List(PathItem("kept"))))
+    val routine = Routine(RoutinePtr("guarded"), Vector.empty, Vector(input),
+      Space.Intersection(Space.Mention(input), Space.Literal(literal)))
+    val annotated = Supercompiler.specializeSpatially(routine,
+      SpatialRoutineAnnotations(spaces = Map(input -> SpatialType.empty)))
+    val unannotated = Supercompiler.specializeSpatially(routine, SpatialRoutineAnnotations())
+
+    assertEquals(annotated.residual.body, Space.Empty)
+    assert(annotated.facts.nonEmpty)
+    assert(annotated.applicableTo(Map(input -> SpaceValue())))
+    assert(!annotated.applicableTo(Map(input -> literal)))
+    assertNotEquals(unannotated.residual.body, Space.Empty)
+
+    given PathContext = PathContextMap(Map.empty)
+    given SpaceContext = SpaceContextMap(Map(input -> SpaceValue()))
+    assertEquals(eval(annotated.residual.body), eval(routine.body))
+  }
+
+  test("iteration cost records groups and reference/trie models differ") {
+    val source = Space.Literal(SpaceValue(
+      PathValue(List(PathItem("a"), PathItem("0"))),
+      PathValue(List(PathItem("b"), PathItem("0"))),
+      PathValue(List(PathItem("c"), PathItem("0"))),
+      PathValue(List(PathItem("d"), PathItem("0"))),
+    ))
+    val head = PathRef("head")
+    val tails = SpaceMention("tails")
+    val result = SpatialTypeAnalysis.output(Space.Iteration(source, head, tails, Space.Singleton(Path.Deref(head))))
+    assertEquals(result.cost.roundsLower.annotatedValue, Some(BigInt(4)))
+    assertEquals(result.cost.roundsUpper.annotatedValue, Some(BigInt(4)))
+    assert(result.cost.workUpper.annotatedBound(Z3BoundDirection.Lower).exists(_ > 0))
+
+    val left = SpatialType.lengths(2 -> ResultSizeEstimate.exact(SizeExpr.const(256)))
+    val right = SpatialType.lengths(2 -> ResultSizeEstimate.exact(SizeExpr.const(256)))
+    val fallback = SpatialCostInterval(SizeExpr.Zero, SizeExpr.const(65536), SizeExpr.Zero, SizeExpr.const(65536))
+    val measures = Vector(SpatialCostMeasure(left), SpatialCostMeasure(right))
+    val resultMeasure = SpatialCostMeasure(left)
+    val referenceRestriction = SpatialCostModels.Reference.operation(
+      SpatialCostOperation.Restriction, measures, resultMeasure, fallback)
+    val trieRestriction = SpatialCostModels.Trie.operation(
+      SpatialCostOperation.Restriction, measures, resultMeasure, fallback)
+    assertNotEquals(referenceRestriction.workUpper, trieRestriction.workUpper)
+  }
+
+  test("law registry contains proved obligations and checked negative witnesses") {
+    assert(SpatialLawRegistry.certificates.exists(_.verdict == SpatialLawVerdict.Proved))
+    assert(SpatialLawRegistry.certificates.exists(_.verdict == SpatialLawVerdict.Refuted))
+
+    val a = Space.Literal(SpaceValue(PathValue(List(PathItem("a")))))
+    val empty = Space.Empty
+    given PathContext = PathContextMap(Map.empty)
+    given SpaceContext = SpaceContextMap(Map.empty)
+    val falseDistribution = Space.Subtraction(a, Space.Union(a, empty))
+    val claimedRight = Space.Union(Space.Subtraction(a, a), Space.Subtraction(a, empty))
+    assertNotEquals(eval(falseDistribution), eval(claimedRight))
+
+    val ab = Space.Literal(SpaceValue(PathValue(List(PathItem("a"), PathItem("b")))))
+    assertNotEquals(eval(Space.Restriction(ab, a)), eval(Space.Restriction(a, ab)))
+  }
+
   test("spatial restriction retains compatible length strata and prefix witnesses") {
     val xs = SpaceMention("xs")
     val ys = SpaceMention("ys")
@@ -421,4 +554,29 @@ class SpatialTypeTest extends FunSuite:
     val quadratic = SizeExpr.growth(SizeExpr.multiply(edges, edges), Set("E")).get
     assert(linear.noGreaterThan(quadratic))
     assert(!quadratic.noGreaterThan(linear))
+  }
+
+  test("asymptotic projection and recurrence solver retain closed forms") {
+    val n = SizeExpr.symbol("N")
+    val linear = SpatialRecurrence.solve(SizeExpr.const(3), SizeExpr.One, n)
+    val branching = SpatialRecurrence.solve(SizeExpr.const(3), SizeExpr.const(2), n)
+    assertEquals(SizeExpr.asymptotic(linear, Set("N")), Some(AsymptoticOrder(0, 1, 0)))
+    assertEquals(SizeExpr.asymptotic(branching, Set("N")), Some(AsymptoticOrder(1, 0, 0)))
+    assert(SizeExpr.asymptotic(linear, Set("N")).get < SizeExpr.asymptotic(branching, Set("N")).get)
+  }
+
+  test("recursive routine costs close when every self call consumes tails") {
+    val name = RoutinePtr("spatial_tail_recursion")
+    val input = SpaceMention("recursive_input")
+    val self = Space.Call(name, Vector.empty, Vector(Space.TailsUnion(Space.Mention(input))))
+    val routine = Routine(name, Vector.empty, Vector(input),
+      Space.Union(Space.Singleton(Path.ZERO), self))
+    val inputType = SpatialType.lengths(4 -> ResultSizeEstimate.exact(SizeExpr.One))
+    assertEquals(SpatialRecursion.depthBound(routine, Vector(inputType)), Some(SizeExpr.const(4)))
+    val routines: PartialFunction[RoutinePtr, Routine] = { case `name` => routine }
+    val result = SpatialTypeAnalysis.output(
+      Space.Call(name, Vector.empty, Vector(Space.Mention(input))),
+      SpatialAssumptions(spaces = Map(input -> inputType)), routines)
+    assert(!result.cost.show.contains("recWork("), result.cost.show)
+    assert(result.cost.workUpper != SizeExpr.Infinity)
   }

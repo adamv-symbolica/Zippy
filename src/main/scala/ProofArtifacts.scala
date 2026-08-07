@@ -812,7 +812,10 @@ object ProofArtifacts:
       generatedNegative("union_as_intersection", Union(x, y), Intersection(x, y)),
       generatedNegative("intersection_as_union", Intersection(x, y), Union(x, y)),
       generatedNegative("diff_as_intersection", Diff(x, y), Intersection(x, y)),
+      generatedNegative("diff_right_union_distribution", Diff(x, Union(y, z)),
+        Union(Diff(x, y), Diff(x, z))),
       generatedNegative("restriction_as_raffination", Restriction(x, p), Raffination(x, p)),
+      generatedNegative("restriction_commutative", Restriction(x, y), Restriction(y, x)),
       generatedNegative("wrap_unwrap_wrong_prefix", Unwrap(Wrap(Vector(a), x), Vector(b)), x),
       generatedNegative("product_commutative", Product(x, y), Product(y, x)),
       generatedNegative(

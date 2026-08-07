@@ -45,6 +45,8 @@ package morkl
       s"program ${record.id}: spatial size [$lower,${upper.getOrElse("∞")}] misses $actualSize; ${example.program.show}; ${spatial.show}")
     require(minLength <= actualMin && maxLength.forall(_ >= actualMax),
       s"program ${record.id}: spatial length [$minLength,${maxLength.getOrElse("∞")}] misses [$actualMin,$actualMax]; ${example.program.show}; ${spatial.show}")
+    require(SpatialMembership.gammaMember(example.result, spatial),
+      s"program ${record.id}: full spatial gamma omits concrete output; ${example.program.show}; ${spatial.show}")
     val optimizedLower = optimizedSpatial.size.lower.annotatedBound(Z3BoundDirection.Lower).getOrElse(BigInt(0))
     val optimizedUpper = optimizedSpatial.size.upper.annotatedBound(Z3BoundDirection.Upper)
     val optimizedMin = optimizedSpatial.pathLength.lower.annotatedBound(Z3BoundDirection.Lower).getOrElse(BigInt(0))
@@ -172,6 +174,8 @@ package morkl
       config = if extended then SpatialAnalysisConfig(analysisNodeBudget = 1000)
         else SpatialAnalysisConfig(),
     )
+    require(SpatialMembership.gammaMember(example.arg, declaredInput),
+      s"open program ${record.id}: concrete argument is outside its declared input")
     val spatial = SpatialTypeAnalysis.output(example.program, assumptions, SpaceFuzzer.routines)
     val actualSize = BigInt(example.result.paths.size)
     val actualMin = BigInt(example.result.paths.map(_.items.length).min)
@@ -184,6 +188,8 @@ package morkl
       s"open program ${record.id}: size [$lower,${upper.getOrElse("∞")}] misses $actualSize; ${example.program.show}; ${spatial.show}")
     require(minLength <= actualMin && maxLength.forall(_ >= actualMax),
       s"open program ${record.id}: length [$minLength,${maxLength.getOrElse("∞")}] misses [$actualMin,$actualMax]; ${example.program.show}; ${spatial.show}")
+    require(SpatialMembership.gammaMember(example.result, spatial),
+      s"open program ${record.id}: full spatial gamma omits concrete output; ${example.program.show}; ${spatial.show}")
     upper.foreach { value =>
       finiteUpper += 1
       if value == actualSize && lower == actualSize then exactSize += 1
@@ -194,3 +200,58 @@ package morkl
   val distribution = sizeSlack.toVector.sortBy(_._1).map((name, n) => s"$name=$n").mkString(",")
   println(s"spatial open audit: programs=$count sound=$count extended=$extended finiteUppers=$finiteUpper " +
     s"exactSizes=$exactSize spaceConstructors=${spaceKinds.size}/24 callPrograms=$callPrograms upperSlack={$distribution}")
+
+/** Soundness hunt with deliberately approximate (but inhabited) annotations.
+  * This is distinct from exact-input validation and catches refinements that
+  * accidentally smuggle concrete observations into the abstract state. */
+@main def spatialTypeAdversarialGammaAudit(
+  count: Int = 1000,
+  seed: Long = 20260708L,
+  maxDepth: Int = 6,
+  maxResult: Int = 400,
+): Unit =
+  val records = SpaceFuzzerCorpus.generate(count, seed, maxDepth, maxResult, extended = true)
+  var envelopeAccepted = 0
+  var gammaAccepted = 0
+  records.foreach { record =>
+    val example = record.example
+    val byLength = example.arg.paths.groupBy(_.items.length).toVector.sortBy(_._1)
+    val declared = SpatialType.fromStrata(byLength.map { (length, paths) =>
+      SpatialStratum(PathLengthEstimate.exact(PathLengthExpr.const(length)),
+        ResultSizeEstimate(SizeExpr.const(paths.size + 3), SizeExpr.Zero))
+    }, sizeOverride = Some(ResultSizeEstimate(SizeExpr.const(example.arg.paths.size + 6), SizeExpr.Zero)))
+    require(SpatialMembership.gammaMember(example.arg, declared), s"${record.id}: malformed approximate declaration")
+    val assumptions = SpatialAssumptions(spaces = Map(SpaceFuzzer.argM -> declared),
+      config = SpatialAnalysisConfig(analysisNodeBudget = 1500))
+    val result = SpatialTypeAnalysis.output(example.program, assumptions, SpaceFuzzer.routines)
+    if SpatialMembership.satisfies(example.result, result) then envelopeAccepted += 1
+    if SpatialMembership.gammaMember(example.result, result) then gammaAccepted += 1
+    require(SpatialMembership.gammaMember(example.result, result),
+      s"adversarial ${record.id}: γ violation; ${example.program.show}; declared=${declared.show}; result=${result.show}")
+  }
+  println(s"spatial adversarial gamma audit: programs=$count envelope=$envelopeAccepted gamma=$gammaAccepted sound=$gammaAccepted")
+
+@main def spatialSpecializationCorpusAudit(
+  count: Int = 1000,
+  seed: Long = 20260708L,
+  maxDepth: Int = 5,
+  maxResult: Int = 400,
+): Unit =
+  val records = SpaceFuzzerCorpus.generate(count, seed, maxDepth, maxResult)
+  var rewritten = 0
+  records.foreach { record =>
+    val routine = Routine(RoutinePtr(s"spatial_specialize_${record.id}"), Vector.empty,
+      Vector(SpaceFuzzer.argM), record.example.program)
+    val specialized = SpatialElimination.specialize(routine,
+      SpatialRoutineAnnotations(spaces = Map(SpaceFuzzer.argM -> SpatialType.exact(record.example.arg))),
+      SpaceFuzzer.routines)
+    require(specialized.applicableTo(Map(SpaceFuzzer.argM -> record.example.arg)))
+    given PathContext = PathContextMap(Map.empty)
+    given SpaceContext = SpaceContextMap(Map(SpaceFuzzer.argM -> record.example.arg))
+    given PartialFunction[RoutinePtr, Routine] = SpaceFuzzer.routines
+    val residualResult = eval(specialized.residual.body)
+    require(residualResult == record.example.result,
+      s"specialized ${record.id} changed meaning; original=${record.example.program.show}; residual=${specialized.residual.body.show}")
+    if specialized.facts.nonEmpty then rewritten += 1
+  }
+  println(s"spatial specialization corpus: programs=$count preserved=$count rewritten=$rewritten")

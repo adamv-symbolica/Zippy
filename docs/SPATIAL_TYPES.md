@@ -12,7 +12,25 @@ A `SpatialType` is a finite union of `SpatialStratum` values. Each stratum carri
 - a lower/upper cardinality interval;
 - optionally, a symbolic path pattern.
 
-Patterns contain constants, unknown items, or affine integer items such as `coord.x-1`. Provably different lengths and patterns are disjoint, so their cardinality lower bounds add; possibly overlapping regions use the conservative maximum lower bound. The complete type also exposes total-size and global path-length projections, an explicit inconsistent value (`bottom`), and lower/upper work and allocation bounds for the reference, trie, zipper, and graph backends.
+Patterns contain constants, unknown items, or affine integer items such as `coord.x-1`. Provably different lengths and patterns are disjoint, so their cardinality lower bounds add; possibly overlapping regions use the conservative maximum lower bound. A bounded head-indexed trie projection additionally records epsilon presence, tracked constant heads and their tail summaries, plus bounds and a tail summary for untracked heads. The complete type also exposes total-size and global path-length projections, an explicit inconsistent value (`bottom`), and lower/upper work, allocation, and round bounds for the reference, trie, zipper, and graph backends.
+
+The implementation is split by responsibility: `SpatialType.scala` contains the core stratum lattice and interpreter, `SpatialShape.scala` the bounded trie projection, `SpatialMembership.scala` concretization checks, `SpatialFacts.scala` resolved optimizer facts, `SpatialCostModel.scala` the cost domain and executor models, and `SpatialSpecializer.scala` guarded residualization.
+
+## Membership and guarded residuals
+
+`SpatialMembership.satisfies(value, declared)` is the signature-envelope API. It checks totals, lengths, coverage, and every populated class; lower bounds on an unpopulated class are intentionally ignored. `SpatialMembership.gammaMember(value, declared)` is exact membership in the represented concretization. Overlapping classes are simultaneous predicates and may count the same path; truly identical classes are canonicalized first, combining lower bounds by `max` and upper bounds additively (with exact singleton classes capped at one).
+
+More precisely, stratum uppers define an existential cover: every concrete path
+must be attributable to a matching class without exceeding that class's upper
+capacity. Lower obligations are predicates and may share a concrete witness
+across overlapping classes. This avoids both unsound readings of overlap: a
+broad class does not own every matching path contributed by another union arm,
+and one path need not be duplicated merely to witness two compatible lower
+facts.
+
+Pattern inclusion is item-wise: a constant is included by the same constant, a compatible affine domain, or an unknown item; an affine item is included by a sufficiently wide affine item or unknown. Repeated affine variables must bind consistently during concrete membership. Thus a concrete `k.a` type is below a declared `k.?v` type.
+
+`Supercompiler.specializeSpatially` consumes only `SpatialRoutineAnnotations` and returns `SpecializedRoutine(precondition, residual, facts)`. It eliminates abstractly dead nodes, folds proved constants, and applies empty identities. `applicableTo` checks real space arguments with full gamma membership (and path arguments against their path types), so a conditionally valid residual cannot be installed unconditionally.
 
 `SpatialAssumptions` maps free space mentions and path references to input types. `SpatialPrefixCoverage(k, xs, lengths)` is an optional dependency asserting that path `k` prefixes a represented fiber of `xs` at the selected lengths. This small dependency is necessary for positive restriction lower bounds: knowing only that `k` has length three cannot prove that an arbitrary length-four path starts with `k`.
 
@@ -129,9 +147,11 @@ specific key and its degree. For `{edge.a.b, edge.a.c, edge.b.c}` at prefix
 length two it reports minimum degree 1, maximum degree 2, three edges, two keys,
 and average `3/2`.
 
-`SpatialBackendSelection.candidates` converts those facts into three guarded
-specialization witnesses: bounded-depth trie unrolling, common-prefix zipper
-pre-focus, and exact-value graph constant folding.
+`SpatialBackendSelection.candidates` converts those facts into optimization
+recommendations: bounded-depth trie unrolling, common-prefix zipper pre-focus,
+and exact-value graph constant folding. An executable rewrite is instead
+returned by `Supercompiler.specializeSpatially`, whose precondition travels
+with the residual.
 
 ## Cardinality-preserving caps
 
@@ -152,11 +172,11 @@ terms. `SizeExpr.growth` is a separate dominant-monomial antichain over a
 declared parameter set; it can, for example, prove `E` grows no faster than
 `E²` without confusing asymptotic order with pointwise natural-number order.
 
-`fromStrata` is intentionally a cheap constructor. Reduced-product closure is
-performed at semantic transfer points that introduce cross-component facts and
-at every public analysis boundary. This avoids repeatedly normalizing the same
-growing expression at every temporary allocation while preserving the final
-soundness checks.
+`fromStrata` canonicalizes duplicate classes and exact singleton capacities.
+An already-canonical vector takes an allocation-free fast path; full grouping
+and sorting occurs only when a duplicate or singleton cap actually requires it.
+Reduced-product closure is performed at semantic transfer points that introduce
+cross-component facts and at every public analysis boundary.
 
 ## Fixpoints, intermediate results, and cost
 
@@ -173,14 +193,24 @@ when two subterms are structurally equal. Repeated observations of that
 occurrence under loop/fixpoint bindings are retained, and `result` is their
 lattice `joinAlternatives` summary.
 
-The cost component propagates symbolic lower/upper work and allocation bounds.
-It retains a generic interval and backend-indexed intervals: trie/zipper work
-includes bounded descent, zipper includes focus movement, and an exact graph
-node is constant-foldable. Cost sums use the normalizing smart constructor and
-a 128-node representation cap, rather than saturating merely because an input
-is already an addition. The dominant-monomial layer gives a separate readable
-asymptotic comparison. Dependent key-specific degrees and calibrated machine
-constants remain future refinements.
+The cost component propagates symbolic lower/upper work, allocation, and round
+bounds. `SpatialCostModel` has one implementation per executor. Transfers are
+derived from the relevant representation. Iteration charges grouping plus each
+body cost scaled by its head groups plus collection; fixpoint work is scaled by
+a sound symbolic round bound. Recursive costs use `SpatialRecurrence.solve`,
+fed by a syntax-only decreasing-measure detector for tails, non-empty unwraps,
+and iterator rests. A recurrence is closed only when every self-call decreases;
+otherwise named recursive work/allocation/round atoms remain visible.
+`SizeExpr.asymptotic` projects polynomial, log, and geometric atoms to a dominant
+order.
+
+Cost addition no longer has a `TermLimit => Infinity` precision cliff. Small
+finite sums are stored as shallow chunks and large ones as named finite-sum
+atoms, while the rendering budget controls only presentation. The committed correlation test times reference, trie,
+zipper, and graph execution independently and also requires every cost model
+to be cheapest on at least one representative operation. The current fixed
+composition-scaling run reports Spearman correlations of 1.000, 0.800, 1.000,
+and 1.000 respectively.
 
 ## One-way validation
 
@@ -209,13 +239,16 @@ ranged-length/cardinality input type and checks concrete witnesses only after
 analysis.
 
 For `generate(1000, 20260708L, 5, 400)`, the concrete-input audit was
-1,000/1,000 sound, with 494 exact sizes, 879 exact global length intervals,
+1,000/1,000 sound, with 698 exact sizes, 885 exact global length intervals,
 988 exact-length stratum checks, and no unbounded audited projection. The
 identical programs and witnesses under the declared open input type were also
-1,000/1,000 sound: all upper bounds were finite, 24 sizes were exact, and upper
-slack was distributed as 97 exact, 36 within 1–2, 23 within 3–8, 440 within
-9–32, and 404 at 33 or more. A deterministic extended-corpus smoke run remains
-separate because it is not the historical paired corpus.
+1,000/1,000 sound: all upper bounds were finite, 25 sizes were exact, and upper
+slack was distributed as 104 exact, 34 within 1–2, 20 within 3–8, 453 within
+9–32, and 389 at 33 or more. The extended run covered all 24 constructors and
+279 cross-routine calls; 437 upper bounds were finite and all 1,000 witnesses
+were sound. A separate 1,000-program approximate-input adversarial run passed
+full gamma membership 1,000/1,000, and guarded specialization preserved the
+same 1,000 concrete results.
 
 Pattern retention is capped (64 by default). The cap is an explicit
 `SpatialAnalysisConfig` field in the assumptions rather than a JVM-global flag.
@@ -224,9 +257,9 @@ alternatives are never truncated.
 
 The permanent `spatialTypeScalingAudit` guard measures balanced unions. On this
 implementation, seven-sample medians for 1,024/2,048/4,096/8,192/16,384/
-32,768 leaves were 40.912/43.102/78.010/157.389/309.807/611.989 ms. The large
-end remains linear, but the optimizer-facing facts and four backend cost
-intervals add a measured roughly 2.5x constant factor over the preceding
-14.446/22.566/32.240/62.584/122.296/241.800 ms analysis-only run. This cost is
-recorded rather than presented as an asymptotic regression; making decorated
-fact/cost collection demand-driven is the next performance refinement.
+32,768 leaves were 42.637/53.318/104.080/211.232/414.589/826.644 ms. The large
+end remains linear. Against the preceding review baseline
+40.912/43.102/78.010/157.389/309.807/611.989 ms, the final large point is 1.35x
+slower from canonical gamma classes and four backend cost intervals; the
+allocation-free canonical fast path reduced the transient 1,383.732 ms result
+to 826.644 ms.

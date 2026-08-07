@@ -199,6 +199,17 @@ case class SizeGrowth(monomials: Set[Map[String, Int]]):
     that.monomials.exists(right => left.forall((name, power) => power <= right.getOrElse(name, 0)))
   }
 
+/** Readable dominant-order projection for cost comparison. Opaque `geom`
+  * atoms are exponential, log atoms are logarithmic, and ordinary size
+  * symbols contribute polynomial degree. This is a comparison abstraction;
+  * the exact finite `SizeExpr` remains the reported bound. */
+case class AsymptoticOrder(exponentials: Int, degree: Int, logarithms: Int) extends Ordered[AsymptoticOrder]:
+  def compare(that: AsymptoticOrder): Int =
+    val fields = Vector(exponentials.compare(that.exponentials), degree.compare(that.degree),
+      logarithms.compare(that.logarithms))
+    fields.find(_ != 0).getOrElse(0)
+  def show: String = s"O(exp^$exponentials n^$degree log^$logarithms n)"
+
 object SizeExpr:
   val Zero: SizeExpr = SizeExpr.Const(0)
   val One: SizeExpr = SizeExpr.Const(1)
@@ -228,6 +239,31 @@ object SizeExpr:
       case SizeExpr.Positive(inner) => loop(inner).map(_ => Set(Map.empty))
       case _ => None
     loop(value).map(values => SizeGrowth(prune(values)))
+
+  def asymptotic(value: SizeExpr, parameters: Set[String]): Option[AsymptoticOrder] =
+    val zero = AsymptoticOrder(0, 0, 0)
+    def plus(left: AsymptoticOrder, right: AsymptoticOrder): AsymptoticOrder =
+      AsymptoticOrder(left.exponentials + right.exponentials,
+        left.degree + right.degree, left.logarithms + right.logarithms)
+    def loop(current: SizeExpr): Option[AsymptoticOrder] = current match
+      case SizeExpr.Const(_) => Some(zero)
+      case SizeExpr.Symbol(name) if name.startsWith("geom(") => Some(AsymptoticOrder(1, 0, 0))
+      case SizeExpr.Symbol(name) if name.startsWith("log2ceil(") => Some(AsymptoticOrder(0, 0, 1))
+      case SizeExpr.Symbol(name) if parameters(name) => Some(AsymptoticOrder(0, 1, 0))
+      case SizeExpr.Add(terms) =>
+        val orders = terms.map(loop)
+        Option.when(orders.forall(_.nonEmpty))(orders.flatten.maxOption.getOrElse(zero))
+      case SizeExpr.Maximum(terms) =>
+        val orders = terms.map(loop)
+        Option.when(orders.forall(_.nonEmpty))(orders.flatten.maxOption.getOrElse(zero))
+      case SizeExpr.Minimum(terms) =>
+        val orders = terms.map(loop)
+        Option.when(orders.forall(_.nonEmpty))(orders.flatten.minOption.getOrElse(zero))
+      case SizeExpr.Multiply(factors) =>
+        factors.foldLeft(Option(zero))((acc, factor) => for a <- acc; b <- loop(factor) yield plus(a, b))
+      case SizeExpr.Positive(inner) => loop(inner).map(_ => zero)
+      case _ => None
+    loop(value)
 
   def const(value: BigInt): SizeExpr =
     require(value >= 0, s"size expressions must be non-negative, got $value")
@@ -339,6 +375,8 @@ object SizeExpr:
     else (left, right) match
       case (SizeExpr.Const(a), SizeExpr.Const(b)) => a <= b
       case (SizeExpr.Positive(value), other) if value == other => true
+      case (SizeExpr.Positive(_), SizeExpr.Const(b)) => b >= 1
+      case (SizeExpr.PositiveDifference(SizeExpr.Const(one), _), SizeExpr.Const(b)) if one == 1 => b >= 1
       case (SizeExpr.IfZero(lc, lz, ln), SizeExpr.IfZero(rc, rz, rn)) if lc == rc =>
         noGreater(lz, rz) && noGreater(ln, rn)
       case (SizeExpr.Minimum(leftTerms), SizeExpr.Minimum(rightTerms)) =>

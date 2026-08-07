@@ -1,6 +1,6 @@
 # Proof Pipeline Report
 
-Status: PASS_WITH_PROOF_DEBT
+Status: PARTIAL PASS
 
 ## Scope
 
@@ -25,12 +25,15 @@ Status: PASS_WITH_PROOF_DEBT
 - Arbitrary-data backend obligations use symbolic input spaces/templates to prove source, trie, zipper, and graph constructors agree independently of the concrete example data.
 - Negative controls are intentionally false laws; they must return `sat`.
 - Vampire: available at `/Applications/Vampire`
-- Per-obligation solver budgets: Z3 `300s`, Vampire `300s`; solver obligations run with up to `1` workers.
+- Per-obligation solver budgets: Z3 `300s`, Vampire `300s`; solver obligations run with up to `4` workers.
+- Skipped gates in this run: Vampire.
+- Empty gate tables below mean the gate was skipped, not proved.
 
 ## Scala Generation Gate
 
 | Step | Expected | Actual | Result |
 | --- | --- | --- | --- |
+| `scala proof artifact generation` | `exit-0` | `exit-0` | PASS |
 | `product-guard artifact invariant` | `ProductClosed+negative-control` | `ok` | PASS |
 | `negative-control family invariant` | `all-families-sat` | `ok` | PASS |
 | `symbol-coverage invariant` | `both-symbols-or-symmetry` | `ok` | PASS |
@@ -45,260 +48,12 @@ Status: PASS_WITH_PROOF_DEBT
 | `Range acceptance invariant` | `ordered-border-state+generated-artifacts` | `ok` | PASS |
 | `operational rule manifest generation` | `exit-0` | `exit-0` | PASS |
 | `operational manifest closure and proof-debt accounting` | `0-UNPROVED with proof-debt surfaced` | `0-UNPROVED; 433-proof-debt` | PASS |
-| `scala egg artifact generation` | `exit-0` | `exit-0` | PASS |
 
 ## Vampire Equivalence Gate
 
 | Obligation | Expected | Actual | Result | Artifact |
 | --- | --- | --- | --- | --- |
-| `trie_set_member_depth_0` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/trie_set_member_depth_0.p` |
-| `trie_set_member_depth_1` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/trie_set_member_depth_1.p` |
-| `trie_set_member_depth_2` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/trie_set_member_depth_2.p` |
-| `trie_set_member_depth_3` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/trie_set_member_depth_3.p` |
-| `trie_set_member_depth_4` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/trie_set_member_depth_4.p` |
-| `zipper_trie_member_depth_0` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_trie_member_depth_0.p` |
-| `zipper_trie_member_depth_1` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_trie_member_depth_1.p` |
-| `zipper_trie_member_depth_2` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_trie_member_depth_2.p` |
-| `zipper_trie_member_depth_3` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_trie_member_depth_3.p` |
-| `zipper_trie_member_depth_4` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_trie_member_depth_4.p` |
-| `eager_union_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_union_set_equiv.p` |
-| `eager_intersection_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_intersection_set_equiv.p` |
-| `eager_diff_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_diff_set_equiv.p` |
-| `path_concat_epsilon_left_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/path_concat_epsilon_left_fo.p` |
-| `path_concat_epsilon_right_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/path_concat_epsilon_right_fo.p` |
-| `set_union_idempotent_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_union_idempotent_fo.p` |
-| `set_union_associative_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_union_associative_fo.p` |
-| `set_intersection_idempotent_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_intersection_idempotent_fo.p` |
-| `set_intersection_associative_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_intersection_associative_fo.p` |
-| `set_diff_self_empty_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_diff_self_empty_fo.p` |
-| `set_diff_union_rhs_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_diff_union_rhs_fo.p` |
-| `set_child_intersection_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_intersection_fo.p` |
-| `set_child_diff_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_diff_fo.p` |
-| `set_restriction_raffination_partition_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_restriction_raffination_partition_fo.p` |
-| `set_restriction_raffination_disjoint_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_restriction_raffination_disjoint_fo.p` |
-| `keyset_union_empty_left_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/keyset_union_empty_left_fo.p` |
-| `keyset_union_empty_right_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/keyset_union_empty_right_fo.p` |
-| `keyset_union_idempotent_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/keyset_union_idempotent_fo.p` |
-| `keyset_intersection_empty_left_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/keyset_intersection_empty_left_fo.p` |
-| `keyset_intersection_empty_right_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/keyset_intersection_empty_right_fo.p` |
-| `keyset_intersection_idempotent_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/keyset_intersection_idempotent_fo.p` |
-| `keyset_intersection_one_hit_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/keyset_intersection_one_hit_fo.p` |
-| `keyset_intersection_one_miss_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/keyset_intersection_one_miss_fo.p` |
-| `keyset_diff_empty_left_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/keyset_diff_empty_left_fo.p` |
-| `keyset_diff_empty_right_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/keyset_diff_empty_right_fo.p` |
-| `keyset_diff_self_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/keyset_diff_self_fo.p` |
-| `keyset_diff_one_hit_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/keyset_diff_one_hit_fo.p` |
-| `keyset_diff_one_miss_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/keyset_diff_one_miss_fo.p` |
-| `ordered_before_transitive_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/ordered_before_transitive_fo.p` |
-| `has_key_keyset_singleton_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/has_key_keyset_singleton_fo.p` |
-| `child_focus_child_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/child_focus_child_fo.p` |
-| `child_focus_empty_absent_key_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/child_focus_empty_absent_key_fo.p` |
-| `scheduler_has_key_observes_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/scheduler_has_key_observes_fo.p` |
-| `scheduler_tail_frontier_observes_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/scheduler_tail_frontier_observes_fo.p` |
-| `frontier_candidate_keyset_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/frontier_candidate_keyset_fo.p` |
-| `frontier_state_candidate_keyset_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/frontier_state_candidate_keyset_fo.p` |
-| `eager_nonempty_paths_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_nonempty_paths_set_equiv.p` |
-| `eager_product_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_product_set_equiv.p` |
-| `eager_restriction_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_restriction_set_equiv.p` |
-| `eager_raffination_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_raffination_set_equiv.p` |
-| `eager_wrap_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_wrap_set_equiv.p` |
-| `eager_unwrap_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_unwrap_set_equiv.p` |
-| `zipper_memo_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_memo_materialization_equiv.p` |
-| `zipper_memo_terminal_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_memo_terminal_equiv.p` |
-| `zipper_memo_child_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_memo_child_equiv.p` |
-| `zipper_emptyz_empty_focus_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_emptyz_empty_focus_fo.p` |
-| `zipper_emptyz_nonterminal_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_emptyz_nonterminal_fo.p` |
-| `zipper_keyset_emptyz_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_keyset_emptyz_fo.p` |
-| `zipper_keyset_trie_empty_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_keyset_trie_empty_fo.p` |
-| `zipper_keyset_trie_epsilon_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_keyset_trie_epsilon_fo.p` |
-| `zipper_keyset_trie_item_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_keyset_trie_item_fo.p` |
-| `zipper_keyset_trie_concat_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_keyset_trie_concat_fo.p` |
-| `eager_tails_union_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_tails_union_set_equiv.p` |
-| `eager_tails_intersection_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_tails_intersection_set_equiv.p` |
-| `eager_head_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_head_set_equiv.p` |
-| `eager_prefix_closure_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_prefix_closure_set_equiv.p` |
-| `eager_suffix_closure_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_suffix_closure_set_equiv.p` |
-| `eager_tails_closure_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_tails_closure_set_equiv.p` |
-| `eager_iteration_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_iteration_set_equiv.p` |
-| `set_child_union_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_union_fo.p` |
-| `set_iteration_tail_identity` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_tail_identity.p` |
-| `set_iteration_head_identity` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_head_identity.p` |
-| `set_iteration_reconstruct_headed` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_reconstruct_headed.p` |
-| `set_iteration_prefixed_reconstruct_definition_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_prefixed_reconstruct_definition_fo.p` |
-| `set_iteration_range_tail_definition_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_range_tail_definition_fo.p` |
-| `set_iteration_range_reconstruct_definition_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_range_reconstruct_definition_fo.p` |
-| `set_iteration_prefixed_range_reconstruct_definition_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_prefixed_range_reconstruct_definition_fo.p` |
-| `set_iteration_general_body_union_distribution_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_general_body_union_distribution_fo.p` |
-| `set_iteration_general_invariant_left_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_general_invariant_left_fo.p` |
-| `set_iteration_general_invariant_right_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_general_invariant_right_fo.p` |
-| `set_iteration_general_wrap_hoist_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_general_wrap_hoist_fo.p` |
-| `set_iteration_general_product_right_hoist_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_general_product_right_hoist_fo.p` |
-| `set_iteration_general_intersection_right_hoist_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_general_intersection_right_hoist_fo.p` |
-| `set_iteration_general_diff_right_hoist_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_general_diff_right_hoist_fo.p` |
-| `set_iteration_general_restriction_right_hoist_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_general_restriction_right_hoist_fo.p` |
-| `set_iteration_general_independence_structural_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_iteration_general_independence_structural_fo.p` |
-| `set_tails_intersection_closed_two_head_frontier_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_tails_intersection_closed_two_head_frontier_fo.p` |
-| `set_tails_intersection_closed_frontier_refinement_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_tails_intersection_closed_frontier_refinement_fo.p` |
-| `set_prefix_closure_interior_terminal_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_prefix_closure_interior_terminal_fo.p` |
-| `set_product_prefix_closure_left_progress_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_product_prefix_closure_left_progress_fo.p` |
-| `set_child_product_derivative` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_product_derivative.p` |
-| `set_child_restriction_derivative` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_restriction_derivative.p` |
-| `set_child_raffination_derivative` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_raffination_derivative.p` |
-| `set_child_wrap_hit` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_wrap_hit.p` |
-| `set_child_unwrap_singleton` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_unwrap_singleton.p` |
-| `set_child_head` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_head.p` |
-| `set_child_nonempty_paths` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_nonempty_paths.p` |
-| `set_child_prefix_closure` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_prefix_closure.p` |
-| `set_child_prefix_closure_below` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_prefix_closure_below.p` |
-| `set_child_suffix_closure_derivative` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_suffix_closure_derivative.p` |
-| `set_child_tails_closure_derivative` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_tails_closure_derivative.p` |
-| `antimirov_suffix_frontier_state_child_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/antimirov_suffix_frontier_state_child_fo.p` |
-| `antimirov_tails_frontier_state_child_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/antimirov_tails_frontier_state_child_fo.p` |
-| `antimirov_suffix_frontier_nested_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/antimirov_suffix_frontier_nested_fo.p` |
-| `antimirov_tails_frontier_nested_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/antimirov_tails_frontier_nested_fo.p` |
-| `frontier_tail_nonempty_has_key_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/frontier_tail_nonempty_has_key_fo.p` |
-| `frontier_candidate_has_key_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/frontier_candidate_has_key_fo.p` |
-| `frontier_candidate_tail_frontier_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/frontier_candidate_tail_frontier_fo.p` |
-| `tails_intersection_single_frontier_keyset_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/tails_intersection_single_frontier_keyset_fo.p` |
-| `set_terminal_product` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_terminal_product.p` |
-| `set_terminal_wrap` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_terminal_wrap.p` |
-| `set_terminal_unwrap` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_terminal_unwrap.p` |
-| `set_terminal_head_empty` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_terminal_head_empty.p` |
-| `set_terminal_nonempty_paths_empty` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_terminal_nonempty_paths_empty.p` |
-| `set_terminal_prefix_closure_empty` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_terminal_prefix_closure_empty.p` |
-| `set_terminal_prefix_closure_below` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_terminal_prefix_closure_below.p` |
-| `set_terminal_suffix_closure_empty` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_terminal_suffix_closure_empty.p` |
-| `set_tails_closure_definition_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_tails_closure_definition_fo.p` |
-| `set_range_full_sentinel` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_range_full_sentinel.p` |
-| `set_range_empty_one_one` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_range_empty_one_one.p` |
-| `eager_range_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/eager_range_set_equiv.p` |
-| `set_range_subset_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_range_subset_fo.p` |
-| `set_range_first_terminal_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_range_first_terminal_fo.p` |
-| `set_range_first_child_terminal_empty_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_range_first_child_terminal_empty_fo.p` |
-| `set_range_first_child_selected_sound_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_range_first_child_selected_sound_fo.p` |
-| `set_range_first_child_pruned_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_range_first_child_pruned_fo.p` |
-| `set_range_last_child_selected_sound_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_range_last_child_selected_sound_fo.p` |
-| `set_range_last_child_pruned_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_range_last_child_pruned_fo.p` |
-| `set_range_drop_last_child_before_last_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_range_drop_last_child_before_last_fo.p` |
-| `set_range_drop_last_child_after_last_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_range_drop_last_child_after_last_fo.p` |
-| `zipper_base_terminal_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_base_terminal_equiv.p` |
-| `zipper_base_child_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_base_child_equiv.p` |
-| `zipper_iteration_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_iteration_materialization_equiv.p` |
-| `zipper_iter_tail_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_iter_tail_materialization_equiv.p` |
-| `zipper_iter_head_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_iter_head_materialization_equiv.p` |
-| `zipper_iter_reconstruct_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_iter_reconstruct_materialization_equiv.p` |
-| `zipper_iter_prefixed_reconstruct_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_iter_prefixed_reconstruct_materialization_equiv.p` |
-| `zipper_iter_range_tail_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_iter_range_tail_materialization_equiv.p` |
-| `zipper_iter_range_reconstruct_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_iter_range_reconstruct_materialization_equiv.p` |
-| `zipper_iter_prefixed_range_reconstruct_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_iter_prefixed_range_reconstruct_materialization_equiv.p` |
-| `zipper_fixpoint_tail_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_fixpoint_tail_materialization_equiv.p` |
-| `zipper_fixpoint_head_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_fixpoint_head_materialization_equiv.p` |
-| `zipper_fixpoint_reconstruct_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_fixpoint_reconstruct_materialization_equiv.p` |
-| `zipper_fixpoint_range_tail_full_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_fixpoint_range_tail_full_materialization_equiv.p` |
-| `zipper_fixpoint_range_tail_empty_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_fixpoint_range_tail_empty_materialization_equiv.p` |
-| `zipper_fixpoint_range_reconstruct_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_fixpoint_range_reconstruct_materialization_equiv.p` |
-| `zipper_nonempty_paths_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_nonempty_paths_materialization_equiv.p` |
-| `zipper_product_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_product_materialization_equiv.p` |
-| `zipper_restriction_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_restriction_materialization_equiv.p` |
-| `zipper_raffination_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_raffination_materialization_equiv.p` |
-| `zipper_wrap_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_wrap_materialization_equiv.p` |
-| `zipper_unwrap_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_unwrap_materialization_equiv.p` |
-| `zipper_range_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_range_materialization_equiv.p` |
-| `zipper_range_first_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_range_first_materialization_equiv.p` |
-| `zipper_range_last_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_range_last_materialization_equiv.p` |
-| `zipper_range_drop_last_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_range_drop_last_materialization_equiv.p` |
-| `zipper_range_full_terminal_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_range_full_terminal_equiv.p` |
-| `zipper_range_first_terminal_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_range_first_terminal_fo.p` |
-| `zipper_tails_union_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_tails_union_materialization_equiv.p` |
-| `zipper_tails_intersection_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_tails_intersection_materialization_equiv.p` |
-| `zipper_head_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_head_materialization_equiv.p` |
-| `zipper_prefix_closure_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_prefix_closure_materialization_equiv.p` |
-| `zipper_suffix_closure_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_suffix_closure_materialization_equiv.p` |
-| `zipper_tails_closure_materialization_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_tails_closure_materialization_equiv.p` |
-| `zipper_patch_child_terminal_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_patch_child_terminal_equiv.p` |
-| `zipper_patch_child_hit_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_patch_child_hit_equiv.p` |
-| `zipper_patch_child_miss_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_patch_child_miss_equiv.p` |
-| `zipper_patch_child_identity_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_patch_child_identity_equiv.p` |
-| `zipper_context_root_plug_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_root_plug_equiv.p` |
-| `zipper_context_down_plug_invariance` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_down_plug_invariance.p` |
-| `zipper_context_up_after_down_context` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_up_after_down_context.p` |
-| `zipper_context_up_after_down_focus` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_up_after_down_focus.p` |
-| `zipper_context_graft_materialization` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_graft_materialization.p` |
-| `zipper_context_cursor_source_plug` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_cursor_source_plug.p` |
-| `zipper_context_root_path` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_root_path.p` |
-| `zipper_context_down_path` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_down_path.p` |
-| `zipper_context_up_after_down_path` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_up_after_down_path.p` |
-| `zipper_context_sibling_path` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_sibling_path.p` |
-| `zipper_context_sibling_target_context` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_sibling_target_context.p` |
-| `zipper_context_sibling_target_focus` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_sibling_target_focus.p` |
-| `zipper_context_sibling_target_path` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_sibling_target_path.p` |
-| `zipper_context_sibling_target_plug_invariance` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_sibling_target_plug_invariance.p` |
-| `zipper_context_sibling_plug_invariance` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_context_sibling_plug_invariance.p` |
-| `arbitrary_zipper_union_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_union_set_equiv.p` |
-| `arbitrary_zipper_intersection_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_intersection_set_equiv.p` |
-| `arbitrary_zipper_diff_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_diff_set_equiv.p` |
-| `arbitrary_zipper_nonempty_paths_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_nonempty_paths_set_equiv.p` |
-| `arbitrary_zipper_product_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_product_set_equiv.p` |
-| `arbitrary_zipper_restriction_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_restriction_set_equiv.p` |
-| `arbitrary_zipper_raffination_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_raffination_set_equiv.p` |
-| `arbitrary_zipper_wrap_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_wrap_set_equiv.p` |
-| `arbitrary_zipper_unwrap_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_unwrap_set_equiv.p` |
-| `arbitrary_zipper_tails_union_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_tails_union_set_equiv.p` |
-| `arbitrary_zipper_tails_intersection_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_tails_intersection_set_equiv.p` |
-| `arbitrary_zipper_head_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_head_set_equiv.p` |
-| `arbitrary_zipper_prefix_closure_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_prefix_closure_set_equiv.p` |
-| `arbitrary_zipper_suffix_closure_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_suffix_closure_set_equiv.p` |
-| `arbitrary_zipper_tails_closure_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_zipper_tails_closure_set_equiv.p` |
-| `arbitrary_graph_union_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_graph_union_set_equiv.p` |
-| `arbitrary_graph_intersection_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_graph_intersection_set_equiv.p` |
-| `arbitrary_graph_diff_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_graph_diff_set_equiv.p` |
-| `arbitrary_graph_iter_set_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_graph_iter_set_equiv.p` |
-| `arbitrary_graph_trie_union_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_graph_trie_union_equiv.p` |
-| `arbitrary_graph_zipper_union_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/arbitrary_graph_zipper_union_equiv.p` |
-| `zipper_union_terminal_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_union_terminal_equiv.p` |
-| `zipper_union_child_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_union_child_equiv.p` |
-| `zipper_intersection_terminal_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_intersection_terminal_equiv.p` |
-| `zipper_intersection_child_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_intersection_child_equiv.p` |
-| `zipper_diff_terminal_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_diff_terminal_equiv.p` |
-| `zipper_diff_child_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_diff_child_equiv.p` |
-| `aunt:trie_vs_reference` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/aunt_trie_vs_reference.p` |
-| `aunt:space_optimized` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/aunt_space_optimized.p` |
-| `aunt:zipper_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/aunt_zipper_vs_space.p` |
-| `aunt:graph_execT_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/aunt_graph_execT_vs_space.p` |
-| `semi-naive-datalog:trie_vs_reference` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/semi-naive-datalog_trie_vs_reference.p` |
-| `semi-naive-datalog:space_optimized` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/semi-naive-datalog_space_optimized.p` |
-| `semi-naive-datalog:zipper_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/semi-naive-datalog_zipper_vs_space.p` |
-| `semi-naive-datalog:graph_execT_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/semi-naive-datalog_graph_execT_vs_space.p` |
-| `gol:trie_vs_reference` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/gol_trie_vs_reference.p` |
-| `gol:space_optimized` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/gol_space_optimized.p` |
-| `gol:zipper_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/gol_zipper_vs_space.p` |
-| `gol:graph_execT_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/gol_graph_execT_vs_space.p` |
-| `15-puzzle:trie_vs_reference` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/15-puzzle_trie_vs_reference.p` |
-| `15-puzzle:space_optimized` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/15-puzzle_space_optimized.p` |
-| `15-puzzle:zipper_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/15-puzzle_zipper_vs_space.p` |
-| `15-puzzle:graph_execT_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/15-puzzle_graph_execT_vs_space.p` |
-| `temperature:trie_vs_reference` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/temperature_trie_vs_reference.p` |
-| `temperature:space_optimized` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/temperature_space_optimized.p` |
-| `temperature:zipper_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/temperature_zipper_vs_space.p` |
-| `temperature:graph_execT_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/temperature_graph_execT_vs_space.p` |
-| `nqueens:trie_vs_reference` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/nqueens_trie_vs_reference.p` |
-| `nqueens:space_optimized` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/nqueens_space_optimized.p` |
-| `nqueens:zipper_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/nqueens_zipper_vs_space.p` |
-| `nqueens:graph_execT_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/nqueens_graph_execT_vs_space.p` |
-| `fixpoint-tail-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/fixpoint_tail_full_program_structural_backend_equivalence.p` |
-| `aunt-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/aunt_full_program_structural_backend_equivalence.p` |
-| `semi-naive-datalog-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/semi_naive_datalog_full_program_structural_backend_equivalence.p` |
-| `gol-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/gol_full_program_structural_backend_equivalence.p` |
-| `temperature-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/temperature_full_program_structural_backend_equivalence.p` |
-| `sliding-puzzle-2x2-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/sliding_puzzle_2x2_full_program_structural_backend_equivalence.p` |
-| `sliding-puzzle-2x2-24-state-step-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/sliding_puzzle_2x2_24_state_step_full_program_structural_backend_equivalence.p` |
-| `nqueens-4-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/nqueens_4_full_program_structural_backend_equivalence.p` |
-| `termination:least_fixpoint_unique` | `Theorem` | `Theorem` | PASS | `terminating/least_fixpoint_unique.p` |
-| `termination:bounded_growth_decrease` | `Theorem` | `Theorem` | PASS | `terminating/bounded_growth_decrease.p` |
-| `termination:transitive_equiv` | `Theorem` | `Theorem` | PASS | `terminating/transitive_equiv.p` |
-| `termination:datalog_a_terminates` | `Theorem` | `Theorem` | PASS | `terminating/datalog_a_terminates.p` |
-| `termination:datalog_b_naive_terminates` | `Theorem` | `Theorem` | PASS | `terminating/datalog_b_naive_terminates.p` |
-| `termination:datalog_b_seminaive_terminates` | `Theorem` | `Theorem` | PASS | `terminating/datalog_b_seminaive_terminates.p` |
+| _skipped_ | `-` | `-` | SKIP | `-` |
 
 ## Z3 Law Gate
 
@@ -554,7 +309,9 @@ Status: PASS_WITH_PROOF_DEBT
 | `bad_union_as_intersection_generated_negative_control` | `sat` | `sat` | PASS | `proofs/generated/bad_union_as_intersection_generated_negative_control.smt2` |
 | `bad_intersection_as_union_generated_negative_control` | `sat` | `sat` | PASS | `proofs/generated/bad_intersection_as_union_generated_negative_control.smt2` |
 | `bad_diff_as_intersection_generated_negative_control` | `sat` | `sat` | PASS | `proofs/generated/bad_diff_as_intersection_generated_negative_control.smt2` |
+| `bad_diff_right_union_distribution_generated_negative_control` | `sat` | `sat` | PASS | `proofs/generated/bad_diff_right_union_distribution_generated_negative_control.smt2` |
 | `bad_restriction_as_raffination_generated_negative_control` | `sat` | `sat` | PASS | `proofs/generated/bad_restriction_as_raffination_generated_negative_control.smt2` |
+| `bad_restriction_commutative_generated_negative_control` | `sat` | `sat` | PASS | `proofs/generated/bad_restriction_commutative_generated_negative_control.smt2` |
 | `bad_wrap_unwrap_wrong_prefix_generated_negative_control` | `sat` | `sat` | PASS | `proofs/generated/bad_wrap_unwrap_wrong_prefix_generated_negative_control.smt2` |
 | `bad_product_commutative_generated_negative_control` | `sat` | `sat` | PASS | `proofs/generated/bad_product_commutative_generated_negative_control.smt2` |
 | `bad_child_union_as_child_intersection_generated_negative_control` | `sat` | `sat` | PASS | `proofs/generated/bad_child_union_as_child_intersection_generated_negative_control.smt2` |
@@ -753,7 +510,7 @@ unsat` | PASS | `terminating/no_infinite_descent.smt2` |
 
 ## Operational Rule Manifest
 
-- `/Users/michaelpolyntsov/.codex/worktrees/b7c6/Zippy/proofs/operational_rule_manifest.tsv` contains `582` operational rows: `149` proved-unbounded, `433` proved-bounded, `0` axiom-elsewhere, `0` UNPROVED.
+- `/Users/michaelpolyntsov/Zippy_a/proofs/operational_rule_manifest.tsv` contains `582` operational rows: `149` proved-unbounded, `433` proved-bounded, `0` axiom-elsewhere, `0` UNPROVED.
 - Proof debt total: `433` rows. `proved-bounded` rows are accepted by this gate but remain proof-strengthening work. No `axiom-elsewhere` operational rows remain in the current manifest. Of the proved-bounded rows, `433` are mixed FOL+bounded and `0` are bounded-only.
 
 | Status | Tier | Rows |
