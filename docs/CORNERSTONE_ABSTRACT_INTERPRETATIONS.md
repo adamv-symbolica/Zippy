@@ -29,9 +29,9 @@ reduced result is their intersection, never a substitution.
 | Program | Structurally derived | Asserted annotation | Reduced result | Path information |
 | --- | --- | --- | --- | --- |
 | Aunt query | schema and conservative join product | `upper ≤ P*min(Pe,Ce,F)` | structural ∩ asserted | exact length 3, `Aunt.person.aunt` |
-| Semi-naive Datalog closure | large fixpoint exceeds the configured structural budget and becomes top | direct edges retained; `upper ≤ E²` | `[E,E²]` | unknown length |
-| Pure Game of Life | the pure `neigh` helper derives eight affine alternatives; the full step exceeds the report budget | radius-one image: `upper ≤ 9L` | `[0,9L]` | length `[1,∞]` under the report budget |
-| Full 8-puzzle closure | large fixpoint exceeds the configured structural budget and becomes top | legal nonempty seed saturates `9!/2` component | exactly `181440` | unknown length |
+| Semi-naive Datalog closure | fixpoint retains the two-item edge schema | direct edges retained; `upper ≤ E²` | `[E,E²]` | exact length 2 |
+| Pure Game of Life | full step retains eight affine `Cell.(x+dx).(y+dy)` alternatives | radius-one image: `upper ≤ 9L` | `[0,9L]` intersected with structural cap | exact length 3 |
+| Full 8-puzzle closure | fixpoint retains the nine-item board schema | legal nonempty seed saturates `9!/2` component | exactly `181440` | exact length 9 |
 | Temperature restriction | `[0,W]`, source schema | none | `[0,W]` | exact length 4 |
 | 4-queens generator | generator structure derives four-coordinate paths | finite-domain CSP has 2 solutions | exactly `2` | exact length 4 |
 
@@ -71,8 +71,8 @@ For `E` distinct directed edges, the closure contains every direct edge, so its
 lower cardinality is `E`. Every reachable pair is an ordered pair of endpoints
 drawn from edges; the elementary edge-witness bound gives at most `E^2`
 distinct pairs. Thus the abstract cardinality is `[E,E^2]`. The cardinality
-statement comes from the explicit closure theorem; the configured report
-budget returns top for the large structural fixpoint, including its length.
+statement comes from the explicit closure theorem; structural interpretation
+independently retains the exact two-item output schema.
 
 The contract was exhaustively checked on all 512 directed graphs over three
 vertices, including loops and the empty graph.
@@ -91,7 +91,9 @@ the full next-generation output is a subset of the radius-one image of the
 input: any surviving or born cell must be in one of nine positions associated
 with some live cell. Therefore the scalable cardinality bound is `[0,9L]`.
 The structural coordinate/rank bound is also retained, so the actual internal
-upper is the minimum of both.
+upper is the minimum of both. The complete open step now finishes at the
+ordinary analysis budget, retaining all eight affine patterns and exact path
+length three.
 
 The subset/image theorem was exhaustively checked on every subset of a 3x3
 field against an independent B3/S23 implementation.
@@ -142,10 +144,9 @@ through six directly from annotated finite domains and constraints.
 
 ## Remaining precision boundary
 
-None of the six analyses materializes a concrete output. Aunt and temperature
-retain exact output length, including queens; the resource-limited Datalog,
-Life, and puzzle reports deliberately lose it rather than exposing an
-unchecked partial analysis. The principal remaining gaps are dependent relation fibers
+None of the six analyses materializes a concrete output. Every cornerstone now
+retains its exact output path length; Life additionally retains its eight
+affine alternatives. The principal remaining gaps are dependent relation fibers
 for the Aunt query, a first-class graph/degree domain rather than supplied
 closure contracts, a symbolic arithmetic expression for parameterized puzzle
 and queens sizes, and lower coverage facts for spatial restrictions.

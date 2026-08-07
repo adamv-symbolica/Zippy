@@ -112,28 +112,148 @@ case class SpatialDegreeEstimate(
   def show: String =
     s"degree(min=${minimum.show}, max=${maximum.show}, avg=$averageShow)"
 
-/** Symbolic upper bounds for abstract execution work and fresh result nodes.
-  * This is a first-order cost domain: it intentionally records pointwise work,
-  * while dominant-monomial/asymptotic comparison remains a separate layer. */
-case class SpatialCostEstimate(workUpper: SizeExpr, allocationUpper: SizeExpr):
-  def show: String = s"work≤${workUpper.show}, alloc≤${allocationUpper.show}"
+case class SpatialDepthDegree(depth: Int, distinctItems: ResultSizeEstimate, fibers: SpatialDegreeEstimate)
+
+/** Resolved, optimization-facing view of a spatial type. Consumers never
+  * need to know how symbolic bounds are represented. Every positive answer is
+  * justified solely by the annotation-derived abstract value. */
+case class SpatialFacts(value: SpatialType):
+  def isDead: Boolean = value.isBottom || value.isEmpty
+  def definitelyNonEmpty: Boolean = definitelyAtLeast(1)
+  def definitelyAtLeast(count: Int): Boolean =
+    require(count >= 0)
+    value.size.lower.annotatedBound(Z3BoundDirection.Lower).exists(_ >= count)
+  def definiteSize: Option[BigInt] =
+    for
+      lower <- value.size.lower.annotatedValue
+      upper <- value.size.upper.annotatedValue
+      if lower == upper
+    yield lower
+  def maxDepth: Option[Int] = value.pathLength.upper.annotatedBound(Z3BoundDirection.Upper)
+    .filter(_.isValidInt).map(_.toInt)
+  def definitePathAt(index: Int): Option[PathValue] =
+    if index < 0 then None else value.exactValue.flatMap(_.paths.toVector.sortBy(_.show).lift(index))
+  def commonConstantPrefix: Option[PathValue] =
+    val patterns = value.strata.flatMap(_.pattern)
+    Option.when(patterns.nonEmpty && patterns.size == value.strata.size) {
+      val commonLength = patterns.map(_.items.length).min
+      val prefix = (0 until commonLength).takeWhile { index =>
+        patterns.map(_.items(index)).distinct match
+          case Vector(SpatialItem.Constant(_)) => true
+          case _ => false
+      }.flatMap(index => patterns.head.items(index) match
+        case SpatialItem.Constant(item) => Some(item)
+        case _ => None).toList
+      PathValue(prefix)
+    }.filter(_.items.nonEmpty)
+  def depthProfile: Vector[SpatialDepthDegree] =
+    maxDepth.toVector.flatMap { maximum =>
+      (0 until maximum).map { depth =>
+        val relevant = value.strata.filter(s => s.length.upper.annotatedBound(Z3BoundDirection.Upper).forall(_ > depth))
+        val choices = relevant.map { stratum =>
+          stratum.pattern.flatMap(_.items.lift(depth)).fold(stratum.cardinality.upper)(SpatialFacts.itemChoices)
+        }
+        val upper = SizeExpr.minimum(value.size.upper, SizeExpr.add(choices*))
+        val lower = if relevant.exists(_.cardinality.lower.annotatedBound(Z3BoundDirection.Lower).exists(_ > 0))
+          then SizeExpr.One else SizeExpr.Zero
+        SpatialDepthDegree(depth, ResultSizeEstimate(upper, lower), value.fiberDegree(depth + 1))
+      }
+    }
+
+object SpatialFacts:
+  private[morkl] def itemChoices(item: SpatialItem): SizeExpr = item match
+    case SpatialItem.Constant(_) => SizeExpr.One
+    case SpatialItem.Affine(_, _, minimum, maximum) => SizeExpr.const(BigInt(maximum) - BigInt(minimum) + 1)
+    case SpatialItem.Unknown(_) => SizeExpr.Infinity
+
+enum SpatialSpecialization:
+  case TrieUnroll(maxDepth: Int, profile: Vector[SpatialDepthDegree])
+  case ZipperPrefocus(prefix: PathValue)
+  case GraphConstantFold(value: SpaceValue)
+
+object SpatialBackendSelection:
+  def candidates(value: SpatialType): Vector[SpatialSpecialization] =
+    val facts = value.facts
+    Vector(
+      facts.maxDepth.map(depth => SpatialSpecialization.TrieUnroll(depth, facts.depthProfile)),
+      facts.commonConstantPrefix.map(SpatialSpecialization.ZipperPrefocus.apply),
+      value.exactValue.map(SpatialSpecialization.GraphConstantFold.apply),
+    ).flatten
+
+enum SpatialBackend:
+  case Reference, Trie, Zipper, Graph
+
+case class SpatialCostInterval(
+  workLower: SizeExpr,
+  workUpper: SizeExpr,
+  allocationLower: SizeExpr,
+  allocationUpper: SizeExpr,
+):
+  def show: String =
+    s"work=[${workLower.show},${workUpper.show}], alloc=[${allocationLower.show},${allocationUpper.show}]"
+
+/** Pointwise cost intervals plus backend-indexed views. The generic interval is
+  * retained for compatibility; backend entries may be refined independently.
+  */
+case class SpatialCostEstimate(
+  workUpper: SizeExpr,
+  allocationUpper: SizeExpr,
+  workLower: SizeExpr = SizeExpr.Zero,
+  allocationLower: SizeExpr = SizeExpr.Zero,
+  backend: Map[SpatialBackend, SpatialCostInterval] = Map.empty,
+):
+  def generic: SpatialCostInterval =
+    SpatialCostInterval(workLower, workUpper, allocationLower, allocationUpper)
+  def forBackend(value: SpatialBackend): SpatialCostInterval = backend.getOrElse(value, generic)
+  def show: String =
+    val base = generic.show
+    if backend.isEmpty then base
+    else
+      val details = SpatialBackend.values.map(value =>
+        s"${value.toString.toLowerCase}={${forBackend(value).show}}").mkString(", ")
+      s"$base; $details"
 
 object SpatialCostEstimate:
   val zero: SpatialCostEstimate = SpatialCostEstimate(SizeExpr.Zero, SizeExpr.Zero)
   val unknown: SpatialCostEstimate = SpatialCostEstimate(SizeExpr.Infinity, SizeExpr.Infinity)
+  private val TermLimit = 128
   private def treeAdd(values: Seq[SizeExpr]): SizeExpr =
     val nonzero = values.filterNot(_ == SizeExpr.Zero)
-    if nonzero.contains(SizeExpr.Infinity) || nonzero.exists(_.isInstanceOf[SizeExpr.Add]) then SizeExpr.Infinity
-    else nonzero match
-      case Seq() => SizeExpr.Zero
-      case Seq(value) => value
-      case many => SizeExpr.Add(many.toVector)
+    val sum = SizeExpr.add(nonzero*)
+    if sum.nodeCount(TermLimit + 1) > TermLimit then SizeExpr.Infinity else sum
+
+  private def lowerAdd(values: Seq[SizeExpr]): SizeExpr =
+    val nonzero = values.filterNot(_ == SizeExpr.Zero)
+    val sum = SizeExpr.add(nonzero*)
+    if sum.nodeCount(TermLimit + 1) > TermLimit then SizeExpr.maximum(nonzero*) else sum
+
   def sequential(values: SpatialCostEstimate*): SpatialCostEstimate = SpatialCostEstimate(
     treeAdd(values.map(_.workUpper)),
     treeAdd(values.map(_.allocationUpper)),
+    lowerAdd(values.map(_.workLower)),
+    lowerAdd(values.map(_.allocationLower)),
+    SpatialBackend.values.map { backend =>
+      val intervals = values.map(_.forBackend(backend))
+      backend -> SpatialCostInterval(
+        lowerAdd(intervals.map(_.workLower)),
+        treeAdd(intervals.map(_.workUpper)),
+        lowerAdd(intervals.map(_.allocationLower)),
+        treeAdd(intervals.map(_.allocationUpper)),
+      )
+    }.toMap,
   )
 
   def add(left: SizeExpr, right: SizeExpr): SizeExpr = treeAdd(Seq(left, right))
+
+  def bounded(
+    workLower: SizeExpr,
+    workUpper: SizeExpr,
+    allocationLower: SizeExpr,
+    allocationUpper: SizeExpr,
+  ): SpatialCostEstimate =
+    val interval = SpatialCostInterval(workLower, workUpper, allocationLower, allocationUpper)
+    SpatialCostEstimate(workUpper, allocationUpper, workLower, allocationLower,
+      SpatialBackend.values.map(_ -> interval).toMap)
 
 /** A spatial output type: cardinality intervals are retained per path shape or
   * length stratum, together with sound scalar projections. Strata at provably
@@ -149,6 +269,7 @@ case class SpatialType(
 ):
   def isBottom: Boolean = bottom
   def isEmpty: Boolean = !bottom && size.upper == SizeExpr.Zero
+  def facts: SpatialFacts = SpatialFacts(this)
   def show: String =
     if bottom then "⊥"
     else
@@ -165,9 +286,7 @@ case class SpatialType(
       }
       Option.when(values.forall(_.nonEmpty))(SpaceValue(values.flatten.toSet))
 
-  /** Degree of the suffix fibers selected by a fixed-length key prefix. This
-    * is exact for constant-pattern types and conservative otherwise.
-    */
+  /** Degree of the suffix fibers selected by a fixed-length key prefix. */
   def fiberDegree(prefixLength: Int): SpatialDegreeEstimate =
     require(prefixLength >= 0, s"prefix length must be non-negative, got $prefixLength")
     exactValue match
@@ -183,8 +302,26 @@ case class SpatialType(
           ResultSizeEstimate.exact(SizeExpr.const(degrees.size))
         )
       case None =>
-        val possible = ResultSizeEstimate(size.upper, SizeExpr.Zero)
-        SpatialDegreeEstimate(possible, possible, size, possible)
+        val eligible = strata.filter(s => s.length.upper.annotatedBound(Z3BoundDirection.Upper).forall(_ >= prefixLength))
+        if eligible.isEmpty then SpatialDegreeEstimate(
+          ResultSizeEstimate.empty, ResultSizeEstimate.empty, ResultSizeEstimate.empty, ResultSizeEstimate.empty)
+        else
+          val keyUppers = eligible.map { stratum =>
+            val choices = stratum.pattern.toVector.flatMap(_.items.take(prefixLength)).map(SpatialFacts.itemChoices)
+            if choices.size == prefixLength then SizeExpr.minimum(stratum.cardinality.upper, SizeExpr.multiply(choices*))
+            else stratum.cardinality.upper
+          }
+          val keys = ResultSizeEstimate(
+            SizeExpr.add(keyUppers*),
+            SizeExpr.positive(size.lower),
+          )
+          val oneKey = keys.upper.annotatedValue.contains(BigInt(1))
+          SpatialDegreeEstimate(
+            ResultSizeEstimate(if oneKey then size.upper else size.upper, SizeExpr.positive(size.lower)),
+            ResultSizeEstimate(size.upper, if oneKey then size.lower else SizeExpr.positive(size.lower)),
+            size,
+            keys,
+          )
 
   def collapseByLength: Vector[SpatialStratum] =
     val (exact, other) = strata.partition(_.exactLength.nonEmpty)
@@ -266,7 +403,7 @@ object SpatialType:
       var length = value.pathLength
       var changed = true
       var rounds = 0
-      while changed && rounds < 4 do
+      while changed && rounds < 2 do
         rounds += 1
         val clamped = strata.map { stratum =>
           stratum.copy(cardinality = ResultSizeEstimate(
@@ -300,7 +437,7 @@ object SpatialType:
       else SpatialType(strata, size, length, cost = value.cost)
 
   /** Lattice join of alternative abstract states (not MORKL set union). */
-  def join(left: SpatialType, right: SpatialType): SpatialType =
+  def joinAlternatives(left: SpatialType, right: SpatialType): SpatialType =
     if left.bottom then right
     else if right.bottom then left
     else
@@ -315,7 +452,7 @@ object SpatialType:
           SizeExpr.minimum(ls.lower, rs.lower),
         ))
       }
-      fromStrata(strata, sizeOverride = Some(ResultSizeEstimate(
+      reduce(fromStrata(strata, sizeOverride = Some(ResultSizeEstimate(
         SizeExpr.maximum(left.size.upper, right.size.upper),
         SizeExpr.minimum(left.size.lower, right.size.lower),
       )), lengthOverride = Some(PathLengthEstimate(
@@ -324,7 +461,11 @@ object SpatialType:
       ))).copy(cost = SpatialCostEstimate(
         SizeExpr.maximum(left.cost.workUpper, right.cost.workUpper),
         SizeExpr.maximum(left.cost.allocationUpper, right.cost.allocationUpper),
-      ))
+      )))
+
+  /** Compatibility spelling. New code should make the alternative-state
+    * meaning explicit with [[joinAlternatives]]. */
+  def join(left: SpatialType, right: SpatialType): SpatialType = joinAlternatives(left, right)
 
   /** Lattice meet of two descriptions of the same concrete space. */
   def meet(left: SpatialType, right: SpatialType): SpatialType =
@@ -355,7 +496,7 @@ object SpatialType:
         ),
         if l.pattern == r.pattern then l.pattern else None,
       )
-      fromStrata(candidates, Some(size), Some(length)).copy(cost = SpatialCostEstimate(
+      reduce(fromStrata(candidates, Some(size), Some(length))).copy(cost = SpatialCostEstimate(
         SizeExpr.minimum(left.cost.workUpper, right.cost.workUpper),
         SizeExpr.minimum(left.cost.allocationUpper, right.cost.allocationUpper),
       ))
@@ -400,7 +541,7 @@ object SpatialType:
     lengthOverride: Option[PathLengthEstimate] = None
   ): SpatialType =
     val strata = values.iterator.filterNot(_.cardinality.upper == SizeExpr.Zero).toVector
-    reduce(SpatialType(strata, sizeOverride.getOrElse(derivedSize(strata)), lengthOverride.getOrElse(derivedLength(strata))))
+    SpatialType(strata, sizeOverride.getOrElse(derivedSize(strata)), lengthOverride.getOrElse(derivedLength(strata)))
 
   def exact(value: SpaceValue, patternLimit: Int = 64): SpatialType =
     if value.paths.isEmpty then empty
@@ -573,9 +714,9 @@ case class FiniteIntConstraintProblem(
 
 case class SpatialAnalysisConfig(
   patternLimit: Int = 64,
-  fixpointIterations: Int = 2,
-  fixpointWidenAfter: Int = 1,
-  fixpointAstBudget: Int = 64,
+  fixpointIterations: Int = 6,
+  fixpointWidenAfter: Int = 3,
+  fixpointAstBudget: Int = 256,
   analysisNodeBudget: Int = 1000000,
 ):
   require(patternLimit >= 4, s"pattern limit must be at least four, got $patternLimit")
@@ -605,10 +746,19 @@ case class SpatialNodeAnalysis(
   result: SpatialType,
   spaces: Map[SpaceMention, SpatialType],
   paths: Map[PathRef, SpatialPathType],
+  position: Vector[Int] = Vector.empty,
+  observations: Vector[SpatialNodeObservation] = Vector.empty,
+)
+
+case class SpatialNodeObservation(
+  result: SpatialType,
+  spaces: Map[SpaceMention, SpatialType],
+  paths: Map[PathRef, SpatialPathType],
 )
 
 case class DecoratedSpatialAnalysis(root: SpatialType, nodes: Vector[SpatialNodeAnalysis]):
   def at(expression: Space): Vector[SpatialNodeAnalysis] = nodes.filter(_.expression == expression)
+  def atPosition(position: Int*): Option[SpatialNodeAnalysis] = nodes.find(_.position == position.toVector)
 
 /** Input-to-output abstract interpretation over the MORKL AST. */
 object SpatialTypeAnalysis:
@@ -642,8 +792,44 @@ object SpatialTypeAnalysis:
     val root = analysisTrace.withValue(Some(nodes)) {
       output(space, assumptions, routines)
     }
-    nodes += SpatialNodeAnalysis(space, root, assumptions.spaces, assumptions.paths)
-    DecoratedSpatialAnalysis(root, nodes.toVector)
+    def children(value: Space): Vector[Space] = value match
+      case Space.Call(_, _, mentions) => mentions
+      case Space.Union(left, right) => Vector(left, right)
+      case Space.Intersection(left, right) => Vector(left, right)
+      case Space.Subtraction(left, right) => Vector(left, right)
+      case Space.Restriction(left, right) => Vector(left, right)
+      case Space.Raffination(left, right) => Vector(left, right)
+      case Space.Composition(left, right) => Vector(left, right)
+      case Space.Iteration(source, _, _, body) => Vector(source, body)
+      case Space.Fold(source, _, _, _, _, body, _) => Vector(source, body)
+      case Space.Fixpoint(initial, _, step) => Vector(initial, step)
+      case Space.Wrap(source, _) => Vector(source)
+      case Space.Unwrap(source, _) => Vector(source)
+      case Space.TailsUnion(source) => Vector(source)
+      case Space.TailsIntersection(source) => Vector(source)
+      case Space.PrefixClosure(source) => Vector(source)
+      case Space.SuffixClosure(source) => Vector(source)
+      case Space.TailsClosure(source) => Vector(source)
+      case Space.GroundedSS(source, _) => Vector(source)
+      case Space.Range(source, _, _) => Vector(source)
+      case _ => Vector.empty
+    def occurrences(value: Space, position: Vector[Int]): Vector[(Space, Vector[Int])] =
+      (value -> position) +: children(value).zipWithIndex.flatMap { (child, index) =>
+        occurrences(child, position :+ index)
+      }
+    val raw = nodes.toVector
+    val positional = occurrences(space, Vector.empty).map { (expression, position) =>
+      val identity = raw.filter(node => node.expression.asInstanceOf[AnyRef] eq expression.asInstanceOf[AnyRef])
+      val matches = if identity.nonEmpty then identity else raw.filter(_.expression == expression)
+      val observations = matches.map(node => SpatialNodeObservation(node.result, node.spaces, node.paths))
+      val summary = if position.isEmpty then root else observations.map(_.result).reduceOption(SpatialType.joinAlternatives)
+        .getOrElse(SpatialType.top)
+      val bindings = observations.headOption
+      SpatialNodeAnalysis(expression, summary,
+        bindings.fold(assumptions.spaces)(_.spaces), bindings.fold(assumptions.paths)(_.paths),
+        position, observations)
+    }
+    DecoratedSpatialAnalysis(root, positional)
 
   def outputRoutine(
     routine: Routine,
@@ -685,7 +871,7 @@ object SpatialTypeAnalysis:
     val assumptions = annotations.assumptions
     withinBudget(assumptions.config) {
       SpatialBoundLaw.reduce(
-        analyze(routine.body, assumptions, routines, Set(routine.name)),
+        SpatialType.reduce(analyze(routine.body, assumptions, routines, Set(routine.name))),
         annotations.spaces,
         annotations.resultLaws,
       )
@@ -755,7 +941,7 @@ object SpatialTypeAnalysis:
         SpatialType.fromStrata(patterns.map(pattern => SpatialStratum(value.length, optional, Some(pattern))),
           sizeOverride = Some(ResultSizeEstimate.exact(SizeExpr.One)), lengthOverride = Some(value.length))
       case _ => SpatialType.fromStrata(Vector(SpatialStratum(value.length, ResultSizeEstimate.exact(SizeExpr.One))))
-    result.copy(cost = SpatialCostEstimate(SizeExpr.One, SizeExpr.One))
+    result.copy(cost = SpatialCostEstimate.bounded(SizeExpr.One, SizeExpr.One, SizeExpr.One, SizeExpr.One))
 
   private def unionCount(left: ResultSizeEstimate, right: ResultSizeEstimate): ResultSizeEstimate =
     ResultSizeEstimate(SizeExpr.add(left.upper, right.upper), SizeExpr.maximum(left.lower, right.lower))
@@ -763,12 +949,34 @@ object SpatialTypeAnalysis:
   private def charge(
     result: SpatialType,
     inputs: SpatialType*,
-  )(work: SizeExpr, allocation: SizeExpr = SizeExpr.Zero): SpatialType =
+  )(
+    work: SizeExpr,
+    allocation: SizeExpr = SizeExpr.Zero,
+    workLower: SizeExpr = SizeExpr.Zero,
+    allocationLower: SizeExpr = SizeExpr.Zero,
+  ): SpatialType =
     val inputCost = SpatialCostEstimate.sequential(inputs.map(_.cost)*)
-    result.copy(cost = SpatialCostEstimate(
-      SpatialCostEstimate.add(inputCost.workUpper, work),
-      SpatialCostEstimate.add(inputCost.allocationUpper, allocation),
+    val generic = SpatialCostInterval(workLower, work, allocationLower, allocation)
+    val depth = result.pathLength.upper.annotatedBound(Z3BoundDirection.Upper)
+      .fold[SizeExpr](SizeExpr.Infinity)(value => SizeExpr.const(value.max(BigInt(1))))
+    val trie = SpatialCostInterval(
+      workLower,
+      SizeExpr.multiply(work, depth),
+      allocationLower,
+      allocation,
+    )
+    val zipper = trie.copy(workUpper = SpatialCostEstimate.add(trie.workUpper, depth))
+    val graph = if result.exactValue.nonEmpty then
+      SpatialCostInterval(SizeExpr.Zero, SizeExpr.One, SizeExpr.Zero, SizeExpr.One)
+    else SpatialCostInterval(workLower, SpatialCostEstimate.add(work, SizeExpr.One),
+      SizeExpr.Zero, SizeExpr.One)
+    val operation = SpatialCostEstimate(work, allocation, workLower, allocationLower, Map(
+      SpatialBackend.Reference -> generic,
+      SpatialBackend.Trie -> trie,
+      SpatialBackend.Zipper -> zipper,
+      SpatialBackend.Graph -> graph,
     ))
+    result.copy(cost = SpatialCostEstimate.sequential(inputCost, operation))
 
   private def capStrata(values: Vector[SpatialStratum], limit: Int = 64): Vector[SpatialStratum] =
     if values.size <= limit then values
@@ -805,7 +1013,8 @@ object SpatialTypeAnalysis:
         SpatialType.fromStrata(capStrata(strata),
           sizeOverride = Some(unionCount(left.size, right.size)))
     charge(result, left, right)(
-      SizeExpr.add(left.size.upper, right.size.upper), result.size.upper)
+      SizeExpr.add(left.size.upper, right.size.upper), result.size.upper,
+      SizeExpr.add(left.size.lower, right.size.lower), result.size.lower)
 
   private def intersection(left: SpatialType, right: SpatialType): SpatialType =
     if left.isBottom || right.isBottom then return SpatialType.bottom
@@ -831,7 +1040,7 @@ object SpatialTypeAnalysis:
     val raw = SpatialType.fromStrata(capStrata(strata))
     charge(SpatialType.reduce(raw.copy(size = ResultSizeEstimate(
       SizeExpr.minimum(raw.size.upper, left.size.upper, right.size.upper), raw.size.lower))), left, right)(
-      SizeExpr.minimum(left.size.upper, right.size.upper))
+      SizeExpr.minimum(left.size.upper, right.size.upper), workLower = SizeExpr.minimum(left.size.lower, right.size.lower))
 
   private def subtraction(left: SpatialType, right: SpatialType): SpatialType =
     if left.isBottom || right.isBottom then return SpatialType.bottom
@@ -855,7 +1064,8 @@ object SpatialTypeAnalysis:
     }
     val raw = SpatialType.fromStrata(capStrata(strata))
     charge(SpatialType.reduce(raw.copy(size = ResultSizeEstimate(
-      SizeExpr.minimum(raw.size.upper, left.size.upper), raw.size.lower))), left, right)(left.size.upper)
+      SizeExpr.minimum(raw.size.upper, left.size.upper), raw.size.lower))), left, right)(left.size.upper,
+      workLower = left.size.lower)
 
   private def composition(left: SpatialType, right: SpatialType): SpatialType =
     if left.isBottom || right.isBottom then return SpatialType.bottom
@@ -1280,7 +1490,9 @@ object SpatialTypeAnalysis:
         )))
       case Space.Singleton(value) => singleton(path(value, assumptions, routines, active))
       case Space.Literal(value) => SpatialType.exact(value, assumptions.config.patternLimit).copy(
-        cost = SpatialCostEstimate(SizeExpr.const(value.paths.size), SizeExpr.const(value.paths.size)))
+        cost = SpatialCostEstimate.bounded(
+          SizeExpr.const(value.paths.size), SizeExpr.const(value.paths.size),
+          SizeExpr.const(value.paths.size), SizeExpr.const(value.paths.size)))
       case Space.Union(left, right) =>
         right match
           case candidate if matchIfEmpty(candidate).exists(_._1 == left) =>
@@ -1343,8 +1555,12 @@ object SpatialTypeAnalysis:
           paths = assumptions.paths.updated(acc, initialType).updated(symbol, SpatialPathType.length(1, symbol.s))
         )
         val branch = analyze(body, nested, routines, active)
-        charge(SpatialType.reduce(branch.copy(size = ResultSizeEstimate(
-          SizeExpr.multiply(source.size.upper, branch.size.upper), SizeExpr.Zero))), source, branch)(
+        val optionalBranch = branch.copy(
+          strata = branch.strata.map(stratum => stratum.copy(cardinality =
+            ResultSizeEstimate(stratum.cardinality.upper, SizeExpr.Zero))),
+          size = ResultSizeEstimate(SizeExpr.multiply(source.size.upper, branch.size.upper), SizeExpr.Zero),
+        )
+        charge(SpatialType.reduce(optionalBranch), source, branch)(
           SizeExpr.multiply(source.size.upper, branch.cost.workUpper))
       case Space.Fixpoint(initial, variable, step) =>
         fixpoint(initial, variable, step, assumptions, routines, active)

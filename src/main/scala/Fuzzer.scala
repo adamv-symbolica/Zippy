@@ -216,6 +216,10 @@ object SpaceFuzzer:
   val alphabet: Vector[PathItem] = Vector("a", "b", "c", "d").map(PathItem(_))
   val argM: SpaceMention = SpaceMention("x")
   val X: Space = Space.Mention(argM)
+  val callArgM: SpaceMention = SpaceMention("call_x")
+  val callRoutine: Routine = Routine(RoutinePtr("fuzzer_identity"), Vector.empty,
+    Vector(callArgM), Space.Mention(callArgM))
+  val routines: PartialFunction[RoutinePtr, Routine] = Syntax.mod(callRoutine)
 
   case class Example(program: Space, arg: SpaceValue, result: SpaceValue)
 
@@ -329,6 +333,7 @@ object SpaceFuzzer:
           "fix" -> 1,
           "groundPS" -> 1,
           "groundSS" -> 1,
+          "call" -> 1,
         ) else Seq.empty
         Categorical.ratios(original ++ added).sample match
           case "leaf" => leaf(scope)
@@ -366,6 +371,7 @@ object SpaceFuzzer:
           case "groundSS" =>
             Space.GroundedSS(rec(d - 1, scope), value =>
               SpaceValue(value.paths.map(path => PathValue(PathItem("g") :: path.items))))
+          case "call" => Space.Call(callRoutine.name, Vector.empty, Vector(rec(d - 1, scope)))
           case "range" =>
             val lo = rng.nextInt(3)
             Space.Range(rec(d - 1, scope), lo, lo + 1 + rng.nextInt(3))
@@ -376,7 +382,7 @@ object SpaceFuzzer:
             Space.Iteration(rec(d - 1, scope), hpr, tv, rec(d - 1, scope :+ (hpr -> tv)))
 
   private def evalEx(p: Space, arg: SpaceValue): Example =
-    Example(p, arg, eval(p)(using PathContextMap(Map.empty), SpaceContextMap(Map(argM -> arg)), PartialFunction.empty))
+    Example(p, arg, eval(p)(using PathContextMap(Map.empty), SpaceContextMap(Map(argM -> arg)), routines))
 
   def example(maxDepth: Int = 3, maxResult: Int = 400, extended: Boolean = false): Dist[Example] =
     Dep(argDist, arg => genProg(arg, maxDepth, extended = extended).map(p => evalEx(p, arg)).filter(e =>

@@ -127,22 +127,13 @@ enum SizeExpr:
       case Z3BoundDirection.Lower => Some(lower(this))
       case Z3BoundDirection.Upper => upper(this)
 
-  def show: String = this match
-    case SizeExpr.Const(value) => value.toString
-    case SizeExpr.Symbol(name) => name
-    case SizeExpr.SizeOf(space) => s"|${space.show}|"
-    case SizeExpr.Add(terms) => terms.map(_.show).mkString("(", " + ", ")")
-    case SizeExpr.Multiply(factors) => factors.map(_.show).mkString("(", " * ", ")")
-    case SizeExpr.Maximum(terms) => terms.map(_.show).mkString("max(", ", ", ")")
-    case SizeExpr.Minimum(terms) => terms.map(_.show).mkString("min(", ", ", ")")
-    case SizeExpr.PositiveDifference(left, right) => s"relu(${left.show} - ${right.show})"
-    case SizeExpr.Positive(value) => s"positive(${value.show})"
-    case SizeExpr.RangeCardinality(value, start, end) => s"rangeSize(${value.show}, $start, $end)"
-    case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
-      s"ifZero(${condition.show}, ${ifZero.show}, ${ifNonZero.show})"
-    case SizeExpr.Z3Cardinality(problem, direction, baseline) =>
-      s"z3${direction.toString.toLowerCase}(${problem.show}; baseline=${baseline.show})"
-    case SizeExpr.Infinity => "∞"
+  /** Human-facing rendering has an explicit node budget. Abstract expressions
+    * remain intact; only diagnostics are abbreviated, so logging cannot become
+    * the dominant cost of an analysis.
+    */
+  def show: String = SizeExpr.render(this, 64)
+
+  def nodeCount(limit: Int = Int.MaxValue): Int = SizeExpr.nodeCount(this, limit)
 
   def evaluate(using
     pc: PathContext = PathContextMap(Map.empty),
@@ -194,9 +185,49 @@ enum SizeExpr:
           case (None, None) => None
     case SizeExpr.Infinity => None
 
+/** A finite antichain of polynomial growth terms. Multiple terms are retained
+  * when no single monomial dominates for all parameter growth directions. */
+case class SizeGrowth(monomials: Set[Map[String, Int]]):
+  def show: String =
+    if monomials.isEmpty then "1"
+    else monomials.toVector.map { powers =>
+      if powers.isEmpty then "1"
+      else powers.toVector.sortBy(_._1).map((name, power) => if power == 1 then name else s"$name^$power").mkString("*")
+    }.sorted.mkString("max(", ",", ")")
+
+  def noGreaterThan(that: SizeGrowth): Boolean = monomials.forall { left =>
+    that.monomials.exists(right => left.forall((name, power) => power <= right.getOrElse(name, 0)))
+  }
+
 object SizeExpr:
   val Zero: SizeExpr = SizeExpr.Const(0)
   val One: SizeExpr = SizeExpr.Const(1)
+
+  /** Dominant-monomial abstraction over an explicitly declared parameter set.
+    * `None` means the expression contains a non-polynomial/opaque construct. */
+  def growth(value: SizeExpr, parameters: Set[String]): Option[SizeGrowth] =
+    def prune(values: Set[Map[String, Int]]): Set[Map[String, Int]] =
+      values.filterNot(left => values.exists(right => left != right &&
+        left.forall((name, power) => power <= right.getOrElse(name, 0))))
+    def loop(current: SizeExpr): Option[Set[Map[String, Int]]] = current match
+      case SizeExpr.Const(_) => Some(Set(Map.empty))
+      case SizeExpr.Symbol(name) if parameters(name) => Some(Set(Map(name -> 1)))
+      case SizeExpr.Add(terms) =>
+        terms.foldLeft(Option(Set.empty[Map[String, Int]]))((acc, term) =>
+          for a <- acc; b <- loop(term) yield prune(a ++ b))
+      case SizeExpr.Maximum(terms) =>
+        terms.foldLeft(Option(Set.empty[Map[String, Int]]))((acc, term) =>
+          for a <- acc; b <- loop(term) yield prune(a ++ b))
+      case SizeExpr.Multiply(factors) =>
+        factors.foldLeft(Option(Set(Map.empty[String, Int])))((acc, factor) =>
+          for
+            a <- acc
+            b <- loop(factor)
+          yield prune((for x <- a; y <- b yield
+            (x.keySet ++ y.keySet).map(name => name -> (x.getOrElse(name, 0) + y.getOrElse(name, 0))).toMap).toSet))
+      case SizeExpr.Positive(inner) => loop(inner).map(_ => Set(Map.empty))
+      case _ => None
+    loop(value).map(values => SizeGrowth(prune(values)))
 
   def const(value: BigInt): SizeExpr =
     require(value >= 0, s"size expressions must be non-negative, got $value")
@@ -209,6 +240,35 @@ object SizeExpr:
 
   private def sameInstance(left: SizeExpr, right: SizeExpr): Boolean =
     left.asInstanceOf[AnyRef] eq right.asInstanceOf[AnyRef]
+
+  private val orderCache =
+    new java.util.IdentityHashMap[SizeExpr, java.util.IdentityHashMap[SizeExpr, java.lang.Boolean]]()
+  private var orderCacheEntries = 0
+  private val OrderCacheLimit = 100000
+
+  private def cachedOrder(left: SizeExpr, right: SizeExpr): Option[Boolean] =
+    Option(orderCache.get(left)).flatMap(row => Option(row.get(right))).map(_.booleanValue)
+
+  private def cacheOrder(left: SizeExpr, right: SizeExpr, result: Boolean): Boolean =
+    if orderCacheEntries >= OrderCacheLimit then
+      orderCache.clear()
+      orderCacheEntries = 0
+    var row = orderCache.get(left)
+    if row == null then
+      row = new java.util.IdentityHashMap[SizeExpr, java.lang.Boolean]()
+      orderCache.put(left, row)
+    if !row.containsKey(right) then orderCacheEntries += 1
+    row.put(right, java.lang.Boolean.valueOf(result))
+    result
+
+  private def sameValue(left: SizeExpr, right: SizeExpr): Boolean =
+    sameInstance(left, right) ||
+      (left.nodeCount(33) <= 32 && right.nodeCount(33) <= 32 && left == right)
+
+  private def identityDistinct(values: Vector[SizeExpr]): Vector[SizeExpr] =
+    val seen = java.util.Collections.newSetFromMap(
+      new java.util.IdentityHashMap[SizeExpr, java.lang.Boolean]())
+    values.filter(seen.add)
 
   def add(values: SizeExpr*): SizeExpr =
     val terms = values.iterator.flatMap {
@@ -235,7 +295,7 @@ object SizeExpr:
           case SizeExpr.Positive(_) => true
           case SizeExpr.PositiveDifference(SizeExpr.Const(one), _) if one == 1 => true
           case _ => false
-        if idempotent && kept.contains(factor) then kept else kept :+ factor
+        if idempotent && kept.exists(sameValue(_, factor)) then kept else kept :+ factor
       }
       if result.exists { factor =>
         result.exists {
@@ -271,7 +331,11 @@ object SizeExpr:
     * to prove an order leaves both alternatives in place.
     */
   private def noGreater(left: SizeExpr, right: SizeExpr): Boolean =
-    if left == right || left == Zero || right == SizeExpr.Infinity then true
+    if sameInstance(left, right) || left == Zero || right == SizeExpr.Infinity then true
+    else cachedOrder(left, right).getOrElse(cacheOrder(left, right, noGreaterUncached(left, right)))
+
+  private def noGreaterUncached(left: SizeExpr, right: SizeExpr): Boolean =
+    if sameValue(left, right) then true
     else (left, right) match
       case (SizeExpr.Const(a), SizeExpr.Const(b)) => a <= b
       case (SizeExpr.Positive(value), other) if value == other => true
@@ -286,7 +350,7 @@ object SizeExpr:
       case (l, r) =>
         val remaining = collection.mutable.ArrayBuffer.from(factors(r))
         val unmatched = factors(l).filter { factor =>
-          val index = remaining.indexOf(factor)
+          val index = remaining.indexWhere(sameValue(_, factor))
           if index < 0 then true
           else
             remaining.remove(index)
@@ -301,18 +365,85 @@ object SizeExpr:
   def provablyNoGreater(left: SizeExpr, right: SizeExpr): Boolean =
     noGreater(left, right)
 
+  private[morkl] def nodeCount(value: SizeExpr, limit: Int): Int =
+    def loop(current: SizeExpr, remaining: Int): Int =
+      if remaining <= 0 then 1
+      else current match
+        case SizeExpr.Add(values) =>
+          values.foldLeft(1) { (sum, child) =>
+            if sum > remaining then sum else sum + loop(child, remaining - sum)
+          }
+        case SizeExpr.Multiply(values) =>
+          values.foldLeft(1) { (sum, child) =>
+            if sum > remaining then sum else sum + loop(child, remaining - sum)
+          }
+        case SizeExpr.Maximum(values) =>
+          values.foldLeft(1) { (sum, child) =>
+            if sum > remaining then sum else sum + loop(child, remaining - sum)
+          }
+        case SizeExpr.Minimum(values) =>
+          values.foldLeft(1) { (sum, child) =>
+            if sum > remaining then sum else sum + loop(child, remaining - sum)
+          }
+        case SizeExpr.PositiveDifference(left, right) =>
+          val l = loop(left, remaining - 1)
+          1 + l + loop(right, remaining - l - 1)
+        case SizeExpr.Positive(inner) =>
+          1 + loop(inner, remaining - 1)
+        case SizeExpr.RangeCardinality(inner, _, _) =>
+          1 + loop(inner, remaining - 1)
+        case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
+          val c = loop(condition, remaining - 1)
+          val z = loop(ifZero, remaining - c - 1)
+          1 + c + z + loop(ifNonZero, remaining - c - z - 1)
+        case SizeExpr.Z3Cardinality(_, _, baseline) => 1 + loop(baseline, remaining - 1)
+        case _ => 1
+    loop(value, limit)
+
+  private[morkl] def render(value: SizeExpr, nodeBudget: Int): String =
+    final class Budget(var remaining: Int)
+    val budget = new Budget(nodeBudget)
+    def loop(current: SizeExpr): String =
+      if budget.remaining <= 0 then "…"
+      else
+        budget.remaining -= 1
+        current match
+          case SizeExpr.Const(n) => n.toString
+          case SizeExpr.Symbol(name) => name
+          case SizeExpr.SizeOf(space) => s"|${space.show}|"
+          case SizeExpr.Add(values) => values.map(loop).mkString("(", " + ", ")")
+          case SizeExpr.Multiply(values) => values.map(loop).mkString("(", " * ", ")")
+          case SizeExpr.Maximum(values) => values.map(loop).mkString("max(", ", ", ")")
+          case SizeExpr.Minimum(values) => values.map(loop).mkString("min(", ", ", ")")
+          case SizeExpr.PositiveDifference(left, right) => s"relu(${loop(left)} - ${loop(right)})"
+          case SizeExpr.Positive(inner) => s"positive(${loop(inner)})"
+          case SizeExpr.RangeCardinality(inner, start, end) => s"rangeSize(${loop(inner)}, $start, $end)"
+          case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
+            s"ifZero(${loop(condition)}, ${loop(ifZero)}, ${loop(ifNonZero)})"
+          case SizeExpr.Z3Cardinality(problem, direction, baseline) =>
+            s"z3${direction.toString.toLowerCase}(${problem.show}; baseline=${loop(baseline)})"
+          case SizeExpr.Infinity => "∞"
+    loop(value)
+
   private def undominatedMinimum(values: Vector[SizeExpr]): Vector[SizeExpr] =
-    values.filterNot(value => values.exists(other => other != value && noGreater(other, value)))
+    values.zipWithIndex.collect { case (value, index) if !values.zipWithIndex.exists { (other, otherIndex) =>
+      otherIndex != index && noGreater(other, value) &&
+        (!noGreater(value, other) || otherIndex < index)
+    } => value }
 
   private def undominatedMaximum(values: Vector[SizeExpr]): Vector[SizeExpr] =
-    values.filterNot(value => values.exists(other => other != value && noGreater(value, other)))
+    values.zipWithIndex.collect { case (value, index) if !values.zipWithIndex.exists { (other, otherIndex) =>
+      otherIndex != index && noGreater(value, other) &&
+        (!noGreater(other, value) || otherIndex < index)
+    } => value }
 
   def maximum(values: SizeExpr*): SizeExpr =
     val flattened = values.iterator.flatMap {
       case SizeExpr.Maximum(nested) => nested
       case other => Vector(other)
-    }.filterNot(_ == Zero).toVector.distinct
-    val terms = undominatedMaximum(flattened)
+    }.filterNot(_ == Zero).toVector
+    val unique = identityDistinct(flattened)
+    val terms = undominatedMaximum(unique)
     if terms.contains(SizeExpr.Infinity) then SizeExpr.Infinity
     else
       terms match
@@ -328,8 +459,8 @@ object SizeExpr:
     val flattened = values.iterator.flatMap {
       case SizeExpr.Minimum(nested) => nested
       case other => Vector(other)
-    }.filterNot(_ == SizeExpr.Infinity).toVector.distinct
-    val terms = undominatedMinimum(flattened)
+    }.filterNot(_ == SizeExpr.Infinity).toVector
+    val terms = undominatedMinimum(identityDistinct(flattened))
     if terms.contains(Zero) then Zero
     else terms match
       case Vector() => SizeExpr.Infinity
@@ -347,7 +478,7 @@ object SizeExpr:
       case other => Vector(other)
     val remaining = collection.mutable.ArrayBuffer.from(terms(right))
     terms(left).forall { term =>
-      val index = remaining.indexOf(term)
+      val index = remaining.indexWhere(sameValue(_, term))
       if index < 0 then false
       else
         remaining.remove(index)
@@ -358,7 +489,7 @@ object SizeExpr:
     case (SizeExpr.Const(a), SizeExpr.Const(b)) => const((a - b).max(BigInt(0)))
     case (SizeExpr.Const(zero), _) if zero == 0 => Zero
     case (_, SizeExpr.Const(zero)) if zero == 0 => left
-    case _ if left == right => Zero
+    case _ if sameValue(left, right) => Zero
     case (SizeExpr.Infinity, SizeExpr.Infinity) => SizeExpr.Infinity
     case (SizeExpr.Infinity, _) => SizeExpr.Infinity
     case (_, SizeExpr.Infinity) => Zero
@@ -377,7 +508,7 @@ object SizeExpr:
 
   def ifZero(condition: SizeExpr, ifZero: SizeExpr, ifNonZero: SizeExpr): SizeExpr = condition match
     case SizeExpr.Const(value) => if value == 0 then ifZero else ifNonZero
-    case _ if ifZero == ifNonZero => ifZero
+    case _ if sameValue(ifZero, ifNonZero) => ifZero
     case _ => SizeExpr.IfZero(condition, ifZero, ifNonZero)
 
   private def definitelyPositive(value: SizeExpr): Boolean = value match

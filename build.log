@@ -5618,3 +5618,2292 @@ Strict annotation-only spatial-analysis correction:
 - Trie algebra 1,024->65,536 scaling: union 5,176->313,583 ns, intersection 5,464->351,516 ns, restriction 9,974->487,901 ns, disjoint subtraction 10.7->4.0 ns; linear/constant asymptotic classes preserved.
 - Paired checked-report geometric changes (old/current, >1 means current faster): Trie eval Set 0.991x, evalTrie 0.964x, evalZ 0.969x, execT 0.999x; zipper-algebra evalTrie 0.930x, evalZ 0.890x; zipper-large evalTrie 0.923x, evalZ 1.194x; range-tail current implementation 1.051x. Short-run scatter is consistent with prior report noise, while execT and asymptotic classes show no regression.
 - Extended open-corpus smoke (10 programs, depth 3): 10/10 sound; 6 finite uppers; slack 1-2=1, 9-32=4, 33+=1, infinity=4.
+error: could not find `Cargo.toml` in `/Users/michaelpolyntsov/Zippy_a` or any parent directory
+zsh:1: command not found: sbt
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/ResultSpaceSize.scala:326:26 [0m[0m
+[31m326 |[0m        [33mcase[0m [33mSizeExpr[0m.[33mAdd[0m(values) | [33mSizeExpr[0m.[33mMultiply[0m(values) |
+[31m[31m    |[0m                          ^^^^^^[0m
+[31m    |[0m                        Illegal variable values in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/ResultSpaceSize.scala:326:54 [0m[0m
+[31m326 |[0m        [33mcase[0m [33mSizeExpr[0m.[33mAdd[0m(values) | [33mSizeExpr[0m.[33mMultiply[0m(values) |
+[31m[31m    |[0m                                                      ^^^^^^[0m
+[31m    |[0m                        Illegal variable values in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/ResultSpaceSize.scala:327:30 [0m[0m
+[31m327 |[0m             [33mSizeExpr[0m.[33mMaximum[0m(values) | [33mSizeExpr[0m.[33mMinimum[0m(values) =>
+[31m[31m    |[0m                              ^^^^^^[0m
+[31m    |[0m                        Illegal variable values in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/ResultSpaceSize.scala:327:57 [0m[0m
+[31m327 |[0m             [33mSizeExpr[0m.[33mMaximum[0m(values) | [33mSizeExpr[0m.[33mMinimum[0m(values) =>
+[31m[31m    |[0m                                                         ^^^^^^[0m
+[31m    |[0m                        Illegal variable values in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/ResultSpaceSize.scala:334:31 [0m[0m
+[31m334 |[0m        [33mcase[0m [33mSizeExpr[0m.[33mPositive[0m(inner) | [33mSizeExpr[0m.[33mRangeCardinality[0m(inner, _, _) =>
+[31m[31m    |[0m                               ^^^^^[0m
+[31m    |[0m                         Illegal variable inner in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/ResultSpaceSize.scala:334:66 [0m[0m
+[31m334 |[0m        [33mcase[0m [33mSizeExpr[0m.[33mPositive[0m(inner) | [33mSizeExpr[0m.[33mRangeCardinality[0m(inner, _, _) =>
+[31m[31m    |[0m                                                                  ^^^^^[0m
+[31m    |[0m                         Illegal variable inner in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+6 errors found
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Compilation failed
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 3 deprecation warnings; re-run with -deprecation for details
+2 warnings found
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[31m[31m-- [E040] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:502:8 [0m[0m
+[31m502 |[0m      )))
+[31m[31m    |[0m        ^[0m
+[31m    |[0m        eof expected, but ')' found
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2628:24 [0m[0m
+[31m2628 |[0m    prefixCoverage: [35mSet[0m[[35mSpatialPrefixCoverage[0m] = [33mSet[0m.empty
+[31m[31m     |[0m                        ^^^^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m                        Not found: type SpatialPrefixCoverage
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2630:4 [0m[0m
+[31m2630 |[0m    [33mSpatialTypeAnalysis[0m.outputRoutine(routine, pathInputs, spaceInputs, routines, prefixCoverage)
+[31m[31m     |[0m    ^^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m    Not found: SpatialTypeAnalysis
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2690:17 [0m[0m
+[31m2690 |[0m    assumptions: [35mSpatialAssumptions[0m = [33mSpatialAssumptions[0m(),
+[31m[31m     |[0m                 ^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m                 Not found: type SpatialAssumptions
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2692:19 [0m[0m
+[31m2692 |[0m  ): [33mSpatialType[0m = [33mSpatialTypeAnalysis[0m.output(s, assumptions, routines)
+[31m[31m     |[0m                   ^^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m                   Not found: SpatialTypeAnalysis
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2699:24 [0m[0m
+[31m2699 |[0m    prefixCoverage: [35mSet[0m[[35mSpatialPrefixCoverage[0m]
+[31m[31m     |[0m                        ^^^^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m                        Not found: type SpatialPrefixCoverage
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2690:38 [0m[0m
+[31m2690 |[0m    assumptions: [35mSpatialAssumptions[0m = [33mSpatialAssumptions[0m(),
+[31m[31m     |[0m                                      ^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m                                      Not found: SpatialAssumptions
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2701:4 [0m[0m
+[31m2701 |[0m    [33mSpatialTypeAnalysis[0m.outputRoutine(routine, pathInputs, spaceInputs, routines, prefixCoverage)
+[31m[31m     |[0m    ^^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m    Not found: SpatialTypeAnalysis
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2709:24 [0m[0m
+[31m2709 |[0m    prefixCoverage: [35mSet[0m[[35mSpatialPrefixCoverage[0m] = [33mSet[0m.empty,
+[31m[31m     |[0m                        ^^^^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m                        Not found: type SpatialPrefixCoverage
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2710:22 [0m[0m
+[31m2710 |[0m    boundLaws: [35mVector[0m[[35mSpatialBoundLaw[0m] = [33mVector[0m.empty
+[31m[31m     |[0m                      ^^^^^^^^^^^^^^^[0m
+[31m     |[0m                      Not found: type SpatialBoundLaw
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2712:4 [0m[0m
+[31m2712 |[0m    [33mSpatialTypeAnalysis[0m.outputRoutineAbstract(
+[31m[31m     |[0m    ^^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m    Not found: SpatialTypeAnalysis
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2718:17 [0m[0m
+[31m2718 |[0m    annotations: [35mSpatialRoutineAnnotations[0m,
+[31m[31m     |[0m                 ^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m                 Not found: type SpatialRoutineAnnotations
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2721:4 [0m[0m
+[31m2721 |[0m    [33mSpatialTypeAnalysis[0m.outputRoutineAbstract(routine, annotations, routines)
+[31m[31m     |[0m    ^^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m    Not found: SpatialTypeAnalysis
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2726:17 [0m[0m
+[31m2726 |[0m    assumptions: [35mSpatialAssumptions[0m = [33mSpatialAssumptions[0m(),
+[31m[31m     |[0m                 ^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m                 Not found: type SpatialAssumptions
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2728:19 [0m[0m
+[31m2728 |[0m  ): [33mSpatialType[0m = [33mSpatialTypeAnalysis[0m.output(normalize(s).space, assumptions, routines)
+[31m[31m     |[0m                   ^^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m                   Not found: SpatialTypeAnalysis
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:2726:38 [0m[0m
+[31m2726 |[0m    assumptions: [35mSpatialAssumptions[0m = [33mSpatialAssumptions[0m(),
+[31m[31m     |[0m                                      ^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m                                      Not found: SpatialAssumptions
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:3400:15 [0m[0m
+[31m3400 |[0m  assumptions: [35mSpatialAssumptions[0m = [33mSpatialAssumptions[0m(),
+[31m[31m     |[0m               ^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m               Not found: type SpatialAssumptions
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:3402:17 [0m[0m
+[31m3402 |[0m): [33mSpatialType[0m = [33mSpatialTypeAnalysis[0m.output(s, assumptions, routines)
+[31m[31m     |[0m                 ^^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m                 Not found: SpatialTypeAnalysis
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:3400:36 [0m[0m
+[31m3400 |[0m  assumptions: [35mSpatialAssumptions[0m = [33mSpatialAssumptions[0m(),
+[31m[31m     |[0m                                    ^^^^^^^^^^^^^^^^^^[0m
+[31m     |[0m                                    Not found: SpatialAssumptions
+[31m     |[0m
+[31m     |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:343:25 [0m[0m
+[31m343 |[0m  [33mval[0m [36mtop[0m: [35mSpatialType[0m = fromStrata([33mVector[0m([33mSpatialStratum[0m(
+[31m[31m    |[0m                         ^^^^^^^^^^[0m
+[31m    |[0m                         Not found: fromStrata
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:455:13 [0m[0m
+[31m455 |[0m      reduce(fromStrata(strata, sizeOverride = [33mSome[0m([33mResultSizeEstimate[0m(
+[31m[31m    |[0m             ^^^^^^^^^^[0m
+[31m    |[0m             Not found: fromStrata
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:499:13 [0m[0m
+[31m499 |[0m      reduce(fromStrata(candidates, [33mSome[0m(size), [33mSome[0m(length))).copy(cost = [33mSpatialCostEstimate[0m(
+[31m[31m    |[0m             ^^^^^^^^^^[0m
+[31m    |[0m             Not found: fromStrata
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/Supercompiler.scala:706:17 [0m[0m
+[31m706 |[0m    assumptions: [35mSpatialAssumptions[0m = [33mSpatialAssumptions[0m(),
+[31m[31m    |[0m                 ^^^^^^^^^^^^^^^^^^[0m
+[31m    |[0m                 Not found: type SpatialAssumptions
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/Supercompiler.scala:708:19 [0m[0m
+[31m708 |[0m  ): [33mSpatialType[0m = [33mSpatialTypeAnalysis[0m.output(top, assumptions, routineInputs)
+[31m[31m    |[0m                   ^^^^^^^^^^^^^^^^^^^[0m
+[31m    |[0m                   Not found: SpatialTypeAnalysis
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/Supercompiler.scala:706:38 [0m[0m
+[31m706 |[0m    assumptions: [35mSpatialAssumptions[0m = [33mSpatialAssumptions[0m(),
+[31m[31m    |[0m                                      ^^^^^^^^^^^^^^^^^^[0m
+[31m    |[0m                                      Not found: SpatialAssumptions
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+25 errors found
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Compilation failed
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 3 deprecation warnings; re-run with -deprecation for details
+2 warnings found
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 120 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 120 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 120 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.CornerstoneSpatialTypeTest:
+  + spatial routine analysis does not execute a zero-argument generator 0.009s
+  + strict range transfer propagates its literal annotation without concrete evaluation 0.008s
+  + annotation-only bound resolution never executes opaque atoms 0.0s
+==> X morkl.CornerstoneSpatialTypeTest.cornerstone abstract interpretations use annotated variables and retain output shapes  3.77s munit.ComparisonFailException: /Users/michaelpolyntsov/Zippy_a/src/test/scala/CornerstoneSpatialTypeTest.scala:232
+231:    assertEquals(aunt.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(3)))
+232:    assertEquals(datalog.pathLength, PathLengthEstimate.unknown)
+233:    assertEquals(life.pathLength, PathLengthEstimate(PathLengthExpr.One, PathLengthExpr.Infinity))
+values are not the same
+=> Obtained
+PathLengthEstimate(
+  lower = Const(
+    value = 2
+  ),
+  upper = Const(
+    value = 2
+  )
+)
+=> Diff (- expected, + obtained)
+   lower = Const(
+-    value = 0
++    value = 2
+   ),
+-  upper = Infinity()
++  upper = Const(
++    value = 2
++  )
+ )
+    at munit.FunSuite.assertEquals(FunSuite.scala:13)
+    at morkl.CornerstoneSpatialTypeTest.$init$$$anonfun$4(CornerstoneSpatialTypeTest.scala:232)
+  + directed closure cardinality contract is exhaustive on all three-node graphs 0.017s
+  + Game of Life output is contained in the nine-cell image of every live cell 0.019s
+  + finite relational domain counts n-queens without evaluating MORKL 0.004s
+Error: munit tests failed.
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/test/scala/CornerstoneSpatialTypeTest.scala:36:4 [0m[0m
+[31m36 |[0m    [33mRoutines[0m.aunt_query_routine,
+[31m[31m   |[0m    ^^^^^^^^[0m
+[31m   |[0m    Not found: Routines
+[31m   |[0m
+[31m   |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/test/scala/CornerstoneSpatialTypeTest.scala:55:28 [0m[0m
+[31m55 |[0m  [33mprivate[0m [33mval[0m datalogCall = [33mDatalogExample[0m.semiNaiveTransitive.name(
+[31m[31m   |[0m                            ^^^^^^^^^^^^^^[0m
+[31m   |[0m                            Not found: DatalogExample
+[31m   |[0m
+[31m   |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/test/scala/CornerstoneSpatialTypeTest.scala:60:8 [0m[0m
+[31m60 |[0m    mod([33mDatalogExample[0m.semiNaiveTransitive),
+[31m[31m   |[0m        ^^^^^^^^^^^^^^[0m
+[31m   |[0m        Not found: DatalogExample
+[31m   |[0m
+[31m   |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/test/scala/CornerstoneSpatialTypeTest.scala:73:33 [0m[0m
+[31m73 |[0m  [33mprivate[0m [33mval[0m lifeFieldMention = [33mLifeExample[0m.nextStep.mentions.head
+[31m[31m   |[0m                                 ^^^^^^^^^^^[0m
+[31m   |[0m                                 Not found: LifeExample
+[31m   |[0m
+[31m   |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/test/scala/CornerstoneSpatialTypeTest.scala:79:4 [0m[0m
+[31m79 |[0m    [33mLifeExample[0m.nextStep,
+[31m[31m   |[0m    ^^^^^^^^^^^[0m
+[31m   |[0m    Not found: LifeExample
+[31m   |[0m
+[31m   |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E171] Type Error: /Users/michaelpolyntsov/Zippy_a/src/test/scala/CornerstoneSpatialTypeTest.scala:80:29 [0m[0m
+[31m80 |[0m    [33mSpatialRoutineAnnotations[0m(
+[31m[31m   |[0m    ^[0m
+[31m   |[0mmissing argument for parameter prefixCoverage of [33mmethod[0m [35mapply[0m in [33mobject[0m [35mSpatialRoutineAnnotations[0m: (paths: Map[morkl.PathRef, morkl.SpatialPathType],
+[31m   |[0m  spaces: Map[morkl.SpaceMention, morkl.SpatialType],
+[31m   |[0m  prefixCoverage: Set[morkl.SpatialPrefixCoverage],
+[31m   |[0m  resultLaws: Vector[morkl.SpatialBoundLaw], config: morkl.SpatialAnalysisConfig
+[31m   |[0m  ): morkl.SpatialRoutineAnnotations
+[31m81 |[0m      spaces = [33mMap[0m(lifeFieldMention -> lifeField),
+[31m82 |[0m      resultLaws = [33mVector[0m([33mSpatialBoundLaw[0m.[33mSubsetOfImage[0m(lifeFieldMention, [33mSizeExpr[0m.const([32m9[0m))),
+[31m83 |[0m      config = [33mSpatialAnalysisConfig[0m(patternLimit = [32m16[0m, analysisNodeBudget = [32m5000[0m),
+[31m84 |[0m    ),
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/test/scala/CornerstoneSpatialTypeTest.scala:85:19 [0m[0m
+[31m85 |[0m    routines = mod([33mLifeExample[0m.neigh),
+[31m[31m   |[0m                   ^^^^^^^^^^^[0m
+[31m   |[0m                   Not found: LifeExample
+[31m   |[0m
+[31m   |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/test/scala/CornerstoneSpatialTypeTest.scala:89:30 [0m[0m
+[31m89 |[0m  [33mprivate[0m [33mval[0m puzzleContext = [33mSlidingPuzzleExample[0m.context([32m3[0m)
+[31m[31m   |[0m                              ^^^^^^^^^^^^^^^^^^^^[0m
+[31m   |[0m                              Not found: SlidingPuzzleExample
+[31m   |[0m
+[31m   |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/test/scala/CornerstoneSpatialTypeTest.scala:96:6 [0m[0m
+[31m96 |[0m      [33mSlidingPuzzleExample[0m.step([32m3[0m, [33mSpace[0m.[33mMention[0m(puzzleReachableMention)),
+[31m[31m   |[0m      ^^^^^^^^^^^^^^^^^^^^[0m
+[31m   |[0m      Not found: SlidingPuzzleExample
+[31m   |[0m
+[31m   |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/test/scala/CornerstoneSpatialTypeTest.scala:119:20 [0m[0m
+[31m119 |[0m      [33mSpace[0m.[33mLiteral[0m([33mTemperatureExample[0m.interval([32m0[0m, [32m1[0m, height = [32m2[0m)) x
+[31m[31m    |[0m                    ^^^^^^^^^^^^^^^^^^[0m
+[31m    |[0m                    Not found: TemperatureExample
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E008] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/test/scala/CornerstoneSpatialTypeTest.scala:118:11 [0m[0m
+[31m118 |[0m    [32m"cell"[0m x
+[31m[31m    |[0m    ^^^^^^^^[0m
+[31m    |[0mvalue x is not a member of String.
+[31m    |[0mAn extension method was tried, but could not be fully constructed:
+[31m    |[0m
+[31m    |[0m    x([32m"cell"[0m)
+[31m    |[0m
+[31m    |[0m    failed with:
+[31m    |[0m
+[31m    |[0m        Ambiguous overload. The overloaded alternatives of [33mmethod[0m [35mx[0m in [33mobject[0m [35mSyntax[0m with types
+[31m    |[0m         (x: morkl.Path)(y: morkl.Space): morkl.Space
+[31m    |[0m         (x: morkl.Path)(y: morkl.Path): morkl.Path
+[31m    |[0m        both match arguments (([32m"cell"[0m : String))(<error unspecified error>)
+[31m[31m-- [E006] Not Found Error: /Users/michaelpolyntsov/Zippy_a/src/test/scala/CornerstoneSpatialTypeTest.scala:139:47 [0m[0m
+[31m139 |[0m  [33mprivate[0m [33mval[0m (queensRoutine, queensContext) = [33mNQueensExample[0m.program([32m4[0m)
+[31m[31m    |[0m                                               ^^^^^^^^^^^^^^[0m
+[31m    |[0m                                             Not found: NQueensExample
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+there were 3 feature warnings; re-run with -feature for details
+1 warning found
+12 errors found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Compilation failed
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 120 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+aunt	size=⌊result⌋=0, ⌈result⌉=(people * min(parentEdges, childEdges, femalePeople))	length=minPathLen≥3, maxPathLen≤3	strata=1
+semi-naive-datalog-fixpoint	size=⌊result⌋=edges, ⌈result⌉=(edges * edges)	length=minPathLen≥2, maxPathLen≤2	strata=2
+game-of-life	size=⌊result⌋=0, ⌈result⌉=min((min((min((min(liveCells, 127) * min(liveCells, 127, (min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127)), (min(liveCells, 127, (min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127))) + min(liveCells, 127, (min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127))) + min(liveCells, 127, (min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127))) + min(liveCells, 127, (min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127))) + min(liveCells, 127, (min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127))) + min(liveCells, 127, (min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127))) + min(liveCells, 127, (min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127))) + min(liveCells, 127, (min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + min(liveCells, 127) + … + …))))), …, …, …, …) * … * …), …, …, …) + … + … + … + … + … + … + …), …, …, …, …, …, …, …, …, …, …, …)	length=minPathLen≥3, maxPathLen≤3	strata=8
+eight-puzzle-all-states	size=⌊result⌋=181440, ⌈result⌉=181440	length=minPathLen≥9, maxPathLen≤9	strata=2
+temperature	size=⌊result⌋=0, ⌈result⌉=worldCells	length=minPathLen≥4, maxPathLen≤4	strata=1
+nqueens	size=⌊result⌋=2, ⌈result⌉=2	length=minPathLen≥4, maxPathLen≤4	strata=44
+Argument --test-only: argument ??? already specified
+
+To list all available options, run
+  [1mscala-cli test --help[0m
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:797:23 [0m[0m
+[31m797 |[0m      [33mcase[0m [33mSpace[0m.[33mUnion[0m(left, right) | [33mSpace[0m.[33mIntersection[0m(left, right) |
+[31m[31m    |[0m                       ^^^^[0m
+[31m    |[0m                       Illegal variable left in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:797:29 [0m[0m
+[31m797 |[0m      [33mcase[0m [33mSpace[0m.[33mUnion[0m(left, right) | [33mSpace[0m.[33mIntersection[0m(left, right) |
+[31m[31m    |[0m                             ^^^^^[0m
+[31m    |[0m                         Illegal variable right in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:797:57 [0m[0m
+[31m797 |[0m      [33mcase[0m [33mSpace[0m.[33mUnion[0m(left, right) | [33mSpace[0m.[33mIntersection[0m(left, right) |
+[31m[31m    |[0m                                                         ^^^^[0m
+[31m    |[0m                          Illegal variable left in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:797:63 [0m[0m
+[31m797 |[0m      [33mcase[0m [33mSpace[0m.[33mUnion[0m(left, right) | [33mSpace[0m.[33mIntersection[0m(left, right) |
+[31m[31m    |[0m                                                               ^^^^^[0m
+[31m    |[0m                         Illegal variable right in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:798:29 [0m[0m
+[31m798 |[0m           [33mSpace[0m.[33mSubtraction[0m(left, right) | [33mSpace[0m.[33mRestriction[0m(left, right) |
+[31m[31m    |[0m                             ^^^^[0m
+[31m    |[0m                          Illegal variable left in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:798:35 [0m[0m
+[31m798 |[0m           [33mSpace[0m.[33mSubtraction[0m(left, right) | [33mSpace[0m.[33mRestriction[0m(left, right) |
+[31m[31m    |[0m                                   ^^^^^[0m
+[31m    |[0m                         Illegal variable right in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:798:62 [0m[0m
+[31m798 |[0m           [33mSpace[0m.[33mSubtraction[0m(left, right) | [33mSpace[0m.[33mRestriction[0m(left, right) |
+[31m[31m    |[0m                                                              ^^^^[0m
+[31m    |[0m                          Illegal variable left in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:798:68 [0m[0m
+[31m798 |[0m           [33mSpace[0m.[33mSubtraction[0m(left, right) | [33mSpace[0m.[33mRestriction[0m(left, right) |
+[31m[31m    |[0m                                                                    ^^^^^[0m
+[31m    |[0m                         Illegal variable right in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:799:29 [0m[0m
+[31m799 |[0m           [33mSpace[0m.[33mRaffination[0m(left, right) | [33mSpace[0m.[33mComposition[0m(left, right) => [33mVector[0m(left, right)
+[31m[31m    |[0m                             ^^^^[0m
+[31m    |[0m                          Illegal variable left in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:799:35 [0m[0m
+[31m799 |[0m           [33mSpace[0m.[33mRaffination[0m(left, right) | [33mSpace[0m.[33mComposition[0m(left, right) => [33mVector[0m(left, right)
+[31m[31m    |[0m                                   ^^^^^[0m
+[31m    |[0m                         Illegal variable right in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:799:62 [0m[0m
+[31m799 |[0m           [33mSpace[0m.[33mRaffination[0m(left, right) | [33mSpace[0m.[33mComposition[0m(left, right) => [33mVector[0m(left, right)
+[31m[31m    |[0m                                                              ^^^^[0m
+[31m    |[0m                          Illegal variable left in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:799:68 [0m[0m
+[31m799 |[0m           [33mSpace[0m.[33mRaffination[0m(left, right) | [33mSpace[0m.[33mComposition[0m(left, right) => [33mVector[0m(left, right)
+[31m[31m    |[0m                                                                    ^^^^^[0m
+[31m    |[0m                         Illegal variable right in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:803:22 [0m[0m
+[31m803 |[0m      [33mcase[0m [33mSpace[0m.[33mWrap[0m(source, _) | [33mSpace[0m.[33mUnwrap[0m(source, _) | [33mSpace[0m.[33mTailsUnion[0m(source) |
+[31m[31m    |[0m                      ^^^^^^[0m
+[31m    |[0m                      Illegal variable source in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:803:48 [0m[0m
+[31m803 |[0m      [33mcase[0m [33mSpace[0m.[33mWrap[0m(source, _) | [33mSpace[0m.[33mUnwrap[0m(source, _) | [33mSpace[0m.[33mTailsUnion[0m(source) |
+[31m[31m    |[0m                                                ^^^^^^[0m
+[31m    |[0m                        Illegal variable source in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:803:78 [0m[0m
+[31m803 |[0m      [33mcase[0m [33mSpace[0m.[33mWrap[0m(source, _) | [33mSpace[0m.[33mUnwrap[0m(source, _) | [33mSpace[0m.[33mTailsUnion[0m(source) |
+[31m[31m    |[0m                                                                              ^^^^^^[0m
+[31m    |[0m                        Illegal variable source in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:804:35 [0m[0m
+[31m804 |[0m           [33mSpace[0m.[33mTailsIntersection[0m(source) | [33mSpace[0m.[33mPrefixClosure[0m(source) |
+[31m[31m    |[0m                                   ^^^^^^[0m
+[31m    |[0m                        Illegal variable source in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:804:65 [0m[0m
+[31m804 |[0m           [33mSpace[0m.[33mTailsIntersection[0m(source) | [33mSpace[0m.[33mPrefixClosure[0m(source) |
+[31m[31m    |[0m                                                                 ^^^^^^[0m
+[31m    |[0m                        Illegal variable source in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:805:31 [0m[0m
+[31m805 |[0m           [33mSpace[0m.[33mSuffixClosure[0m(source) | [33mSpace[0m.[33mTailsClosure[0m(source) |
+[31m[31m    |[0m                               ^^^^^^[0m
+[31m    |[0m                        Illegal variable source in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:805:60 [0m[0m
+[31m805 |[0m           [33mSpace[0m.[33mSuffixClosure[0m(source) | [33mSpace[0m.[33mTailsClosure[0m(source) |
+[31m[31m    |[0m                                                            ^^^^^^[0m
+[31m    |[0m                        Illegal variable source in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:806:28 [0m[0m
+[31m806 |[0m           [33mSpace[0m.[33mGroundedSS[0m(source, _) | [33mSpace[0m.[33mRange[0m(source, _, _) => [33mVector[0m(source)
+[31m[31m    |[0m                            ^^^^^^[0m
+[31m    |[0m                        Illegal variable source in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+[31m[31m-- [E024] Syntax Error: /Users/michaelpolyntsov/Zippy_a/src/main/scala/SpatialType.scala:806:53 [0m[0m
+[31m806 |[0m           [33mSpace[0m.[33mGroundedSS[0m(source, _) | [33mSpace[0m.[33mRange[0m(source, _, _) => [33mVector[0m(source)
+[31m[31m    |[0m                                                     ^^^^^^[0m
+[31m    |[0m                        Illegal variable source in pattern alternative
+[31m    |[0m
+[31m    |[0m longer explanation available when compiling with `-explain`
+there were 120 feature warnings; re-run with -feature for details
+1 warning found
+21 errors found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Compilation failed
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 120 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.CornerstoneSpatialTypeTest:
+  + spatial routine analysis does not execute a zero-argument generator 0.012s
+  + strict range transfer propagates its literal annotation without concrete evaluation 0.007s
+  + annotation-only bound resolution never executes opaque atoms 0.001s
+  + cornerstone abstract interpretations use annotated variables and retain output shapes 8.214s
+  + directed closure cardinality contract is exhaustive on all three-node graphs 0.013s
+  + Game of Life output is contained in the nine-cell image of every live cell 0.015s
+  + finite relational domain counts n-queens without evaluating MORKL 0.002s
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 120 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 120 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 120 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[31m[31m-- [E134] Type Error: /Users/michaelpolyntsov/Zippy_a/src/test/scala/SpatialTypeTest.scala:362:2 [0m[0m
+[31m362 |[0m  test.only([32m"cost intervals remain finite through a five-node expression"[0m) {
+[31m[31m    |[0m  ^^^^[0m
+[31m    |[0mNone of the overloaded alternatives of [33mmethod[0m [35mtest[0m in [33mtrait[0m [35mBaseFunSuite[0m with types
+[31m    |[0m (options: munit.TestOptions)(body: => Any)([33mimplicit [0mloc: munit.Location): Unit
+[31m    |[0m (name: String)(body: => Any)([33mimplicit [0mloc: munit.Location): Unit
+[31m    |[0mmatch expected type ?{ only: ? }
+there were 129 feature warnings; re-run with -feature for details
+1 warning found
+1 error found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Compilation failed
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialTypeTest:
+==> X morkl.SpatialTypeTest.cost intervals remain finite through a five-node expression  0.035s munit.ComparisonFailException: /Users/michaelpolyntsov/Zippy_a/src/test/scala/SpatialTypeTest.scala:371 values are the same, expected 2 different values: Infinity is equal to Infinity
+370:    val cost = SpatialTypeAnalysis.output(expression).cost
+371:    assertNotEquals(cost.workUpper, SizeExpr.Infinity)
+372:    assertNotEquals(cost.allocationUpper, SizeExpr.Infinity)
+    at munit.FunSuite.assertNotEquals(FunSuite.scala:13)
+    at morkl.SpatialTypeTest.$init$$$anonfun$15(SpatialTypeTest.scala:371)
+Error: munit tests failed.
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialTypeTest:
+==> X morkl.SpatialTypeTest.cost intervals remain finite through a five-node expression  0.04s munit.ComparisonFailException: /Users/michaelpolyntsov/Zippy_a/src/test/scala/SpatialTypeTest.scala:371
+370:    val cost = SpatialTypeAnalysis.output(expression).cost
+371:    assertNotEquals(cost.workUpper, SizeExpr.Infinity, clues(cost.show))
+372:    assertNotEquals(cost.allocationUpper, SizeExpr.Infinity)
+Clues {
+  cost.show: String = "work=[9,\u221e], alloc=[5,17]; reference={work=[9,\u221e], alloc=[5,17]}, trie={work=[9,\u221e], alloc=[5,17]}, zipper={work=[9,\u221e], alloc=[5,17]}, graph={work=[5,8], alloc=[5,8]}"
+}, expected 2 different values: Infinity is equal to Infinity
+    at munit.FunSuite.assertNotEquals(FunSuite.scala:13)
+    at morkl.SpatialTypeTest.$init$$$anonfun$15(SpatialTypeTest.scala:371)
+Error: munit tests failed.
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialTypeTest:
+==> X morkl.SpatialTypeTest.cost intervals remain finite through a five-node expression  0.044s munit.ComparisonFailException: /Users/michaelpolyntsov/Zippy_a/src/test/scala/SpatialTypeTest.scala:373
+372:    assertNotEquals(cost.workUpper, SizeExpr.Infinity,
+373:      clues(cost.show, decorated.nodes.map(node => node.position -> node.result.cost.show)))
+374:    assertNotEquals(cost.allocationUpper, SizeExpr.Infinity)
+Clues {
+  cost.show: String = "work=[9,\u221e], alloc=[5,17]; reference={work=[9,\u221e], alloc=[5,17]}, trie={work=[9,\u221e], alloc=[5,17]}, zipper={work=[9,\u221e], alloc=[5,17]}, graph={work=[5,8], alloc=[5,8]}"
+  decorated.nodes.map(node => node.position -> node.result.cost.show): Vector[Tuple2[Vector[Int], String]] = Vector(
+    Tuple2(
+      _1 = Nil,
+      _2 = "work=[9,\u221e], alloc=[5,17]; reference={work=[9,\u221e], alloc=[5,17]}, trie={work=[9,\u221e], alloc=[5,17]}, zipper={work=[9,\u221e], alloc=[5,17]}, graph={work=[5,8], alloc=[5,8]}"
+    ),
+    Tuple2(
+      _1 = Vector(
+        0
+      ),
+      _2 = "work=[8,12], alloc=[4,12]; reference={work=[8,12], alloc=[4,12]}, trie={work=[8,12], alloc=[4,12]}, zipper={work=[8,14], alloc=[4,12]}, graph={work=[4,6], alloc=[4,6]}"
+    ),
+    Tuple2(
+      _1 = Vector(
+        0,
+        0
+      ),
+      _2 = "work=[8,8], alloc=[4,8]; reference={work=[8,8], alloc=[4,8]}, trie={work=[8,8], alloc=[4,8]}, zipper={work=[8,9], alloc=[4,8]}, graph={work=[4,5], alloc=[4,5]}"
+    ),
+    Tuple2(
+      _1 = Vector(
+        0,
+        0,
+        0
+      ),
+      _2 = "work=[2,2], alloc=[2,2]; reference={work=[2,2], alloc=[2,2]}, trie={work=[2,2], alloc=[2,2]}, zipper={work=[2,2], alloc=[2,2]}, graph={work=[2,2], alloc=[2,2]}"
+    ),
+    Tuple2(
+      _1 = Vector(
+        0,
+        0,
+        1
+      ),
+      _2 = "work=[2,2], alloc=[2,2]; reference={work=[2,2], alloc=[2,2]}, trie={work=[2,2], alloc=[2,2]}, zipper={work=[2,2], alloc=[2,2]}, graph={work=[2,2], alloc=[2,2]}"
+    )
+  )
+}, expected 2 different values: Infinity is equal to Infinity
+    at munit.FunSuite.assertNotEquals(FunSuite.scala:13)
+    at morkl.SpatialTypeTest.$init$$$anonfun$15(SpatialTypeTest.scala:373)
+Error: munit tests failed.
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialTypeTest:
+==> X morkl.SpatialTypeTest.cost intervals remain finite through a five-node expression  0.043s munit.ComparisonFailException: /Users/michaelpolyntsov/Zippy_a/src/test/scala/SpatialTypeTest.scala:373
+372:    assertNotEquals(cost.workUpper, SizeExpr.Infinity,
+373:      clues(cost.show, decorated.nodes.map(node => node.position -> (node.result.size.show, node.result.cost.show))))
+374:    assertNotEquals(cost.allocationUpper, SizeExpr.Infinity)
+Clues {
+  cost.show: String = "work=[9,\u221e], alloc=[5,17]; reference={work=[9,\u221e], alloc=[5,17]}, trie={work=[9,\u221e], alloc=[5,17]}, zipper={work=[9,\u221e], alloc=[5,17]}, graph={work=[5,8], alloc=[5,8]}"
+  decorated.nodes.map(node => node.position -> (node.result.size.show, node.result.cost.show)): Vector[Tuple2[Vector[Int], Tuple2[String, String]]] = Vector(
+    Tuple2(
+      _1 = Nil,
+      _2 = Tuple2(
+        _1 = "\u230aresult\u230b=1, \u2308result\u2309=\u221e",
+        _2 = "work=[9,\u221e], alloc=[5,17]; reference={work=[9,\u221e], alloc=[5,17]}, trie={work=[9,\u221e], alloc=[5,17]}, zipper={work=[9,\u221e], alloc=[5,17]}, graph={work=[5,8], alloc=[5,8]}"
+      )
+    ),
+    Tuple2(
+      _1 = Vector(
+        0
+      ),
+      _2 = Tuple2(
+        _1 = "\u230aresult\u230b=1, \u2308result\u2309=\u221e",
+        _2 = "work=[8,12], alloc=[4,12]; reference={work=[8,12], alloc=[4,12]}, trie={work=[8,12], alloc=[4,12]}, zipper={work=[8,14], alloc=[4,12]}, graph={work=[4,6], alloc=[4,6]}"
+      )
+    ),
+    Tuple2(
+      _1 = Vector(
+        0,
+        0
+      ),
+      _2 = Tuple2(
+        _1 = "\u230aresult\u230b=0, \u2308result\u2309=4",
+        _2 = "work=[8,8], alloc=[4,8]; reference={work=[8,8], alloc=[4,8]}, trie={work=[8,8], alloc=[4,8]}, zipper={work=[8,9], alloc=[4,8]}, graph={work=[4,5], alloc=[4,5]}"
+      )
+    ),
+    Tuple2(
+      _1 = Vector(
+        0,
+        0,
+        0
+      ),
+      _2 = Tuple2(
+        _1 = "\u230aresult\u230b=2, \u2308result\u2309=2",
+        _2 = "work=[2,2], alloc=[2,2]; reference={work=[2,2], alloc=[2,2]}, trie={work=[2,2], alloc=[2,2]}, zipper={work=[2,2], alloc=[2,2]}, graph={work=[2,2], alloc=[2,2]}"
+      )
+    ),
+    Tuple2(
+      _1 = Vector(
+        0,
+        0,
+        1
+      ),
+      _2 = Tuple2(
+        _1 = "\u230aresult\u230b=2, \u2308result\u2309=2",
+        _2 = "work=[2,2], alloc=[2,2]; reference={work=[2,2], alloc=[2,2]}, trie={work=[2,2], alloc=[2,2]}, zipper={work=[2,2], alloc=[2,2]}, graph={work=[2,2], alloc=[2,2]}"
+      )
+    )
+  )
+}, expected 2 different values: Infinity is equal to Infinity
+    at munit.FunSuite.assertNotEquals(FunSuite.scala:13)
+    at morkl.SpatialTypeTest.$init$$$anonfun$15(SpatialTypeTest.scala:373)
+Error: munit tests failed.
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialTypeTest:
+  + cost intervals remain finite through a five-node expression 0.031s
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialTypeTest:
+  + spatial restriction retains compatible length strata and prefix witnesses 0.084s
+  + encoded if-empty control has a piecewise exact spatial type 0.019s
+  + iteration counts constant-headed fibers as groups rather than paths 0.004s
+  + nested full-path iterator chains are bounded as pointwise maps 0.012s
+  + pure Game-of-Life neighbor arithmetic has eight length-two outputs 0.036s
+  + spatial types propagate through five Game-of-Life steps without result feedback 1.947s
+  + exact spatial types expose graph fiber degree statistics 0.005s
+  + spatial projections refine scalar size and path-length projections 0.038s
+  + fixpoint reaches a checked post-fixpoint before exposing shapes 0.005s
+  + tails does not assume an interval-length path is headed 0.0s
+  + semantic result laws intersect structural facts and expose contradictions 0.003s
+  + repeated union mentions remain coherent across total and strata 0.016s
+  + union preserves optionality of a known singleton pattern 0.001s
+  + decorated analysis retains lexical iterator bindings 0.002s
+  + cost intervals remain finite through a five-node expression 0.003s
+==> X morkl.SpatialTypeTest.spatial facts expose optimization decisions and symbolic depth degrees  0.012s munit.ComparisonFailException: /Users/michaelpolyntsov/Zippy_a/src/test/scala/SpatialTypeTest.scala:394
+393:    assertEquals(facts.depthProfile.map(_.depth), Vector(0, 1))
+394:    assertEquals(facts.depthProfile.head.distinctItems.upper.annotatedValue, Some(BigInt(1)))
+395:    assertEquals(facts.commonConstantPrefix, Some(PathValue(List(PathItem("edge")))))
+values are not the same
+=> Obtained
+None
+=> Diff (- expected, + obtained)
+-Some(
+-  value = 1
+-)
++None
+    at munit.FunSuite.assertEquals(FunSuite.scala:13)
+    at morkl.SpatialTypeTest.$init$$$anonfun$16(SpatialTypeTest.scala:394)
+  + decorated nodes have positional identity and joined observations 0.001s
+  + extended fuzzer call routine is analyzed across its annotation boundary 0.001s
+  + dominant monomials distinguish linear from quadratic cost 0.003s
+Error: munit tests failed.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 3 deprecation warnings; re-run with -deprecation for details
+2 warnings found
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+wrote 289 SMT2 artifacts and 261 TPTP artifacts
+% Running in auto input_syntax mode. Trying TPTP
+% Detected formulas, will run a generic FOF schedule.
+% WARNING: time unlimited strategy and instruction limiting not in place - attempting to translate instructions to time
+% % WARNING: option sil not known.
+% % WARNING: option i not known.
+% lrs+1011_32_tgt=full:alpa=true:random_seed=173225542:st=5:sd=1:ss=included:er=filter_1 on spatial_fixpoint_postfixed_sound_fo for (1ds)
+% Solution written to "/var/folders/zn/426n2rk928n4jnth68f69lvc0000gn/T/vampire-proof-36876"
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for spatial_fixpoint_postfixed_sound_fo
+% SZS output start Proof for spatial_fixpoint_postfixed_sound_fo
+fof(f3,axiom,(
+  ! [X0,X1,X2,X3] : ((subset(X1,X3) & subset(apply(X2,X3),X3) & member(X0,lfp(X1,X2))) => member(X0,X3))),
+  file('proofs/vampire/generated/spatial_fixpoint_postfixed_sound_fo.p',unknown)).
+fof(f5,conjecture,(
+  ! [X0,X1,X2,X3] : ((subset(X1,X3) & subset(apply(X2,X3),X3) & member(X0,lfp(X1,X2))) => member(X0,X3))),
+  file('proofs/vampire/generated/spatial_fixpoint_postfixed_sound_fo.p',unknown)).
+fof(f6,negated_conjecture,(
+  ~! [X0,X1,X2,X3] : ((subset(X1,X3) & subset(apply(X2,X3),X3) & member(X0,lfp(X1,X2))) => member(X0,X3))),
+  inference(negated_conjecture,[status(cth)],[f5])).
+fof(f9,plain,(
+  ! [X0,X1,X2,X3] : (member(X0,X3) | (~subset(X1,X3) | ~subset(apply(X2,X3),X3) | ~member(X0,lfp(X1,X2))))),
+  inference(ennf_transformation,[],[f3])).
+fof(f10,plain,(
+  ! [X0,X1,X2,X3] : (member(X0,X3) | ~subset(X1,X3) | ~subset(apply(X2,X3),X3) | ~member(X0,lfp(X1,X2)))),
+  inference(flattening,[],[f9])).
+fof(f12,plain,(
+  ? [X0,X1,X2,X3] : (~member(X0,X3) & (subset(X1,X3) & subset(apply(X2,X3),X3) & member(X0,lfp(X1,X2))))),
+  inference(ennf_transformation,[],[f6])).
+fof(f13,plain,(
+  ? [X0,X1,X2,X3] : (~member(X0,X3) & subset(X1,X3) & subset(apply(X2,X3),X3) & member(X0,lfp(X1,X2)))),
+  inference(flattening,[],[f12])).
+fof(f18,plain,(
+  ? [X0,X1,X2,X3] : (~member(X0,X3) & subset(X1,X3) & subset(apply(X2,X3),X3) & member(X0,lfp(X1,X2))) => (~member(sK1,sK4) & subset(sK2,sK4) & subset(apply(sK3,sK4),sK4) & member(sK1,lfp(sK2,sK3)))),
+  introduced(definition,[],[skolem_symbol_introduction])).
+fof(f19,plain,(
+  ~member(sK1,sK4) & subset(sK2,sK4) & subset(apply(sK3,sK4),sK4) & member(sK1,lfp(sK2,sK3))),
+  inference(skolemisation,[status(esa),new_symbols(skolem,[sK1,sK2,sK3,sK4])],[f13,f18])).
+fof(f22,plain,(
+  ( ! [X2,X3,X0,X1] : (~subset(apply(X2,X3),X3) | ~subset(X1,X3) | member(X0,X3) | ~member(X0,lfp(X1,X2))) )),
+  inference(cnf_transformation,[],[f10])).
+fof(f26,plain,(
+  member(sK1,lfp(sK2,sK3))),
+  inference(cnf_transformation,[],[f19])).
+fof(f27,plain,(
+  subset(apply(sK3,sK4),sK4)),
+  inference(cnf_transformation,[],[f19])).
+fof(f28,plain,(
+  subset(sK2,sK4)),
+  inference(cnf_transformation,[],[f19])).
+fof(f29,plain,(
+  ~member(sK1,sK4)),
+  inference(cnf_transformation,[],[f19])).
+fof(f30,definition,(
+  apply(sK3,sK4) = sF5),
+  introduced(definition,[new_symbols(definition,[sF5])],[function_definition])).
+fof(f31,plain,(
+  subset(sF5,sK4)),
+  inference(definition_folding,[],[f27,f30])).
+fof(f32,definition,(
+  lfp(sK2,sK3) = sF6),
+  introduced(definition,[new_symbols(definition,[sF6])],[function_definition])).
+fof(f33,plain,(
+  member(sK1,sF6)),
+  inference(definition_folding,[],[f26,f32])).
+fof(f134,plain,(
+  ( ! [X0,X1] : (~subset(sF5,sK4) | ~subset(X0,sK4) | member(X1,sK4) | ~member(X1,lfp(X0,sK3))) )),
+  inference(superposition,[],[f22,f30])).
+fof(f135,plain,(
+  ( ! [X0,X1] : (~subset(X0,sK4) | member(X1,sK4) | ~member(X1,lfp(X0,sK3))) )),
+  inference(forward_subsumption_resolution,[],[f134,f31])).
+fof(f136,plain,(
+  ( ! [X0] : (member(X0,sK4) | ~member(X0,lfp(sK2,sK3))) )),
+  inference(resolution,[],[f135,f28])).
+fof(f139,plain,(
+  ( ! [X0] : (~member(X0,sF6) | member(X0,sK4)) )),
+  inference(forward_demodulation,[],[f136,f32])).
+fof(f140,plain,(
+  member(sK1,sK4)),
+  inference(resolution,[],[f139,f33])).
+fof(f144,plain,(
+  $false),
+  inference(forward_subsumption_resolution,[],[f140,f29])).
+% SZS output end Proof for spatial_fixpoint_postfixed_sound_fo
+% ------------------------------
+% Version: Vampire 5.0.1 (Release build, commit 1b13eaf on 2026-01-18 12:14:50 +0000)
+% Linked with Z3 4.14.0.0 3c47fd96cf5645d0c42b2c819d9e9a84380aa721 NOTFOUND
+% CaDiCaL version: 2.1.3
+% Termination reason: Refutation
+% Time elapsed: 0.005 s
+% Peak memory usage: 6 MB
+% ------------------------------
+% ------------------------------
+% Success in time 0.011 s
+% Running in auto input_syntax mode. Trying TPTP
+% Detected formulas, will run a generic FOF schedule.
+% WARNING: time unlimited strategy and instruction limiting not in place - attempting to translate instructions to time
+% % WARNING: option sil not known.
+% % WARNING: option i not known.
+% lrs+1011_32_tgt=full:alpa=true:random_seed=3383261728:st=5:sd=1:ss=included:er=filter_1 on spatial_optimizer_preserves_analysis_soundness_fo for (1ds)
+% Solution written to "/var/folders/zn/426n2rk928n4jnth68f69lvc0000gn/T/vampire-proof-36878"
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for spatial_optimizer_preserves_analysis_soundness_fo
+% SZS output start Proof for spatial_optimizer_preserves_analysis_soundness_fo
+fof(f1,axiom,(
+  ! [X0,X1] : eval(opt(X0),X1) = eval(X0,X1)),
+  file('proofs/vampire/generated/spatial_optimizer_preserves_analysis_soundness_fo.p',unknown)).
+fof(f2,axiom,(
+  ! [X0,X1,X2] : (abstracts(X1,X2) => gamma(eval(X0,X1),analyze(X0,X2)))),
+  file('proofs/vampire/generated/spatial_optimizer_preserves_analysis_soundness_fo.p',unknown)).
+fof(f3,conjecture,(
+  ! [X0,X1,X2] : (abstracts(X1,X2) => gamma(eval(opt(X0),X1),analyze(X0,X2)))),
+  file('proofs/vampire/generated/spatial_optimizer_preserves_analysis_soundness_fo.p',unknown)).
+fof(f4,negated_conjecture,(
+  ~! [X0,X1,X2] : (abstracts(X1,X2) => gamma(eval(opt(X0),X1),analyze(X0,X2)))),
+  inference(negated_conjecture,[status(cth)],[f3])).
+fof(f5,plain,(
+  ! [X0,X1,X2] : (gamma(eval(X0,X1),analyze(X0,X2)) | ~abstracts(X1,X2))),
+  inference(ennf_transformation,[],[f2])).
+fof(f6,plain,(
+  ? [X0,X1,X2] : (~gamma(eval(opt(X0),X1),analyze(X0,X2)) & abstracts(X1,X2))),
+  inference(ennf_transformation,[],[f4])).
+fof(f7,plain,(
+  ? [X0,X1,X2] : (~gamma(eval(opt(X0),X1),analyze(X0,X2)) & abstracts(X1,X2)) => (~gamma(eval(opt(sK0),sK1),analyze(sK0,sK2)) & abstracts(sK1,sK2))),
+  introduced(definition,[],[skolem_symbol_introduction])).
+fof(f8,plain,(
+  ~gamma(eval(opt(sK0),sK1),analyze(sK0,sK2)) & abstracts(sK1,sK2)),
+  inference(skolemisation,[status(esa),new_symbols(skolem,[sK0,sK1,sK2])],[f6,f7])).
+fof(f9,plain,(
+  ( ! [X0,X1] : (eval(opt(X0),X1) = eval(X0,X1)) )),
+  inference(cnf_transformation,[],[f1])).
+fof(f10,plain,(
+  ( ! [X2,X0,X1] : (~abstracts(X1,X2) | gamma(eval(X0,X1),analyze(X0,X2))) )),
+  inference(cnf_transformation,[],[f5])).
+fof(f11,plain,(
+  abstracts(sK1,sK2)),
+  inference(cnf_transformation,[],[f8])).
+fof(f12,plain,(
+  ~gamma(eval(opt(sK0),sK1),analyze(sK0,sK2))),
+  inference(cnf_transformation,[],[f8])).
+fof(f13,definition,(
+  opt(sK0) = sF3),
+  introduced(definition,[new_symbols(definition,[sF3])],[function_definition])).
+fof(f14,definition,(
+  eval(sF3,sK1) = sF4),
+  introduced(definition,[new_symbols(definition,[sF4])],[function_definition])).
+fof(f15,definition,(
+  analyze(sK0,sK2) = sF5),
+  introduced(definition,[new_symbols(definition,[sF5])],[function_definition])).
+fof(f16,plain,(
+  ~gamma(sF4,sF5)),
+  inference(definition_folding,[],[f12,f15,f14,f13])).
+fof(f17,plain,(
+  ( ! [X0] : (eval(sK0,X0) = eval(sF3,X0)) )),
+  inference(superposition,[],[f9,f13])).
+fof(f19,plain,(
+  sF4 = eval(sK0,sK1)),
+  inference(superposition,[],[f14,f17])).
+fof(f20,plain,(
+  ( ! [X0] : (gamma(eval(X0,sK1),analyze(X0,sK2))) )),
+  inference(resolution,[],[f10,f11])).
+fof(f25,plain,(
+  gamma(eval(sK0,sK1),sF5)),
+  inference(superposition,[],[f20,f15])).
+fof(f26,plain,(
+  gamma(sF4,sF5)),
+  inference(forward_demodulation,[],[f25,f19])).
+fof(f29,plain,(
+  $false),
+  inference(forward_subsumption_resolution,[],[f26,f16])).
+% SZS output end Proof for spatial_optimizer_preserves_analysis_soundness_fo
+% ------------------------------
+% Version: Vampire 5.0.1 (Release build, commit 1b13eaf on 2026-01-18 12:14:50 +0000)
+% Linked with Z3 4.14.0.0 3c47fd96cf5645d0c42b2c819d9e9a84380aa721 NOTFOUND
+% CaDiCaL version: 2.1.3
+% Termination reason: Refutation
+% Time elapsed: 0.0000 s
+% Peak memory usage: 6 MB
+% ------------------------------
+% ------------------------------
+% Success in time 0.002 s
+% Running in auto input_syntax mode. Trying TPTP
+% Detected formulas, will run a generic FOF schedule.
+% WARNING: time unlimited strategy and instruction limiting not in place - attempting to translate instructions to time
+% % WARNING: option sil not known.
+% % WARNING: option i not known.
+% lrs+1011_32_tgt=full:alpa=true:random_seed=2201710622:st=5:sd=1:ss=included:er=filter_1 on spatial_trie_bounded_depth_selection_fo for (1ds)
+% Solution written to "/var/folders/zn/426n2rk928n4jnth68f69lvc0000gn/T/vampire-proof-36880"
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for spatial_trie_bounded_depth_selection_fo
+% SZS output start Proof for spatial_trie_bounded_depth_selection_fo
+fof(f1,axiom,(
+  ! [X0,X1,X2] : ((typed(X0,X1) & max_depth(X1,X2)) => obs(trie(X0),trie_unrolled(X0,X2)))),
+  file('proofs/vampire/generated/spatial_trie_bounded_depth_selection_fo.p',unknown)).
+fof(f4,conjecture,(
+  ! [X0,X1,X2] : ((typed(X0,X1) & max_depth(X1,X2)) => obs(trie(X0),trie_unrolled(X0,X2)))),
+  file('proofs/vampire/generated/spatial_trie_bounded_depth_selection_fo.p',unknown)).
+fof(f5,negated_conjecture,(
+  ~! [X0,X1,X2] : ((typed(X0,X1) & max_depth(X1,X2)) => obs(trie(X0),trie_unrolled(X0,X2)))),
+  inference(negated_conjecture,[status(cth)],[f4])).
+fof(f8,plain,(
+  ! [X0,X1,X2] : (obs(trie(X0),trie_unrolled(X0,X2)) | (~typed(X0,X1) | ~max_depth(X1,X2)))),
+  inference(ennf_transformation,[],[f1])).
+fof(f9,plain,(
+  ! [X0,X1,X2] : (obs(trie(X0),trie_unrolled(X0,X2)) | ~typed(X0,X1) | ~max_depth(X1,X2))),
+  inference(flattening,[],[f8])).
+fof(f10,plain,(
+  ? [X0,X1,X2] : (~obs(trie(X0),trie_unrolled(X0,X2)) & (typed(X0,X1) & max_depth(X1,X2)))),
+  inference(ennf_transformation,[],[f5])).
+fof(f11,plain,(
+  ? [X0,X1,X2] : (~obs(trie(X0),trie_unrolled(X0,X2)) & typed(X0,X1) & max_depth(X1,X2))),
+  inference(flattening,[],[f10])).
+fof(f12,plain,(
+  ? [X0,X1,X2] : (~obs(trie(X0),trie_unrolled(X0,X2)) & typed(X0,X1) & max_depth(X1,X2)) => (~obs(trie(sK0),trie_unrolled(sK0,sK2)) & typed(sK0,sK1) & max_depth(sK1,sK2))),
+  introduced(definition,[],[skolem_symbol_introduction])).
+fof(f13,plain,(
+  ~obs(trie(sK0),trie_unrolled(sK0,sK2)) & typed(sK0,sK1) & max_depth(sK1,sK2)),
+  inference(skolemisation,[status(esa),new_symbols(skolem,[sK0,sK1,sK2])],[f11,f12])).
+fof(f14,plain,(
+  ( ! [X2,X0,X1] : (~max_depth(X1,X2) | ~typed(X0,X1) | obs(trie(X0),trie_unrolled(X0,X2))) )),
+  inference(cnf_transformation,[],[f9])).
+fof(f15,plain,(
+  max_depth(sK1,sK2)),
+  inference(cnf_transformation,[],[f13])).
+fof(f16,plain,(
+  typed(sK0,sK1)),
+  inference(cnf_transformation,[],[f13])).
+fof(f17,plain,(
+  ~obs(trie(sK0),trie_unrolled(sK0,sK2))),
+  inference(cnf_transformation,[],[f13])).
+fof(f18,definition,(
+  trie(sK0) = sF3),
+  introduced(definition,[new_symbols(definition,[sF3])],[function_definition])).
+fof(f19,definition,(
+  trie_unrolled(sK0,sK2) = sF4),
+  introduced(definition,[new_symbols(definition,[sF4])],[function_definition])).
+fof(f20,plain,(
+  ~obs(sF3,sF4)),
+  inference(definition_folding,[],[f17,f19,f18])).
+fof(f21,plain,(
+  ( ! [X0] : (~typed(X0,sK1) | obs(trie(X0),trie_unrolled(X0,sK2))) )),
+  inference(resolution,[],[f14,f15])).
+fof(f22,plain,(
+  obs(trie(sK0),trie_unrolled(sK0,sK2))),
+  inference(resolution,[],[f21,f16])).
+fof(f23,plain,(
+  obs(trie(sK0),sF4)),
+  inference(forward_demodulation,[],[f22,f19])).
+fof(f24,plain,(
+  obs(sF3,sF4)),
+  inference(forward_demodulation,[],[f23,f18])).
+fof(f25,plain,(
+  $false),
+  inference(forward_subsumption_resolution,[],[f24,f20])).
+% SZS output end Proof for spatial_trie_bounded_depth_selection_fo
+% ------------------------------
+% Version: Vampire 5.0.1 (Release build, commit 1b13eaf on 2026-01-18 12:14:50 +0000)
+% Linked with Z3 4.14.0.0 3c47fd96cf5645d0c42b2c819d9e9a84380aa721 NOTFOUND
+% CaDiCaL version: 2.1.3
+% Termination reason: Refutation
+% Time elapsed: 0.0000 s
+% Peak memory usage: 6 MB
+% ------------------------------
+% ------------------------------
+% Success in time 0.002 s
+% Running in auto input_syntax mode. Trying TPTP
+% Detected formulas, will run a generic FOF schedule.
+% WARNING: time unlimited strategy and instruction limiting not in place - attempting to translate instructions to time
+% % WARNING: option sil not known.
+% % WARNING: option i not known.
+% lrs+1011_32_tgt=full:alpa=true:random_seed=3449410559:st=5:sd=1:ss=included:er=filter_1 on spatial_zipper_common_prefix_selection_fo for (1ds)
+% Solution written to "/var/folders/zn/426n2rk928n4jnth68f69lvc0000gn/T/vampire-proof-36882"
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for spatial_zipper_common_prefix_selection_fo
+% SZS output start Proof for spatial_zipper_common_prefix_selection_fo
+fof(f2,axiom,(
+  ! [X0,X1,X2] : ((typed(X0,X1) & common_prefix(X1,X2)) => obs(zipper(X0),zipper_focused(X0,X2)))),
+  file('proofs/vampire/generated/spatial_zipper_common_prefix_selection_fo.p',unknown)).
+fof(f4,conjecture,(
+  ! [X0,X1,X2] : ((typed(X0,X1) & common_prefix(X1,X2)) => obs(zipper(X0),zipper_focused(X0,X2)))),
+  file('proofs/vampire/generated/spatial_zipper_common_prefix_selection_fo.p',unknown)).
+fof(f5,negated_conjecture,(
+  ~! [X0,X1,X2] : ((typed(X0,X1) & common_prefix(X1,X2)) => obs(zipper(X0),zipper_focused(X0,X2)))),
+  inference(negated_conjecture,[status(cth)],[f4])).
+fof(f8,plain,(
+  ! [X0,X1,X2] : (obs(zipper(X0),zipper_focused(X0,X2)) | (~typed(X0,X1) | ~common_prefix(X1,X2)))),
+  inference(ennf_transformation,[],[f2])).
+fof(f9,plain,(
+  ! [X0,X1,X2] : (obs(zipper(X0),zipper_focused(X0,X2)) | ~typed(X0,X1) | ~common_prefix(X1,X2))),
+  inference(flattening,[],[f8])).
+fof(f10,plain,(
+  ? [X0,X1,X2] : (~obs(zipper(X0),zipper_focused(X0,X2)) & (typed(X0,X1) & common_prefix(X1,X2)))),
+  inference(ennf_transformation,[],[f5])).
+fof(f11,plain,(
+  ? [X0,X1,X2] : (~obs(zipper(X0),zipper_focused(X0,X2)) & typed(X0,X1) & common_prefix(X1,X2))),
+  inference(flattening,[],[f10])).
+fof(f12,plain,(
+  ? [X0,X1,X2] : (~obs(zipper(X0),zipper_focused(X0,X2)) & typed(X0,X1) & common_prefix(X1,X2)) => (~obs(zipper(sK0),zipper_focused(sK0,sK2)) & typed(sK0,sK1) & common_prefix(sK1,sK2))),
+  introduced(definition,[],[skolem_symbol_introduction])).
+fof(f13,plain,(
+  ~obs(zipper(sK0),zipper_focused(sK0,sK2)) & typed(sK0,sK1) & common_prefix(sK1,sK2)),
+  inference(skolemisation,[status(esa),new_symbols(skolem,[sK0,sK1,sK2])],[f11,f12])).
+fof(f14,plain,(
+  ( ! [X2,X0,X1] : (~common_prefix(X1,X2) | ~typed(X0,X1) | obs(zipper(X0),zipper_focused(X0,X2))) )),
+  inference(cnf_transformation,[],[f9])).
+fof(f15,plain,(
+  common_prefix(sK1,sK2)),
+  inference(cnf_transformation,[],[f13])).
+fof(f16,plain,(
+  typed(sK0,sK1)),
+  inference(cnf_transformation,[],[f13])).
+fof(f17,plain,(
+  ~obs(zipper(sK0),zipper_focused(sK0,sK2))),
+  inference(cnf_transformation,[],[f13])).
+fof(f18,definition,(
+  zipper(sK0) = sF3),
+  introduced(definition,[new_symbols(definition,[sF3])],[function_definition])).
+fof(f19,definition,(
+  zipper_focused(sK0,sK2) = sF4),
+  introduced(definition,[new_symbols(definition,[sF4])],[function_definition])).
+fof(f20,plain,(
+  ~obs(sF3,sF4)),
+  inference(definition_folding,[],[f17,f19,f18])).
+fof(f21,plain,(
+  ( ! [X0] : (~typed(X0,sK1) | obs(zipper(X0),zipper_focused(X0,sK2))) )),
+  inference(resolution,[],[f14,f15])).
+fof(f22,plain,(
+  obs(zipper(sK0),zipper_focused(sK0,sK2))),
+  inference(resolution,[],[f21,f16])).
+fof(f23,plain,(
+  obs(zipper(sK0),sF4)),
+  inference(forward_demodulation,[],[f22,f19])).
+fof(f24,plain,(
+  obs(sF3,sF4)),
+  inference(forward_demodulation,[],[f23,f18])).
+fof(f25,plain,(
+  $false),
+  inference(forward_subsumption_resolution,[],[f24,f20])).
+% SZS output end Proof for spatial_zipper_common_prefix_selection_fo
+% ------------------------------
+% Version: Vampire 5.0.1 (Release build, commit 1b13eaf on 2026-01-18 12:14:50 +0000)
+% Linked with Z3 4.14.0.0 3c47fd96cf5645d0c42b2c819d9e9a84380aa721 NOTFOUND
+% CaDiCaL version: 2.1.3
+% Termination reason: Refutation
+% Time elapsed: 0.0000 s
+% Peak memory usage: 5 MB
+% ------------------------------
+% ------------------------------
+% Success in time 0.002 s
+% Running in auto input_syntax mode. Trying TPTP
+% Detected formulas, will run a generic FOF schedule.
+% WARNING: time unlimited strategy and instruction limiting not in place - attempting to translate instructions to time
+% % WARNING: option sil not known.
+% % WARNING: option i not known.
+% lrs+1011_32_tgt=full:alpa=true:random_seed=719607114:st=5:sd=1:ss=included:er=filter_1 on spatial_graph_exact_constant_fold_fo for (1ds)
+% Solution written to "/var/folders/zn/426n2rk928n4jnth68f69lvc0000gn/T/vampire-proof-36874"
+% Refutation found. Thanks to Tanya!
+% SZS status Theorem for spatial_graph_exact_constant_fold_fo
+% SZS output start Proof for spatial_graph_exact_constant_fold_fo
+fof(f3,axiom,(
+  ! [X0,X1,X2] : ((typed(X0,X1) & exact_value(X1,X2)) => obs(graph(X0),graph_constant(X2)))),
+  file('proofs/vampire/generated/spatial_graph_exact_constant_fold_fo.p',unknown)).
+fof(f4,conjecture,(
+  ! [X0,X1,X2] : ((typed(X0,X1) & exact_value(X1,X2)) => obs(graph(X0),graph_constant(X2)))),
+  file('proofs/vampire/generated/spatial_graph_exact_constant_fold_fo.p',unknown)).
+fof(f5,negated_conjecture,(
+  ~! [X0,X1,X2] : ((typed(X0,X1) & exact_value(X1,X2)) => obs(graph(X0),graph_constant(X2)))),
+  inference(negated_conjecture,[status(cth)],[f4])).
+fof(f8,plain,(
+  ! [X0,X1,X2] : (obs(graph(X0),graph_constant(X2)) | (~typed(X0,X1) | ~exact_value(X1,X2)))),
+  inference(ennf_transformation,[],[f3])).
+fof(f9,plain,(
+  ! [X0,X1,X2] : (obs(graph(X0),graph_constant(X2)) | ~typed(X0,X1) | ~exact_value(X1,X2))),
+  inference(flattening,[],[f8])).
+fof(f10,plain,(
+  ? [X0,X1,X2] : (~obs(graph(X0),graph_constant(X2)) & (typed(X0,X1) & exact_value(X1,X2)))),
+  inference(ennf_transformation,[],[f5])).
+fof(f11,plain,(
+  ? [X0,X1,X2] : (~obs(graph(X0),graph_constant(X2)) & typed(X0,X1) & exact_value(X1,X2))),
+  inference(flattening,[],[f10])).
+fof(f12,plain,(
+  ? [X0,X1,X2] : (~obs(graph(X0),graph_constant(X2)) & typed(X0,X1) & exact_value(X1,X2)) => (~obs(graph(sK0),graph_constant(sK2)) & typed(sK0,sK1) & exact_value(sK1,sK2))),
+  introduced(definition,[],[skolem_symbol_introduction])).
+fof(f13,plain,(
+  ~obs(graph(sK0),graph_constant(sK2)) & typed(sK0,sK1) & exact_value(sK1,sK2)),
+  inference(skolemisation,[status(esa),new_symbols(skolem,[sK0,sK1,sK2])],[f11,f12])).
+fof(f14,plain,(
+  ( ! [X2,X0,X1] : (~exact_value(X1,X2) | ~typed(X0,X1) | obs(graph(X0),graph_constant(X2))) )),
+  inference(cnf_transformation,[],[f9])).
+fof(f15,plain,(
+  exact_value(sK1,sK2)),
+  inference(cnf_transformation,[],[f13])).
+fof(f16,plain,(
+  typed(sK0,sK1)),
+  inference(cnf_transformation,[],[f13])).
+fof(f17,plain,(
+  ~obs(graph(sK0),graph_constant(sK2))),
+  inference(cnf_transformation,[],[f13])).
+fof(f18,definition,(
+  graph(sK0) = sF3),
+  introduced(definition,[new_symbols(definition,[sF3])],[function_definition])).
+fof(f19,definition,(
+  graph_constant(sK2) = sF4),
+  introduced(definition,[new_symbols(definition,[sF4])],[function_definition])).
+fof(f20,plain,(
+  ~obs(sF3,sF4)),
+  inference(definition_folding,[],[f17,f19,f18])).
+fof(f21,plain,(
+  ( ! [X0] : (~typed(X0,sK1) | obs(graph(X0),graph_constant(sK2))) )),
+  inference(resolution,[],[f14,f15])).
+fof(f22,plain,(
+  ( ! [X0] : (obs(graph(X0),sF4) | ~typed(X0,sK1)) )),
+  inference(forward_demodulation,[],[f21,f19])).
+fof(f23,plain,(
+  obs(sF3,sF4) | ~typed(sK0,sK1)),
+  inference(superposition,[],[f22,f18])).
+fof(f24,plain,(
+  ~typed(sK0,sK1)),
+  inference(forward_subsumption_resolution,[],[f23,f20])).
+fof(f25,plain,(
+  $false),
+  inference(forward_subsumption_resolution,[],[f24,f16])).
+% SZS output end Proof for spatial_graph_exact_constant_fold_fo
+% ------------------------------
+% Version: Vampire 5.0.1 (Release build, commit 1b13eaf on 2026-01-18 12:14:50 +0000)
+% Linked with Z3 4.14.0.0 3c47fd96cf5645d0c42b2c819d9e9a84380aa721 NOTFOUND
+% CaDiCaL version: 2.1.3
+% Termination reason: Refutation
+% Time elapsed: 0.0000 s
+% Peak memory usage: 6 MB
+% ------------------------------
+% ------------------------------
+% Success in time 0.002 s
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.SpatialTypeTest:
+  + spatial restriction retains compatible length strata and prefix witnesses 0.084s
+  + encoded if-empty control has a piecewise exact spatial type 0.021s
+  + iteration counts constant-headed fibers as groups rather than paths 0.002s
+  + nested full-path iterator chains are bounded as pointwise maps 0.014s
+  + pure Game-of-Life neighbor arithmetic has eight length-two outputs 0.047s
+  + spatial types propagate through five Game-of-Life steps without result feedback 2.189s
+  + exact spatial types expose graph fiber degree statistics 0.003s
+  + spatial projections refine scalar size and path-length projections 0.041s
+  + fixpoint reaches a checked post-fixpoint before exposing shapes 0.006s
+  + tails does not assume an interval-length path is headed 0.001s
+  + semantic result laws intersect structural facts and expose contradictions 0.002s
+  + repeated union mentions remain coherent across total and strata 0.015s
+  + union preserves optionality of a known singleton pattern 0.002s
+  + decorated analysis retains lexical iterator bindings 0.004s
+  + cost intervals remain finite through a five-node expression 0.002s
+  + spatial facts expose optimization decisions and symbolic depth degrees 0.005s
+  + decorated nodes have positional identity and joined observations 0.002s
+  + extended fuzzer call routine is analyzed across its annotation boundary 0.001s
+  + dominant monomials distinguish linear from quadratic cost 0.003s
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.CornerstoneSpatialTypeTest:
+  + spatial routine analysis does not execute a zero-argument generator 0.014s
+  + strict range transfer propagates its literal annotation without concrete evaluation 0.009s
+  + annotation-only bound resolution never executes opaque atoms 0.0s
+==> X morkl.CornerstoneSpatialTypeTest.cornerstone abstract interpretations use annotated variables and retain output shapes  2.492s munit.ComparisonFailException: /Users/michaelpolyntsov/Zippy_a/src/test/scala/CornerstoneSpatialTypeTest.scala:234
+233:    assertEquals(life.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(3)))
+234:    assertEquals(puzzle.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(9)))
+235:    assertEquals(temperature.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(4)))
+values are not the same
+=> Obtained
+PathLengthEstimate(
+  lower = Const(
+    value = 0
+  ),
+  upper = Infinity()
+)
+=> Diff (- expected, + obtained)
+   lower = Const(
+-    value = 9
++    value = 0
+   ),
+-  upper = Const(
+-    value = 9
+-  )
++  upper = Infinity()
+ )
+    at munit.FunSuite.assertEquals(FunSuite.scala:13)
+    at morkl.CornerstoneSpatialTypeTest.$init$$$anonfun$4(CornerstoneSpatialTypeTest.scala:234)
+  + directed closure cardinality contract is exhaustive on all three-node graphs 0.02s
+  + Game of Life output is contained in the nine-cell image of every live cell 0.021s
+  + finite relational domain counts n-queens without evaluating MORKL 0.006s
+Error: munit tests failed.
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.CornerstoneSpatialTypeTest:
+  + spatial routine analysis does not execute a zero-argument generator 0.012s
+  + strict range transfer propagates its literal annotation without concrete evaluation 0.009s
+  + annotation-only bound resolution never executes opaque atoms 0.001s
+  + cornerstone abstract interpretations use annotated variables and retain output shapes 9.125s
+  + directed closure cardinality contract is exhaustive on all three-node graphs 0.023s
+  + Game of Life output is contained in the nine-cell image of every live cell 0.025s
+  + finite relational domain counts n-queens without evaluating MORKL 0.001s
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial audit: programs=1000 sound=1000 optimizedSound=1000 exactSizes=487 exactLengths=879 sizeImprovements=648/639 lengthImprovements=130/212 exactStrataChecked=988 unbounded=0/0/0
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial open audit: programs=1000 sound=1000 extended=false finiteUppers=1000 exactSizes=24 upperSlack={0=97,1-2=36,3-8=23,33+=404,9-32=440}
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+Exception in thread "main" java.lang.IllegalArgumentException: requirement failed: open program 267: size [2,2] misses 1; (((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b").fold("", P"fold_acc836151", P"fold_h342802", S"fold_t530400", 
+ Singleton(P"fold_acc836151"),
+ P"fold_acc836151"
+) \/ ("w3" x Singleton("d.b").iter(P"h386044", S"t50145", 
+ S"x"
+).fold("", P"fold_acc440625", P"fold_h91686", S"fold_t352305", 
+ Singleton(P"fold_acc440625"),
+ P"fold_acc440625"
+)).iter(P"h110903", S"t364110", 
+ Singleton(P"h110903")
+)); EPS -> [1, min(1, (|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")| + 28), (min(|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")|, |Singleton("d.c")("a")|, 1) + 28), (min(|Singleton("d.c")("a")("b")|, |Singleton("d.c")("a")|, 1) + 28), (min(1, (|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")| + 28), (min(|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")|, |Singleton("d.c")("a")|, 1) + 28), (min(|Singleton("d.c")("a")("b")|, |Singleton("d.c")("a")|, 1) + 28)) + min(1, (|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")| + 28), (min(|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")|, |Singleton("d.c")("a")|, 1) + 28), (min(|Singleton("d.c")("a")("b")|, |Singleton("d.c")("a")|, 1) + 28))))] ∪ w3 -> [1, min(1, (|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")| + 28), (min(|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")|, |Singleton("d.c")("a")|, 1) + 28), (min(|Singleton("d.c")("a")("b")|, |Singleton("d.c")("a")|, 1) + 28), (min(1, (|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")| + 28), (min(|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")|, |Singleton("d.c")("a")|, 1) + 28), (min(|Singleton("d.c")("a")("b")|, |Singleton("d.c")("a")|, 1) + 28)) + min(1, (|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")| + 28), (min(|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")|, |Singleton("d.c")("a")|, 1) + 28), (min(|Singleton("d.c")("a")("b")|, |Singleton("d.c")("a")|, 1) + 28))))]; ⌊result⌋=2, ⌈result⌉=min(2, (|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")| + 28), (min(|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")|, |Singleton("d.c")("a")|, 1) + 28), (min(|Singleton("d.c")("a")("b")|, |Singleton("d.c")("a")|, 1) + 28), (min(1, (|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")| + 28), (min(|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")|, |Singleton("d.c")("a")|, 1) + 28), (min(|Singleton("d.c")("a")("b")|, |Singleton("d.c")("a")|, 1) + 28)) + min(1, (|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")| + 28), (min(|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")|, |Singleton("d.c")("a")|, 1) + 28), (min(|Singleton("d.c")("a")("b")|, |Singleton("d.c")("a")|, 1) + 28))), (min(1, (|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")| + 28), (min(|((Empty /\ Literal(SpaceValue("a.a", "a.b", "b.c", "b.d", "c.d", "d.b", "d.c"))) \/ Singleton("d.c")("a"))("b")|, |Singleton("d.c")("a")|, 1) + 28), …, …) + …)); minPathLen≥max(0, z3lower((or a0 a1); atoms=2; fallback=0)), maxPathLen≤min(1, z3upper((or a0 a1); atoms=2; fallback=1)); work=[4,8], alloc=[3,7]; reference={work=[4,8], alloc=[3,7]}, trie={work=[4,8], alloc=[3,7]}, zipper={work=[4,13], alloc=[3,7]}, graph={work=[2,10], alloc=[2,7]}
+	at scala.Predef$.require(Predef.scala:394)
+	at morkl.SpatialTypeAuditRunner$package$.spatialTypeOpenRandomAudit$$anonfun$1(SpatialTypeAuditRunner.scala:176)
+	at scala.runtime.function.JProcedure1.apply(JProcedure1.java:15)
+	at scala.runtime.function.JProcedure1.apply(JProcedure1.java:10)
+	at scala.collection.immutable.VectorStatics$.foreachRec(Vector.scala:2128)
+	at scala.collection.immutable.VectorStatics$.foreachRec(Vector.scala:2134)
+	at scala.collection.immutable.Vector.foreach(Vector.scala:307)
+	at morkl.SpatialTypeAuditRunner$package$.spatialTypeOpenRandomAudit(SpatialTypeAuditRunner.scala:157)
+	at morkl.spatialTypeOpenRandomAudit.main(SpatialTypeAuditRunner.scala:133)
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial open audit: programs=1000 sound=1000 extended=true finiteUppers=387 exactSizes=11 upperSlack={0=119,1-2=21,3-8=11,33+=58,9-32=178,infinity=613}
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial open audit: programs=1000 sound=1000 extended=true finiteUppers=387 exactSizes=11 spaceConstructors=24/24 callPrograms=279 upperSlack={0=119,1-2=21,3-8=11,33+=58,9-32=178,infinity=613}
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 3 deprecation warnings; re-run with -deprecation for details
+2 warnings found
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+wrote 289 SMT2 artifacts and 261 TPTP artifacts
+% SZS status Theorem for spatial_fixpoint_postfixed_sound_fo
+% SZS status Theorem for spatial_optimizer_preserves_analysis_soundness_fo
+% SZS status Theorem for spatial_trie_bounded_depth_selection_fo
+% SZS status Theorem for spatial_zipper_common_prefix_selection_fo
+% SZS status Theorem for spatial_graph_exact_constant_fold_fo
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+morkl.UnionFind:
+==> i morkl.UnionFind.find ignored 0.0s
+morkl.ZipperFuzzerTest:
+  + zipper fuzzer expected spaces agree across eval, evalTrie, exec, and execT 0.715s
+  + operation graph materializes input and ancestor outputs 0.001s
+  + coverage-biased zipper fuzzer agrees across optimized exec backends 1.354s
+  + zipper fuzzer showcase is stable and diverse 0.01s
+  + zipper fuzzer term matrix collector records child parent position counts 0.009s
+  + zipper fuzzer interestingness measurement records output diversity 0.037s
+  + sensitive corpus generator verifies every declared input 0.019s
+  + free expression tree generator uses rejection filters 0.099s
+  + full backend verifier checks free programs across evaluators and executors 0.102s
+morkl.TrieSpaceTest:
+  + roundtrip preserves reference SpaceValue including epsilon 0.0s
+  + native set and prefix operations match reference semantics 0.001s
+  + native closure operations match reference epsilon semantics 0.001s
+  + range filters tries in native path order without rebuilding included subtries 0.0s
+  + range preserves epsilon and child border semantics 0.001s
+  + native trie exposes head and non-empty path projections for iteration 0.001s
+  + trie evaluator expands canonical and distributed iteration bodies 0.003s
+  + iteration union invariant rewrite does not leak over empty sources 0.001s
+  + singleton iteration exposes epsilon as the empty tail 0.001s
+  + iteration identity rewrite removes epsilon-only source paths 0.001s
+  + fold graph round-trips through untranspile 0.005s
+  + Track B Dist generator examples agree across trie and graph backends 0.017s
+  + fixpoint accumulates step output instead of replacing state 0.002s
+  + nested fixpoint preserves outer iteration rest bindings 0.003s
+  + meet-all tails intersection keeps only tails under every head 0.0s
+  + zipper cursor descends to subtries without materializing paths 0.001s
+  + space zipper cursor keeps edits when moving across siblings 0.002s
+  + zipper native operations short-circuit referentially identical trie nodes 0.0s
+  + trie algebra reports exhaustive identities, bespoke values, and empty causes 0.002s
+  + restriction reports left/right identity, prefix coverage, and all empty causes 0.002s
+  + algebraic result metadata agrees with exhaustive finite path sets 0.019s
+  + zipper restriction pushes through union and subtraction before materialization 0.001s
+  + direct trie evaluator reuses interned PathItems during native iteration 0.001s
+  + temperature interval covers arbitrary ranges without runaway recursion 0.003s
+  + direct trie evaluator agrees on Aunt query 0.01s
+  + direct trie evaluator agrees on recursive semi-naive Datalog 0.006s
+  + direct trie evaluator agrees on pure Game of Life 0.114s
+  + direct trie evaluator agrees on process-SC residual programs 0.027s
+  + compile reports source and graph optimization timings 0.006s
+  + source optimizer respects compile deadline 0.001s
+  + source optimizer applies path-set algebraic laws 0.017s
+  + unit-only optimizer laws preserve random literal path sets 0.175s
+  + operation graph executes directly over TrieSpace 0.001s
+  + operation graph trie backend covers pure pair swap and closure nodes 0.002s
+  + operation graph trie backend covers native closure nodes 0.001s
+  + graph optimizers preserve nested iteration semantics under execT 0.001s
+  + nonEmpty is an epsilon-valued constant-border emptiness indicator 0.001s
+  + independent nested product union pushes out with headed guards and common prefix factoring 0.004s
+  + optimal sharing merges structurally identical iteration subgraphs 0.001s
+  + loop invariant hoist lifts transitive invariant DAG out of iteration 0.0s
+  + graph compile pipeline inlines helper calls before execT 0.002s
+  + graph execT fallback calls optimized callee graphs 0.001s
+  + benchmark fallback notes include retained calls inside optimized callees 0.003s
+  + zipper transpile rejects recursive self-union calls instead of materializing evalTrie 0.001s
+  + zipper transpile rejects non-lowered recursive calls outside top-level self-union 0.0s
+  + graph optimizer handles generated pure sliding puzzle graph 0.026s
+  + compile pipeline lowers union-saturating recursion before graph exec 0.007s
+  + mutual union-saturating recursion lowers to one tagged fixpoint 0.003s
+  + unproved multi-argument recursion remains an explicit call 0.002s
+  + zipper traversal and virtual native operations match reference trie operations 0.015s
+  + zipper composition stays virtual under selective consumers 0.001s
+  + virtual tails meet and prefix-closure nullability drive product descent 0.001s
+  + zipper generic iteration keeps child observations virtual 0.001s
+  + zipper iteration keeps canonical and general iteration virtual 0.012s
+  + zipper range over virtual operands stays a border traversal 0.001s
+  + zipper range supports to-end and negative border slices virtually 0.001s
+  + zipper range-reconstruct iteration descends directly to the matching branch 0.001s
+  + zipper range stops before asking the first excluded border child for size 0.003s
+  + zipper range child lookup does not size unrelated in-slice siblings 0.001s
+  + zipper range direct child movement does not size the matching border child 0.003s
+  + zipper negative range projections do not ask the parent for total path count 0.003s
+  + space-to-zipper evaluator agrees with reference and trie evaluation on random programs 0.014s
+  + random trie-native programs agree across eval, evalTrie, exec, and execT 0.021s
+morkl.SupercompilerPublicationExamples:
+  + Aunt query supercompiles and specializes a people literal 0.003s
+  + Aunt query over lot.metta family specializes static family with process SC 0.03s
+  + extra graph queries target lot.metta with deterministic fallback 0.015s
+  + operation graph backend executes nested iteration rewrite and closure nodes 0.002s
+  + semi-naive datalog and carac-style closure supercompile 0.235s
+  + Game of Life supercompiles on original, random, and fred.rle fallback data 0.135s
+  + temperature spatial query targets NOAA grid file with committed slice fallback 0.044s
+  + sliding puzzle state expansion is pure and generalizes to 3x3 0.07s
+  + nqueens supercompiler reaches 9x9 2.369s
+wrote zipper-egg-tests/aunt-kg.egg in 44ms
+wrote zipper-egg-tests/puzzle-2x2-step.egg in 3ms
+wrote zipper-egg-tests/datalog-semi-naive.egg in 14ms
+wrote zipper-egg-tests/game-of-life-small.egg in 59ms
+wrote zipper-egg-tests/temperature-small.egg in 1ms
+wrote zipper-egg-tests/nqueens-4.egg in 8ms
+wrote zipper-egg-tests/context-movement.egg in 0ms
+wrote zipper-egg-tests/frontier-antimirov.egg in 0ms
+wrote zipper-egg-tests/iter-fixpoint.egg in 0ms
+wrote zipper-egg-tests/range-observation.egg in 0ms
+wrote zipper-egg-tests/range-border-child.egg in 0ms
+wrote zipper-egg-tests/range-border-operational.egg in 0ms
+wrote zipper-egg-tests/tails-intersection-frontier.egg in 0ms
+wrote zipper-egg-tests/negative-key.egg in 0ms
+morkl.ZipperEggTranspilerTest:
+  + Scala zipper examples transpile to independently runnable egg programs 44.131s
+morkl.Datalog:
+  + trans naive 0.007s
+  + trans semi-naive 0.002s
+morkl.Imperative:
+  + union iter transpiled 0.002s
+  + literal codec preserves epsilon and iteration skips headless paths 0.002s
+  + aunt query pretty 0.0s
+  + aunt query transpiled 0.0s
+  + scc transpiled 0.0s
+  + aunt query exec 0.002s
+==> i morkl.Imperative.scc exec ignored 0.0s
+  + mermaid 0.001s
+==> i morkl.Imperative.push out ignored 0.0s
+morkl.SupercompilerProcessTest:
+  + positive SC terminates and stays sound on semi-naive transitive closure 0.006s
+  + whistle/generalization is necessary for symbolic growing reachability 0.13s
+  + generalization keeps residual control size independent of static graph size 0.006s
+morkl.SpatialTypeLatticeTest:
+  + the normalized interval quotient is a bounded lattice 0.13s
+  + normalizing inconsistent meets makes the interval lattice non-distributive 0.025s
+  + finite arbitrary suprema and infima satisfy their universal properties 0.267s
+  + closed-form precision order and exact abstraction agree with concretization 0.001s
+  + union, intersection, and subtraction formulas are best correct intervals 0.012s
+  + production spatial types expose bottom, join, meet, order, and widening 0.004s
+morkl.ReferenceExamplesTest:
+  + semi-naive Datalog over carac-style facts matches independent closure 0.131s
+  + Game of Life examples match independent B3/S23 reference 0.054s
+  + pure sliding puzzle 2x2 and 3x3 one-step expansions match independent neighbor generator 0.004s
+  + pure sliding puzzle 2x2 explore reaches the complete state space 0.005s
+  + sliding puzzle 3x3 full reachable state space has the parity count 0.273s
+  + pure sliding puzzle 3x3 bounded expansion matches independent BFS 0.076s
+  + NOAA spatial prefix query matches manual prefix filter 0.036s
+  + NOAA temperature-first query matches manual label filter 0.001s
+  + n-queens reference count matches known 8x8 count 0.382s
+  + n-queens independent reference scaling matches known counts through 12x12 0.006s
+  + pure n-queens programs are generated for 8x8 through 12x12 without grounded operations 0.383s
+morkl.Routines:
+  + eval routine 0.001s
+  + transitive 0.0s
+  + reachable 0.002s
+  + scc 0.003s
+  + naive-oeis 0.001s
+morkl.MORKL2Space:
+  + union 0.0s
+  + intersection context 0.0s
+  + subtraction 0.0s
+  + restriction 0.001s
+  + composition 0.0s
+  + subspace 0.0s
+  + TailsUnion 0.0s
+  + transformation pattern rewritten with iteration 0.001s
+morkl.Permutations:
+  + intersection all 0.0s
+  + intersection all-1 0.0s
+  + sliding_puzzle states 0.015s
+  + nqueens 0.413s
+morkl.AuntQuery:
+  + add_index 0.0s
+  + query via restriction 0.001s
+  + parent_query 0.0s
+  + mother_query 0.0s
+  + sister_query 0.001s
+  + aunt_query 0.0s
+  + predecessors_query 0.001s
+morkl.SpacialType:
+  + aunt query input type 0.001s
+  + aunt query output type 0.011s
+morkl.ZipperDenotationOracleTest:
+  + zipper algebra agrees with trie denotation on exhaustive small path sets 0.195s
+  + child movement is the Brzozowski derivative on exhaustive length-three sets 0.047s
+  + suffix and tails closure descend through frontier states 0.0s
+  + iteration range templates agree with trie denotation on exhaustive small path sets 0.019s
+  + finite fixpoint templates agree with trie denotation on exhaustive small path sets 0.012s
+  + transpileZ lowers prefixed ranged iteration reconstruct templates 0.002s
+  + range composition and border laws agree in executable zippers 0.004s
+  + exact negative and key observations agree with bounded trie denotation 0.001s
+  + concrete trie zipper plug reconstructs the whole at every focus 0.337s
+  + concrete trie zipper supports focus edits and ordered sibling movement 0.001s
+  + virtual zipper context movement plugs every operation-shaped focus 0.004s
+  + virtual zipper context graft edits focus through lazy patch frames 0.002s
+morkl.IllustrativeEggArtifactsTest:
+  + root illustrative egg artifacts are generated from one shared prelude 0.002s
+morkl.ResultPathLengthTest:
+  + Z3 removes impossible length intersections before composition 0.059s
+  + path-length bounds penetrate every path and space construct 0.03s
+morkl.CornerstoneSpatialTypeTest:
+  + spatial routine analysis does not execute a zero-argument generator 0.001s
+  + strict range transfer propagates its literal annotation without concrete evaluation 0.001s
+  + annotation-only bound resolution never executes opaque atoms 0.0s
+  + cornerstone abstract interpretations use annotated variables and retain output shapes 10.146s
+  + directed closure cardinality contract is exhaustive on all three-node graphs 0.007s
+  + Game of Life output is contained in the nine-cell image of every live cell 0.015s
+  + finite relational domain counts n-queens without evaluating MORKL 0.001s
+morkl.MatchingProcessTest:
+  + free variables respect Iteration and Fold binders 0.001s
+  + substitution avoids capture by iteration binders 0.0s
+  + canonicalization makes alpha-equivalent Fold terms equal 0.001s
+  + instance matching folds simple renamings but refuses cyclic growth 0.001s
+  + MSG skeleton reinstantiates both sides 0.001s
+  + grounded nodes match only by stable function identity 0.001s
+morkl.Fuzzy:
+  + temperature 0.002s
+morkl.Lowering:
+  + TailsUnion iter subs 0.004s
+  + aunt query specialize 0.001s
+morkl.Grounded:
+  + PP hash 0.0s
+  + PP trace 0.002s
+  + SP spacesize 0.001s
+  + SP spaceout 0.0s
+  + PS range 0.001s
+  + SS transitive 0.002s
+morkl.Poly:
+  + composition 0.003s
+morkl.ResultSpaceSizeTest:
+  + natural expression normalization removes proved dominated bounds 0.001s
+  + reference hints cover binders, uses, freshening, and exact space mentions 0.006s
+  + symbolic cardinality rules preserve useful path-set bounds 0.003s
+  + empty-control iteration has the expected exact symbolic size 0.002s
+  + Z3 refinement preserves correlations and is pointwise tighter than baseline 0.297s
+  + mixed operation laws refine former opaque graph boundaries 0.002s
+  + literal fibers and nested iteration maps remain visible to the mixed graph 0.002s
+  + operation subset constraints cross opaque Z3 atoms 0.017s
+  + symbolic bounds contain exhaustive concrete denotations 0.071s
+morkl.SpatialTypeTest:
+  + spatial restriction retains compatible length strata and prefix witnesses 0.018s
+  + encoded if-empty control has a piecewise exact spatial type 0.022s
+  + iteration counts constant-headed fibers as groups rather than paths 0.001s
+  + nested full-path iterator chains are bounded as pointwise maps 0.004s
+  + pure Game-of-Life neighbor arithmetic has eight length-two outputs 0.005s
+  + spatial types propagate through five Game-of-Life steps without result feedback 1.749s
+  + exact spatial types expose graph fiber degree statistics 0.001s
+  + spatial projections refine scalar size and path-length projections 0.024s
+  + fixpoint reaches a checked post-fixpoint before exposing shapes 0.003s
+  + tails does not assume an interval-length path is headed 0.0s
+  + semantic result laws intersect structural facts and expose contradictions 0.001s
+  + repeated union mentions remain coherent across total and strata 0.006s
+  + union preserves optionality of a known singleton pattern 0.001s
+  + decorated analysis retains lexical iterator bindings 0.001s
+  + cost intervals remain finite through a five-node expression 0.0s
+  + spatial facts expose optimization decisions and symbolic depth degrees 0.002s
+  + decorated nodes have positional identity and joined observations 0.001s
+  + extended fuzzer call routine is analyzed across its annotation boundary 0.0s
+  + dominant monomials distinguish linear from quadratic cost 0.001s
+morkl.Unification:
+  + renameFrom 0.001s
+  + query 0.001s
+  + transform 0.0s
+==> i morkl.Unification.double transform ignored 0.0s
+  + transpile transform 0.002s
+  + unify 0.047s
+  + overlap 0.005s
+  + division 0.002s
+  + sudoku 0.007s
+  + gol 0.009s
+  + graphviz 0.0s
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+Illegal command line: more arguments expected
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+spatial scaling: leaves=  1024 medianMs=40.912
+spatial scaling: leaves=  2048 medianMs=43.102
+spatial scaling: leaves=  4096 medianMs=78.010
+spatial scaling: leaves=  8192 medianMs=157.389
+spatial scaling: leaves= 16384 medianMs=309.807
+spatial scaling: leaves= 32768 medianMs=611.989
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+heads,paths,original_ms,optimized_ms,compiled_execT_ms,original/optimized
+32,64,1.8581,0.3159,0.6213,5.88
+64,128,1.4718,0.1989,0.3802,7.40
+128,256,2.8700,0.0905,0.5281,31.70
+256,512,7.7273,0.2204,0.3015,35.06
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+operation,size,ns_per_operation
+union-subset,1024,5401.0
+intersection-subset,1024,5827.0
+restriction-quarter,1024,11129.2
+subtraction-disjoint,1024,8.4
+union-subset,4096,26867.2
+intersection-subset,4096,31628.9
+restriction-quarter,4096,28197.9
+subtraction-disjoint,4096,8.0
+union-subset,16384,101270.8
+intersection-subset,16384,136213.6
+restriction-quarter,16384,115260.4
+subtraction-disjoint,16384,4.1
+union-subset,65536,330062.5
+intersection-subset,65536,387494.9
+restriction-quarter,65536,472015.6
+subtraction-disjoint,65536,4.1
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[zipper-algebra] share=1% binary/union
+[zipper-algebra] share=1% binary/intersection
+[zipper-algebra] share=1% binary/subtraction
+[zipper-algebra] share=1% binary/restriction
+[zipper-algebra] share=1% binary/raffination
+[zipper-algebra] share=1% binary/composition
+[zipper-algebra] share=1% n-ary/three-way intersection
+[zipper-algebra] share=1% unary/wrap
+[zipper-algebra] share=1% unary/unwrap
+[zipper-algebra] share=1% unary/tails-union
+[zipper-algebra] share=1% unary/tails-intersection
+[zipper-algebra] share=1% unary/prefix-closure
+[zipper-algebra] share=1% unary/suffix-closure
+[zipper-algebra] share=1% unary/tails-closure
+[zipper-algebra] share=1% range/first(512)
+[zipper-algebra] share=1% range/last(512)
+[zipper-algebra] share=1% combination/union then exact intersection
+[zipper-algebra] share=1% combination/diff then restriction
+[zipper-algebra] share=1% combination/product exact intersection
+[zipper-algebra] share=1% combination/product prefix restriction
+[zipper-algebra] share=1% combination/tails of restricted union
+[zipper-algebra] share=1% combination/range of union
+[zipper-algebra] share=50% binary/union
+[zipper-algebra] share=50% binary/intersection
+[zipper-algebra] share=50% binary/subtraction
+[zipper-algebra] share=50% binary/restriction
+[zipper-algebra] share=50% binary/raffination
+[zipper-algebra] share=50% binary/composition
+[zipper-algebra] share=50% n-ary/three-way intersection
+[zipper-algebra] share=50% unary/wrap
+[zipper-algebra] share=50% unary/unwrap
+[zipper-algebra] share=50% unary/tails-union
+[zipper-algebra] share=50% unary/tails-intersection
+[zipper-algebra] share=50% unary/prefix-closure
+[zipper-algebra] share=50% unary/suffix-closure
+[zipper-algebra] share=50% unary/tails-closure
+[zipper-algebra] share=50% range/first(512)
+[zipper-algebra] share=50% range/last(512)
+[zipper-algebra] share=50% combination/union then exact intersection
+[zipper-algebra] share=50% combination/diff then restriction
+[zipper-algebra] share=50% combination/product exact intersection
+[zipper-algebra] share=50% combination/product prefix restriction
+[zipper-algebra] share=50% combination/tails of restricted union
+[zipper-algebra] share=50% combination/range of union
+[zipper-algebra] share=90% binary/union
+[zipper-algebra] share=90% binary/intersection
+[zipper-algebra] share=90% binary/subtraction
+[zipper-algebra] share=90% binary/restriction
+[zipper-algebra] share=90% binary/raffination
+[zipper-algebra] share=90% binary/composition
+[zipper-algebra] share=90% n-ary/three-way intersection
+[zipper-algebra] share=90% unary/wrap
+[zipper-algebra] share=90% unary/unwrap
+[zipper-algebra] share=90% unary/tails-union
+[zipper-algebra] share=90% unary/tails-intersection
+[zipper-algebra] share=90% unary/prefix-closure
+[zipper-algebra] share=90% unary/suffix-closure
+[zipper-algebra] share=90% unary/tails-closure
+[zipper-algebra] share=90% range/first(512)
+[zipper-algebra] share=90% range/last(512)
+[zipper-algebra] share=90% combination/union then exact intersection
+[zipper-algebra] share=90% combination/diff then restriction
+[zipper-algebra] share=90% combination/product exact intersection
+[zipper-algebra] share=90% combination/product prefix restriction
+[zipper-algebra] share=90% combination/tails of restricted union
+[zipper-algebra] share=90% combination/range of union
+# Zipper Algebra Sharing Benchmarks
+
+This report isolates direct zipper evaluation over physically large tries. Each scenario builds two full operands `a` and `b` with the same top-level keys, plus a sparse third operand `cOverlap` containing only the buckets that are physically shared by all three. For the requested sharing level, the corresponding child subtries are the same JVM objects in all overlapping operands; the rest of `a` and `b` have the same outer shape but distinct unique leaves. Each child subtrie also has a small common tail vocabulary so `tailsIntersection` and ordinary intersections have non-empty work to do outside the physically shared portion.
+
+Each operand has 1500 top-level buckets and 16 paths per bucket. Timings compare `evalTrie(expr).pathCount` to `evalZ(expr).pathCount` after a correctness check. Very large results are checked by path count plus border membership samples instead of decoding every path.
+
+| target shared nodes | shared top-level subtries | measured shared nodes / operand nodes | `a`/`b` paths | `a`/`b` trie nodes | sparse third paths | prefix paths |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1% | 15 / 1,500 | 1.00% | 24,000 | 31,501 | 240 | 96 |
+| 50% | 750 / 1,500 | 50.00% | 24,000 | 31,501 | 12,000 | 96 |
+| 90% | 1,350 / 1,500 | 90.00% | 24,000 | 31,501 | 21,600 | 96 |
+
+| share | group | operation | result paths | result trie nodes | evalTrie ms | evalZ ms | evalTrie / evalZ | note |
+|---:|---|---|---:|---:|---:|---:|---:|---|
+| 1% | binary | union | 41,820 | 53,776 | 4.772 | 3.255 | 1.47 x | merge two aligned huge tries |
+| 1% | binary | intersection | 6,180 | 9,226 | 1.963 | 1.841 | 1.07 x | walk only common child keys |
+| 1% | binary | subtraction | 17,820 | 23,761 | 0.873 | 0.812 | 1.08 x | left-guided traversal |
+| 1% | binary | restriction | 1,536 | 2,017 | 0.178 | 0.223 | 0.80 x | top-level prefix filter |
+| 1% | binary | raffination | 22,464 | 29,485 | 0.461 | 0.453 | 1.02 x | complement of the prefix filter |
+| 1% | binary | composition | 576,000,000 | 756,031,501 | 11.551 | 9.155 | 1.26 x | no selective consumer; full product is materialized |
+| 1% | n-ary | three-way intersection | 240 | 316 | 8.487 | 0.058 | 145.69 x | evalZ flattens nested intersections and starts from the sparse overlap operand |
+| 1% | unary | wrap | 24,000 | 31,502 | 0.007 | 0.013 | 0.53 x | virtual prefix node |
+| 1% | unary | unwrap | 24,000 | 31,501 | 0.008 | 0.006 | 1.28 x | descend through virtual prefix |
+| 1% | unary | tails-union | 18,004 | 22,506 | 3.093 | 1.713 | 1.81 x | join every first-level tail |
+| 1% | unary | tails-intersection | 4 | 6 | 2.823 | 3.726 | 0.76 x | meet every first-level tail |
+| 1% | unary | prefix-closure | 31,500 | 31,501 | 2.112 | 1.999 | 1.06 x | all non-empty prefixes |
+| 1% | unary | suffix-closure | 48,008 | 60,010 | 10.457 | 5.186 | 2.02 x | all non-empty suffixes |
+| 1% | unary | tails-closure | 48,009 | 60,010 | 4.818 | 5.603 | 0.86 x | epsilon plus suffix closure |
+| 1% | range | first(512) | 512 | 673 | 0.043 | 0.023 | 1.83 x | ordered border slice |
+| 1% | range | last(512) | 512 | 673 | 0.013 | 0.013 | 1.02 x | ordered border slice |
+| 1% | combination | union then exact intersection | 1 | 4 | 0.294 | 0.305 | 0.96 x | selective consumer over a virtual union |
+| 1% | combination | diff then restriction | 1,140 | 1,521 | 0.879 | 0.162 | 5.43 x | left-guided diff under prefix filter |
+| 1% | combination | product exact intersection | 1 | 7 | 5.467 | 2.899 | 1.89 x | selector should avoid the full product |
+| 1% | combination | product prefix restriction | 24,000 | 31,504 | 5.317 | 2.136 | 2.49 x | one product row selected by prefix |
+| 1% | combination | tails of restricted union | 2,296 | 2,871 | 0.535 | 0.256 | 2.09 x | join tails after a logical prefix filter |
+| 1% | combination | range of union | 512 | 666 | 0.455 | 3.614 | 0.13 x | border slice over a virtual union |
+| 50% | binary | union | 33,000 | 42,751 | 0.148 | 0.151 | 0.98 x | merge two aligned huge tries |
+| 50% | binary | intersection | 15,000 | 20,251 | 0.358 | 0.372 | 0.96 x | walk only common child keys |
+| 50% | binary | subtraction | 9,000 | 12,001 | 0.687 | 1.690 | 0.41 x | left-guided traversal |
+| 50% | binary | restriction | 1,536 | 2,017 | 0.108 | 0.036 | 3.02 x | top-level prefix filter |
+| 50% | binary | raffination | 22,464 | 29,485 | 0.192 | 0.145 | 1.32 x | complement of the prefix filter |
+| 50% | binary | composition | 576,000,000 | 756,031,501 | 5.355 | 5.286 | 1.01 x | no selective consumer; full product is materialized |
+| 50% | n-ary | three-way intersection | 12,000 | 15,751 | 0.125 | 0.028 | 4.43 x | evalZ flattens nested intersections and starts from the sparse overlap operand |
+| 50% | unary | wrap | 24,000 | 31,502 | 0.003 | 0.004 | 0.75 x | virtual prefix node |
+| 50% | unary | unwrap | 24,000 | 31,501 | 0.005 | 0.004 | 1.23 x | descend through virtual prefix |
+| 50% | unary | tails-union | 18,004 | 22,506 | 0.659 | 0.672 | 0.98 x | join every first-level tail |
+| 50% | unary | tails-intersection | 4 | 6 | 0.613 | 0.608 | 1.01 x | meet every first-level tail |
+| 50% | unary | prefix-closure | 31,500 | 31,501 | 1.143 | 1.125 | 1.02 x | all non-empty prefixes |
+| 50% | unary | suffix-closure | 48,008 | 60,010 | 4.607 | 5.773 | 0.80 x | all non-empty suffixes |
+| 50% | unary | tails-closure | 48,009 | 60,010 | 4.688 | 4.665 | 1.01 x | epsilon plus suffix closure |
+| 50% | range | first(512) | 512 | 673 | 0.010 | 0.013 | 0.73 x | ordered border slice |
+| 50% | range | last(512) | 512 | 673 | 0.009 | 0.010 | 0.86 x | ordered border slice |
+| 50% | combination | union then exact intersection | 1 | 4 | 0.141 | 0.153 | 0.92 x | selective consumer over a virtual union |
+| 50% | combination | diff then restriction | 552 | 737 | 0.165 | 0.045 | 3.70 x | left-guided diff under prefix filter |
+| 50% | combination | product exact intersection | 1 | 7 | 5.305 | 2.250 | 2.36 x | selector should avoid the full product |
+| 50% | combination | product prefix restriction | 24,000 | 31,504 | 5.306 | 2.143 | 2.48 x | one product row selected by prefix |
+| 50% | combination | tails of restricted union | 1,708 | 2,136 | 0.230 | 0.102 | 2.26 x | join tails after a logical prefix filter |
+| 50% | combination | range of union | 512 | 673 | 0.244 | 0.963 | 0.25 x | border slice over a virtual union |
+| 90% | binary | union | 25,800 | 33,751 | 0.049 | 0.050 | 0.98 x | merge two aligned huge tries |
+| 90% | binary | intersection | 22,200 | 29,251 | 0.046 | 0.200 | 0.23 x | walk only common child keys |
+| 90% | binary | subtraction | 1,800 | 2,401 | 0.079 | 0.053 | 1.50 x | left-guided traversal |
+| 90% | binary | restriction | 1,536 | 2,017 | 0.011 | 0.026 | 0.43 x | top-level prefix filter |
+| 90% | binary | raffination | 22,464 | 29,485 | 0.098 | 0.091 | 1.08 x | complement of the prefix filter |
+| 90% | binary | composition | 576,000,000 | 756,031,501 | 5.336 | 5.388 | 0.99 x | no selective consumer; full product is materialized |
+| 90% | n-ary | three-way intersection | 21,600 | 28,351 | 0.104 | 0.036 | 2.87 x | evalZ flattens nested intersections and starts from the sparse overlap operand |
+| 90% | unary | wrap | 24,000 | 31,502 | 0.002 | 0.003 | 0.76 x | virtual prefix node |
+| 90% | unary | unwrap | 24,000 | 31,501 | 0.002 | 0.002 | 0.97 x | descend through virtual prefix |
+| 90% | unary | tails-union | 18,004 | 22,506 | 0.666 | 0.684 | 0.97 x | join every first-level tail |
+| 90% | unary | tails-intersection | 4 | 6 | 0.582 | 0.577 | 1.01 x | meet every first-level tail |
+| 90% | unary | prefix-closure | 31,500 | 31,501 | 1.169 | 1.116 | 1.05 x | all non-empty prefixes |
+| 90% | unary | suffix-closure | 48,008 | 60,010 | 4.696 | 4.660 | 1.01 x | all non-empty suffixes |
+| 90% | unary | tails-closure | 48,009 | 60,010 | 4.784 | 4.722 | 1.01 x | epsilon plus suffix closure |
+| 90% | range | first(512) | 512 | 673 | 0.008 | 0.010 | 0.77 x | ordered border slice |
+| 90% | range | last(512) | 512 | 673 | 0.008 | 0.008 | 1.02 x | ordered border slice |
+| 90% | combination | union then exact intersection | 1 | 4 | 0.048 | 0.066 | 0.73 x | selective consumer over a virtual union |
+| 90% | combination | diff then restriction | 72 | 97 | 0.052 | 0.014 | 3.64 x | left-guided diff under prefix filter |
+| 90% | combination | product exact intersection | 1 | 7 | 5.388 | 2.122 | 2.54 x | selector should avoid the full product |
+| 90% | combination | product prefix restriction | 24,000 | 31,504 | 5.370 | 2.102 | 2.55 x | one product row selected by prefix |
+| 90% | combination | tails of restricted union | 1,228 | 1,536 | 0.209 | 0.065 | 3.22 x | join tails after a logical prefix filter |
+| 90% | combination | range of union | 512 | 673 | 0.117 | 0.403 | 0.29 x | border slice over a virtual union |
+
+Ratios above `1.00 x` mean the zipper evaluator is faster. Direct `composition` intentionally has no selective consumer, so it is a useful overhead baseline rather than the expected zipper win. Selective product rows exercise composition without forcing the full product before the final materialization boundary.
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[iter-range-tail-micro] heads=32 tailFanout=12
+[iter-range-tail-micro] heads=96 tailFanout=16
+[iter-range-tail-micro] heads=192 tailFanout=16
+# Iter Range-Tail Zipper Microbenchmark
+
+This isolates `SpaceZipper.Iteration(..., RangeTail(0, -1))`, the path used by range-tail iteration over child zippers. The old model first collected all output keys, then recomputed each key by scanning every source head again. The current implementation accumulates per-key children in the first branch traversal and joins them once.
+
+| source heads | tail fanout | result paths | old emulation ms | current ms | old / current |
+|---:|---:|---:|---:|---:|---:|
+| 32 | 12 | 352 | 5.005 | 3.184 | 1.57 x |
+| 96 | 16 | 1,440 | 22.527 | 23.398 | 0.96 x |
+| 192 | 16 | 2,880 | 93.853 | 90.809 | 1.03 x |
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[zipper-large] product intersected by one exact path / 2000 x 2000 product, 1 result path
+[zipper-large] product intersected by one exact path / 10000 x 10000 product, 1 result path
+[zipper-large] product intersected by one exact path / 30000 x 30000 product, 1 result path
+[zipper-large] product restricted by one first-level prefix / 2000 x 2000 product, 2000 result paths
+[zipper-large] product restricted by one first-level prefix / 10000 x 10000 product, 10000 result paths
+[zipper-large] product restricted by one first-level prefix / 30000 x 30000 product, 30000 result paths
+[zipper-large] aunt query over large generated family, one queried person / 9 generations x 80 people (2720 facts)
+[zipper-large] aunt query over large generated family, one queried person / 11 generations x 160 people (6720 facts)
+[zipper-large] semi-naive datalog over generated chain graph / 40 nodes, 79 edge facts
+[zipper-large] semi-naive datalog over generated chain graph / 80 nodes, 159 edge facts
+# Large Zipper Benchmarks
+
+These rows are intentionally larger and more asymptotic than the mixed publication table. They compare direct `evalTrie` against direct `evalZ` after checking both produce the same `TrieSpace` result. The product rows are the key zipper stress tests: the source expression denotes an `n x n` product, but the consumer asks for one prefix or one exact path, so a zipper traversal should avoid materializing the full intermediate product.
+
+| benchmark | size | result paths | evalTrie ms | evalZ ms | evalTrie / evalZ | note |
+|---|---:|---:|---:|---:|---:|---|
+| product intersected by one exact path | 2000 x 2000 product, 1 result path | 1 | 2.203 | 1.125 | 1.96 x | large intermediate product should not be materialized by zipper traversal |
+| product intersected by one exact path | 10000 x 10000 product, 1 result path | 1 | 3.889 | 6.453 | 0.60 x | large intermediate product should not be materialized by zipper traversal |
+| product intersected by one exact path | 30000 x 30000 product, 1 result path | 1 | 10.218 | 4.023 | 2.54 x | large intermediate product should not be materialized by zipper traversal |
+| product restricted by one first-level prefix | 2000 x 2000 product, 2000 result paths | 2,000 | 0.416 | 0.277 | 1.50 x | large intermediate product should not be materialized by zipper traversal |
+| product restricted by one first-level prefix | 10000 x 10000 product, 10000 result paths | 10,000 | 2.812 | 1.223 | 2.30 x | large intermediate product should not be materialized by zipper traversal |
+| product restricted by one first-level prefix | 30000 x 30000 product, 30000 result paths | 30,000 | 10.442 | 4.058 | 2.57 x | large intermediate product should not be materialized by zipper traversal |
+| aunt query over large generated family, one queried person | 9 generations x 80 people (2720 facts) | 0 | 0.173 | 0.142 | 1.22 x | large query-shaped dataset with small queried person set |
+| aunt query over large generated family, one queried person | 11 generations x 160 people (6720 facts) | 0 | 0.085 | 0.126 | 0.67 x | large query-shaped dataset with small queried person set |
+| semi-naive datalog over generated chain graph | 40 nodes, 79 edge facts | 820 | 21.272 | unsupported | n/a | evalZ unsupported: zipper transpile cannot lower recursive top-level self-union call step1582071873; refuse the old evalTrie materialization fallback |
+| semi-naive datalog over generated chain graph | 80 nodes, 159 edge facts | 3,240 | 94.599 | unsupported | n/a | evalZ unsupported: zipper transpile cannot lower recursive top-level self-union call step1582071873; refuse the old evalTrie materialization fallback |
+
+A ratio above `1.00 x` means the zipper evaluator is faster. Recursive datalog is included as a large generated control case; top-level union-saturating self recursion is rejected as unsupported instead of falling back to the concrete trie evaluator, so unsupported rows are reported explicitly rather than timed as zipper execution.
+Warning: setting /Users/michaelpolyntsov/Zippy_a/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 129 feature warnings; re-run with -feature for details
+there were 3 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.4"
+     munit 1.2.1 -> org.scalameta::munit:1.3.4
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[bench-setup] aunt fixtures
+[bench-setup] graph fixtures
+[bench-setup] datalog residual
+[bench-setup] life compile
+[bench-setup] temperature fixtures
+[bench-setup] temperature committed load
+[bench-setup] temperature committed trie
+[bench-setup] temperature committed query
+[bench-setup] temperature synthetic data
+[bench-setup] temperature synthetic trie
+[bench-setup] temperature synthetic query
+[bench-setup] puzzle fixtures
+[bench-setup] n-queens fixture
+[bench] aunt / reference
+[bench] aunt / process-sc static family
+[bench] aunt synthetic / reference 60 people
+[bench] aunt royal92 / reference royal92_simple.metta fallback
+[bench] aunt synthetic / process-sc static family 24 people
+[bench] graph two-hop / reference 90-chain
+[bench] graph mutual / reference 90-chain
+[bench] datalog semi-naive / reference 24-chain
+[bench] datalog semi-naive / process-sc 24-chain
+[bench] life / reference random 24x24
+[bench] life / compile-pass random 24x24
+[bench] life / compile-pass random 24x24 initial literal
+[bench] temperature / NOAA committed slice
+[bench] temperature / synthetic 32x64
+[bench] sliding puzzle / 2x2 pure source full frontier step
+[bench] sliding puzzle / 2x2 pure compile-pass full frontier step
+[bench] sliding puzzle / 3x3 pure source depth-8 step
+[bench] sliding puzzle / 3x3 pure compile-pass depth-8 step
+[bench] sliding puzzle / 4x4 pure source depth-5 step
+[bench] n-queens / MORKL 8x8 source
+[bench] n-queens / MORKL 8x8 compile-pass
+# Trie Runtime Benchmarks
+
+Measured with `TrieBenchmarks` on this worktree. Runtime times are average milliseconds per evaluation after two warmup runs. The first table excludes compilation/supercompilation and graph construction; rows labelled `process-sc` or `compile-pass` time the residual/compiled runtime. Runtime speedup cells and compile/run ratios are deliberately omitted for graphs that have been completely residualized to a one-node literal; use the compile+run column in the second table for those rows. The second table reports setup supercompilation time, graph compilation time, total compile time, compile/run ratio for non-residual graph execution, compile+`ROG execT` time, timed compile-stage totals, constant-folding eval time, and optimization-pass totals under explicit compile budgets. Graph optimization includes loop-invariant subgraph hoisting, push-out, and sharing. `ROG exec` is the legacy `RecursiveOpGraph` executor over `SpaceValue`; `evalZ` is the declarative zipper traversal evaluator that composes logical trie cursors and materializes only at the result boundary; `ROG execT` is the interned trie executor over `TrieSpace` and `List[Int]` path slots. Graph rows use fully optimized graphs: helper functions are inlined/expanded/lowered where possible, any surviving nonrecursive `Call`s dispatch to optimized callee graphs, and graph-note cells list retained calls found in both the top graph and optimized callee graphs. Recursive source `Call` cycles that survive lowering are marked unsupported.
+
+## Runtime
+
+| benchmark | variant | result paths | eval Set ms | ROG exec ms | evalTrie ms | evalZ ms | ROG execT ms | evalTrie / eval | evalZ / eval | evalZ / evalTrie | ROG exec / eval | ROG execT / eval | ROG execT / evalTrie | graph nodes | graph note |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| aunt | reference | 3 | 0.089 | 0.208 | 0.351 | 1.015 | 0.426 | 0.25 x | 0.09 x | 0.35 x | 0.43 x | 0.21 x | 0.82 x | 21 |  |
+| aunt | process-sc static family | 3 | 0.118 | 0.141 | 0.278 | 1.160 | 0.150 | 0.42 x | 0.10 x | 0.24 x | 0.83 x | 0.79 x | 1.85 x | 20 |  |
+| aunt synthetic | reference 60 people | 36 | 3.623 | 1.693 | 1.208 | 4.095 | 0.723 | 3.00 x | 0.88 x | 0.30 x | 2.14 x | 5.01 x | 1.67 x | 21 |  |
+| aunt royal92 | reference royal92_simple.metta fallback | 3 | 0.089 | 0.045 | 0.062 | 0.310 | 0.058 | 1.45 x | 0.29 x | 0.20 x | 1.97 x | 1.54 x | 1.06 x | 21 |  |
+| aunt synthetic | process-sc static family 24 people | 12 | 0.350 | 0.198 | 0.798 | 1.169 | 0.176 | 0.44 x | 0.30 x | 0.68 x | 1.76 x | 1.99 x | 4.54 x | 20 |  |
+| graph two-hop | reference 90-chain | 264 | 3.633 | 3.302 | 2.185 | 12.107 | 0.375 | 1.66 x | 0.30 x | 0.18 x | 1.10 x | 9.68 x | 5.82 x | 15 |  |
+| graph mutual | reference 90-chain | 0 | 3.458 | 0.972 | 0.276 | 3.164 | 0.163 | 12.55 x | 1.09 x | 0.09 x | 3.56 x | 21.28 x | 1.70 x | 15 |  |
+| datalog semi-naive | reference 24-chain | 300 | 273.856 | 0.002 | 6.150 | n/a | 0.002 | 44.53 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ rejects the recursive top-level self-union; use evalTrie/graph rows |
+| datalog semi-naive | process-sc 24-chain | 300 | 254.213 | 20.183 | 8.899 | n/a | 3.930 | 28.57 x | n/a | n/a | 12.60 x | 64.68 x | 2.26 x | 6 | exec fallback Call dispatch to optimized callee graph(s): step708533063_sc1; direct evalZ rejects the residual recursive top-level self-union; use evalTrie/graph rows |
+| life | reference random 24x24 | 125 | 32.432 | 22.587 | 566.482 | 619.837 | 7.640 | 0.06 x | 0.05 x | 0.91 x | 1.44 x | 4.24 x | 74.14 x | 2,667 | exec fallback Call dispatch to optimized callee graph(s): neigh |
+| life | compile-pass random 24x24 | 125 | 28.281 | 0.001 | 770.782 | 819.601 | 0.001 | 0.04 x | 0.03 x | 0.94 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| life | compile-pass random 24x24 initial literal | 125 | 0.000 | 0.001 | 0.039 | 0.037 | 0.001 | 0.01 x | 0.01 x | 1.07 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| temperature | NOAA committed slice | 430 | 0.144 | 0.120 | 0.007 | 0.030 | 0.004 | 19.54 x | 4.85 x | 0.25 x | 1.20 x | 32.05 x | 1.64 x | 3 |  |
+| temperature | synthetic 32x64 | 448 | 1.530 | 1.043 | 0.041 | 0.095 | 0.016 | 37.46 x | 16.04 x | 0.43 x | 1.47 x | 96.65 x | 2.58 x | 3 |  |
+| sliding puzzle | 2x2 pure source full frontier step | 12 | 5.466 | 0.001 | 4.540 | 11.913 | 0.001 | 1.20 x | 0.46 x | 0.38 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| sliding puzzle | 2x2 pure compile-pass full frontier step | 12 | 0.000 | 0.001 | 0.004 | 0.008 | 0.001 | 0.11 x | 0.05 x | 0.43 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| sliding puzzle | 3x3 pure source depth-8 step | 420 | 300.110 | 0.002 | 397.900 | n/a | 0.001 | 0.75 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ source search tree exceeds the benchmark heap; use evalTrie/graph rows |
+| sliding puzzle | 3x3 pure compile-pass depth-8 step | 420 | 0.001 | 0.001 | 0.219 | 0.240 | 0.001 | 0.00 x | 0.00 x | 0.91 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| sliding puzzle | 4x4 pure source depth-5 step | 202 | 531.261 | 0.001 | 696.288 | n/a | 0.001 | 0.76 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ source search tree exceeds the benchmark heap; use evalTrie/graph rows |
+| n-queens | MORKL 8x8 source | 92 | 483.595 | 0.002 | 1472.936 | n/a | 0.001 | 0.33 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ is currently omitted for the high-level source search tree; use compile-pass/graph rows |
+| n-queens | MORKL 8x8 compile-pass | 92 | 0.001 | 0.001 | 0.038 | 0.040 | 0.001 | 0.01 x | 0.01 x | 0.95 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+
+## Compilation And Optimization
+
+| benchmark | variant | prep compile ms | graph compile ms | total compile ms | compile/run | compile+ROG execT ms | lower+inline ms | source pass ms | const-fold eval ms | const-fold evalTrie ms | const-fold evalZ ms | const-fold execT ms | const-fold eval calls | const-fold evalTrie calls | const-fold evalZ calls | const-fold execT calls | graph transpile ms | graph optimize ms | source pass attempts | graph pass steps | budget ms sum | note |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| aunt | reference | n/a | 4.668 | 4.668 | 10.96 x | 5.094 | 0.125 | 0.864 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.202 | 1.714 | 38 | 6 | 30000 | graph compile + optimized callees |
+| aunt | process-sc static family | 39.884 | 4.640 | 44.524 | 296.87 x | 44.674 | 2.277 | 0.729 | 0.007 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.061 | 1.243 | 19 | 6 | 60000 | process SC setup; graph compile + optimized callees |
+| aunt synthetic | reference 60 people | n/a | 1.813 | 1.813 | 2.51 x | 2.536 | 0.045 | 0.355 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.078 | 0.918 | 38 | 6 | 30000 | graph compile + optimized callees |
+| aunt royal92 | reference royal92_simple.metta fallback | n/a | 2.899 | 2.899 | 50.14 x | 2.957 | 0.072 | 0.586 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.149 | 1.643 | 38 | 6 | 30000 | graph compile + optimized callees |
+| aunt synthetic | process-sc static family 24 people | 7.168 | 1.424 | 8.592 | 48.92 x | 8.768 | 0.091 | 0.354 | 0.004 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.070 | 0.688 | 19 | 6 | 60000 | process SC setup; graph compile + optimized callees |
+| graph two-hop | reference 90-chain | n/a | 1.544 | 1.544 | 4.11 x | 1.919 | 0.019 | 0.188 | 0.020 | 0.000 | 0.000 | 0.000 | 2 | 0 | 0 | 0 | 0.042 | 0.915 | 57 | 9 | 30000 | graph compile + optimized callees |
+| graph mutual | reference 90-chain | n/a | 2.404 | 2.404 | 14.79 x | 2.567 | 0.032 | 0.182 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.078 | 1.437 | 38 | 9 | 30000 | graph compile + optimized callees |
+| datalog semi-naive | reference 24-chain | n/a | 26.582 | 26.582 | n/a | 26.584 | 0.417 | 25.022 | 0.167 | 23.617 | 0.000 | 0.000 | 9 | 1 | 0 | 0 | 0.005 | 0.104 | 38 | 3 | 30000 | graph compile + optimized callees |
+| datalog semi-naive | process-sc 24-chain | 80.951 | 10.888 | 91.839 | 23.37 x | 95.769 | 0.323 | 2.390 | 0.009 | 0.000 | 0.000 | 0.000 | 10 | 0 | 0 | 0 | 0.388 | 5.476 | 38 | 12 | 90000 | process SC setup; graph compile + optimized callees |
+| life | reference random 24x24 | n/a | 3056.103 | 3056.103 | 400.00 x | 3063.744 | 0.571 | 2740.788 | 0.445 | 0.000 | 0.000 | 0.000 | 1384 | 0 | 0 | 0 | 2.496 | 308.755 | 114 | 12 | 60000 | graph compile + optimized callees |
+| life | compile-pass random 24x24 | 116.166 | 18.704 | 134.870 | n/a | 134.870 | 2.372 | 64.417 | 20.398 | 0.000 | 0.000 | 0.000 | 114 | 0 | 0 | 0 | 1.377 | 49.562 | 95 | 12 | 60000 | compile-pass setup; graph compile + optimized callees |
+| life | compile-pass random 24x24 initial literal | 111.710 | 0.382 | 112.092 | n/a | 112.093 | 0.204 | 110.021 | 103.207 | 0.000 | 0.000 | 0.000 | 73 | 0 | 0 | 0 | 0.013 | 0.258 | 57 | 6 | 60000 | compile-pass setup with initial grid literal; graph compile + optimized callees |
+| temperature | NOAA committed slice | n/a | 0.413 | 0.413 | 92.01 x | 0.418 | 0.028 | 0.086 | 0.005 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.005 | 0.055 | 38 | 3 | 30000 | graph compile + optimized callees |
+| temperature | synthetic 32x64 | n/a | 0.442 | 0.442 | 27.92 x | 0.458 | 0.017 | 0.160 | 0.018 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.007 | 0.086 | 38 | 3 | 30000 | graph compile + optimized callees |
+| sliding puzzle | 2x2 pure source full frontier step | n/a | 2.615 | 2.615 | n/a | 2.616 | 0.107 | 1.552 | 0.927 | 0.000 | 0.000 | 0.000 | 65 | 0 | 0 | 0 | 0.006 | 0.114 | 38 | 3 | 30000 | graph compile + optimized callees |
+| sliding puzzle | 2x2 pure compile-pass full frontier step | 17.450 | 0.408 | 17.858 | n/a | 17.859 | 0.180 | 16.260 | 8.378 | 0.000 | 0.000 | 0.000 | 66 | 0 | 0 | 0 | 0.004 | 0.115 | 57 | 3 | 60000 | compile-pass setup; graph compile + optimized callees |
+| sliding puzzle | 3x3 pure source depth-8 step | n/a | 45.835 | 45.835 | n/a | 45.836 | 0.141 | 44.400 | 42.231 | 0.000 | 0.000 | 0.000 | 176 | 0 | 0 | 0 | 0.003 | 0.074 | 38 | 3 | 30000 | graph compile + optimized callees |
+| sliding puzzle | 3x3 pure compile-pass depth-8 step | 140.520 | 0.222 | 140.741 | n/a | 140.742 | 0.860 | 137.365 | 113.153 | 0.000 | 0.000 | 0.000 | 177 | 0 | 0 | 0 | 0.003 | 0.054 | 57 | 3 | 60000 | compile-pass setup; graph compile + optimized callees |
+| sliding puzzle | 4x4 pure source depth-5 step | n/a | 56.648 | 56.648 | n/a | 56.649 | 0.160 | 54.404 | 45.146 | 0.000 | 0.000 | 0.000 | 341 | 0 | 0 | 0 | 0.003 | 0.056 | 38 | 3 | 30000 | graph compile + optimized callees |
+| n-queens | MORKL 8x8 source | n/a | 348.194 | 348.194 | n/a | 348.194 | 0.120 | 347.065 | 343.303 | 0.000 | 0.000 | 0.000 | 130 | 0 | 0 | 0 | 0.003 | 0.055 | 38 | 3 | 30000 | graph compile + optimized callees |
+| n-queens | MORKL 8x8 compile-pass | 393.964 | 0.345 | 394.308 | n/a | 394.309 | 0.398 | 393.075 | 384.276 | 0.000 | 0.000 | 0.000 | 131 | 0 | 0 | 0 | 0.003 | 0.062 | 57 | 3 | 60000 | compile-pass setup; graph compile + optimized callees |
+
+| benchmark | variant | result | ms | note |
+|---|---:|---:|---:|---|
+| n-queens bit reference | n=8 | 92 | 0.012 | independent reference, not MORKL eval |
+| n-queens bit reference | n=9 | 352 | 0.032 | independent reference, not MORKL eval |
+| n-queens bit reference | n=10 | 724 | 0.181 | independent reference, not MORKL eval |
+| n-queens bit reference | n=11 | 2680 | 0.696 | independent reference, not MORKL eval |
+| n-queens bit reference | n=12 | 14200 | 4.135 | independent reference, not MORKL eval |
+
+## Interpretation
+
+The trie evaluator remains strongest on native path algebra with shared prefixes, joins, restriction, unwrap, and first-symbol iteration. The direct `execT` backend compounds that advantage when the graph is lowered to native ops and optimized callee graphs because it avoids rebuilding old `PathValue` and `SpaceValue` intermediates.
+
+`evalZ` is included as a correctness-backed zipper traversal prototype, not yet as the winning runtime for every source shape. Memoized virtual zippers now keep the sliding-puzzle source rows near `evalTrie`, and top-level union-saturating self recursion is rejected as unsupported rather than falling back to concrete `evalTrie` materialization. The separate `ZIPPER_LARGE_BENCHMARKS.md` report contains larger asymptotic product-selector rows where zipper traversal avoids broad intermediate scans. Direct source n-queens remains omitted for `evalZ` with an explicit note because that high-level search tree still needs a dedicated recursive zipper strategy.
+
+The pure Game-of-Life source is now intentionally a lowering benchmark: direct `evalTrie` still interprets the high-level relation program, while the graph backend lowers `Range`, `Unwrap`, joins, and literal coordinate relations into direct operations; use the `ROG execT` and compile+`ROG execT` columns for the lowered result.
+
+Graph timings are intentionally conservative about semantics. Raw routine calls are not timed as raw helper graphs; helper routines are inlined/expanded and lowered before graph execution when possible, and surviving nonrecursive calls use optimized callee graphs. The fixpoint lowering handles the `Routines.fixpoint` union-saturating shape, while recursive residual call cycles still need dedicated lowering before `exec`/`execT` can be reported honestly.
+
+Compilation is now explicitly bounded by wall-clock budgets as well as structural caps. Source normalization records every pass attempt, graph optimization records `hoist_loop_invariant_subgraphs`, `push_out`, and `optimize_sharing` per round, constant folding records eval/evalTrie/evalZ/execT time and call counts, and the compilation table separates setup SC time, lowering/inlining time, source-pass time, graph-build time, graph-optimization time, compile/run ratio, and compile+run time so runtime speedups are not mistaken for free compilation.
+
+`budget ms sum` is the sum of the independent compile invocation budgets used for a row, including optimized callee-graph compiles when present; it is not elapsed time and not a single shared deadline across all rows.
+
+Rows marked `compiled away; use compile+run` have been fully residualized to a one-node literal by the compile pipeline before execution. Their executor timings are still shown as an implementation sanity check, but their graph speedup factors are intentionally reported as `n/a`; the meaningful number is the compile+`ROG execT` total in the compilation table.
+
+The independent bit-recursive n-queens rows are scaling references, not MORKL runtime rows. They record the known targets through 12x12 while the pure MORKL path-algebra program is executed exactly at 8x8 and compiled/residualized for graph execution.
+
+2026-08-07 review.md completion:
+- Restored default-budget Life precision: 8 affine patterns, exact length 3; all six cornerstone tests pass in 10.146 s together.
+- Fixed bounded SizeExpr normalization/rendering and finite cost accumulation; five-node cost regression passes.
+- Added positional decorated nodes, joined observations, SpatialFacts, symbolic depth/fiber degrees, backend selections, lower/per-backend costs, and dominant-monomial growth.
+- Extended fuzzer covers 24/24 Space constructors; 279/1000 extended programs contain Call. Extended open audit 1000/1000 sound after fixing Fold optional-stratum lower bounds.
+- Canonical fixed corpus: 1000/1000 original and 1000/1000 optimized spatial envelopes sound; 487 exact sizes, 879 exact lengths, 988 exact stratum audits, no unbounded projections.
+- Five new FOL bridge/backend obligations generated and each proved SZS Theorem by Vampire 5.0.1.
+- Complete MUnit suite passed with four pre-existing ignored tests.
+- Spatial balanced-union medians 40.912/43.102/78.010/157.389/309.807/611.989 ms at 1K..32K leaves: linear asymptotics, ~2.5x large-end constant-factor cost versus prior analysis-only pass.
+- All non-long benchmark mains completed; constantFoldExecutorReport excluded as tagged long.
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+[33m[33m-- [E121] Pattern Match Warning: /Users/michaelpolyntsov/Zippy_a/src/main/scala/MORKL.scala:1604:9 [0m[0m
+[33m1604 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 3 deprecation warnings; re-run with -deprecation for details
+2 warnings found
+Picked up _JAVA_OPTIONS: -Xmx1536m -Xss64m
+wrote 289 SMT2 artifacts and 262 TPTP artifacts
+% SZS status Theorem for spatial_interpreter_structural_induction_sound_fo
+- Addendum: six (not five) new FOL obligations are generated; spatial_interpreter_structural_induction_sound_fo also proves SZS Theorem.

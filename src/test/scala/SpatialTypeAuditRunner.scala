@@ -17,14 +17,17 @@ package morkl
   var unboundedSizes = 0
   var unboundedLengths = 0
   var unboundedStrata = 0
+  var optimizedSound = 0
 
   records.foreach { record =>
     val example = record.example
     given PathContext = PathContextMap(Map.empty)
     given SpaceContext = SpaceContextMap(Map(SpaceFuzzer.argM -> example.arg))
-    given PartialFunction[RoutinePtr, Routine] = PartialFunction.empty
+    given PartialFunction[RoutinePtr, Routine] = SpaceFuzzer.routines
     val assumptions = SpatialAssumptions(spaces = Map(SpaceFuzzer.argM -> SpatialType.exact(example.arg)))
-    val spatial = SpatialTypeAnalysis.output(example.program, assumptions)
+    val spatial = SpatialTypeAnalysis.output(example.program, assumptions, SpaceFuzzer.routines)
+    val optimizedSpatial = SpatialTypeAnalysis.output(
+      Supercompiler.normalize(example.program).space, assumptions, SpaceFuzzer.routines)
     val scalarSize = ResultSpaceSize.estimate(example.program, assumptions.sizeAssumptions)
     val scalarLength = ResultPathLength.estimate(example.program, assumptions.lengthAssumptions,
       assumptions.pathLengthAssumptions, assumptions.sizeAssumptions)
@@ -42,6 +45,14 @@ package morkl
       s"program ${record.id}: spatial size [$lower,${upper.getOrElse("∞")}] misses $actualSize; ${example.program.show}; ${spatial.show}")
     require(minLength <= actualMin && maxLength.forall(_ >= actualMax),
       s"program ${record.id}: spatial length [$minLength,${maxLength.getOrElse("∞")}] misses [$actualMin,$actualMax]; ${example.program.show}; ${spatial.show}")
+    val optimizedLower = optimizedSpatial.size.lower.annotatedBound(Z3BoundDirection.Lower).getOrElse(BigInt(0))
+    val optimizedUpper = optimizedSpatial.size.upper.annotatedBound(Z3BoundDirection.Upper)
+    val optimizedMin = optimizedSpatial.pathLength.lower.annotatedBound(Z3BoundDirection.Lower).getOrElse(BigInt(0))
+    val optimizedMax = optimizedSpatial.pathLength.upper.annotatedBound(Z3BoundDirection.Upper)
+    require(optimizedLower <= actualSize && optimizedUpper.forall(_ >= actualSize) &&
+      optimizedMin <= actualMin && optimizedMax.forall(_ >= actualMax),
+      s"optimized program ${record.id}: spatial envelope misses concrete result")
+    optimizedSound += 1
     scalarSize.lower.annotatedBound(Z3BoundDirection.Lower).foreach { value =>
       require(lower >= value, s"program ${record.id}: spatial size lower $lower weaker than Z3 $value")
       if lower > value then sizeLowerImprovements += 1
@@ -80,7 +91,7 @@ package morkl
   }
 
   println(
-    s"spatial audit: programs=$count sound=$count exactSizes=$exactSizes exactLengths=$exactLengths " +
+    s"spatial audit: programs=$count sound=$count optimizedSound=$optimizedSound exactSizes=$exactSizes exactLengths=$exactLengths " +
       s"sizeImprovements=$sizeLowerImprovements/$sizeUpperImprovements " +
       s"lengthImprovements=$lengthLowerImprovements/$lengthUpperImprovements exactStrataChecked=$checkedExactStrata " +
       s"unbounded=$unboundedSizes/$unboundedLengths/$unboundedStrata"
@@ -127,6 +138,14 @@ package morkl
   extended: Boolean = false,
 ): Unit =
   val records = SpaceFuzzerCorpus.generate(count, seed, maxDepth, maxResult, extended)
+  val spaceKinds = records.flatMap(_.opKinds).filter(_.startsWith("Space.")).toSet
+  val callPrograms = records.count(_.opKinds.contains("Space.Call"))
+  if extended && count >= 1000 then
+    val expected = Set("Empty", "Call", "Mention", "Singleton", "Literal", "Union", "Intersection",
+      "Subtraction", "Restriction", "Raffination", "Composition", "Iteration", "Fold", "Fixpoint",
+      "Wrap", "Unwrap", "TailsUnion", "TailsIntersection", "PrefixClosure", "SuffixClosure",
+      "TailsClosure", "GroundedPS", "GroundedSS", "Range").map("Space." + _)
+    require(expected.subsetOf(spaceKinds), s"extended fuzzer missed ${expected -- spaceKinds}")
   val declaredInput = SpatialType.fromStrata(Vector(SpatialStratum(
     PathLengthEstimate.unknown,
     ResultSizeEstimate(SizeExpr.const(28), SizeExpr.One),
@@ -147,13 +166,13 @@ package morkl
     val example = record.example
     given PathContext = PathContextMap(Map.empty)
     given SpaceContext = SpaceContextMap(Map(SpaceFuzzer.argM -> example.arg))
-    given PartialFunction[RoutinePtr, Routine] = PartialFunction.empty
+    given PartialFunction[RoutinePtr, Routine] = SpaceFuzzer.routines
     val assumptions = SpatialAssumptions(
       spaces = Map(SpaceFuzzer.argM -> declaredInput),
       config = if extended then SpatialAnalysisConfig(analysisNodeBudget = 1000)
         else SpatialAnalysisConfig(),
     )
-    val spatial = SpatialTypeAnalysis.output(example.program, assumptions)
+    val spatial = SpatialTypeAnalysis.output(example.program, assumptions, SpaceFuzzer.routines)
     val actualSize = BigInt(example.result.paths.size)
     val actualMin = BigInt(example.result.paths.map(_.items.length).min)
     val actualMax = BigInt(example.result.paths.map(_.items.length).max)
@@ -174,4 +193,4 @@ package morkl
 
   val distribution = sizeSlack.toVector.sortBy(_._1).map((name, n) => s"$name=$n").mkString(",")
   println(s"spatial open audit: programs=$count sound=$count extended=$extended finiteUppers=$finiteUpper " +
-    s"exactSizes=$exactSize upperSlack={$distribution}")
+    s"exactSizes=$exactSize spaceConstructors=${spaceKinds.size}/24 callPrograms=$callPrograms upperSlack={$distribution}")

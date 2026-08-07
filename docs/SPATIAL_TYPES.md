@@ -12,7 +12,7 @@ A `SpatialType` is a finite union of `SpatialStratum` values. Each stratum carri
 - a lower/upper cardinality interval;
 - optionally, a symbolic path pattern.
 
-Patterns contain constants, unknown items, or affine integer items such as `coord.x-1`. Provably different lengths and patterns are disjoint, so their cardinality lower bounds add; possibly overlapping regions use the conservative maximum lower bound. The complete type also exposes total-size and global path-length projections, an explicit inconsistent value (`bottom`), and a first-order symbolic work/allocation upper bound.
+Patterns contain constants, unknown items, or affine integer items such as `coord.x-1`. Provably different lengths and patterns are disjoint, so their cardinality lower bounds add; possibly overlapping regions use the conservative maximum lower bound. The complete type also exposes total-size and global path-length projections, an explicit inconsistent value (`bottom`), and lower/upper work and allocation bounds for the reference, trie, zipper, and graph backends.
 
 `SpatialAssumptions` maps free space mentions and path references to input types. `SpatialPrefixCoverage(k, xs, lengths)` is an optional dependency asserting that path `k` prefixes a represented fiber of `xs` at the selected lengths. This small dependency is necessary for positive restriction lower bounds: knowing only that `k` has length three cannot prove that an arbitrary length-four path starts with `k`.
 
@@ -112,11 +112,26 @@ abstract call, while no concrete intermediate result does. The resulting bound
 retains exact path length three and contains the final five-cell result. A
 separate evaluator call runs only after analysis to check soundness.
 
-## Graph fibers
+## Optimization facts and graph fibers
 
-`fiberDegree(prefixLength)` reports minimum degree, maximum degree, edge count, key count, and the average as an edge/key ratio. It is exact for constant-pattern types; for symbolic types its current conservative interval is usually uninformative and should be treated as unavailable. For `{edge.a.b, edge.a.c, edge.b.c}` at prefix length two it reports minimum degree 1, maximum degree 2, three edges, two keys, and average `3/2`.
+`SpatialType.facts` is the stable optimizer-facing API. It resolves
+`definitelyNonEmpty`, `definitelyAtLeast(n)`, `definiteSize`, `maxDepth`,
+`depthProfile`, `definitePathAt(n)`, `commonConstantPrefix`, and `isDead`
+without exposing `SizeExpr` resolution rules to each consumer.
 
-The domain deliberately keeps this summary separate from individual strata. A later dependent extension can propagate degree summaries through symbolic vertices without changing the current input-to-output API.
+`fiberDegree(prefixLength)` reports minimum degree, maximum degree, edge count,
+key count, and the average as an edge/key ratio. It is exact for constant types.
+For symbolic patterns, constants contribute one choice, affine items contribute
+their finite domain capped by stratum cardinality, and unknown items contribute
+the stratum cardinality. `depthProfile` lifts the same rule to every item depth.
+This is a non-dependent envelope: it does not yet retain correlations between a
+specific key and its degree. For `{edge.a.b, edge.a.c, edge.b.c}` at prefix
+length two it reports minimum degree 1, maximum degree 2, three edges, two keys,
+and average `3/2`.
+
+`SpatialBackendSelection.candidates` converts those facts into three guarded
+specialization witnesses: bounded-depth trie unrolling, common-prefix zipper
+pre-focus, and exact-value graph constant folding.
 
 ## Cardinality-preserving caps
 
@@ -131,7 +146,17 @@ The `SizeExpr` normalizer uses only universally valid natural-number order
 facts. It flattens extrema and products, makes Boolean indicators idempotent,
 uses `positive(x) <= x`, and removes a dominated branch of a minimum/maximum
 when a structural proof succeeds. It deliberately leaves incomparable
-polynomials intact.
+polynomials intact. Dominance checks are identity-memoized and rendering has a
+64-node budget, so diagnostics cannot recursively print megabytes of repeated
+terms. `SizeExpr.growth` is a separate dominant-monomial antichain over a
+declared parameter set; it can, for example, prove `E` grows no faster than
+`E²` without confusing asymptotic order with pointwise natural-number order.
+
+`fromStrata` is intentionally a cheap constructor. Reduced-product closure is
+performed at semantic transfer points that introduce cross-component facts and
+at every public analysis boundary. This avoids repeatedly normalizing the same
+growing expression at every temporary allocation while preserving the final
+soundness checks.
 
 ## Fixpoints, intermediate results, and cost
 
@@ -141,15 +166,21 @@ post-fixpoint in the implementation order. Cardinalities may widen to infinity;
 if that check or the resource limit fails, every spatial component becomes top.
 One-unrolling shapes are never exposed as a fixpoint invariant.
 
-`outputDecorated` returns the root and every intermediate result together with
-the lexical path/space bindings under which it was analyzed. Repeated loop-body
-entries are intentional. Optimizers can therefore consume inner facts without
-re-running subtrees or reconstructing iterator bindings.
+`outputDecorated` returns the root and every syntactic occurrence, identified by
+its child-index path from the root, together with the lexical path/space
+bindings under which it was analyzed. `atPosition` selects one occurrence even
+when two subterms are structurally equal. Repeated observations of that
+occurrence under loop/fixpoint bindings are retained, and `result` is their
+lattice `joinAlternatives` summary.
 
-The cost component currently propagates symbolic pointwise work and allocation
-uppers from operand sizes. This is a foundation, not yet the requested complete
-asymptotic model: symbolic fiber degrees, dominant-monomial comparison, and
-parameterized loop-iteration counts remain open.
+The cost component propagates symbolic lower/upper work and allocation bounds.
+It retains a generic interval and backend-indexed intervals: trie/zipper work
+includes bounded descent, zipper includes focus movement, and an exact graph
+node is constant-foldable. Cost sums use the normalizing smart constructor and
+a 128-node representation cap, rather than saturating merely because an input
+is already an addition. The dominant-monomial layer gives a separate readable
+asymptotic comparison. Dependent key-specific degrees and calibrated machine
+constants remain future refinements.
 
 ## One-way validation
 
@@ -168,8 +199,8 @@ Opaque `SizeOf`/minimum-length/maximum-length atoms contribute only their safe
 zero/infinity envelope; the legacy `evaluate` helper is reserved for downstream
 concrete validation.
 
-The opt-in extended corpus generates `Empty`, raffination, fold, bounded
-fixpoints, every closure/tails form, and grounded space operations in addition
+The opt-in extended corpus generates all 24 `Space` constructors, including
+cross-routine `Call`, `Empty`, raffination, fold, bounded fixpoints, every closure/tails form, and grounded space operations in addition
 to the original operators. The default generator deliberately preserves the
 canonical seed's historical program/input sequence for paired comparisons. A
 concrete-input run is a soundness oracle for those witnesses, not evidence of
@@ -191,8 +222,11 @@ Pattern retention is capped (64 by default). The cap is an explicit
 Overflow is merged into length strata with preserved cardinality bounds;
 alternatives are never truncated.
 
-The permanent `spatialTypeScalingAudit` guard measures balanced unions. On the
-final implementation, seven-sample medians for 1,024/2,048/4,096/8,192/16,384/
-32,768 leaves were 14.446/22.566/32.240/62.584/122.296/241.800 ms. The large
-end doubles with input size and is below the preceding
-40.931/59.910/61.913/115.842/232.997/464.938 ms run at every measured size.
+The permanent `spatialTypeScalingAudit` guard measures balanced unions. On this
+implementation, seven-sample medians for 1,024/2,048/4,096/8,192/16,384/
+32,768 leaves were 40.912/43.102/78.010/157.389/309.807/611.989 ms. The large
+end remains linear, but the optimizer-facing facts and four backend cost
+intervals add a measured roughly 2.5x constant factor over the preceding
+14.446/22.566/32.240/62.584/122.296/241.800 ms analysis-only run. This cost is
+recorded rather than presented as an asymptotic regression; making decorated
+fact/cost collection demand-driven is the next performance refinement.

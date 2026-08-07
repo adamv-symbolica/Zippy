@@ -358,3 +358,67 @@ class SpatialTypeTest extends FunSuite:
       SpatialAssumptions(spaces = Map(source -> SpatialType.exact(SpaceValue("a.b")))),
     ))
   }
+
+  test("cost intervals remain finite through a five-node expression") {
+    val expression = Space.Wrap(
+      Space.TailsUnion(Space.Union(
+        Space.Literal(SpaceValue("a", "b")),
+        Space.Literal(SpaceValue("c", "d")),
+      )),
+      Path.Constant(PathValue(List(PathItem("prefix")))),
+    )
+    val cost = SpatialTypeAnalysis.output(expression).cost
+    assertNotEquals(cost.workUpper, SizeExpr.Infinity, clues(cost.show))
+    assertNotEquals(cost.allocationUpper, SizeExpr.Infinity)
+    SpatialBackend.values.foreach { backend =>
+      val interval = cost.forBackend(backend)
+      assertNotEquals(interval.workUpper, SizeExpr.Infinity)
+      assert(SizeExpr.provablyNoGreater(interval.workLower, interval.workUpper))
+      assert(SizeExpr.provablyNoGreater(interval.allocationLower, interval.allocationUpper))
+    }
+  }
+
+  test("spatial facts expose optimization decisions and symbolic depth degrees") {
+    val symbolic = SpatialType.fromStrata(Vector(SpatialStratum(
+      PathLengthEstimate.exact(PathLengthExpr.const(2)),
+      ResultSizeEstimate(SizeExpr.symbol("N"), SizeExpr.One),
+      Some(SpatialPattern(Vector(
+        SpatialItem.Constant(PathItem("edge")),
+        SpatialItem.Affine("v", 0, 0, 7),
+      ))),
+    )))
+    val facts = symbolic.facts
+    assert(facts.definitelyNonEmpty)
+    assertEquals(facts.maxDepth, Some(2))
+    assertEquals(facts.depthProfile.map(_.depth), Vector(0, 1))
+    assertEquals(facts.depthProfile.head.distinctItems.upper.annotatedBound(Z3BoundDirection.Upper), Some(BigInt(1)))
+    assertEquals(facts.commonConstantPrefix, Some(PathValue(List(PathItem("edge")))))
+    assert(SpatialBackendSelection.candidates(symbolic).exists(_.isInstanceOf[SpatialSpecialization.TrieUnroll]))
+    assert(SpatialBackendSelection.candidates(symbolic).exists(_.isInstanceOf[SpatialSpecialization.ZipperPrefocus]))
+  }
+
+  test("decorated nodes have positional identity and joined observations") {
+    val leaf = Space.Literal(SpaceValue("same"))
+    val expression = Space.Union(leaf, leaf)
+    val decorated = SpatialTypeAnalysis.outputDecorated(expression)
+    assertEquals(decorated.atPosition(0).map(_.expression), Some(leaf))
+    assertEquals(decorated.atPosition(1).map(_.expression), Some(leaf))
+    assertNotEquals(decorated.atPosition(0).map(_.position), decorated.atPosition(1).map(_.position))
+    assert(decorated.atPosition(0).exists(_.observations.nonEmpty))
+  }
+
+  test("extended fuzzer call routine is analyzed across its annotation boundary") {
+    val call = Space.Call(SpaceFuzzer.callRoutine.name, Vector.empty,
+      Vector(Space.Literal(SpaceValue("a", "b"))))
+    val result = SpatialTypeAnalysis.output(call, routines = SpaceFuzzer.routines)
+    assertEquals(result.exactValue, Some(SpaceValue("a", "b")))
+    assert(SpaceFuzzerCorpus.opKinds(call).contains("Space.Call"))
+  }
+
+  test("dominant monomials distinguish linear from quadratic cost") {
+    val edges = SizeExpr.symbol("E")
+    val linear = SizeExpr.growth(SizeExpr.add(edges, SizeExpr.const(3)), Set("E")).get
+    val quadratic = SizeExpr.growth(SizeExpr.multiply(edges, edges), Set("E")).get
+    assert(linear.noGreaterThan(quadratic))
+    assert(!quadratic.noGreaterThan(linear))
+  }

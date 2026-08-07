@@ -1788,7 +1788,58 @@ object ProofArtifacts:
 
   def vampireProblems: Vector[VampireProblem] =
     val base = (0 to 4).toVector.map(trieSetMemberProblem) ++ (0 to 4).toVector.map(zipperTrieMemberProblem)
+    val spatialInterpreterBridge =
+      """fof(seed_rule, axiom, ! [X,S,F] : (member(X,S) => member(X,lfp(S,F)))).
+        |fof(step_rule, axiom, ! [X,S,F] : (member(X,apply(F,lfp(S,F))) => member(X,lfp(S,F)))).
+        |fof(least_rule, axiom, ! [X,S,F,I] : ((subset(S,I) & subset(apply(F,I),I) & member(X,lfp(S,F))) => member(X,I))).
+        |fof(subset_def, axiom, ! [A,B] : (subset(A,B) <=> ! [X] : (member(X,A) => member(X,B)))).""".stripMargin
+    val spatialOptimizerBridge =
+      """fof(optimizer_preserves_eval, axiom, ! [E,R] : (eval(opt(E),R) = eval(E,R))).
+        |fof(analysis_sound, axiom, ! [E,R,A] : (abstracts(R,A) => gamma(eval(E,R),analyze(E,A)))).""".stripMargin
+    val spatialInterpreterInduction =
+      """fof(constructor_transfer, axiom, ! [E] : ((! [C] : (child(C,E) => sound(C))) => sound(E))).
+        |fof(finite_ast_induction, axiom, ((! [E] : ((! [C] : (child(C,E) => sound(C))) => sound(E))) => ! [E] : sound(E))).
+        |fof(sound_definition, axiom, ! [E] : (sound(E) <=> ! [R,A] : (abstracts(R,A) => gamma(eval(E,R),analyze(E,A))))).""".stripMargin
+    val backendSelectionBridge =
+      """fof(obs_extensional, axiom, ! [A,B] : (obs(A,B) <=> ! [X] : (member(X,A) <=> member(X,B)))).
+        |fof(eval_trie, axiom, ! [X,E] : (member(X,trie(E)) <=> member(X,eval_space(E)))).
+        |fof(eval_trie_unrolled, axiom, ! [X,E,T,D] : ((typed(E,T) & max_depth(T,D)) => (member(X,trie_unrolled(E,D)) <=> member(X,eval_space(E))))).
+        |fof(eval_zipper, axiom, ! [X,E] : (member(X,zipper(E)) <=> member(X,eval_space(E)))).
+        |fof(eval_zipper_focused, axiom, ! [X,E,T,P] : ((typed(E,T) & common_prefix(T,P)) => (member(X,zipper_focused(E,P)) <=> member(X,eval_space(E))))).
+        |fof(eval_graph, axiom, ! [X,E] : (member(X,graph(E)) <=> member(X,eval_space(E)))).
+        |fof(exact_gamma, axiom, ! [X,E,T,V] : ((typed(E,T) & exact_value(T,V)) => (member(X,eval_space(E)) <=> member(X,V)))).
+        |fof(graph_constant_semantics, axiom, ! [X,V] : (member(X,graph_constant(V)) <=> member(X,V))).""".stripMargin
     val spatial = Vector(
+      VampireProblem(
+        "spatial_interpreter_structural_induction_sound_fo",
+        spatialInterpreterInduction,
+        "fof(conj, conjecture, ! [E,R,A] : (abstracts(R,A) => gamma(eval(E,R),analyze(E,A)))).",
+      ),
+      VampireProblem(
+        "spatial_fixpoint_postfixed_sound_fo",
+        spatialInterpreterBridge,
+        "fof(conj, conjecture, ! [X,S,F,I] : ((subset(S,I) & subset(apply(F,I),I) & member(X,lfp(S,F))) => member(X,I))).",
+      ),
+      VampireProblem(
+        "spatial_optimizer_preserves_analysis_soundness_fo",
+        spatialOptimizerBridge,
+        "fof(conj, conjecture, ! [E,R,A] : (abstracts(R,A) => gamma(eval(opt(E),R),analyze(E,A)))).",
+      ),
+      VampireProblem(
+        "spatial_trie_bounded_depth_selection_fo",
+        backendSelectionBridge,
+        "fof(conj, conjecture, ! [E,T,D] : ((typed(E,T) & max_depth(T,D)) => obs(trie(E),trie_unrolled(E,D)))).",
+      ),
+      VampireProblem(
+        "spatial_zipper_common_prefix_selection_fo",
+        backendSelectionBridge,
+        "fof(conj, conjecture, ! [E,T,P] : ((typed(E,T) & common_prefix(T,P)) => obs(zipper(E),zipper_focused(E,P)))).",
+      ),
+      VampireProblem(
+        "spatial_graph_exact_constant_fold_fo",
+        backendSelectionBridge,
+        "fof(conj, conjecture, ! [E,T,V] : ((typed(E,T) & exact_value(T,V)) => obs(graph(E),graph_constant(V)))).",
+      ),
       VampireProblem(
         "spatial_interval_order_closed_form_fo",
         spatialIntervalCoreTptp,

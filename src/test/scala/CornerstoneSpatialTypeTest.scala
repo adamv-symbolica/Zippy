@@ -80,7 +80,7 @@ object CornerstoneAbstractInterpretations:
     SpatialRoutineAnnotations(
       spaces = Map(lifeFieldMention -> lifeField),
       resultLaws = Vector(SpatialBoundLaw.SubsetOfImage(lifeFieldMention, SizeExpr.const(9))),
-      config = SpatialAnalysisConfig(patternLimit = 16, analysisNodeBudget = 10),
+      config = SpatialAnalysisConfig(patternLimit = 16),
     ),
     routines = mod(LifeExample.neigh),
   )
@@ -229,16 +229,16 @@ class CornerstoneSpatialTypeTest extends FunSuite:
       case other => fail(s"8-puzzle reachability was not lowered to Fixpoint: ${other.show}")
 
     assertEquals(aunt.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(3)))
-    assertEquals(datalog.pathLength, PathLengthEstimate.unknown)
-    assertEquals(life.pathLength, PathLengthEstimate(PathLengthExpr.One, PathLengthExpr.Infinity))
-    assertEquals(puzzle.pathLength, PathLengthEstimate.unknown)
+    assertEquals(datalog.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(2)))
+    assertEquals(life.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(3)))
+    assertEquals(puzzle.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(9)))
     assertEquals(temperature.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(4)))
     assertEquals(nqueens.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(4)))
 
     assert(all.forall((_, result) => result.exactValue.isEmpty))
     assertEquals(aunt.size.lower, SizeExpr.Zero)
     assert(aunt.size.upper.show.contains("childEdges"))
-    assertEquals(life.strata.flatMap(_.pattern).map(_.show).toSet.size, 0)
+    assertEquals(life.strata.flatMap(_.pattern).map(_.show).toSet.size, 8)
     assert(life.size.upper.show.contains("liveCells"))
     assert(datalog.size.lower.show.contains("edges"))
     assert(datalog.size.upper.show.contains("edges"))

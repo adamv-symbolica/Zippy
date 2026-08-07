@@ -1,11 +1,11 @@
 # Spatial abstract-interpretation laws
 
 This document records two related layers. The generated FOL obligations model
-the semantic set-interval lattice `[must,may]`; they do **not** by themselves
-prove the Scala stratum/cardinality implementation sound. The implementation
-now has explicit `bottom`, `join`, `meet`, `lessOrEqual`, reduction, and
-widening, but the end-to-end theorem `eval(e,ρ) ∈ γ(analyze(e,ρ#))` remains
-open. Executable audits are regression evidence, not a substitute for it.
+the semantic set-interval lattice `[must,may]`. New bridge obligations formalize
+constructor induction, the post-fixpoint induction step, optimizer/evaluator preservation, and guarded
+backend selection. They still do **not** constitute a machine extraction or a
+line-by-line proof of the Scala interpreter. Executable audits are regression
+evidence, not a substitute for that final implementation-refinement theorem.
 
 ## Information carried by the implementation
 
@@ -29,12 +29,12 @@ The analysis currently uses all of the following information.
 | Total source caps | Selectors cannot exceed their source; composition cannot exceed the product of operand totals. These caps reduce stratum-derived totals. |
 | Semantic type annotation | `SpatialRoutineAnnotations.resultLaws` contributes a proved must/may cardinality envelope. It is an analysis input and is intersected with, never substituted for, constructor analysis. |
 | Finite relational count | `FiniteIntConstraintProblem` counts assignments within an explicit node budget and falls back to no refinement when exhausted. |
-| Fiber degree | For exact patterns, minimum/maximum degree, edges, keys, and average edge/key ratio. Abstract dependent degree propagation is intentionally future work. |
+| Fiber degree | Exact constants are counted directly. Symbolic constant/affine/unknown items yield per-level choice and fiber bounds; key-specific dependent correlation remains future work. |
 | Bounded representation | Above the pattern limit, patterns are summarized into length strata. Summarization enlarges concretization; it never truncates alternatives. |
 | Inconsistent state | `SpatialType.bottom` represents contradictory evidence and absorbs meet and deterministic transfer. |
 | Fixpoint invariant | Ascending iteration plus checked widening returns only a post-fixpoint; failure to establish one returns top in every spatial component. |
-| Analysis cost | Symbolic pointwise work/allocation uppers are propagated. Full asymptotic comparison and symbolic degree-driven join cost remain future work. |
-| Decorated tree | Intermediate results retain their lexical bound-space/path environments for optimizer consumers. |
+| Analysis cost | Symbolic lower/upper work/allocation intervals are propagated generically and per backend. A dominant-monomial antichain supplies the separate asymptotic order. |
+| Decorated tree | Every occurrence has a positional child-index identity; repeated lexical observations are retained and joined for optimizer consumers. |
 
 ## Semantic interval lattice
 
@@ -150,6 +150,9 @@ The generated `spatial_*_fo.p` obligations cover:
 - best-correctness for union and subtraction;
 - reduced-product projection, componentwise monotonicity, gamma preservation, and reduction idempotence.
 - semantic-contract transfer soundness, refinement, and monotonicity under a stronger contract.
+- structural interpreter soundness from the finite-AST induction principle and constructor-transfer premises;
+- post-fixpoint induction for `Fixpoint` and optimizer soundness transported across evaluator-preserving rewrites;
+- backend-selection bridges: bounded-depth trie unrolling, common-prefix zipper pre-focus, and exact graph constant folding, each derived from extensional backend semantics.
 
 Each generated problem has a lean, operator-specific prelude. Abstract values and abstract collections are guarded by predicates because TPTP FOL is untyped. Transformer equations are guarded by `L ⊆ U`; without that guard, different invalid interval representatives all denote bottom but could be mapped to different outputs, making the theory inconsistent.
 
@@ -164,13 +167,13 @@ encoded: all 512 three-node directed graphs satisfy `E <= |TC(E)| <= E^2`; all
 constraint component matches n-queens counts through size six. These checks run
 after abstract interpretation and have no data path back into its annotations.
 
-## Remaining proof obligations
+## Remaining implementation-refinement obligations
 
 The complete lattice makes the following future obligations well-formed rather than ad hoc:
 
-1. Structural interpreter soundness: `eval(e,ρ) ∈ γ(analyze(e,ρ#))`, by constructor induction using the proved transfer lemmas.
+1. Connect the generic constructor-soundness and fixpoint bridge theories to the concrete Scala `analyze` implementation by a checked refinement/extraction layer. The semantic theorem `eval(e,ρ) ∈ γ(analyze(e,ρ#))` is now stated at the FOL boundary and audited over original and optimized random programs, but source-to-theory correspondence remains trusted.
 2. Assumption refinement: refining every input type must refine output for positive programs; variance annotations identify the exact exceptions.
-3. Least-fixpoint soundness and induction for positive `Fixpoint`, using Knaster–Tarski over arbitrary infima/suprema.
+3. Strengthen the current post-fixpoint induction obligation to a leastness theorem for positive `Fixpoint` over the full represented stratum product.
 4. Best-correctness for intersection, product, restriction, raffination, closures, and positive iteration.
 5. A Galois insertion for the finite pattern/stratum representation, including a proof that cap-based summarization is an upper closure operator.
 6. Concrete cardinality/length reduction coherence, replacing generic `qgamma` with arithmetic theories and proving every reduction step preserves gamma.
