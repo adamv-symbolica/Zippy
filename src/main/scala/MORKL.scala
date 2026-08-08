@@ -615,7 +615,12 @@ def eval(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceC
     case Space.Union(x, y) => recs(x) union recs(y)
     case Space.Intersection(x, y) => recs(x) intersect recs(y)
     case Space.Subtraction(x, y) => recs(x) removedAll recs(y)
-    case Space.Restriction(x_e, prefixes_e) => val prefixes = recs(prefixes_e); recs(x_e).filter(x => prefixes.exists(p => x.items.startsWith(p.items)))
+    case Space.Restriction(x_e, prefixes_e) =>
+      val prefixes = recs(prefixes_e)
+      recs(x_e).filter(x => prefixes.exists { p =>
+        ExecutorCostMeter.comparePath()
+        x.items.startsWith(p.items)
+      })
     case Space.Composition(x, y) =>
       val xs = recs(x)
       if xs.isEmpty then Set.empty
@@ -624,7 +629,10 @@ def eval(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceC
         if ys.isEmpty then Set.empty
         else
           val out = Set.newBuilder[PathValue]
-          xs.foreach(e1 => ys.foreach(e2 => out += PathValue(e1.items ++ e2.items)))
+          xs.foreach(e1 => ys.foreach { e2 =>
+            ExecutorCostMeter.allocate()
+            out += PathValue(e1.items ++ e2.items)
+          })
           out.result()
 //    case Space.Wrap(src_e, p_e) => val p = recp(p_e); recs(src_e).map( sp => PathValue(p ++ sp.items))
 //    case Space.Unwrap(src_e, p_e) => val p = recp(p_e); recs(src_e).collect { case e if e.items.startsWith(p) => PathValue(e.items.drop(p.length)) }
@@ -668,6 +676,7 @@ def eval(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceC
       }
       val out = Set.newBuilder[PathValue]
       groups.foreach { (h, r) =>
+        ExecutorCostMeter.round()
         out ++= eval(templates)(using pc.bind(symbol, h), sc.bind(rest, SpaceValue(r.toSet)), rc).paths
       }
       out.result()
@@ -682,6 +691,7 @@ def eval(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceC
       }
       val out = Set.newBuilder[PathValue]
       for (h, r) <- groups.toSeq.sortBy(_._1) do
+        ExecutorCostMeter.round()
         val pctx = pc.bind(acc, accValue).bind(symbol, h)
         val sctx = sc.bind(rest, SpaceValue(r.toSet))
         out ++= eval(templates)(using pctx, sctx, rc).paths
@@ -691,6 +701,7 @@ def eval(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceC
       var current = SpaceValue(recs(initial))
       var changed = true
       while changed do
+        ExecutorCostMeter.round()
         val stepped = eval(step)(using pc, sc.bind(variable, current), rc)
         val next = SpaceValue(current.paths union stepped.paths)
         changed = next != current
@@ -2730,6 +2741,16 @@ object Supercompiler:
     assumptions: SpatialAssumptions = SpatialAssumptions(),
     routines: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty
   ): SpatialType = SpatialTypeAnalysis.output(normalize(s).space, assumptions, routines)
+
+  /** Primary open-program cost/type surface: retain abstract arguments, but
+    * analyze the normalized residual that an optimized executor will run. */
+  def optimizedSpatialType(
+    routine: Routine,
+    annotations: SpatialRoutineAnnotations,
+    routines: PartialFunction[RoutinePtr, Routine]
+  ): SpatialType =
+    val optimized = routine.copy(body = normalize(routine.body).space)
+    SpatialTypeAnalysis.outputRoutineAbstract(optimized, annotations, routines)
 
   def stats(s: Space): SpaceStats =
     def bumpSpace(x: SpaceStats, depth: Int): SpaceStats = x.copy(spaceNodes = x.spaceNodes + 1, depth = x.depth.max(depth))

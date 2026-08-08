@@ -194,31 +194,36 @@ occurrence under loop/fixpoint bindings are retained, and `result` is their
 lattice `joinAlternatives` summary.
 
 The cost component propagates symbolic lower/upper work, allocation, and round
-bounds. `SpatialCostModel` has one implementation per executor. Transfers are
-derived from the relevant representation. Iteration charges grouping plus each
-body cost scaled by its head groups plus collection; fixpoint work is scaled by
-a sound symbolic round bound. Recursive costs use `SpatialRecurrence.solve`,
-fed by a syntax-only decreasing-measure detector for tails, non-empty unwraps,
-and iterator rests. A recurrence is closed only when every self-call decreases;
-otherwise named recursive work/allocation/round atoms remain visible.
+bounds. Its certified upper surface is split into named representation events:
+`nodeVisits`, `pathComparisons`, `allocations`, and `rounds`. `SpatialCostModel`
+has one implementation per executor, and the executors expose matching scoped
+counters. Transfers are derived from the relevant representation. Iteration
+charges grouping plus each body cost scaled by its head groups plus collection;
+fixpoint work is scaled by a sound symbolic round bound. Recursive costs use
+`SpatialRecurrence.solve`, fed by a syntax-only decreasing-measure detector for
+tails, non-empty unwraps, and iterator rests. A recurrence is closed only when
+every self-call decreases; otherwise named recursive work/allocation/round atoms
+remain visible.
+
+The production-facing entry point is `Supercompiler.optimizedSpatialType`.
+For routines it normalizes the body while preserving abstract path and space
+arguments, then interprets that residual. Thus the model predicts the program
+that the optimized executor runs without evaluating or inlining its inputs.
 `SizeExpr.asymptotic` projects polynomial, log, and geometric atoms to a dominant
 order.
 
 Cost addition no longer has a `TermLimit => Infinity` precision cliff. Small
 finite sums are stored as shallow chunks and large ones as named finite-sum
-atoms, while the rendering budget controls only presentation. The committed cost
-test times reference, trie, zipper, and graph execution independently, requires
-every cost model to be cheapest on at least one representative operation, and
-checks both rank and magnitude. Rank is measured by Spearman correlation over a
-scaling family. Magnitude uses a mixed union/restriction/composition/range corpus,
-fits one geometric-mean nanoseconds-per-cost-unit constant per backend, and
-requires every observation's multiplicative residual to remain within 4x. The
-fitted scale is a machine-local calibration; the bounded residual is the permanent
-gate that exposes uniform and operation-specific magnitude mistakes which rank
-alone cannot detect.
-Measurements use current-thread CPU time when the JVM exposes it, sixteen warmups,
-and a nine-sample median so a loaded test JVM does not turn scheduler, GC, or JIT
-phase changes into false cost-model failures.
+atoms, while the rendering budget controls only presentation. The permanent cost
+gate uses asymmetric operands on normalized open programs: one operand is fixed
+while the other grows. For each optimized executor and each typed component,
+predictions must bound the matching counter and remain within a small constant
+factor. It also asserts the relevant complexity class: restriction and
+raffination do not grow with the source; head-disjoint intersection/subtraction
+do not descend either operand; composition does not grow with the grafted right
+trie; unwrap depends only on prefix length. No nanoseconds-per-unit calibration
+or fitted residual is involved. A separate wall-clock Spearman test remains only
+as a noisy end-to-end smoke check.
 
 ## One-way validation
 

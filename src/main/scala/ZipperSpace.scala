@@ -179,7 +179,11 @@ object SpaceZipper:
   def wrap(src: SpaceZipper, prefix: List[Int]): SpaceZipper =
     if src.knownEmpty then empty else if prefix.isEmpty then src else memo(Prefix(prefix, src))
   def unwrap(src: SpaceZipper, prefix: List[Int]): SpaceZipper =
-    prefix.foldLeft(src)((z, item) => if z.knownEmpty then empty else z.child(item))
+    prefix.foldLeft(src) { (z, item) =>
+      ExecutorCostMeter.visitNode()
+      ExecutorCostMeter.comparePath()
+      if z.knownEmpty then empty else z.child(item)
+    }
   def range(src: SpaceZipper, start: Int, end: Int): SpaceZipper =
     if src.knownEmpty then empty
     else src match
@@ -330,6 +334,7 @@ object SpaceZipper:
     var current = initial.materialize
     var changed = true
     while changed do
+      ExecutorCostMeter.round()
       val stepped = step(traversal(current)).materialize
       val next = current.union(stepped)
       changed = next != current
@@ -726,7 +731,10 @@ object SpaceZipper:
     private val branchCache = mutable.HashMap.empty[Int, SpaceZipper]
     private val genericChildCache = mutable.HashMap.empty[Int, SpaceZipper]
     private def branchFor(head: Int): SpaceZipper =
-      branchCache.getOrElseUpdate(head, branch(head, src.child(head)))
+      branchCache.getOrElseUpdate(head, {
+        ExecutorCostMeter.round()
+        branch(head, src.child(head))
+      })
     private lazy val branchKeys: Vector[Int] =
       src.childKeys.iterator.filter(src.hasChild).toVector
     private def branchesIterator: Iterator[SpaceZipper] =
@@ -1399,6 +1407,7 @@ def transpileZ(s: Space)(using
       var accValue = recp(initial)
       val out = Vector.newBuilder[SpaceZipper]
       for (head, tail) <- recs(src).orderedChildren do
+        ExecutorCostMeter.round()
         val pctx = ipc.grown(Map(acc -> accValue, symbol -> TrieSpace.singletonItemPath(head)))
         val sctx = zsc.grown(Map(rest -> tail))
         out += recs(templates)(using pctx, sctx)
@@ -1447,6 +1456,7 @@ def transpileZ(s: Space)(using
               var current = initialZ.materialize
               var changed = true
               while changed do
+                ExecutorCostMeter.round()
                 val stepped = recs(step)(using ipc, zsc.grown(Map(variable -> SpaceZipper.traversal(current)))).materialize
                 val next = current.union(stepped)
                 changed = next != current

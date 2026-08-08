@@ -201,7 +201,15 @@ object SpatialTypeAnalysis:
     roundsUpper: SizeExpr = SizeExpr.Zero,
   ): SpatialType =
     val inputCost = SpatialCostEstimate.sequential(inputs.map(_.cost)*)
-    val generic = SpatialCostInterval(workLower, work, allocationLower, allocation, roundsLower, roundsUpper)
+    val generic = SpatialCostInterval(
+      workLower,
+      work,
+      allocationLower,
+      allocation,
+      roundsLower,
+      roundsUpper,
+      SpatialCostComponents(nodeVisits = work, allocations = allocation, rounds = roundsUpper),
+    )
     val measures = inputs.toVector.map(SpatialCostMeasure.apply)
     val resultMeasure = SpatialCostMeasure(result)
     val intervals = SpatialCostModels.all.map { model =>
@@ -423,6 +431,11 @@ object SpatialTypeAnalysis:
       case _ => unwrapGeneral(source, prefix)
 
   private def unwrapGeneral(source: SpatialType, prefix: SpatialPathType): SpatialType =
+    // All optimized backends descend the prefix and then retain the selected
+    // subtrie by reference. The root visit makes the empty prefix cost one.
+    val prefixNodes = SizeExpr.add(SizeExpr.One,
+      prefix.length.upper.annotatedBound(Z3BoundDirection.Upper)
+        .fold[SizeExpr](SizeExpr.symbol(s"pathLen(${prefix.length.show})"))(SizeExpr.const))
     val strata = for
       value <- source.strata
       prefixPattern <- if prefix.patterns.nonEmpty then prefix.patterns else Vector.empty
@@ -442,7 +455,7 @@ object SpatialTypeAnalysis:
     if strata.nonEmpty then
       val raw = SpatialType.fromStrata(strata)
       charge(SpatialType.reduce(raw.copy(size = ResultSizeEstimate(
-        SizeExpr.minimum(raw.size.upper, source.size.upper), raw.size.lower))), source)(source.size.upper, raw.size.upper,
+        SizeExpr.minimum(raw.size.upper, source.size.upper), raw.size.lower))), source)(prefixNodes,
         operationKind = SpatialCostOperation.Unwrap)
     else
       val length = PathLengthEstimate(
@@ -450,7 +463,7 @@ object SpatialTypeAnalysis:
         PathLengthExpr.positiveDifference(source.pathLength.upper, prefix.length.lower)
       )
       charge(SpatialType.fromStrata(Vector(SpatialStratum(
-        length, ResultSizeEstimate(source.size.upper, SizeExpr.Zero)))), source)(source.size.upper, source.size.upper,
+        length, ResultSizeEstimate(source.size.upper, SizeExpr.Zero)))), source)(prefixNodes,
         operationKind = SpatialCostOperation.Unwrap)
 
   private def tails(source: SpatialType, intersection: Boolean): SpatialType =
@@ -766,7 +779,16 @@ object SpatialTypeAnalysis:
       case Space.Restriction(left, prefixes) => restriction(left, prefixes, rec(left), rec(prefixes), assumptions)
       case Space.Raffination(left, prefixes) =>
         val l = rec(left)
-        subtraction(l, restriction(left, prefixes, l, rec(prefixes), assumptions))
+        val p = rec(prefixes)
+        val selected = restriction(left, prefixes, l.copy(cost = SpatialCostEstimate.zero),
+          p.copy(cost = SpatialCostEstimate.zero), assumptions)
+        val semantic = subtraction(l.copy(cost = SpatialCostEstimate.zero),
+          selected.copy(cost = SpatialCostEstimate.zero)).copy(cost = SpatialCostEstimate.zero)
+        charge(semantic, l, p)(
+          SizeExpr.multiply(l.size.upper, p.size.upper),
+          semantic.size.upper,
+          operationKind = SpatialCostOperation.Raffination,
+        )
       case Space.Composition(left, right) => composition(rec(left), rec(right))
       case iteration @ Space.Iteration(src, symbol, rest, body) =>
         matchIfEmpty(iteration) match

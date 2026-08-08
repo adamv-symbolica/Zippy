@@ -146,8 +146,9 @@ case class SpatialType(
   pathLength: PathLengthEstimate,
   bottom: Boolean = false,
   cost: SpatialCostEstimate = SpatialCostEstimate.zero,
+  shapeOverride: Option[SpatialHeadShape] = None,
 ):
-  lazy val shape: SpatialHeadShape = SpatialHeadShape.fromStrata(strata)
+  lazy val shape: SpatialHeadShape = shapeOverride.getOrElse(SpatialHeadShape.fromStrata(strata))
   def isBottom: Boolean = bottom
   def isEmpty: Boolean = !bottom && size.upper == SizeExpr.Zero
   def facts: SpatialFacts = SpatialFacts(this)
@@ -463,7 +464,7 @@ object SpatialType:
           PathLengthEstimate.exact(PathLengthExpr.const(length)),
           ResultSizeEstimate.exact(SizeExpr.const(paths.size))
         )
-      })
+      }).copy(shapeOverride = Some(SpatialHeadShape.fromValue(value)))
 
   def lengths(values: (Int, ResultSizeEstimate)*): SpatialType =
     fromStrata(values.map { (length, cardinality) =>

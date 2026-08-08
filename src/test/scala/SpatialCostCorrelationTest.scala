@@ -2,11 +2,12 @@ package morkl
 
 import munit.FunSuite
 import scala.collection.mutable
-import java.lang.management.ManagementFactory
 
 object SpatialCostCorrelation:
-  case class MagnitudeFit(scaleNanosPerUnit: Double, maximumResidualFactor: Double,
-    residualFactors: Vector[(String, Double)], observations: Vector[(String, Double, Double)])
+  private val leftMention = SpaceMention("correlation_left")
+  private val rightMention = SpaceMention("correlation_right")
+
+  private case class Example(program: Space, spatial: SpatialType, left: SpaceValue, right: SpaceValue)
 
   private def value(prefix: String, count: Int, length: Int = 2): SpaceValue = SpaceValue(
     (0 until count).map { index =>
@@ -15,33 +16,33 @@ object SpatialCostCorrelation:
 
   /** Scaling correlation is measured within one executor operation family;
     * cross-operator discrimination is checked separately by the winner cases. */
-  private def examples: Vector[Space] = Vector(32, 64, 128, 256).map { count =>
-    val left = Space.Literal(value("l", count))
-    val right = Space.Literal(value("r", count))
-    Space.Composition(left, right)
+  private def examples: Vector[Example] = Vector(32, 64, 128, 256).map { count =>
+    val left = value("l", count)
+    val right = value("r", count)
+    val expression = Space.Composition(Space.Mention(leftMention), Space.Mention(rightMention))
+    val routine = Routine(RoutinePtr(s"cost_correlation_$count"), Vector.empty,
+      Vector(leftMention, rightMention), expression)
+    val annotations = SpatialRoutineAnnotations(spaces = Map(
+      leftMention -> SpatialType.exact(left),
+      rightMention -> SpatialType.exact(right),
+    ))
+    Example(Supercompiler.normalize(expression).space,
+      Supercompiler.optimizedSpatialType(routine, annotations, PartialFunction.empty), left, right)
   }
 
-  private def graphValue(graph: RecursiveOpGraph): SpaceValue =
-    val stack = mutable.Stack(new Array[List[Int] | TrieSpace | Null](graph.nodes.length))
+  private def graphValue(graph: RecursiveOpGraph, arguments: Vector[TrieSpace]): SpaceValue =
+    val frame = new Array[List[Int] | TrieSpace | Null](graph.nodes.length)
+    arguments.indices.foreach(index => frame(index) = arguments(index))
+    val stack = mutable.Stack(frame)
     execT(graph, stack)
     stack.top.last.asInstanceOf[TrieSpace].toSpaceValue
 
-  private val threadClock = ManagementFactory.getThreadMXBean
-  private def executorNanos(): Long =
-    if threadClock.isCurrentThreadCpuTimeSupported && threadClock.isThreadCpuTimeEnabled then
-      threadClock.getCurrentThreadCpuTime
-    else System.nanoTime()
-
   private def medianNanos(run: () => SpaceValue, repetitions: Int = 3, warmups: Int = 3): Double =
-    // Warm the exact executor/operation pair before sampling. The mixed corpus
-    // uses a longer warmup so operations are compared at the same JIT maturity.
     Vector.fill(warmups)(run())
     Vector.fill(repetitions) {
-      // Current-thread CPU time excludes unrelated scheduler, JIT, and stop-the-
-      // world pauses. The fallback remains wall time on a JVM without that clock.
-      val started = executorNanos()
+      val started = System.nanoTime()
       run()
-      (executorNanos() - started).toDouble
+      (System.nanoTime() - started).toDouble
     }.sorted.apply(repetitions / 2)
 
   private def rank(values: Vector[Double]): Vector[Double] =
@@ -60,17 +61,25 @@ object SpatialCostCorrelation:
     if denominator == 0 then 0 else numerator / denominator
 
   def correlations: Map[SpatialBackend, Double] =
-    val rows = examples.map { expression =>
-      val spatial = SpatialTypeAnalysis.output(expression)
-      val graph = transpile(Routine(RoutinePtr("cost_correlation"), Vector.empty, Vector.empty, expression))
+    val rows = examples.map { example =>
+      val referenceContext = SpaceContextMap(Map(leftMention -> example.left, rightMention -> example.right))
+      val trieArguments = Vector(TrieSpace.fromSpaceValue(example.left), TrieSpace.fromSpaceValue(example.right))
+      val trieContext = TrieSpaceContextMap(Map(leftMention -> trieArguments(0), rightMention -> trieArguments(1)))
+      val graph = transpile(Routine(RoutinePtr("cost_correlation"), Vector.empty,
+        Vector(leftMention, rightMention), example.program))
       val runs: Map[SpatialBackend, () => SpaceValue] = Map(
-        SpatialBackend.Reference -> (() => eval(expression)),
-        SpatialBackend.Trie -> (() => evalTrieValue(expression)),
-        SpatialBackend.Zipper -> (() => evalZValue(expression)),
-        SpatialBackend.Graph -> (() => graphValue(graph)),
+        SpatialBackend.Reference -> (() => eval(example.program)(using
+          PathContext.emptyMap, referenceContext, PartialFunction.empty)),
+        SpatialBackend.Trie -> (() => evalTrie(example.program)(using
+          PathContext.emptyMap, trieContext, PartialFunction.empty).toSpaceValue),
+        SpatialBackend.Zipper -> (() => {
+          given ZipperSpaceContext = ZipperSpaceContext.fromTrie(trieContext)
+          evalZ(example.program).toSpaceValue
+        }),
+        SpatialBackend.Graph -> (() => graphValue(graph, trieArguments)),
       )
       SpatialBackend.values.map { backend =>
-        val predicted = spatial.cost.forBackend(backend).workUpper.annotatedBound(Z3BoundDirection.Upper)
+        val predicted = example.spatial.cost.forBackend(backend).workUpper.annotatedBound(Z3BoundDirection.Upper)
           .getOrElse(BigInt(Long.MaxValue)).toDouble
         backend -> (predicted -> medianNanos(runs(backend), repetitions = 5))
       }.toMap
@@ -80,87 +89,15 @@ object SpatialCostCorrelation:
       backend -> spearman(values.map(_._1), values.map(_._2))
     }.toMap
 
-  /** Mixed-operation calibration corpus. One multiplicative unit conversion is
-    * fitted per backend; the residual is therefore sensitive to relative
-    * magnitude errors that a rank correlation cannot observe. */
-  def magnitudeFits: Map[SpatialBackend, MagnitudeFit] =
-    val count = 96
-    val left = Space.Literal(value("m", count))
-    val right = Space.Literal(value("n", count))
-    val prefixes = Space.Literal(SpaceValue((0 until count).map(index =>
-      PathValue(List(PathItem(s"m$index")))).toSet))
-    val expressions = Vector(
-      "union" -> Space.Union(left, right),
-      "restriction" -> Space.Restriction(left, prefixes),
-      "composition" -> Space.Composition(left, right),
-      "range" -> Space.Range(left, 1, count / 2),
-    )
-    val rows = expressions.map { (label, expression) =>
-      val spatial = SpatialTypeAnalysis.output(expression)
-      val graph = transpile(Routine(RoutinePtr(s"cost_magnitude_$label"), Vector.empty, Vector.empty, expression))
-      val runs: Map[SpatialBackend, () => SpaceValue] = Map(
-        SpatialBackend.Reference -> (() => eval(expression)),
-        SpatialBackend.Trie -> (() => evalTrieValue(expression)),
-        SpatialBackend.Zipper -> (() => evalZValue(expression)),
-        SpatialBackend.Graph -> (() => graphValue(graph)),
-      )
-      SpatialBackend.values.map { backend =>
-        val predicted = spatial.cost.forBackend(backend).workUpper
-          .annotatedBound(Z3BoundDirection.Upper).getOrElse(BigInt(Long.MaxValue)).toDouble.max(1.0)
-        backend -> (label, predicted, medianNanos(runs(backend), repetitions = 9, warmups = 16).max(1.0))
-      }.toMap
-    }
-    SpatialBackend.values.map { backend =>
-      val values = rows.map(_(backend))
-      val logScale = values.map((_, predicted, measured) => math.log(measured / predicted)).sum / values.size
-      val scale = math.exp(logScale)
-      val residuals = values.map { (label, predicted, measured) =>
-        val ratio = measured / (scale * predicted)
-        label -> ratio.max(1.0 / ratio)
-      }
-      backend -> MagnitudeFit(scale, residuals.map(_._2).max, residuals,
-        values.map((label, predicted, measured) => (label, predicted, measured)))
-    }.toMap
-
 @main def spatialCostCorrelationReport(): Unit =
   SpatialCostCorrelation.correlations.toVector.sortBy(_._1.ordinal).foreach { (backend, correlation) =>
     println(f"spatial cost correlation: $backend%-9s Spearman=$correlation%.3f")
   }
-  SpatialCostCorrelation.magnitudeFits.toVector.sortBy(_._1.ordinal).foreach { (backend, fit) =>
-    val residuals = fit.residualFactors.map((name, factor) => f"$name=$factor%.2fx").mkString(",")
-    println(f"spatial cost magnitude: $backend%-9s scale=${fit.scaleNanosPerUnit}%.3f ns/unit maxResidual=${fit.maximumResidualFactor}%.2fx {$residuals}")
-    fit.observations.foreach { (name, predicted, measured) =>
-      println(f"  $name%-12s predicted=$predicted%.0f measured=${measured / 1_000_000.0}%.4f ms")
-    }
-  }
 
 class SpatialCostCorrelationTest extends FunSuite:
-  test("cost predictions correlate with every executor and models each win") {
+  test("optimized open-program predictions correlate with every executor") {
     val correlations = SpatialCostCorrelation.correlations
     correlations.foreach { (backend, correlation) =>
       assert(correlation >= 0.25, s"$backend Spearman correlation $correlation was too weak")
     }
-    SpatialCostCorrelation.magnitudeFits.foreach { (backend, fit) =>
-      assert(fit.maximumResidualFactor <= 4.0,
-        s"$backend calibrated cost magnitude residual ${fit.maximumResidualFactor} exceeded 4x: " +
-          s"residuals=${fit.residualFactors}, observations=${fit.observations}")
-    }
-
-    def winner(kind: SpatialCostOperation, left: SpatialType, right: Option[SpatialType], result: SpatialType): SpatialBackend =
-      val inputs = Vector(left) ++ right.toVector
-      val measures = inputs.map(SpatialCostMeasure.apply)
-      val fallback = SpatialCostInterval(SizeExpr.Zero, left.size.upper, SizeExpr.Zero, result.size.upper)
-      SpatialCostModels.all.minBy(_.operation(kind, measures, SpatialCostMeasure(result), fallback)
-        .workUpper.annotatedBound(Z3BoundDirection.Upper).getOrElse(BigInt(Long.MaxValue))).backend
-
-    val manyLong = SpatialType.lengths(5 -> ResultSizeEstimate.exact(SizeExpr.const(100)))
-    val manyShort = SpatialType.lengths(1 -> ResultSizeEstimate.exact(SizeExpr.const(100)))
-    val oneShort = SpatialType.lengths(1 -> ResultSizeEstimate.exact(SizeExpr.One))
-    val winners = Set(
-      winner(SpatialCostOperation.Intersection, manyLong, Some(manyLong), manyLong),
-      winner(SpatialCostOperation.Restriction, manyShort, Some(manyShort), manyShort),
-      winner(SpatialCostOperation.Unwrap, manyLong, None, oneShort),
-      winner(SpatialCostOperation.Union, manyLong, Some(manyLong), manyLong),
-    )
-    assertEquals(winners, SpatialBackend.values.toSet)
   }

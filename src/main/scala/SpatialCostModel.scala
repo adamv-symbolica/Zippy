@@ -3,6 +3,29 @@ package morkl
 enum SpatialBackend:
   case Reference, Trie, Zipper, Graph
 
+case class SpatialCostComponents(
+  nodeVisits: SizeExpr = SizeExpr.Zero,
+  pathComparisons: SizeExpr = SizeExpr.Zero,
+  allocations: SizeExpr = SizeExpr.Zero,
+  rounds: SizeExpr = SizeExpr.Zero,
+):
+  def +(that: SpatialCostComponents): SpatialCostComponents = SpatialCostComponents(
+    SizeExpr.add(nodeVisits, that.nodeVisits),
+    SizeExpr.add(pathComparisons, that.pathComparisons),
+    SizeExpr.add(allocations, that.allocations),
+    SizeExpr.add(rounds, that.rounds),
+  )
+
+  def scale(factor: SizeExpr): SpatialCostComponents = SpatialCostComponents(
+    SizeExpr.multiply(nodeVisits, factor),
+    SizeExpr.multiply(pathComparisons, factor),
+    SizeExpr.multiply(allocations, factor),
+    SizeExpr.multiply(rounds, factor),
+  )
+
+object SpatialCostComponents:
+  val zero: SpatialCostComponents = SpatialCostComponents()
+
 case class SpatialCostInterval(
   workLower: SizeExpr,
   workUpper: SizeExpr,
@@ -10,9 +33,11 @@ case class SpatialCostInterval(
   allocationUpper: SizeExpr,
   roundsLower: SizeExpr = SizeExpr.Zero,
   roundsUpper: SizeExpr = SizeExpr.Zero,
+  componentsUpper: SpatialCostComponents = SpatialCostComponents.zero,
 ):
   def show: String =
-    s"work=[${workLower.show},${workUpper.show}], alloc=[${allocationLower.show},${allocationUpper.show}], rounds=[${roundsLower.show},${roundsUpper.show}]"
+    s"work=[${workLower.show},${workUpper.show}], alloc=[${allocationLower.show},${allocationUpper.show}], " +
+      s"rounds=[${roundsLower.show},${roundsUpper.show}], components=$componentsUpper"
 
 case class SpatialCostEstimate(
   workUpper: SizeExpr,
@@ -73,6 +98,7 @@ object SpatialCostEstimate:
         lowerAdd(intervals.map(_.workLower)), treeAdd(intervals.map(_.workUpper)),
         lowerAdd(intervals.map(_.allocationLower)), treeAdd(intervals.map(_.allocationUpper)),
         lowerAdd(intervals.map(_.roundsLower)), treeAdd(intervals.map(_.roundsUpper)),
+        intervals.map(_.componentsUpper).foldLeft(SpatialCostComponents.zero)(_ + _),
       )
     }.toMap,
     treeAdd(values.map(_.roundsUpper)), lowerAdd(values.map(_.roundsLower)),
@@ -83,6 +109,7 @@ object SpatialCostEstimate:
       SizeExpr.multiply(lower, interval.workLower), SizeExpr.multiply(upper, interval.workUpper),
       SizeExpr.multiply(lower, interval.allocationLower), SizeExpr.multiply(upper, interval.allocationUpper),
       SizeExpr.multiply(lower, interval.roundsLower), SizeExpr.multiply(upper, interval.roundsUpper),
+      interval.componentsUpper.scale(upper),
     )
     val generic = scaleInterval(value.generic)
     SpatialCostEstimate(generic.workUpper, generic.allocationUpper, generic.workLower, generic.allocationLower,
@@ -91,7 +118,11 @@ object SpatialCostEstimate:
 
   def withRounds(value: SpatialCostEstimate, lower: SizeExpr, upper: SizeExpr): SpatialCostEstimate =
     value.copy(roundsLower = lower, roundsUpper = upper,
-      backend = value.backend.view.mapValues(_.copy(roundsLower = lower, roundsUpper = upper)).toMap)
+      backend = value.backend.view.mapValues(interval => interval.copy(
+        roundsLower = lower,
+        roundsUpper = upper,
+        componentsUpper = interval.componentsUpper.copy(rounds = upper),
+      )).toMap)
 
   def add(left: SizeExpr, right: SizeExpr): SizeExpr = treeAdd(Seq(left, right))
 
@@ -103,19 +134,37 @@ object SpatialCostEstimate:
 
 /** Operation classes whose costs are derived from executor behaviour. */
 enum SpatialCostOperation:
-  case Generic, Union, Intersection, Subtraction, Restriction, Composition,
+  case Generic, Union, Intersection, Subtraction, Restriction, Raffination, Composition,
     Wrap, Unwrap, Range, GroupCollect, Fixpoint
 
-case class SpatialCostMeasure(size: ResultSizeEstimate, length: PathLengthEstimate, heads: ResultSizeEstimate):
-  def nodesUpper: SizeExpr = SizeExpr.multiply(size.upper, lengthUpper)
-  def nodesLower: SizeExpr = SizeExpr.multiply(size.lower, lengthLower)
+case class SpatialCostMeasure(
+  size: ResultSizeEstimate,
+  length: PathLengthEstimate,
+  heads: ResultSizeEstimate,
+  shape: SpatialHeadShape = SpatialHeadShape.unknown,
+):
+  /** Root plus the unshared nodes of every represented path. Sharing can only
+    * lower this count, so it is a sound trie-node upper bound. */
+  def nodesUpper: SizeExpr = SizeExpr.add(SizeExpr.One, SizeExpr.multiply(size.upper, lengthUpper))
+  def nodesLower: SizeExpr = SizeExpr.maximum(SizeExpr.One, SizeExpr.multiply(size.lower, lengthLower))
+  def internalNodesUpper: SizeExpr = SizeExpr.add(SizeExpr.One, SizeExpr.multiply(
+    size.upper,
+    SizeExpr.positiveDifference(lengthUpper, SizeExpr.One),
+  ))
   def lengthUpper: SizeExpr = length.upper.annotatedBound(Z3BoundDirection.Upper)
     .fold[SizeExpr](SizeExpr.symbol(s"len(${length.show})"))(SizeExpr.const)
   def lengthLower: SizeExpr = SizeExpr.const(length.lower.annotatedBound(Z3BoundDirection.Lower).getOrElse(BigInt(0)))
 
+  /** True only when the bounded shape accounts for every possible head and
+    * the tracked head sets cannot overlap. */
+  def definitelyHeadDisjoint(that: SpatialCostMeasure): Boolean =
+    val completeHere = shape.otherHeads.upper.annotatedBound(Z3BoundDirection.Upper).contains(BigInt(0))
+    val completeThere = that.shape.otherHeads.upper.annotatedBound(Z3BoundDirection.Upper).contains(BigInt(0))
+    completeHere && completeThere && shape.heads.keySet.intersect(that.shape.heads.keySet).isEmpty
+
 object SpatialCostMeasure:
   def apply(value: SpatialType): SpatialCostMeasure = SpatialCostMeasure(value.size, value.pathLength,
-    ResultSizeEstimate(value.size.upper, SizeExpr.positive(value.size.lower)))
+    value.shape.headCount, value.shape)
 
 /** One independently testable model per concrete executor. */
 trait SpatialCostModel:
@@ -150,6 +199,7 @@ object SpatialCostModels:
             case SpatialCostOperation.Composition =>
               mul(left.size.upper, right.size.upper, add(left.lengthUpper, right.lengthUpper))
             case SpatialCostOperation.Restriction => mul(left.size.upper, right.size.upper, right.lengthUpper)
+            case SpatialCostOperation.Raffination => mul(left.size.upper, right.size.upper, right.lengthUpper)
             case SpatialCostOperation.Union =>
               // SpaceValue is an immutable HAMT set. A disjoint union hashes
               // each path and updates several 5-bit trie levels; path equality
@@ -166,12 +216,31 @@ object SpatialCostModels:
             case SpatialCostOperation.Composition | SpatialCostOperation.Restriction => result.size.upper
             case SpatialCostOperation.Union => add(left.size.upper, right.size.upper)
             case _ => fallback.allocationUpper
-          fallback.copy(workUpper = work, allocationUpper = allocation)
+          val components = kind match
+            case SpatialCostOperation.Composition => SpatialCostComponents(
+              nodeVisits = mul(left.size.upper, right.size.upper),
+              allocations = result.size.upper,
+            )
+            case SpatialCostOperation.Restriction => SpatialCostComponents(
+              pathComparisons = mul(left.size.upper, right.size.upper),
+              allocations = result.size.upper,
+            )
+            case SpatialCostOperation.Raffination => SpatialCostComponents(
+              pathComparisons = mul(left.size.upper, right.size.upper),
+              allocations = left.size.upper,
+            )
+            case SpatialCostOperation.Union | SpatialCostOperation.Intersection | SpatialCostOperation.Subtraction =>
+              SpatialCostComponents(pathComparisons = work, allocations = allocation)
+            case _ => fallback.componentsUpper
+          fallback.copy(workUpper = work, allocationUpper = allocation, componentsUpper = components)
         case None => kind match
           case SpatialCostOperation.Range if inputs.nonEmpty =>
             val source = inputs.head
             val log = log2ceil(source.size.upper)
-            fallback.copy(workUpper = mul(source.size.upper, log, source.lengthUpper))
+            fallback.copy(
+              workUpper = mul(source.size.upper, log, source.lengthUpper),
+              componentsUpper = SpatialCostComponents(pathComparisons = mul(source.size.upper, log)),
+            )
           case _ => fallback
 
   object Trie extends SpatialCostModel:
@@ -180,16 +249,63 @@ object SpatialCostModels:
       fallback: SpatialCostInterval): SpatialCostInterval =
       binary(inputs) match
         case Some((left, right)) =>
+          val disjoint = left.definitelyHeadDisjoint(right)
           val work = kind match
-            case SpatialCostOperation.Composition => add(left.nodesUpper, mul(left.size.upper, right.size.upper))
-            case SpatialCostOperation.Restriction => add(left.nodesUpper, right.nodesUpper)
+            // concat traverses the left trie and grafts the complete right trie
+            // at terminals. The right operand and Cartesian result are shared.
+            case SpatialCostOperation.Composition => mul(SizeExpr.const(3), left.nodesUpper)
+            // restrictBy walks the prefix trie and grafts accepted source
+            // subtries wholesale. Its complexity is independent of |left|.
+            case SpatialCostOperation.Restriction => right.nodesUpper
+            case SpatialCostOperation.Raffination => mul(SizeExpr.const(2), right.nodesUpper)
+            case SpatialCostOperation.Union | SpatialCostOperation.Intersection | SpatialCostOperation.Subtraction
+                if left.definitelyHeadDisjoint(right) => add(SizeExpr.One, left.heads.upper, right.heads.upper)
             case SpatialCostOperation.Union | SpatialCostOperation.Intersection | SpatialCostOperation.Subtraction =>
               add(left.nodesUpper, right.nodesUpper)
             case _ => fallback.workUpper
-          fallback.copy(workUpper = work, allocationUpper = result.nodesUpper)
+          val components = kind match
+            case SpatialCostOperation.Composition => SpatialCostComponents(
+              nodeVisits = mul(SizeExpr.const(3), left.nodesUpper),
+              allocations = left.nodesUpper,
+            )
+            case SpatialCostOperation.Restriction => SpatialCostComponents(
+              nodeVisits = mul(SizeExpr.const(2), right.nodesUpper),
+              pathComparisons = right.nodesUpper,
+              allocations = right.internalNodesUpper,
+            )
+            case SpatialCostOperation.Raffination => SpatialCostComponents(
+              nodeVisits = mul(SizeExpr.const(4), right.nodesUpper),
+              pathComparisons = right.nodesUpper,
+              allocations = mul(SizeExpr.const(2), right.internalNodesUpper),
+            )
+            case SpatialCostOperation.Union if disjoint => SpatialCostComponents(
+              nodeVisits = add(SizeExpr.One, left.heads.upper, right.heads.upper),
+              allocations = SizeExpr.One,
+            )
+            case SpatialCostOperation.Intersection | SpatialCostOperation.Subtraction if disjoint =>
+              SpatialCostComponents(nodeVisits = SizeExpr.One)
+            case SpatialCostOperation.Union | SpatialCostOperation.Intersection | SpatialCostOperation.Subtraction =>
+              SpatialCostComponents(nodeVisits = add(left.nodesUpper, right.nodesUpper), allocations = result.nodesUpper)
+            case _ => fallback.componentsUpper
+          fallback.copy(workUpper = work, allocationUpper = result.nodesUpper, componentsUpper = components)
         case None => kind match
           case SpatialCostOperation.Range if inputs.nonEmpty =>
-            fallback.copy(workUpper = add(inputs.head.size.upper, inputs.head.lengthUpper), allocationUpper = result.nodesUpper)
+            fallback.copy(
+              workUpper = add(inputs.head.size.upper, inputs.head.lengthUpper),
+              allocationUpper = result.nodesUpper,
+              componentsUpper = SpatialCostComponents(
+                nodeVisits = add(inputs.head.lengthUpper, result.nodesUpper),
+                allocations = result.nodesUpper,
+              ),
+            )
+          case SpatialCostOperation.Unwrap =>
+            fallback.copy(
+              allocationUpper = SizeExpr.Zero,
+              componentsUpper = SpatialCostComponents(
+                nodeVisits = fallback.workUpper,
+                pathComparisons = SizeExpr.positiveDifference(fallback.workUpper, SizeExpr.One),
+              ),
+            )
           case _ => fallback.copy(allocationUpper = result.nodesUpper)
 
   object Zipper extends SpatialCostModel:
@@ -198,24 +314,27 @@ object SpatialCostModels:
       fallback: SpatialCostInterval): SpatialCostInterval =
       val trie = Trie.operation(kind, inputs, result, fallback)
       kind match
-        case SpatialCostOperation.Unwrap => trie.copy(workUpper = result.lengthUpper)
-        case _ => trie.copy(workUpper = add(trie.workUpper, result.lengthUpper))
+        case SpatialCostOperation.Unwrap => trie
+        case _ => trie.copy(
+          workUpper = add(trie.workUpper, result.lengthUpper),
+          componentsUpper = trie.componentsUpper.copy(
+            nodeVisits = add(trie.componentsUpper.nodeVisits, result.lengthUpper),
+          ),
+        )
 
   object Graph extends SpatialCostModel:
     val backend = SpatialBackend.Graph
     def operation(kind: SpatialCostOperation, inputs: Vector[SpatialCostMeasure], result: SpatialCostMeasure,
-      fallback: SpatialCostInterval): SpatialCostInterval = kind match
-      case SpatialCostOperation.Union => fallback.copy(workUpper = SizeExpr.const(inputs.size), allocationUpper = SizeExpr.One)
-      case SpatialCostOperation.Composition => binary(inputs) match
-        // execT dispatch is constant, but the node still performs the native
-        // Cartesian trie product. Preserve that quadratic term instead of
-        // treating a graph operation node as its complete execution cost.
-        case Some((left, right)) => fallback.copy(
-          workUpper = add(left.nodesUpper, right.nodesUpper, mul(left.size.upper, right.size.upper)),
-          allocationUpper = SizeExpr.One,
-        )
-        case None => fallback.copy(workUpper = add((inputs.map(_.nodesUpper) :+ SizeExpr.One)*), allocationUpper = SizeExpr.One)
-      case _ => fallback.copy(workUpper = add((inputs.map(_.nodesUpper) :+ SizeExpr.One)*), allocationUpper = SizeExpr.One)
+      fallback: SpatialCostInterval): SpatialCostInterval =
+      // execT adds one graph-node dispatch and then calls the same native trie
+      // operation. Counting only graph nodes loses the operator asymptotics.
+      val native = Trie.operation(kind, inputs, result, fallback)
+      native.copy(
+        workUpper = add(SizeExpr.One, native.workUpper),
+        componentsUpper = native.componentsUpper.copy(
+          nodeVisits = add(SizeExpr.One, native.componentsUpper.nodeVisits),
+        ),
+      )
 
   val all: Vector[SpatialCostModel] = Vector(Reference, Trie, Zipper, Graph)
 

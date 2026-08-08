@@ -127,3 +127,33 @@ object SpatialHeadShape:
         Option.when(other.nonEmpty)(derive(other.map(suffix), depth + 1)))
 
   def fromStrata(strata: Vector[SpatialStratum]): SpatialHeadShape = derive(strata, 0)
+
+  /** Preserve bounded head information for large literals even after their
+    * per-path strata have been collapsed by `patternLimit`. This is linear in
+    * the represented literal and retains exact tracked-head sets. */
+  def fromValue(value: SpaceValue): SpatialHeadShape =
+    def derivePaths(paths: Vector[List[PathItem]], depth: Int): SpatialHeadShape =
+      if paths.isEmpty then empty
+      else if depth >= MaxDepth then
+        val headed = paths.count(_.nonEmpty)
+        SpatialHeadShape(
+          if paths.exists(_.isEmpty) then SpatialPresence.Must else SpatialPresence.No,
+          Map.empty,
+          ResultSizeEstimate.exact(SizeExpr.const(headed)),
+          Option.when(headed > 0)(unknown),
+        )
+      else
+        val grouped = paths.collect { case head :: tail => head -> tail }.groupMap(_._1)(_._2)
+        val ordered = grouped.toVector.sortBy(_._1.show)
+        val kept = ordered.take(MaxHeads).map { (head, tails) =>
+          head -> derivePaths(tails, depth + 1)
+        }.toMap
+        val overflow = ordered.drop(MaxHeads)
+        val overflowTails = overflow.flatMap(_._2)
+        SpatialHeadShape(
+          if paths.exists(_.isEmpty) then SpatialPresence.Must else SpatialPresence.No,
+          kept,
+          ResultSizeEstimate.exact(SizeExpr.const(overflow.size)),
+          Option.when(overflow.nonEmpty)(derivePaths(overflowTails, depth + 1)),
+        )
+    derivePaths(value.paths.iterator.map(_.items).toVector, 0)

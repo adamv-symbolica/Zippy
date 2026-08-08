@@ -93,6 +93,21 @@ That makes `TailsIntersection` cheap for trie-shaped universal queries: it
 becomes `meetAll(children.values)` rather than `groupMap(...).reduce(_ intersect
 _)` over materialized suffix sets.
 
+## Persistent Construction
+
+Single-path insertion is a one-branch persistent update. Each parent derives
+`pathCount`, `nodeCount`, and `childCount` from the replaced child's old and new
+aggregates and uses the constant-time `nodeKnown` constructor. It never rescans
+the completed sibling map. Consequently a flat `k`-head relation no longer pays
+the previous quadratic aggregate-maintenance cost.
+
+The scanning `node` constructor remains for genuinely bulk results whose full
+child map is new. `joinAll` scans its new children once; algebraic `binaryValue`
+only selects provenance and does not rebuild; concrete zipper insertion routes
+through the same delta update. `TrieConstructionAsymptoticTest` certifies these
+claims with exact scan/allocation counters, while
+`trieConstructionAsymptoticBenchmark` records wall-clock scaling.
+
 ## PathMap Influence
 
 The supplied `PathMap-master.zip` is a Rust pathmap implementation with DAG

@@ -158,17 +158,38 @@ case class TrieSpace private (terminal: Boolean, children: IntMap[TrieSpace], pa
 
   def subtree(prefix: PathValue): Option[TrieSpace] = subtreeItems(TrieSpace.intern(prefix))
 
-  def subtreeItems(items: List[Int]): Option[TrieSpace] = items match
-    case Nil => Some(this)
-    case h :: t => children.get(h).flatMap(_.subtreeItems(t))
+  def subtreeItems(items: List[Int]): Option[TrieSpace] =
+    ExecutorCostMeter.visitNode()
+    items match
+      case Nil => Some(this)
+      case h :: t =>
+        ExecutorCostMeter.comparePath()
+        children.get(h).flatMap(_.subtreeItems(t))
 
   def insert(p: PathValue): TrieSpace = insertItems(TrieSpace.intern(p))
 
   def insertItems(items: List[Int]): TrieSpace = items match
-    case Nil => TrieSpace.node(terminal = true, children)
+    case Nil =>
+      if terminal then this
+      else TrieSpace.nodeKnown(
+        terminal = true,
+        children,
+        pathCount = pathCount + 1,
+        nodeCount,
+        childCount,
+      )
     case h :: t =>
-      val child = children.getOrElse(h, TrieSpace.empty).insertItems(t)
-      TrieSpace.node(terminal, children.updated(h, child))
+      val old = children.get(h)
+      val child = old.getOrElse(TrieSpace.empty).insertItems(t)
+      if old.exists(_.asInstanceOf[AnyRef] eq child.asInstanceOf[AnyRef]) then this
+      else
+        TrieSpace.nodeKnown(
+          terminal,
+          children.updated(h, child),
+          pathCount + child.pathCount - old.fold(0)(_.pathCount),
+          nodeCount + child.nodeCount - old.fold(0)(_.nodeCount),
+          childCount + (if old.isEmpty then 1 else 0),
+        )
 
   def toSpaceValue: SpaceValue = SpaceValue(paths.toSet)
 
@@ -187,6 +208,7 @@ case class TrieSpace private (terminal: Boolean, children: IntMap[TrieSpace], pa
     case _ => AlgebraicResult.valueOf(result, this, that, TrieSpace.empty)
 
   def unionResult(that: TrieSpace): AlgebraicResult[TrieSpace] =
+    ExecutorCostMeter.visitNode()
     if isEmpty && that.isEmpty then AlgebraicResult.Empty(AlgebraicEmptyReason.AllArguments)
     else if isEmpty then AlgebraicResult.Identity(AlgebraicResult.Right)
     else if that.isEmpty then AlgebraicResult.Identity(AlgebraicResult.Left)
@@ -213,6 +235,7 @@ case class TrieSpace private (terminal: Boolean, children: IntMap[TrieSpace], pa
   infix def |(that: TrieSpace): TrieSpace = union(that)
 
   def intersectionResult(that: TrieSpace): AlgebraicResult[TrieSpace] =
+    ExecutorCostMeter.visitNode()
     val emptyArguments =
       (if isEmpty then AlgebraicResult.Left else 0) |
         (if that.isEmpty then AlgebraicResult.Right else 0)
@@ -243,6 +266,7 @@ case class TrieSpace private (terminal: Boolean, children: IntMap[TrieSpace], pa
   infix def &(that: TrieSpace): TrieSpace = intersect(that)
 
   def subtractionResult(that: TrieSpace): AlgebraicResult[TrieSpace] =
+    ExecutorCostMeter.visitNode()
     if isEmpty then
       AlgebraicResult.Empty(AlgebraicEmptyReason.EmptyArguments(AlgebraicResult.Left))
     else if that.isEmpty then AlgebraicResult.Identity(AlgebraicResult.Left)
@@ -283,6 +307,8 @@ case class TrieSpace private (terminal: Boolean, children: IntMap[TrieSpace], pa
       (terminal == prefixes.terminal && childRelation._2)
 
   def restrictionResult(prefixes: TrieSpace): RestrictionResult[TrieSpace] =
+    ExecutorCostMeter.visitNode()
+    ExecutorCostMeter.comparePath()
     if isEmpty && prefixes.isEmpty then
       RestrictionResult(AlgebraicResult.Empty(AlgebraicEmptyReason.AllArguments), allPrefixesMatched = true)
     else if isEmpty then
@@ -334,6 +360,7 @@ case class TrieSpace private (terminal: Boolean, children: IntMap[TrieSpace], pa
   def raffinate(prefixes: TrieSpace): TrieSpace = diff(restrictBy(prefixes))
 
   def concat(that: TrieSpace): TrieSpace =
+    ExecutorCostMeter.visitNode()
     if isEmpty || that.isEmpty then TrieSpace.empty
     else
       val fromTerminal = if terminal then that else TrieSpace.empty
@@ -494,6 +521,7 @@ object TrieSpace:
     var childCount = 0
     var hasEmptyChild = false
     children.valuesIterator.foreach { child =>
+      ExecutorCostMeter.visitNode()
       if child.isEmpty then hasEmptyChild = true
       else
         paths += child.pathCount
@@ -503,7 +531,24 @@ object TrieSpace:
     if !terminal && childCount == 0 then empty
     else
       val kept = if hasEmptyChild then children.filterNot(_._2.isEmpty) else children
+      ExecutorCostMeter.allocate()
       TrieSpace(terminal, kept, paths, nodes, childCount)
+
+  /** Constant-time constructor for a one-branch persistent update. The caller
+    * has already derived the aggregate counts from the replaced child. Bulk
+    * constructors continue to use [[node]], where scanning a wholly new child
+    * map is unavoidable and linear in the output width. */
+  private[morkl] def nodeKnown(
+    terminal: Boolean,
+    children: IntMap[TrieSpace],
+    pathCount: Int,
+    nodeCount: Int,
+    childCount: Int,
+  ): TrieSpace =
+    if !terminal && childCount == 0 then empty
+    else
+      ExecutorCostMeter.allocate()
+      TrieSpace(terminal, children, pathCount, nodeCount, childCount)
 
   def singleton(p: PathValue): TrieSpace = empty.insert(p)
 
@@ -861,6 +906,7 @@ def evalTrie(s: Space)(using
           evalTemplate(inner).tailsClosure
         case _ =>
           TrieSpace.joinAll(srcTrie.children.iterator.map { (h, tail) =>
+            ExecutorCostMeter.round()
             recs(template)(using ipc.grown(Map(symbol -> TrieSpace.singletonItemPath(h))), tsc.grown(Map(rest -> tail)))
           })
       evalTemplate(templates)
@@ -868,6 +914,7 @@ def evalTrie(s: Space)(using
       var accValue = recp(initial)
       val out = Vector.newBuilder[TrieSpace]
       for (h, tail) <- recs(src).orderedChildren do
+        ExecutorCostMeter.round()
         val pctx = ipc.grown(Map(acc -> accValue, symbol -> List(h)))
         val sctx = tsc.grown(Map(rest -> tail))
         out += recs(templates)(using pctx, sctx)
@@ -877,6 +924,7 @@ def evalTrie(s: Space)(using
       var current = recs(initial)
       var changed = true
       while changed do
+        ExecutorCostMeter.round()
         val stepped = recs(step)(using ipc, tsc.grown(Map(variable -> current)))
         val next = current.union(stepped)
         changed = next != current
@@ -921,7 +969,10 @@ def execTrie(rog: RecursiveOpGraph,
           case "ExtractPathRef" => pos.pget
           case "Constant" => rog.pathValue(constant)
           case "Concat" => PathValue(inputs(0).pget.items ++ inputs(1).pget.items)
-        case "space" => s(c) = op match
+        case "space" =>
+          if op != "ExtractSpaceMention" && op != "Alias" && op != "Literal" && op != "Empty" then
+            ExecutorCostMeter.visitNode()
+          s(c) = op match
           case "Empty" => TrieSpace.empty
           case "Call" =>
             val code = index(constant)
@@ -952,12 +1003,14 @@ def execTrie(rog: RecursiveOpGraph,
             inputs(0).sget.range(start, end)
       case Right(sg: RecursiveOpGraph) =>
         val Node(op, _, _, inputs) = sg.root
+        ExecutorCostMeter.visitNode()
         op match
           case "Routine" => throw IllegalStateException("Nested Routine subgraphs are not executable without an explicit Call node")
           case "Iteration" =>
             val outputs = Vector.newBuilder[TrieSpace]
             val frame = new Array[PathValue | TrieSpace | Null](sg.nodes.length)
             for (h, tail) <- inputs(0).sget.children do
+              ExecutorCostMeter.round()
               frame(0) = TrieSpace.decode(List(h))
               frame(1) = tail
               stack.push(frame)
@@ -970,6 +1023,7 @@ def execTrie(rog: RecursiveOpGraph,
             val outputs = Vector.newBuilder[TrieSpace]
             val frame = new Array[PathValue | TrieSpace | Null](sg.nodes.length)
             for (h, tail) <- inputs(0).sget.orderedChildren do
+              ExecutorCostMeter.round()
               frame(0) = accValue
               frame(1) = TrieSpace.decode(List(h))
               frame(2) = tail
@@ -985,6 +1039,7 @@ def execTrie(rog: RecursiveOpGraph,
             var changed = true
             val frame = new Array[PathValue | TrieSpace | Null](sg.nodes.length)
             while changed do
+              ExecutorCostMeter.round()
               frame(0) = current
               stack.push(frame)
               execTrie(sg, stack, index)
@@ -1018,7 +1073,10 @@ def execT(rog: RecursiveOpGraph,
           case "ExtractPathRef" => pos.pget
           case "Constant" => rog.intPathValue(constant)
           case "Concat" => inputs(0).pget ++ inputs(1).pget
-        case "space" => s(c) = op match
+        case "space" =>
+          if op != "ExtractSpaceMention" && op != "Alias" && op != "Literal" && op != "Empty" then
+            ExecutorCostMeter.visitNode()
+          s(c) = op match
           case "Empty" => TrieSpace.empty
           case "Call" =>
             val code = index(constant)
@@ -1050,12 +1108,14 @@ def execT(rog: RecursiveOpGraph,
             inputs(0).sget.range(start, end)
       case Right(sg: RecursiveOpGraph) =>
         val Node(op, _, _, inputs) = sg.root
+        ExecutorCostMeter.visitNode()
         op match
           case "Routine" => throw IllegalStateException("Nested Routine subgraphs are not executable without an explicit Call node")
           case "Iteration" =>
             val outputs = Vector.newBuilder[TrieSpace]
             val frame = new Array[List[Int] | TrieSpace | Null](sg.nodes.length)
             for (h, tail) <- inputs(0).sget.children do
+              ExecutorCostMeter.round()
               frame(0) = TrieSpace.singletonItemPath(h)
               frame(1) = tail
               stack.push(frame)
@@ -1068,6 +1128,7 @@ def execT(rog: RecursiveOpGraph,
             val outputs = Vector.newBuilder[TrieSpace]
             val frame = new Array[List[Int] | TrieSpace | Null](sg.nodes.length)
             for (h, tail) <- inputs(0).sget.orderedChildren do
+              ExecutorCostMeter.round()
               frame(0) = accValue
               frame(1) = TrieSpace.singletonItemPath(h)
               frame(2) = tail
@@ -1083,6 +1144,7 @@ def execT(rog: RecursiveOpGraph,
             var changed = true
             val frame = new Array[List[Int] | TrieSpace | Null](sg.nodes.length)
             while changed do
+              ExecutorCostMeter.round()
               frame(0) = current
               stack.push(frame)
               execT(sg, stack, index)

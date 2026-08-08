@@ -17858,3 +17858,33 @@ morkl.SpatialTypeTest:
 - Production selection corpus: programs=1000 preserved=1000 selected=1000 rewritten=1000.
 - Balanced analyzer scaling medians for 1024..32768 leaves: 57.527, 67.621, 157.302, 317.915, 573.570, 1132.108 ms; asymptotic trend remains linear.
 - SpatialType.scala is 666 lines and SpatialAnalyzer.scala is 858 lines. git diff --check passed excluding append-only build.log.
+
+2026-08-08 REVIEW-5 ASYMPTOTIC AUDIT:
+- Traced restriction, raffination, unwrap, Boolean fast paths, composition, persistent insertion, and the four executor cost models against review.md.
+- Confirmed the deployed analysis target should be the normalized/supercompiled residual with annotated abstract arguments, rather than the source definition or concrete evaluation output.
+
+2026-08-08 PERSISTENT TRIE CONSTRUCTION:
+- Replaced per-insert child-map aggregate rescans with constant-time path/node/child deltas and a nodeKnown constructor; duplicate insertion now returns the existing trie.
+- Audited bulk join, algebraic binaryValue selection, and zipper focus insertion. Exact counter gates require zero completed-child-map rescans for persistent insertion and one linear scan for joinAll.
+- Final construction benchmark, paths -> wide/deep ms: 256 -> 0.126/0.828; 1024 -> 0.095/0.990; 4096 -> 0.298/0.900; 16384 -> 0.799/3.216. The 16384-wide review baseline was 921.833 ms.
+
+2026-08-08 TYPED EXECUTOR COSTS:
+- Added nodeVisits, pathComparisons, allocations, and rounds to the spatial cost domain and matching scoped counters to reference, trie, zipper, and graph execution.
+- Removed fitted ns/unit magnitude residuals. Wall-clock Spearman remains a smoke check only.
+- Made the counter scope concurrency-safe and instrumented graph dispatch, prefix descent, trie algebra, construction, products, iteration, fold, and fixpoint rounds.
+
+2026-08-08 OPTIMIZED COST TRANSFERS:
+- Restriction and raffination now depend on the right prefix trie only; unwrap depends on prefix length only; trie composition traverses the left trie and grafts the right by reference.
+- Large exact literals retain bounded head shape after pattern-stratum collapse, enabling constant head-disjoint intersection/subtraction rejection.
+- Added Supercompiler.optimizedSpatialType for normalized routine bodies with abstract annotations; cost corpora execute and analyze the same normalized open program.
+
+2026-08-08 ASYMMETRIC COMPLEXITY GATES:
+- Added independent left-growth/right-growth families for restriction, raffination, intersection, subtraction, and composition at sizes through 4096, plus a 4096-path source-independence check for unwrap.
+- Representative trie counters: restriction with left size 64..4096 stays at 3 visits; disjoint intersection/subtraction stay at 1; composition with right size 64..1024 stays at 13; three-item unwrap stays at 4 visits.
+- Typed predictions bound every nonzero optimized executor counter within 8x. A generic three-head iteration predicts and records exactly 3 rounds on all four executors.
+
+2026-08-08 REVIEW-5 VERIFICATION:
+- PASS: SpatialCostCounterTest (4 tests), TrieConstructionAsymptoticTest (2), SpatialCostCorrelationTest, TrieSpaceTest, and SpatialTypeTest. Slow and unaffected suites were intentionally not rerun.
+- Optimized open-program wall-clock Spearman smoke: reference=1.000, trie=0.800, zipper=1.000, graph=1.000.
+- Independent-product rewrite and sharing regressions remain covered by TrieSpaceTest; reference/trie/zipper/graph denotations agree in the focused impacted suites.
+- Added docs/REVIEW_5_RESPONSE.md and updated spatial-cost/trie-runtime documentation. git diff --check passed excluding append-only build.log.
