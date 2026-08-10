@@ -195,7 +195,7 @@ lattice `joinAlternatives` summary.
 
 The cost component propagates symbolic lower/upper work, allocation, and round
 bounds. Its certified upper surface is split into named representation events:
-`nodeVisits`, `pathComparisons`, `allocations`, and `rounds`. `SpatialCostModel`
+`nodeVisits`, `patriciaVisits`, `pathComparisons`, `allocations`, and `rounds`. `SpatialCostModel`
 has one implementation per executor, and the executors expose matching scoped
 counters. Transfers are derived from the relevant representation. Iteration
 charges grouping plus each body cost scaled by its head groups plus collection;
@@ -204,6 +204,15 @@ fixpoint work is scaled by a sound symbolic round bound. Recursive costs use
 tails, non-empty unwraps, and iterator rests. A recurrence is closed only when
 every self-call decreases; otherwise named recursive work/allocation/round atoms
 remain visible.
+
+Patricia work is not treated as a constant multiple of semantic trie visits.
+Composition is bounded by the Patricia nodes of the traversed left trie;
+head-disjoint boolean algebra takes one Patricia visit; general boolean algebra
+is bounded by both operand representations. Restriction combines twice the
+prefix-trie nodes with the source child-map frontiers reached by those prefix
+depths. The asymmetric permanent gate checks this fifth component independently,
+including constant behaviour when an irrelevant operand grows and monotone
+growth when the traversed operand grows.
 
 The production-facing entry point is `Supercompiler.optimizedSpatialType`.
 For routines it normalizes the body while preserving abstract path and space

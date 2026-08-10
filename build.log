@@ -17954,3 +17954,7 @@ PASS non-long independentProductBenchmark (raw: /tmp/zippy-independent-product-c
 PASS post-benchmark spatialCostCorrelationReport and spatialCostCounterReport (raw: /tmp/zippy-cost-correlation-current.out, /tmp/zippy-cost-counter-current.out)
 PASS final non-long benchmark sweep: 8 benchmark entry points plus 2 spatial-cost validation reports; constantFoldExecutorReport excluded as explicit long; raw outputs in /tmp/zippy-*-final.*
 PASS final restored-cache TrieLayerAsymptoticTest; complete benchmark impact report: docs/ASYMPTOTIC_BENCHMARK_IMPACT.md; build.log contains summaries only for this sweep
+PASS Review 6 focused suites: TrieConstructionAsymptoticTest, TrieLayerAsymptoticTest, TrieSpaceTest, ZipperDenotationOracleTest, SpatialCostCounterTest, SpatialCostCorrelationTest, SpatialTypeTest
+BENCH Review 6 incremental union K=512/2048/8192/32768: trieVisits=K, patriciaVisits=7907/35811/159715/704483, allocations=K-1, ms=1.047/4.797/16.059/76.999 (raw: /tmp/review6-incremental-union-batch.csv)
+PASS Review 6 affected non-long reports: trie algebra, Patricia distribution, zipper large, trie benchmark; 63/63 Patricia cost rows sound and <=8x (ratio range 1.000..7.324)
+PASS Review 6 final recursive-component check: SpatialTypeTest; Reference recursive Patricia cost remains zero

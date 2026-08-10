@@ -34,6 +34,38 @@ object TrieConstructionAsymptoticData:
     println(f"${row.size},${row.wideMs}%.3f,${row.deepMs}%.3f")
   }
 
+object TrieIncrementalUnionAsymptoticData:
+  case class Row(size: Int, nodeVisits: Long, patriciaVisits: Long, allocations: Long, millis: Double)
+
+  private def operands(size: Int): Vector[TrieSpace] =
+    Vector.tabulate(size)(index => TrieSpace.fromEncodedPaths(Vector(List(index + 2, 0))))
+
+  def fold(size: Int): TrieSpace =
+    operands(size).foldLeft(TrieSpace.empty)(_.union(_))
+
+  private def medianMillis(values: Vector[TrieSpace], size: Int): Double =
+    def run(): Double =
+      val started = System.nanoTime()
+      val result = values.foldLeft(TrieSpace.empty)(_.union(_))
+      val elapsed = (System.nanoTime() - started).toDouble / 1_000_000.0
+      require(result.pathCount == size)
+      elapsed
+    Vector.fill(2)(run())
+    Vector.fill(5)(run()).sorted.apply(2)
+
+  def rows: Vector[Row] = Vector(512, 2048, 8192, 32768).map { size =>
+    val values = operands(size)
+    val (result, cost) = ExecutorCostMeter.measure(values.foldLeft(TrieSpace.empty)(_.union(_)))
+    require(result.pathCount == size)
+    Row(size, cost.nodeVisits, cost.patriciaVisits, cost.allocations, medianMillis(values, size))
+  }
+
+@main def trieIncrementalUnionAsymptoticBenchmark(): Unit =
+  println("size,node_visits,patricia_visits,allocations,incremental_union_ms")
+  TrieIncrementalUnionAsymptoticData.rows.foreach { row =>
+    println(f"${row.size},${row.nodeVisits},${row.patriciaVisits},${row.allocations},${row.millis}%.3f")
+  }
+
 class TrieConstructionAsymptoticTest extends FunSuite:
   test("persistent insertion derives aggregates without rescanning wide parents") {
     Vector(256, 1024, 4096, 16384).foreach { size =>
@@ -73,4 +105,44 @@ class TrieConstructionAsymptoticTest extends FunSuite:
     assertEquals(zipper.whole.pathCount, size)
     assertEquals(zipperCost.nodeVisits, 0L)
     assertEquals(zipperCost.allocations, size.toLong * 3L)
+  }
+
+  test("incremental singleton union follows touched Patricia spines, not accumulator width") {
+    Vector(256, 1024, 4096).foreach { size =>
+      val operands = Vector.tabulate(size)(index =>
+        TrieSpace.fromEncodedPaths(Vector(List(index + 2, 0))))
+      val (result, cost) = ExecutorCostMeter.measure(
+        operands.foldLeft(TrieSpace.empty)(_.union(_)))
+      assertEquals(result.pathCount, size)
+      assertEquals(cost.nodeVisits, size.toLong)
+      assertEquals(cost.allocations, size.toLong - 1L)
+      // IntMap keys are fixed-width integers, so every inserted singleton can
+      // touch at most one bounded Patricia spine. This rejects a result-width
+      // scan at every fold step without assuming a balanced key distribution.
+      assert(cost.patriciaVisits <= size.toLong * 64L,
+        s"size=$size incremental union visited ${cost.patriciaVisits} Patricia nodes")
+    }
+  }
+
+  test("fixpoint union of a wide accumulator and one delta is width-independent in trie visits") {
+    val seed = SpaceMention("fixpoint_union_seed")
+    val current = SpaceMention("fixpoint_union_current")
+    val delta = PathValue(List(PathItem("new-head"), PathItem("value")))
+    val expression = Space.Fixpoint(
+      Space.Mention(seed),
+      current,
+      Space.Union(Space.Mention(current), Space.Singleton(Path.Constant(delta))),
+    )
+    val costs = Vector(256, 4096).map { size =>
+      val initial = TrieSpace.fromPaths((0 until size).map(index =>
+        PathValue(List(PathItem(s"h$index"), PathItem("value")))))
+      val context = TrieSpaceContextMap(Map(seed -> initial))
+      val (result, cost) = ExecutorCostMeter.measure(evalTrie(expression)(using
+        PathContext.emptyMap, context, PartialFunction.empty))
+      assertEquals(result.pathCount, size + 1)
+      cost
+    }
+    assertEquals(costs.map(_.nodeVisits).distinct.size, 1,
+      s"fixpoint trie visits grew with accumulator width: $costs")
+    assertEquals(costs.map(_.rounds), Vector(2L, 2L))
   }

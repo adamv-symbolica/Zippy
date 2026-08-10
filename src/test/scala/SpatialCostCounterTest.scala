@@ -162,6 +162,8 @@ class SpatialCostCounterTest extends FunSuite:
     rows.foreach { row =>
       bounded(s"${row.name}/${row.backend}/nodeVisits",
         constant(row.predicted.nodeVisits, s"${row.name} node visits"), row.actual.nodeVisits)
+      bounded(s"${row.name}/${row.backend}/patriciaVisits",
+        constant(row.predicted.patriciaVisits, s"${row.name} Patricia visits"), row.actual.patriciaVisits)
       bounded(s"${row.name}/${row.backend}/pathComparisons",
         constant(row.predicted.pathComparisons, s"${row.name} path comparisons"), row.actual.pathComparisons)
       bounded(s"${row.name}/${row.backend}/allocations",
@@ -174,6 +176,17 @@ class SpatialCostCounterTest extends FunSuite:
       .filter(row => row.name.startsWith(prefix) && row.backend == backend)
       .sortBy(_.name.split('-').last.toInt)
       .map(row => constant(row.predicted.nodeVisits, s"${row.name} node visits") -> row.actual.nodeVisits)
+
+    def patriciaCounts(prefix: String, backend: SpatialBackend): Vector[(Long, Long)] = rows
+      .filter(row => row.name.startsWith(prefix) && row.backend == backend)
+      .sortBy(_.name.split('-').last.toInt)
+      .map(row => constant(row.predicted.patriciaVisits, s"${row.name} Patricia visits") -> row.actual.patriciaVisits)
+
+    def predictedStable(values: Vector[Long]): Boolean = values.max <= values.min * 8
+    def strictlyIncreasing(values: Vector[Long]): Boolean = values.sliding(2).forall {
+      case Vector(left, right) => right > left
+      case _ => true
+    }
 
     SpatialBackend.values.filterNot(_ == SpatialBackend.Reference).foreach { backend =>
       Vector("restriction-left-", "intersection-left-", "subtraction-left-",
@@ -195,6 +208,21 @@ class SpatialCostCounterTest extends FunSuite:
           case Vector(left, right) => right > left
           case _ => true
         }, s"$backend/$prefix actual cost did not grow with the traversed operand: $counts")
+      }
+      Vector("restriction-left-", "intersection-left-", "subtraction-left-",
+        "raffination-left-", "composition-right-").foreach { prefix =>
+        val counts = patriciaCounts(prefix, backend)
+        assert(predictedStable(counts.map(_._1)),
+          s"$backend/$prefix predicted Patricia cost grew with an irrelevant operand: $counts")
+        assertEquals(counts.map(_._2).distinct.size, 1,
+          s"$backend/$prefix actual Patricia cost changed while irrelevant operand grew: $counts")
+      }
+      Vector("restriction-right-", "composition-left-").foreach { prefix =>
+        val counts = patriciaCounts(prefix, backend)
+        assert(strictlyIncreasing(counts.map(_._1)),
+          s"$backend/$prefix predicted Patricia cost did not grow with the traversed operand: $counts")
+        assert(strictlyIncreasing(counts.map(_._2)),
+          s"$backend/$prefix actual Patricia cost did not grow with the traversed operand: $counts")
       }
     }
   }

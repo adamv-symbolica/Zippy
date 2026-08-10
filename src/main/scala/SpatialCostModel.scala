@@ -5,12 +5,14 @@ enum SpatialBackend:
 
 case class SpatialCostComponents(
   nodeVisits: SizeExpr = SizeExpr.Zero,
+  patriciaVisits: SizeExpr = SizeExpr.Zero,
   pathComparisons: SizeExpr = SizeExpr.Zero,
   allocations: SizeExpr = SizeExpr.Zero,
   rounds: SizeExpr = SizeExpr.Zero,
 ):
   def +(that: SpatialCostComponents): SpatialCostComponents = SpatialCostComponents(
     SizeExpr.add(nodeVisits, that.nodeVisits),
+    SizeExpr.add(patriciaVisits, that.patriciaVisits),
     SizeExpr.add(pathComparisons, that.pathComparisons),
     SizeExpr.add(allocations, that.allocations),
     SizeExpr.add(rounds, that.rounds),
@@ -18,6 +20,7 @@ case class SpatialCostComponents(
 
   def scale(factor: SizeExpr): SpatialCostComponents = SpatialCostComponents(
     SizeExpr.multiply(nodeVisits, factor),
+    SizeExpr.multiply(patriciaVisits, factor),
     SizeExpr.multiply(pathComparisons, factor),
     SizeExpr.multiply(allocations, factor),
     SizeExpr.multiply(rounds, factor),
@@ -155,6 +158,16 @@ case class SpatialCostMeasure(
     .fold[SizeExpr](SizeExpr.symbol(s"len(${length.show})"))(SizeExpr.const)
   def lengthLower: SizeExpr = SizeExpr.const(length.lower.annotatedBound(Z3BoundDirection.Lower).getOrElse(BigInt(0)))
 
+  /** Child-map entries encountered along every source frontier reached by a
+    * prefix of the given maximum length. The bounded shape is used only while
+    * it still represents that depth; otherwise the full trie-node bound is the
+    * sound fallback. */
+  def prefixFrontierUpper(prefixLength: SizeExpr): SizeExpr =
+    prefixLength.annotatedBound(Z3BoundDirection.Upper) match
+      case Some(value) if value.isValidInt && value >= 0 && value <= 6 =>
+        SizeExpr.add((0 until value.toInt).map(depth => shape.distinctItemsAt(depth).upper)*)
+      case _ => nodesUpper
+
   /** True only when the bounded shape accounts for every possible head and
     * the tracked head sets cannot overlap. */
   def definitelyHeadDisjoint(that: SpatialCostMeasure): Boolean =
@@ -250,6 +263,11 @@ object SpatialCostModels:
       binary(inputs) match
         case Some((left, right)) =>
           val disjoint = left.definitelyHeadDisjoint(right)
+          val binaryPatricia = mul(SizeExpr.const(2), add(left.nodesUpper, right.nodesUpper))
+          val restrictionPatricia = add(
+            mul(SizeExpr.const(2), right.nodesUpper),
+            left.prefixFrontierUpper(right.lengthUpper),
+          )
           val work = kind match
             // concat traverses the left trie and grafts the complete right trie
             // at terminals. The right operand and Cartesian result are shared.
@@ -259,33 +277,41 @@ object SpatialCostModels:
             case SpatialCostOperation.Restriction => right.nodesUpper
             case SpatialCostOperation.Raffination => mul(SizeExpr.const(2), right.nodesUpper)
             case SpatialCostOperation.Union | SpatialCostOperation.Intersection | SpatialCostOperation.Subtraction
-                if left.definitelyHeadDisjoint(right) => add(SizeExpr.One, left.heads.upper, right.heads.upper)
+                if left.definitelyHeadDisjoint(right) => SizeExpr.One
             case SpatialCostOperation.Union | SpatialCostOperation.Intersection | SpatialCostOperation.Subtraction =>
               add(left.nodesUpper, right.nodesUpper)
             case _ => fallback.workUpper
           val components = kind match
             case SpatialCostOperation.Composition => SpatialCostComponents(
               nodeVisits = left.nodesUpper,
+              patriciaVisits = mul(SizeExpr.const(2), left.nodesUpper),
               allocations = left.internalNodesUpper,
             )
             case SpatialCostOperation.Restriction => SpatialCostComponents(
               nodeVisits = mul(SizeExpr.const(2), right.nodesUpper),
+              patriciaVisits = restrictionPatricia,
               pathComparisons = right.nodesUpper,
               allocations = right.internalNodesUpper,
             )
             case SpatialCostOperation.Raffination => SpatialCostComponents(
               nodeVisits = mul(SizeExpr.const(4), right.nodesUpper),
+              patriciaVisits = mul(SizeExpr.const(2), restrictionPatricia),
               pathComparisons = right.nodesUpper,
               allocations = mul(SizeExpr.const(2), right.internalNodesUpper),
             )
             case SpatialCostOperation.Union if disjoint => SpatialCostComponents(
-              nodeVisits = add(SizeExpr.One, left.heads.upper, right.heads.upper),
+              nodeVisits = SizeExpr.One,
+              patriciaVisits = SizeExpr.One,
               allocations = SizeExpr.One,
             )
             case SpatialCostOperation.Intersection | SpatialCostOperation.Subtraction if disjoint =>
-              SpatialCostComponents(nodeVisits = SizeExpr.One)
+              SpatialCostComponents(nodeVisits = SizeExpr.One, patriciaVisits = SizeExpr.One)
             case SpatialCostOperation.Union | SpatialCostOperation.Intersection | SpatialCostOperation.Subtraction =>
-              SpatialCostComponents(nodeVisits = add(left.nodesUpper, right.nodesUpper), allocations = result.nodesUpper)
+              SpatialCostComponents(
+                nodeVisits = add(left.nodesUpper, right.nodesUpper),
+                patriciaVisits = binaryPatricia,
+                allocations = result.nodesUpper,
+              )
             case _ => fallback.componentsUpper
           fallback.copy(workUpper = work, allocationUpper = result.nodesUpper, componentsUpper = components)
         case None => kind match
@@ -295,6 +321,7 @@ object SpatialCostModels:
               allocationUpper = result.nodesUpper,
               componentsUpper = SpatialCostComponents(
                 nodeVisits = add(inputs.head.lengthUpper, result.nodesUpper),
+                patriciaVisits = mul(SizeExpr.const(2), result.nodesUpper),
                 allocations = result.nodesUpper,
               ),
             )

@@ -6,61 +6,61 @@ Measured with `TrieBenchmarks` on this worktree. Runtime times are average milli
 
 | benchmark | variant | result paths | eval Set ms | ROG exec ms | evalTrie ms | evalZ ms | ROG execT ms | evalTrie / eval | evalZ / eval | evalZ / evalTrie | ROG exec / eval | ROG execT / eval | ROG execT / evalTrie | graph nodes | graph note |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| aunt | reference | 3 | 0.187 | 0.218 | 0.395 | 1.164 | 0.308 | 0.47 x | 0.16 x | 0.34 x | 0.86 x | 0.61 x | 1.28 x | 21 |  |
-| aunt | process-sc static family | 3 | 0.119 | 0.289 | 0.605 | 0.550 | 0.342 | 0.20 x | 0.22 x | 1.10 x | 0.41 x | 0.35 x | 1.77 x | 20 |  |
-| aunt synthetic | reference 60 people | 36 | 3.647 | 0.947 | 1.619 | 2.240 | 1.433 | 2.25 x | 1.63 x | 0.72 x | 3.85 x | 2.55 x | 1.13 x | 21 |  |
-| aunt royal92 | reference royal92_simple.metta fallback | 3 | 0.037 | 0.047 | 0.092 | 0.145 | 0.080 | 0.40 x | 0.25 x | 0.63 x | 0.77 x | 0.46 x | 1.15 x | 21 |  |
-| aunt synthetic | process-sc static family 24 people | 12 | 0.124 | 0.217 | 1.102 | 1.228 | 0.287 | 0.11 x | 0.10 x | 0.90 x | 0.57 x | 0.43 x | 3.84 x | 20 |  |
-| graph two-hop | reference 90-chain | 264 | 5.568 | 2.306 | 1.650 | 16.707 | 1.511 | 3.37 x | 0.33 x | 0.10 x | 2.41 x | 3.69 x | 1.09 x | 15 |  |
-| graph mutual | reference 90-chain | 0 | 4.476 | 0.840 | 0.196 | 0.921 | 0.182 | 22.85 x | 4.86 x | 0.21 x | 5.33 x | 24.56 x | 1.07 x | 15 |  |
-| datalog semi-naive | reference 24-chain | 300 | 314.122 | 0.005 | 8.469 | n/a | 0.004 | 37.09 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ rejects the recursive top-level self-union; use evalTrie/graph rows |
-| datalog semi-naive | process-sc 24-chain | 300 | 298.066 | 30.465 | 9.469 | n/a | 3.086 | 31.48 x | n/a | n/a | 9.78 x | 96.59 x | 3.07 x | 6 | exec fallback Call dispatch to optimized callee graph(s): step352598575_sc1; direct evalZ rejects the residual recursive top-level self-union; use evalTrie/graph rows |
-| life | reference random 24x24 | 125 | 42.803 | 23.946 | 365.660 | 389.393 | 4.372 | 0.12 x | 0.11 x | 0.94 x | 1.79 x | 9.79 x | 83.64 x | 2,667 | exec fallback Call dispatch to optimized callee graph(s): neigh |
-| life | compile-pass random 24x24 | 125 | 32.361 | 0.001 | 264.429 | 282.948 | 0.001 | 0.12 x | 0.11 x | 0.93 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
-| life | compile-pass random 24x24 initial literal | 125 | 0.000 | 0.001 | 0.029 | 0.030 | 0.001 | 0.01 x | 0.01 x | 0.96 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
-| temperature | NOAA committed slice | 430 | 0.083 | 0.072 | 0.009 | 0.030 | 0.006 | 9.17 x | 2.76 x | 0.30 x | 1.15 x | 12.93 x | 1.41 x | 3 |  |
-| temperature | synthetic 32x64 | 448 | 1.124 | 1.105 | 0.052 | 0.051 | 0.020 | 21.62 x | 22.22 x | 1.03 x | 1.02 x | 55.99 x | 2.59 x | 3 |  |
-| sliding puzzle | 2x2 pure source full frontier step | 12 | 4.683 | 0.001 | 6.634 | 12.396 | 0.001 | 0.71 x | 0.38 x | 0.54 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
-| sliding puzzle | 2x2 pure compile-pass full frontier step | 12 | 0.001 | 0.001 | 0.006 | 0.007 | 0.001 | 0.09 x | 0.08 x | 0.88 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
-| sliding puzzle | 3x3 pure source depth-8 step | 420 | 396.044 | 0.001 | 517.448 | n/a | 0.001 | 0.77 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ source search tree exceeds the benchmark heap; use evalTrie/graph rows |
-| sliding puzzle | 3x3 pure compile-pass depth-8 step | 420 | 0.001 | 0.001 | 0.284 | 0.625 | 0.001 | 0.00 x | 0.00 x | 0.45 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
-| sliding puzzle | 4x4 pure source depth-5 step | 202 | 597.053 | 0.002 | 954.730 | n/a | 0.001 | 0.63 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ source search tree exceeds the benchmark heap; use evalTrie/graph rows |
-| n-queens | MORKL 8x8 source | 92 | 566.197 | 0.002 | 2112.835 | n/a | 0.001 | 0.27 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ is currently omitted for the high-level source search tree; use compile-pass/graph rows |
-| n-queens | MORKL 8x8 compile-pass | 92 | 0.000 | 0.001 | 0.053 | 0.049 | 0.001 | 0.01 x | 0.01 x | 1.06 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| aunt | reference | 3 | 0.085 | 0.208 | 0.408 | 0.544 | 0.385 | 0.21 x | 0.16 x | 0.75 x | 0.41 x | 0.22 x | 1.06 x | 21 |  |
+| aunt | process-sc static family | 3 | 0.057 | 0.134 | 0.243 | 0.441 | 0.156 | 0.23 x | 0.13 x | 0.55 x | 0.42 x | 0.36 x | 1.56 x | 20 |  |
+| aunt synthetic | reference 60 people | 36 | 2.956 | 0.882 | 1.225 | 3.078 | 1.151 | 2.41 x | 0.96 x | 0.40 x | 3.35 x | 2.57 x | 1.06 x | 21 |  |
+| aunt royal92 | reference royal92_simple.metta fallback | 3 | 0.036 | 0.038 | 0.061 | 0.116 | 0.080 | 0.58 x | 0.31 x | 0.53 x | 0.93 x | 0.44 x | 0.76 x | 21 |  |
+| aunt synthetic | process-sc static family 24 people | 12 | 0.128 | 0.180 | 1.561 | 2.123 | 0.222 | 0.08 x | 0.06 x | 0.74 x | 0.71 x | 0.57 x | 7.02 x | 20 |  |
+| graph two-hop | reference 90-chain | 264 | 4.351 | 1.816 | 0.537 | 11.200 | 0.533 | 8.11 x | 0.39 x | 0.05 x | 2.40 x | 8.16 x | 1.01 x | 15 |  |
+| graph mutual | reference 90-chain | 0 | 3.193 | 0.919 | 0.270 | 1.839 | 0.204 | 11.84 x | 1.74 x | 0.15 x | 3.48 x | 15.62 x | 1.32 x | 15 |  |
+| datalog semi-naive | reference 24-chain | 300 | 261.449 | 0.004 | 6.850 | n/a | 0.002 | 38.17 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ rejects the recursive top-level self-union; use evalTrie/graph rows |
+| datalog semi-naive | process-sc 24-chain | 300 | 242.081 | 20.039 | 10.461 | n/a | 3.545 | 23.14 x | n/a | n/a | 12.08 x | 68.28 x | 2.95 x | 6 | exec fallback Call dispatch to optimized callee graph(s): step352598575_sc1; direct evalZ rejects the residual recursive top-level self-union; use evalTrie/graph rows |
+| life | reference random 24x24 | 125 | 31.459 | 25.574 | 271.974 | 298.541 | 4.490 | 0.12 x | 0.11 x | 0.91 x | 1.23 x | 7.01 x | 60.57 x | 2,667 | exec fallback Call dispatch to optimized callee graph(s): neigh |
+| life | compile-pass random 24x24 | 125 | 29.042 | 0.001 | 196.815 | 231.863 | 0.001 | 0.15 x | 0.13 x | 0.85 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| life | compile-pass random 24x24 initial literal | 125 | 0.000 | 0.001 | 0.031 | 0.027 | 0.001 | 0.01 x | 0.01 x | 1.13 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| temperature | NOAA committed slice | 430 | 0.073 | 0.086 | 0.010 | 0.031 | 0.008 | 7.71 x | 2.35 x | 0.30 x | 0.86 x | 9.15 x | 1.19 x | 3 |  |
+| temperature | synthetic 32x64 | 448 | 1.137 | 1.136 | 0.014 | 0.055 | 0.009 | 79.23 x | 20.67 x | 0.26 x | 1.00 x | 124.19 x | 1.57 x | 3 |  |
+| sliding puzzle | 2x2 pure source full frontier step | 12 | 4.602 | 0.001 | 6.299 | 8.222 | 0.001 | 0.73 x | 0.56 x | 0.77 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| sliding puzzle | 2x2 pure compile-pass full frontier step | 12 | 0.000 | 0.001 | 0.005 | 0.006 | 0.001 | 0.09 x | 0.08 x | 0.86 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| sliding puzzle | 3x3 pure source depth-8 step | 420 | 299.201 | 0.001 | 506.053 | n/a | 0.001 | 0.59 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ source search tree exceeds the benchmark heap; use evalTrie/graph rows |
+| sliding puzzle | 3x3 pure compile-pass depth-8 step | 420 | 0.000 | 0.001 | 0.228 | 0.228 | 0.001 | 0.00 x | 0.00 x | 1.00 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| sliding puzzle | 4x4 pure source depth-5 step | 202 | 493.721 | 0.001 | 835.644 | n/a | 0.001 | 0.59 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ source search tree exceeds the benchmark heap; use evalTrie/graph rows |
+| n-queens | MORKL 8x8 source | 92 | 489.392 | 0.001 | 1682.937 | n/a | 0.001 | 0.29 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ is currently omitted for the high-level source search tree; use compile-pass/graph rows |
+| n-queens | MORKL 8x8 compile-pass | 92 | 0.000 | 0.001 | 0.043 | 0.042 | 0.001 | 0.01 x | 0.01 x | 1.01 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
 
 ## Compilation And Optimization
 
 | benchmark | variant | prep compile ms | graph compile ms | total compile ms | compile/run | compile+ROG execT ms | lower+inline ms | source pass ms | const-fold eval ms | const-fold evalTrie ms | const-fold evalZ ms | const-fold execT ms | const-fold eval calls | const-fold evalTrie calls | const-fold evalZ calls | const-fold execT calls | graph transpile ms | graph optimize ms | source pass attempts | graph pass steps | budget ms sum | note |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| aunt | reference | n/a | 2.649 | 2.649 | 8.60 x | 2.957 | 0.098 | 0.449 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.114 | 0.889 | 38 | 6 | 30000 | graph compile + optimized callees |
-| aunt | process-sc static family | 53.605 | 5.676 | 59.281 | 173.18 x | 59.623 | 2.427 | 1.362 | 0.010 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.113 | 1.409 | 19 | 6 | 60000 | process SC setup; graph compile + optimized callees |
-| aunt synthetic | reference 60 people | n/a | 1.548 | 1.548 | 1.08 x | 2.981 | 0.033 | 0.365 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.079 | 0.818 | 38 | 6 | 30000 | graph compile + optimized callees |
-| aunt royal92 | reference royal92_simple.metta fallback | n/a | 1.333 | 1.333 | 16.71 x | 1.413 | 0.029 | 0.275 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.089 | 0.757 | 38 | 6 | 30000 | graph compile + optimized callees |
-| aunt synthetic | process-sc static family 24 people | 13.189 | 1.437 | 14.626 | 50.96 x | 14.913 | 0.079 | 0.256 | 0.003 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.050 | 0.865 | 19 | 6 | 60000 | process SC setup; graph compile + optimized callees |
-| graph two-hop | reference 90-chain | n/a | 1.504 | 1.504 | 1.00 x | 3.015 | 0.018 | 0.169 | 0.015 | 0.000 | 0.000 | 0.000 | 2 | 0 | 0 | 0 | 0.041 | 0.911 | 57 | 9 | 30000 | graph compile + optimized callees |
-| graph mutual | reference 90-chain | n/a | 1.325 | 1.325 | 7.27 x | 1.507 | 0.018 | 0.104 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.038 | 0.847 | 38 | 9 | 30000 | graph compile + optimized callees |
-| datalog semi-naive | reference 24-chain | n/a | 27.161 | 27.161 | n/a | 27.165 | 0.412 | 25.778 | 0.153 | 24.453 | 0.000 | 0.000 | 9 | 1 | 0 | 0 | 0.004 | 0.088 | 38 | 3 | 30000 | graph compile + optimized callees |
-| datalog semi-naive | process-sc 24-chain | 88.860 | 13.330 | 102.190 | 33.11 x | 105.276 | 0.167 | 1.720 | 0.006 | 0.000 | 0.000 | 0.000 | 10 | 0 | 0 | 0 | 0.377 | 8.451 | 38 | 12 | 90000 | process SC setup; graph compile + optimized callees |
-| life | reference random 24x24 | n/a | 3752.392 | 3752.392 | 858.29 x | 3756.764 | 4.540 | 3379.907 | 0.361 | 0.000 | 0.000 | 0.000 | 1384 | 0 | 0 | 0 | 2.573 | 361.212 | 114 | 12 | 60000 | graph compile + optimized callees |
-| life | compile-pass random 24x24 | 105.567 | 21.022 | 126.589 | n/a | 126.590 | 1.565 | 68.880 | 19.331 | 0.000 | 0.000 | 0.000 | 114 | 0 | 0 | 0 | 2.373 | 42.829 | 95 | 12 | 60000 | compile-pass setup; graph compile + optimized callees |
-| life | compile-pass random 24x24 initial literal | 103.900 | 0.203 | 104.103 | n/a | 104.104 | 0.136 | 101.903 | 95.120 | 0.000 | 0.000 | 0.000 | 73 | 0 | 0 | 0 | 0.013 | 0.205 | 57 | 6 | 60000 | compile-pass setup with initial grid literal; graph compile + optimized callees |
-| temperature | NOAA committed slice | n/a | 0.419 | 0.419 | 65.25 x | 0.426 | 0.028 | 0.075 | 0.004 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.005 | 0.067 | 38 | 3 | 30000 | graph compile + optimized callees |
-| temperature | synthetic 32x64 | n/a | 0.182 | 0.182 | 9.04 x | 0.202 | 0.007 | 0.051 | 0.006 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.004 | 0.040 | 38 | 3 | 30000 | graph compile + optimized callees |
-| sliding puzzle | 2x2 pure source full frontier step | n/a | 3.421 | 3.421 | n/a | 3.422 | 0.125 | 2.498 | 1.084 | 0.000 | 0.000 | 0.000 | 65 | 0 | 0 | 0 | 0.003 | 0.056 | 38 | 3 | 30000 | graph compile + optimized callees |
-| sliding puzzle | 2x2 pure compile-pass full frontier step | 15.578 | 0.181 | 15.759 | n/a | 15.759 | 0.258 | 14.115 | 4.608 | 0.000 | 0.000 | 0.000 | 66 | 0 | 0 | 0 | 0.002 | 0.050 | 57 | 3 | 60000 | compile-pass setup; graph compile + optimized callees |
-| sliding puzzle | 3x3 pure source depth-8 step | n/a | 42.851 | 42.851 | n/a | 42.852 | 0.471 | 40.577 | 37.624 | 0.000 | 0.000 | 0.000 | 176 | 0 | 0 | 0 | 0.003 | 0.102 | 38 | 3 | 30000 | graph compile + optimized callees |
-| sliding puzzle | 3x3 pure compile-pass depth-8 step | 117.676 | 1.562 | 119.237 | n/a | 119.238 | 0.768 | 115.692 | 90.446 | 0.000 | 0.000 | 0.000 | 177 | 0 | 0 | 0 | 0.004 | 0.338 | 57 | 3 | 60000 | compile-pass setup; graph compile + optimized callees |
-| sliding puzzle | 4x4 pure source depth-5 step | n/a | 66.391 | 66.391 | n/a | 66.392 | 0.416 | 61.971 | 51.485 | 0.000 | 0.000 | 0.000 | 341 | 0 | 0 | 0 | 0.007 | 0.097 | 38 | 3 | 30000 | graph compile + optimized callees |
-| n-queens | MORKL 8x8 source | n/a | 390.155 | 390.155 | n/a | 390.155 | 0.125 | 388.742 | 384.920 | 0.000 | 0.000 | 0.000 | 130 | 0 | 0 | 0 | 0.003 | 0.112 | 38 | 3 | 30000 | graph compile + optimized callees |
-| n-queens | MORKL 8x8 compile-pass | 477.137 | 1.908 | 479.045 | n/a | 479.046 | 0.650 | 476.438 | 470.338 | 0.000 | 0.000 | 0.000 | 131 | 0 | 0 | 0 | 0.015 | 0.558 | 57 | 3 | 60000 | compile-pass setup; graph compile + optimized callees |
+| aunt | reference | n/a | 2.565 | 2.565 | 6.66 x | 2.951 | 0.075 | 0.433 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.115 | 0.965 | 38 | 6 | 30000 | graph compile + optimized callees |
+| aunt | process-sc static family | 32.647 | 3.073 | 35.720 | 229.61 x | 35.875 | 1.419 | 0.638 | 0.005 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.061 | 0.732 | 19 | 6 | 60000 | process SC setup; graph compile + optimized callees |
+| aunt synthetic | reference 60 people | n/a | 1.605 | 1.605 | 1.39 x | 2.756 | 0.035 | 0.361 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.088 | 0.786 | 38 | 6 | 30000 | graph compile + optimized callees |
+| aunt royal92 | reference royal92_simple.metta fallback | n/a | 1.348 | 1.348 | 16.78 x | 1.429 | 0.039 | 0.295 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.084 | 0.730 | 38 | 6 | 30000 | graph compile + optimized callees |
+| aunt synthetic | process-sc static family 24 people | 6.266 | 1.250 | 7.516 | 33.79 x | 7.739 | 0.084 | 0.320 | 0.004 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.042 | 0.641 | 19 | 6 | 60000 | process SC setup; graph compile + optimized callees |
+| graph two-hop | reference 90-chain | n/a | 1.427 | 1.427 | 2.68 x | 1.961 | 0.019 | 0.188 | 0.020 | 0.000 | 0.000 | 0.000 | 2 | 0 | 0 | 0 | 0.039 | 0.843 | 57 | 9 | 30000 | graph compile + optimized callees |
+| graph mutual | reference 90-chain | n/a | 1.368 | 1.368 | 6.69 x | 1.572 | 0.017 | 0.106 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.049 | 0.890 | 38 | 9 | 30000 | graph compile + optimized callees |
+| datalog semi-naive | reference 24-chain | n/a | 30.279 | 30.279 | n/a | 30.281 | 0.312 | 27.920 | 0.642 | 24.479 | 0.000 | 0.000 | 9 | 1 | 0 | 0 | 0.008 | 0.161 | 38 | 3 | 30000 | graph compile + optimized callees |
+| datalog semi-naive | process-sc 24-chain | 57.049 | 9.518 | 66.568 | 18.78 x | 70.113 | 0.132 | 1.617 | 0.002 | 0.000 | 0.000 | 0.000 | 10 | 0 | 0 | 0 | 0.369 | 5.616 | 38 | 12 | 90000 | process SC setup; graph compile + optimized callees |
+| life | reference random 24x24 | n/a | 3219.167 | 3219.167 | 716.95 x | 3223.657 | 0.651 | 2924.587 | 0.271 | 0.000 | 0.000 | 0.000 | 1384 | 0 | 0 | 0 | 2.422 | 288.464 | 114 | 12 | 60000 | graph compile + optimized callees |
+| life | compile-pass random 24x24 | 74.342 | 19.422 | 93.764 | n/a | 93.765 | 0.977 | 57.049 | 19.292 | 0.000 | 0.000 | 0.000 | 114 | 0 | 0 | 0 | 1.057 | 24.824 | 95 | 12 | 60000 | compile-pass setup; graph compile + optimized callees |
+| life | compile-pass random 24x24 initial literal | 69.621 | 0.200 | 69.821 | n/a | 69.822 | 0.120 | 67.945 | 64.326 | 0.000 | 0.000 | 0.000 | 73 | 0 | 0 | 0 | 0.014 | 0.203 | 57 | 6 | 60000 | compile-pass setup with initial grid literal; graph compile + optimized callees |
+| temperature | NOAA committed slice | n/a | 0.397 | 0.397 | 49.38 x | 0.405 | 0.035 | 0.083 | 0.004 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.005 | 0.065 | 38 | 3 | 30000 | graph compile + optimized callees |
+| temperature | synthetic 32x64 | n/a | 0.302 | 0.302 | 33.04 x | 0.312 | 0.010 | 0.111 | 0.009 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.005 | 0.068 | 38 | 3 | 30000 | graph compile + optimized callees |
+| sliding puzzle | 2x2 pure source full frontier step | n/a | 2.585 | 2.585 | n/a | 2.585 | 0.133 | 1.806 | 0.932 | 0.000 | 0.000 | 0.000 | 65 | 0 | 0 | 0 | 0.003 | 0.055 | 38 | 3 | 30000 | graph compile + optimized callees |
+| sliding puzzle | 2x2 pure compile-pass full frontier step | 13.629 | 0.170 | 13.799 | n/a | 13.800 | 0.373 | 12.250 | 5.516 | 0.000 | 0.000 | 0.000 | 66 | 0 | 0 | 0 | 0.002 | 0.040 | 57 | 3 | 60000 | compile-pass setup; graph compile + optimized callees |
+| sliding puzzle | 3x3 pure source depth-8 step | n/a | 40.654 | 40.654 | n/a | 40.654 | 0.117 | 39.230 | 32.932 | 0.000 | 0.000 | 0.000 | 176 | 0 | 0 | 0 | 0.003 | 0.058 | 38 | 3 | 30000 | graph compile + optimized callees |
+| sliding puzzle | 3x3 pure compile-pass depth-8 step | 133.542 | 0.245 | 133.787 | n/a | 133.788 | 0.718 | 130.491 | 101.323 | 0.000 | 0.000 | 0.000 | 177 | 0 | 0 | 0 | 0.003 | 0.062 | 57 | 3 | 60000 | compile-pass setup; graph compile + optimized callees |
+| sliding puzzle | 4x4 pure source depth-5 step | n/a | 61.480 | 61.480 | n/a | 61.481 | 0.157 | 59.274 | 44.069 | 0.000 | 0.000 | 0.000 | 341 | 0 | 0 | 0 | 0.003 | 0.063 | 38 | 3 | 30000 | graph compile + optimized callees |
+| n-queens | MORKL 8x8 source | n/a | 326.349 | 326.349 | n/a | 326.349 | 0.134 | 325.160 | 321.410 | 0.000 | 0.000 | 0.000 | 130 | 0 | 0 | 0 | 0.003 | 0.064 | 38 | 3 | 30000 | graph compile + optimized callees |
+| n-queens | MORKL 8x8 compile-pass | 408.572 | 0.306 | 408.878 | n/a | 408.879 | 0.642 | 407.309 | 399.969 | 0.000 | 0.000 | 0.000 | 131 | 0 | 0 | 0 | 0.002 | 0.075 | 57 | 3 | 60000 | compile-pass setup; graph compile + optimized callees |
 
 | benchmark | variant | result | ms | note |
 |---|---:|---:|---:|---|
-| n-queens bit reference | n=8 | 92 | 0.065 | independent reference, not MORKL eval |
+| n-queens bit reference | n=8 | 92 | 0.043 | independent reference, not MORKL eval |
 | n-queens bit reference | n=9 | 352 | 0.032 | independent reference, not MORKL eval |
-| n-queens bit reference | n=10 | 724 | 0.180 | independent reference, not MORKL eval |
-| n-queens bit reference | n=11 | 2680 | 0.760 | independent reference, not MORKL eval |
-| n-queens bit reference | n=12 | 14200 | 4.582 | independent reference, not MORKL eval |
+| n-queens bit reference | n=10 | 724 | 0.185 | independent reference, not MORKL eval |
+| n-queens bit reference | n=11 | 2680 | 0.728 | independent reference, not MORKL eval |
+| n-queens bit reference | n=12 | 14200 | 4.024 | independent reference, not MORKL eval |
 
 ## Interpretation
 

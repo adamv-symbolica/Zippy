@@ -138,10 +138,24 @@ object SpatialRecursion:
     }
 
   def marker(name: RoutinePtr): SpatialCostEstimate =
-    def interval(backend: String) = SpatialCostInterval(
-      SizeExpr.Zero, SizeExpr.symbol(s"recWork(${name.s},$backend)"),
-      SizeExpr.Zero, SizeExpr.symbol(s"recAlloc(${name.s},$backend)"),
-      SizeExpr.Zero, SizeExpr.symbol(s"recRounds(${name.s},$backend)"))
+    def interval(backend: String) =
+      val work = SizeExpr.symbol(s"recWork(${name.s},$backend)")
+      val allocation = SizeExpr.symbol(s"recAlloc(${name.s},$backend)")
+      val rounds = SizeExpr.symbol(s"recRounds(${name.s},$backend)")
+      SpatialCostInterval(
+        SizeExpr.Zero, work,
+        SizeExpr.Zero, allocation,
+        SizeExpr.Zero, rounds,
+        SpatialCostComponents(
+          nodeVisits = SizeExpr.symbol(s"recNodeVisits(${name.s},$backend)"),
+          patriciaVisits =
+            if backend == "reference" || backend == "generic" then SizeExpr.Zero
+            else SizeExpr.symbol(s"recPatriciaVisits(${name.s},$backend)"),
+          pathComparisons = SizeExpr.symbol(s"recPathComparisons(${name.s},$backend)"),
+          allocations = SizeExpr.symbol(s"recAllocations(${name.s},$backend)"),
+          rounds = rounds,
+        ),
+      )
     val generic = interval("generic")
     SpatialCostEstimate(generic.workUpper, generic.allocationUpper,
       backend = SpatialBackend.values.map(value => value -> interval(value.toString.toLowerCase)).toMap,
@@ -152,7 +166,20 @@ object SpatialRecursion:
       def closed(interval: SpatialCostInterval, backend: String): SpatialCostInterval = interval.copy(
         workUpper = close(interval.workUpper, s"recWork(${name.s},$backend)", depth),
         allocationUpper = close(interval.allocationUpper, s"recAlloc(${name.s},$backend)", depth),
-        roundsUpper = close(interval.roundsUpper, s"recRounds(${name.s},$backend)", depth))
+        roundsUpper = close(interval.roundsUpper, s"recRounds(${name.s},$backend)", depth),
+        componentsUpper = SpatialCostComponents(
+          nodeVisits = close(interval.componentsUpper.nodeVisits,
+            s"recNodeVisits(${name.s},$backend)", depth),
+          patriciaVisits = close(interval.componentsUpper.patriciaVisits,
+            s"recPatriciaVisits(${name.s},$backend)", depth),
+          pathComparisons = close(interval.componentsUpper.pathComparisons,
+            s"recPathComparisons(${name.s},$backend)", depth),
+          allocations = close(interval.componentsUpper.allocations,
+            s"recAllocations(${name.s},$backend)", depth),
+          rounds = close(interval.componentsUpper.rounds,
+            s"recRounds(${name.s},$backend)", depth),
+        ),
+      )
       val generic = closed(value.cost.generic, "generic")
       value.copy(cost = SpatialCostEstimate(generic.workUpper, generic.allocationUpper,
         generic.workLower, generic.allocationLower,

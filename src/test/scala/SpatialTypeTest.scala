@@ -621,5 +621,7 @@ class SpatialTypeTest extends FunSuite:
       Space.Call(name, Vector.empty, Vector(Space.Mention(input))),
       SpatialAssumptions(spaces = Map(input -> inputType)), routines)
     assert(!result.cost.show.contains("recWork("), result.cost.show)
+    assert(!result.cost.show.contains("recPatriciaVisits("), result.cost.show)
     assert(result.cost.workUpper != SizeExpr.Infinity)
+    assert(result.cost.forBackend(SpatialBackend.Trie).componentsUpper.patriciaVisits != SizeExpr.Infinity)
   }

@@ -78,8 +78,12 @@ Every persistent Patricia node also has a weak identity-keyed aggregate
 summary. More importantly, `TrieIntMapOps.updated`, `removed`, algebraic
 `Tip`/`Bin` builders, and shape-preserving value maps propagate the summary
 while allocating the Patricia spine. One operation-local identity table holds
-ephemeral intermediate summaries; only the final parent summary is promoted to
-the cross-operation cache. Algebra therefore hands
+intermediate summaries. At the operation boundary, summaries for persistent
+Patricia branches are promoted to the weak cross-operation cache; dead versions
+remain only weakly reachable, and maps of at most eight entries are recomputed
+directly as a bounded O(1) scan. This matters for incremental union: the next
+update can recover every unchanged sibling summary in O(1) instead of rescanning
+the accumulator. Algebra therefore hands
 `TrieSpace.nodeFromChildren` an already summarized child map. Rewrapping a wide
 structurally shared result is O(1); it does not scan the result width or retain
 all temporary maps.

@@ -90,9 +90,20 @@ object TrieIntMapOps:
       // weak cache removes its memory and lock cost from narrow workloads while
       // retaining summaries exactly where width-sensitive asymptotics matter.
       if aggregate.entryCount <= 8 then aggregate
-      else putWide(map, aggregate)
+      else synchronized(putWide(map, aggregate))
 
-    private def putWide(map: IntMap[TrieSpace], aggregate: ChildMapAggregate): ChildMapAggregate = synchronized {
+    /** Promote one operation's persistent summaries under one cache lock.
+      * Interwoven algebra can construct O(W) live Patricia nodes; locking once
+      * preserves that exact work without adding O(W) monitor transitions. */
+    def putAll(values: IdentityHashMap[AnyRef, ChildMapAggregate]): Unit = synchronized {
+      val iterator = values.entrySet().iterator()
+      while iterator.hasNext do
+        val entry = iterator.next()
+        if entry.getValue.entryCount > 8 then
+          putWide(entry.getKey.asInstanceOf[IntMap[TrieSpace]], entry.getValue)
+    }
+
+    private def putWide(map: IntMap[TrieSpace], aggregate: ChildMapAggregate): ChildMapAggregate = {
       if occupied * 2 >= entries.length then resize()
       val hash = System.identityHashCode(map)
       var slot = index(hash, entries.length)
@@ -156,7 +167,11 @@ object TrieIntMapOps:
     try
       val result = operation
       result -> aggregate(resultMap(result))
-    finally if owner then LocalAggregates.clear()
+    finally if owner then
+      val completed = LocalAggregates.get()
+      if completed != null && !(completed eq LocalAggregates.pending) then
+        AggregateCache.putAll(completed)
+      LocalAggregates.clear()
 
   private def registerConstructed(map: IntMap[TrieSpace], aggregate: ChildMapAggregate): Unit =
     var local = LocalAggregates.get()
