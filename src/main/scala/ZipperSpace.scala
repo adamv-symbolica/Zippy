@@ -24,6 +24,16 @@ trait SpaceZipper:
     orderedChildren.iterator
   def orderedChildren: Array[(Int, SpaceZipper)] =
     childrenIterator.toArray.sortWith((a, b) => TrieSpace.comparePaths(a._1 :: Nil, b._1 :: Nil) < 0)
+  def orderedChildIndex(item: Int, ordered: Array[(Int, SpaceZipper)]): Int =
+    var low = 0
+    var high = ordered.length - 1
+    while low <= high do
+      val middle = (low + high) >>> 1
+      val comparison = TrieSpace.interner.compareItemIds(ordered(middle)._1, item)
+      if comparison < 0 then low = middle + 1
+      else if comparison > 0 then high = middle - 1
+      else return middle
+    -1
   def materialize: TrieSpace =
     concrete.getOrElse {
       val children = childrenIterator.flatMap { (item, z) =>
@@ -228,7 +238,9 @@ object SpaceZipper:
   private def patchChild(parent: SpaceZipper, item: Int, replacement: SpaceZipper): SpaceZipper =
     if replacement.isEmpty && !parent.hasChild(item) then parent
     else if sameValue(parent.child(item), replacement) then parent
-    else memo(PatchChild(parent, item, replacement))
+    else (storedConcrete(parent), storedConcrete(replacement)) match
+      case (Some(parentTrie), Some(replacementTrie)) => Trie(TrieSpace.replaceChild(parentTrie, item, replacementTrie))
+      case _ => memo(PatchChild(parent, item, replacement))
 
   private def rangeNormalized(src: SpaceZipper, lo: Int, hi: Int): SpaceZipper =
     if hi <= lo then empty
@@ -271,38 +283,30 @@ object SpaceZipper:
       focus.childrenIterator.foreach((_, child) => enqueue(child))
     out.result()
 
-  private def closureFrontierMap(root: SpaceZipper): Map[Int, Vector[SpaceZipper]] =
+  private case class ClosureSummary(
+    reachable: Vector[SpaceZipper],
+    frontierMap: Map[Int, Vector[SpaceZipper]],
+    allTailFrontiers: Vector[SpaceZipper],
+  )
+
+  /** One traversal supplies every suffix-closure projection. Previous code
+    * discarded `closureFrontierMap` values and repeated the reachable-graph
+    * walk independently for every queried head. */
+  private def closureSummary(root: SpaceZipper): ClosureSummary =
+    val reachable = closureReachable(root)
     val byKey = mutable.LinkedHashMap.empty[Int, mutable.Builder[SpaceZipper, Vector[SpaceZipper]]]
-    closureReachable(root).foreach { focus =>
+    val all = Vector.newBuilder[SpaceZipper]
+    reachable.foreach { focus =>
       focus.childrenIterator.foreach { (item, tail) =>
         if !tail.isEmpty then
           byKey.getOrElseUpdate(item, Vector.newBuilder[SpaceZipper]) += tail
+          all += tail
       }
     }
-    byKey.iterator.map((item, tails) => item -> uniqueByIdentity(tails.result().iterator)).toMap
-
-  private def closureTailFrontiers(root: SpaceZipper, item: Int): Vector[SpaceZipper] =
-    val seen = java.util.IdentityHashMap[AnyRef, java.lang.Boolean]()
-    val out = Vector.newBuilder[SpaceZipper]
-    val stack = mutable.ArrayDeque.empty[SpaceZipper]
-
-    def enqueue(z: SpaceZipper): Unit =
-      val key = identityKey(z)
-      if !seen.containsKey(key) then
-        seen.put(key, java.lang.Boolean.TRUE)
-        stack.prepend(z)
-
-    enqueue(root)
-    while stack.nonEmpty do
-      val focus = stack.removeHead()
-      val tail = focus.child(item)
-      if !tail.isEmpty then out += tail
-      focus.childrenIterator.foreach((_, child) => enqueue(child))
-    uniqueByIdentity(out.result().iterator)
-
-  private def closureAllTailFrontiers(root: SpaceZipper): Vector[SpaceZipper] =
-    uniqueByIdentity(
-      closureReachable(root).iterator.flatMap(_.childrenIterator.map(_._2))
+    ClosureSummary(
+      reachable,
+      byKey.iterator.map((item, tails) => item -> uniqueByIdentity(tails.result().iterator)).toMap,
+      uniqueByIdentity(all.result().iterator),
     )
 
   private def directTailFrontier(src: SpaceZipper, item: Int): Vector[SpaceZipper] =
@@ -352,7 +356,11 @@ object SpaceZipper:
       override def plug(focus: SpaceZipper): SpaceZipper = focus
       override val isRoot: Boolean = true
 
-    case class Child(parent: CursorContext, item: Int, originalParent: SpaceZipper) extends CursorContext:
+    case class Child(parent: CursorContext,
+                     item: Int,
+                     originalParent: SpaceZipper,
+                     ordered: Array[(Int, SpaceZipper)] | Null,
+                     index: Int) extends CursorContext:
       override def path: Vector[Int] = parent.path :+ item
       override def plug(focus: SpaceZipper): SpaceZipper =
         parent.plug(patchChild(originalParent, item, focus))
@@ -367,7 +375,9 @@ object SpaceZipper:
 
     def down(item: Int): Option[Cursor] =
       val child = focus.child(item)
-      Option.when(!child.isEmpty)(Cursor(child, CursorContext.Child(context, item, focus)))
+      Option.when(!child.isEmpty) {
+        Cursor(child, CursorContext.Child(context, item, focus, null, index = -1))
+      }
 
     def down(item: PathItem): Option[Cursor] =
       down(TrieSpace.interner.intern(item))
@@ -380,7 +390,7 @@ object SpaceZipper:
 
     def up: Option[Cursor] = context match
       case CursorContext.Root => None
-      case CursorContext.Child(parent, item, originalParent) =>
+      case CursorContext.Child(parent, item, originalParent, _, _) =>
         Some(Cursor(patchChild(originalParent, item, focus), parent))
 
     def toRoot: Cursor =
@@ -405,7 +415,7 @@ object SpaceZipper:
 
     def firstChild: Option[Cursor] =
       focus.orderedChildren.headOption.map((item, child) =>
-        Cursor(child, CursorContext.Child(context, item, focus))
+        Cursor(child, CursorContext.Child(context, item, focus, focus.orderedChildren, index = 0))
       )
 
     def nextSibling: Option[Cursor] =
@@ -416,19 +426,17 @@ object SpaceZipper:
 
     private def sibling(delta: Int): Option[Cursor] = context match
       case CursorContext.Root => None
-      case CursorContext.Child(parent, item, originalParent) =>
+      case CursorContext.Child(parent, item, originalParent, ordered, index) =>
         val updatedParent = patchChild(originalParent, item, focus)
-        val ordered = updatedParent.orderedChildren
-        val index = ordered.indexWhere(_._1 == item)
-        val anchor =
-          if index >= 0 then index
-          else ordered.indexWhere((key, _) => TrieSpace.interner.compareItemIds(item, key) < 0) match
-            case -1 => ordered.length
-            case insertion => insertion
-        val nextIndex = if index >= 0 then index + delta else if delta > 0 then anchor else anchor - 1
-        Option.when(nextIndex >= 0 && nextIndex < ordered.length) {
-          val (nextItem, nextFocus) = ordered(nextIndex)
-          Cursor(nextFocus, CursorContext.Child(parent, nextItem, updatedParent))
+        val siblings = if ordered == null then originalParent.orderedChildren else ordered
+        val anchor = if index >= 0 then index else originalParent.orderedChildIndex(item, siblings)
+        var nextIndex = anchor + delta
+        while nextIndex >= 0 && nextIndex < siblings.length && !updatedParent.hasChild(siblings(nextIndex)._1) do
+          nextIndex += delta
+        Option.when(nextIndex >= 0 && nextIndex < siblings.length) {
+          val nextItem = siblings(nextIndex)._1
+          val nextFocus = updatedParent.child(nextItem)
+          Cursor(nextFocus, CursorContext.Child(parent, nextItem, updatedParent, siblings, nextIndex))
         }
 
   case class Trie(space: TrieSpace) extends SpaceZipper:
@@ -680,13 +688,12 @@ object SpaceZipper:
     override def knownEmpty: Boolean = src.knownEmpty
     override def concrete: Option[TrieSpace] =
       src.concrete.map(_.suffixClosure)
-    private val tailFrontierCache = mutable.HashMap.empty[Int, Vector[SpaceZipper]]
-    private lazy val keys: Vector[Int] = closureFrontierMap(src).keys.toVector
-    private lazy val allTailFrontierCache: Vector[SpaceZipper] = closureAllTailFrontiers(src)
+    private lazy val summary = closureSummary(src)
+    private lazy val keys: Vector[Int] = summary.frontierMap.keys.toVector
     private[morkl] def tailFrontiers(item: Int): Vector[SpaceZipper] =
-      tailFrontierCache.getOrElseUpdate(item, closureTailFrontiers(src, item))
+      summary.frontierMap.getOrElse(item, Vector.empty)
     private[morkl] def allTailFrontiers: Vector[SpaceZipper] =
-      allTailFrontierCache
+      summary.allTailFrontiers
     override def terminal: Boolean = false
     override def child(item: Int): SpaceZipper = FrontierState(FrontierTailUnion(this, item))
     override def childKeys: IterableOnce[Int] = keys.iterator
@@ -913,35 +920,26 @@ object SpaceZipper:
     override lazy val pathCount: Int = lowered.pathCount
 
   case class PatchChild(parent: SpaceZipper, item: Int, replacement: SpaceZipper) extends SpaceZipper:
+    private lazy val original = parent.child(item)
+    private lazy val hadChild = !original.isEmpty
+    private lazy val hasReplacement = !replacement.isEmpty
     override def terminal: Boolean = parent.terminal
     override def child(key: Int): SpaceZipper =
       if key == item then replacement else parent.child(key)
     override def hasChild(key: Int): Boolean =
       if key == item then !replacement.isEmpty else parent.hasChild(key)
     override lazy val isEmpty: Boolean =
-      !terminal && childrenVector.isEmpty
-    override lazy val childKeySize: Int = childKeyVector.length
-    private lazy val childKeyVector: Vector[Int] =
-      val keys = mutable.LinkedHashSet.empty[Int]
-      parent.childKeys.iterator.foreach { key =>
-        if key != item then keys += key
-      }
-      if !replacement.isEmpty then keys += item
-      keys.toVector
-    override def childKeys: IterableOnce[Int] = childKeyVector.iterator
-    private lazy val childrenVector: Vector[(Int, SpaceZipper)] =
-      val out = Vector.newBuilder[(Int, SpaceZipper)]
-      parent.childrenIterator.foreach { (key, child) =>
-        if key != item then out += key -> child
-      }
-      if !replacement.isEmpty then out += item -> replacement
-      out.result()
+      !terminal && childKeySize == 0
+    override lazy val childKeySize: Int =
+      parent.childKeySize - (if hadChild then 1 else 0) + (if hasReplacement then 1 else 0)
+    override def childKeys: IterableOnce[Int] =
+      parent.childKeys.iterator.filter(_ != item) ++ Option.when(hasReplacement)(item).iterator
     override def childrenIterator: Iterator[(Int, SpaceZipper)] =
-      childrenVector.iterator
+      parent.childrenIterator.filter(_._1 != item) ++ Option.when(hasReplacement)(item -> replacement).iterator
     override lazy val orderedChildren: Array[(Int, SpaceZipper)] =
-      childrenVector.toArray.sortWith((a, b) => TrieSpace.comparePaths(a._1 :: Nil, b._1 :: Nil) < 0)
+      childrenIterator.toArray.sortWith((a, b) => TrieSpace.comparePaths(a._1 :: Nil, b._1 :: Nil) < 0)
     override lazy val pathCount: Int =
-      (if terminal then 1 else 0) + childrenVector.iterator.map(_._2.pathCount).sum
+      parent.pathCount - (if hadChild then original.pathCount else 0) + (if hasReplacement then replacement.pathCount else 0)
 
   case class Range(src: SpaceZipper, lo: Int, hi: Int) extends SpaceZipper:
     override def knownEmpty: Boolean = hi <= lo || src.knownEmpty
@@ -951,44 +949,45 @@ object SpaceZipper:
     override lazy val pathCount: Int =
       (if terminal then 1 else 0) + childrenIterator.map(_._2.pathCount).sum
     private val childCache = mutable.HashMap.empty[Int, SpaceZipper]
+    private lazy val sourceChildren = src.orderedChildren
+    private lazy val sourceEnds = Array.fill(sourceChildren.length)(Int.MinValue)
+    private var computedThrough = -1
+    private var computedRank = if src.terminal then 1 else 0
+    /** Extend cumulative ranks monotonically. Independent child queries share
+      * this frontier, so every preceding sibling is sized at most once. */
+    private def endAt(index: Int): Int = synchronized {
+      while computedThrough < index do
+        computedThrough += 1
+        computedRank += sourceChildren(computedThrough)._2.pathCount
+        sourceEnds(computedThrough) = computedRank
+      sourceEnds(index)
+    }
+    private def childStart(index: Int): Int =
+      if index == 0 then (if src.terminal then 1 else 0) else endAt(index - 1)
+    private def keyIndex(item: Int): Int = src.orderedChildIndex(item, sourceChildren)
     private def selectedChild(item: Int): SpaceZipper =
       if knownEmpty then empty
       else
-        var rank = if src.terminal then 1 else 0
-        val it = src.orderedChildrenIterator
-        var out: SpaceZipper = empty
-        var done = false
-        while !done && it.hasNext do
-          val (key, child) = it.next()
-          val cmp = TrieSpace.interner.compareItemIds(key, item)
-          val start = rank
-          if start >= hi then done = true
-          else if cmp < 0 then
-            rank += child.pathCount
-          else if cmp > 0 then
-            done = true
-          else
-            out = rangeNormalized(child, (lo - start).max(0), hi - start)
-            done = true
-        out
+        val index = keyIndex(item)
+        if index < 0 then empty
+        else
+          val start = childStart(index)
+          if start >= hi then empty
+          else if lo > start && endAt(index) <= lo then empty
+          else rangeNormalized(sourceChildren(index)._2, (lo - start).max(0), hi - start)
     private lazy val selectedChildren: Vector[(Int, SpaceZipper)] =
       val kept = Vector.newBuilder[(Int, SpaceZipper)]
-      var rank = if src.terminal then 1 else 0
-      val it = src.orderedChildrenIterator
-      var done = false
-      while !done && it.hasNext do
-        val (item, child) = it.next()
-        val start = rank
-        if start >= hi then done = true
-        else
-          val childCount = child.pathCount
-          val end = rank + childCount
-          if end > lo then
-            val filtered =
-              if lo <= start && end <= hi then child
-              else rangeNormalized(child, (lo - start).max(0), (hi - start).min(childCount))
-            if !filtered.isEmpty then kept += item -> filtered
-          rank = end
+      var index = 0
+      while index < sourceChildren.length && endAt(index) <= lo do index += 1
+      while index < sourceChildren.length && childStart(index) < hi do
+        val (item, child) = sourceChildren(index)
+        val start = childStart(index)
+        val end = endAt(index)
+        val filtered =
+          if lo <= start && end <= hi then child
+          else rangeNormalized(child, (lo - start).max(0), (hi - start).min(child.pathCount))
+        if !filtered.isEmpty then kept += item -> filtered
+        index += 1
       kept.result()
     override def child(item: Int): SpaceZipper =
       childCache.getOrElseUpdate(item, selectedChild(item))
@@ -1007,125 +1006,66 @@ object SpaceZipper:
     override def knownEmpty: Boolean = count <= 0 || src.knownEmpty
     override def concrete: Option[TrieSpace] =
       nativeRange(src, -count, 0)
+    private lazy val total = (if src.terminal then 1 else 0) + src.orderedChildren.iterator.map(_._2.pathCount).sum
+    private lazy val selected = Range(src, (total - count).max(0), total)
+    private lazy val sourceChildren = src.orderedChildren
     private val childCache = mutable.HashMap.empty[Int, SpaceZipper]
+    private var suffixComputedFrom = -1
+    private var suffixCount = 0
+    private def countStrictlyRight(index: Int): Int = synchronized {
+      if suffixComputedFrom < 0 then suffixComputedFrom = sourceChildren.length
+      while suffixComputedFrom > index + 1 do
+        suffixComputedFrom -= 1
+        suffixCount += sourceChildren(suffixComputedFrom)._2.pathCount
+      suffixCount
+    }
     private def selectedChild(item: Int): SpaceZipper =
-      if knownEmpty then empty
+      val index = src.orderedChildIndex(item, sourceChildren)
+      if index < 0 then empty
       else
-        var remaining = count
-        val it = src.orderedChildren.reverseIterator
-        var out: SpaceZipper = empty
-        var done = false
-        while !done && remaining > 0 && it.hasNext do
-          val (key, child) = it.next()
-          val cmp = TrieSpace.interner.compareItemIds(key, item)
-          if cmp > 0 then
-            val childCount = child.pathCount
-            if childCount <= remaining then remaining -= childCount
-            else remaining = 0
-          else if cmp < 0 then
-            done = true
-          else
-            out = last(child, remaining)
-            done = true
-        out
-    private lazy val selected: (Boolean, Vector[(Int, SpaceZipper)]) =
-      var remaining = count
-      val kept = Vector.newBuilder[(Int, SpaceZipper)]
-      val it = src.orderedChildren.reverseIterator
-      while remaining > 0 && it.hasNext do
-        val (item, child) = it.next()
-        val childCount = child.pathCount
-        if childCount <= remaining then
-          kept += item -> child
-          remaining -= childCount
-        else
-          val filtered = last(child, remaining)
-          if !filtered.isEmpty then kept += item -> filtered
-          remaining = 0
-      (src.terminal && remaining > 0, kept.result().reverse)
-    override def terminal: Boolean =
-      selected._1
-    private lazy val selectedChildren: Vector[(Int, SpaceZipper)] =
-      selected._2
-    override def child(item: Int): SpaceZipper =
-      childCache.getOrElseUpdate(item, selectedChild(item))
-    override def hasChild(item: Int): Boolean =
-      !child(item).isEmpty
-    override def childKeys: IterableOnce[Int] =
-      selectedChildren.iterator.map(_._1)
-    override def childKeySize: Int =
-      selectedChildren.length
-    override def childrenIterator: Iterator[(Int, SpaceZipper)] =
-      selectedChildren.iterator
-    override lazy val orderedChildren: Array[(Int, SpaceZipper)] =
-      selectedChildren.toArray
-    override lazy val pathCount: Int =
-      (if terminal then 1 else 0) + selectedChildren.iterator.map(_._2.pathCount).sum
+        val remaining = count - countStrictlyRight(index)
+        if remaining <= 0 then empty else last(sourceChildren(index)._2, remaining)
+    override def terminal: Boolean = selected.terminal
+    override def child(item: Int): SpaceZipper = childCache.getOrElseUpdate(item, selectedChild(item))
+    override def hasChild(item: Int): Boolean = selected.hasChild(item)
+    override def childKeys: IterableOnce[Int] = selected.childKeys
+    override def childKeySize: Int = selected.childKeySize
+    override def childrenIterator: Iterator[(Int, SpaceZipper)] = selected.childrenIterator
+    override lazy val orderedChildren: Array[(Int, SpaceZipper)] = selected.orderedChildren
+    override lazy val pathCount: Int = selected.pathCount
 
   case class DropLastRange(src: SpaceZipper, count: Int) extends SpaceZipper:
     override def knownEmpty: Boolean = src.knownEmpty
     override def concrete: Option[TrieSpace] =
       nativeRange(src, 0, -count)
+    private lazy val total = (if src.terminal then 1 else 0) + src.orderedChildren.iterator.map(_._2.pathCount).sum
+    private lazy val selected = Range(src, 0, (total - count).max(0))
+    private lazy val sourceChildren = src.orderedChildren
     private val childCache = mutable.HashMap.empty[Int, SpaceZipper]
+    private var suffixComputedFrom = -1
+    private var suffixCount = 0
+    private def countStrictlyRight(index: Int): Int = synchronized {
+      if suffixComputedFrom < 0 then suffixComputedFrom = sourceChildren.length
+      while suffixComputedFrom > index + 1 do
+        suffixComputedFrom -= 1
+        suffixCount += sourceChildren(suffixComputedFrom)._2.pathCount
+      suffixCount
+    }
     private def selectedChild(item: Int): SpaceZipper =
-      if knownEmpty then empty
+      val index = src.orderedChildIndex(item, sourceChildren)
+      if index < 0 then empty
       else
-        var remaining = count
-        val it = src.orderedChildren.reverseIterator
-        var out: SpaceZipper = empty
-        var done = false
-        while !done && it.hasNext do
-          val (key, child) = it.next()
-          val cmp = TrieSpace.interner.compareItemIds(key, item)
-          if cmp > 0 then
-            if remaining <= 0 then
-              out = src.child(item)
-              done = true
-            else
-              val childCount = child.pathCount
-              if childCount <= remaining then remaining -= childCount
-              else remaining = 0
-          else if cmp < 0 then
-            done = true
-          else
-            out =
-              if remaining <= 0 then child
-              else dropLast(child, remaining)
-            done = true
-        out
-    private lazy val selected: (Boolean, Vector[(Int, SpaceZipper)]) =
-      var remaining = count
-      val kept = Vector.newBuilder[(Int, SpaceZipper)]
-      val it = src.orderedChildren.reverseIterator
-      while it.hasNext do
-        val (item, child) = it.next()
-        if remaining <= 0 then kept += item -> child
-        else
-          val childCount = child.pathCount
-          if childCount <= remaining then remaining -= childCount
-          else
-            val filtered = dropLast(child, remaining)
-            if !filtered.isEmpty then kept += item -> filtered
-            remaining = 0
-      (src.terminal && remaining <= 0, kept.result().reverse)
-    override def terminal: Boolean =
-      selected._1
-    private lazy val selectedChildren: Vector[(Int, SpaceZipper)] =
-      selected._2
-    override def child(item: Int): SpaceZipper =
-      childCache.getOrElseUpdate(item, selectedChild(item))
-    override def hasChild(item: Int): Boolean =
-      !child(item).isEmpty
-    override def childKeys: IterableOnce[Int] =
-      selectedChildren.iterator.map(_._1)
-    override def childKeySize: Int =
-      selectedChildren.length
-    override def childrenIterator: Iterator[(Int, SpaceZipper)] =
-      selectedChildren.iterator
-    override lazy val orderedChildren: Array[(Int, SpaceZipper)] =
-      selectedChildren.toArray
-    override lazy val pathCount: Int =
-      (if terminal then 1 else 0) + selectedChildren.iterator.map(_._2.pathCount).sum
+        val remaining = count - countStrictlyRight(index)
+        if remaining <= 0 then sourceChildren(index)._2
+        else dropLast(sourceChildren(index)._2, remaining)
+    override def terminal: Boolean = selected.terminal
+    override def child(item: Int): SpaceZipper = childCache.getOrElseUpdate(item, selectedChild(item))
+    override def hasChild(item: Int): Boolean = selected.hasChild(item)
+    override def childKeys: IterableOnce[Int] = selected.childKeys
+    override def childKeySize: Int = selected.childKeySize
+    override def childrenIterator: Iterator[(Int, SpaceZipper)] = selected.childrenIterator
+    override lazy val orderedChildren: Array[(Int, SpaceZipper)] = selected.orderedChildren
+    override lazy val pathCount: Int = selected.pathCount
 
 trait ZipperSpaceContext:
   def resolve(sm: SpaceMention): SpaceZipper = throw RuntimeException(s"$sm zipper space mention not resolved")
@@ -1135,9 +1075,9 @@ trait ZipperSpaceContext:
 case class ZipperSpaceContextMap(m: Map[SpaceMention, SpaceZipper]) extends ZipperSpaceContext:
   override def resolve(sm: SpaceMention): SpaceZipper = m(sm)
   override def grown(pv: Map[SpaceMention, SpaceZipper]): ZipperSpaceContextMap =
-    val n = mutable.Map.from(m)
-    pv.foreachEntry((k, v) => if k.s != "_" then n.update(k, v))
-    ZipperSpaceContextMap(n.toMap)
+    ZipperSpaceContextMap(pv.iterator.foldLeft(m) { case (current, (key, value)) =>
+      if key.s == "_" then current else current.updated(key, value)
+    })
 
 object ZipperSpaceContext:
   val emptyMap: ZipperSpaceContextMap = ZipperSpaceContextMap(Map.empty)
@@ -1152,6 +1092,8 @@ def transpileZ(s: Space)(using
   rc: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty
 ): SpaceZipper =
   val rootPc = IntPathContext.fromReference(pc, TrieSpace.interner)
+  val spaceDependencyCache = java.util.IdentityHashMap[AnyRef, mutable.HashMap[(String, String), Boolean]]()
+  val pathDependencyCache = java.util.IdentityHashMap[AnyRef, mutable.HashMap[(String, String), Boolean]]()
 
   def topLevelSelfUnion(body: Space, rp: RoutinePtr): Boolean = body match
     case Space.Union(_, Space.Call(`rp`, _, _)) => true
@@ -1194,27 +1136,51 @@ def transpileZ(s: Space)(using
   def recp(x: Path)(using ipc: IntPathContext, zsc: ZipperSpaceContext): List[Int] = x match
     case Path.Deref(pr) => ipc.resolve(pr)
     case Path.Constant(pi) => TrieSpace.intern(pi)
-    case Path.Concat(l, r) => recp(l) ++ recp(r)
+    case Path.Concat(_, _) =>
+      val output = List.newBuilder[Int]
+      val pending = mutable.ArrayDeque[Path](x)
+      while pending.nonEmpty do
+        pending.removeHead() match
+          case Path.Concat(left, right) =>
+            pending.prepend(right)
+            pending.prepend(left)
+          case factor => output ++= recp(factor)
+      output.result()
     case Path.GroundedPP(p, f) => TrieSpace.intern(f(TrieSpace.decode(recp(p))))
     case Path.GroundedSP(s, f) => TrieSpace.intern(f(recs(s).toSpaceValue))
 
   def spaceDependsOnBound(s: Space, symbol: PathRef, rest: SpaceMention): Boolean =
-    val (spaces, paths) = collect(s)(
-      spre = { case Space.Mention(sm) if sm.s == rest.s => () },
-      ppre = { case Path.Deref(pr) if pr.s == symbol.s => () },
-    )
-    spaces.nonEmpty || paths.nonEmpty
+    val key = symbol.s -> rest.s
+    val byBinder = spaceDependencyCache.computeIfAbsent(s.asInstanceOf[AnyRef], _ => mutable.HashMap.empty)
+    byBinder.getOrElseUpdate(key, {
+      val (spaces, paths) = collect(s)(
+        spre = { case Space.Mention(sm) if sm.s == rest.s => () },
+        ppre = { case Path.Deref(pr) if pr.s == symbol.s => () },
+      )
+      spaces.nonEmpty || paths.nonEmpty
+    })
 
   def pathDependsOnBound(p: Path, symbol: PathRef, rest: SpaceMention): Boolean =
-    val (spaces, paths) = collect(Space.Singleton(p))(
-      spre = { case Space.Mention(sm) if sm.s == rest.s => () },
-      ppre = { case Path.Deref(pr) if pr.s == symbol.s => () },
-    )
-    spaces.nonEmpty || paths.nonEmpty
+    val key = symbol.s -> rest.s
+    val byBinder = pathDependencyCache.computeIfAbsent(p.asInstanceOf[AnyRef], _ => mutable.HashMap.empty)
+    byBinder.getOrElseUpdate(key, {
+      val (spaces, paths) = collect(Space.Singleton(p))(
+        spre = { case Space.Mention(sm) if sm.s == rest.s => () },
+        ppre = { case Path.Deref(pr) if pr.s == symbol.s => () },
+      )
+      spaces.nonEmpty || paths.nonEmpty
+    })
 
-  def intersectionOperands(x: Space): Vector[Space] = x match
-    case Space.Intersection(l, r) => intersectionOperands(l) ++ intersectionOperands(r)
-    case other => Vector(other)
+  def intersectionOperands(x: Space): Vector[Space] =
+    val output = Vector.newBuilder[Space]
+    val pending = mutable.ArrayDeque[Space](x)
+    while pending.nonEmpty do
+      pending.removeHead() match
+        case Space.Intersection(left, right) =>
+          pending.prepend(right)
+          pending.prepend(left)
+        case other => output += other
+    output.result()
 
   def recs(x: Space)(using ipc: IntPathContext, zsc: ZipperSpaceContext): SpaceZipper = x match
     case Space.Empty => SpaceZipper.empty

@@ -74,10 +74,30 @@ Patricia `Tip`/`Bin` descent. A parent node combines child identity masks and
 terminal bits, so a containment result can reuse the complete smaller or larger
 argument without an equality re-traversal or a generic key-set scan.
 
+Every persistent Patricia node also has a weak identity-keyed aggregate
+summary. More importantly, `TrieIntMapOps.updated`, `removed`, algebraic
+`Tip`/`Bin` builders, and shape-preserving value maps propagate the summary
+while allocating the Patricia spine. One operation-local identity table holds
+ephemeral intermediate summaries; only the final parent summary is promoted to
+the cross-operation cache. Algebra therefore hands
+`TrieSpace.nodeFromChildren` an already summarized child map. Rewrapping a wide
+structurally shared result is O(1); it does not scan the result width or retain
+all temporary maps.
+
+Patricia visits are measured separately from semantic trie-node visits. This is
+necessary because width alone is not a complexity law. For two W-wide maps,
+the current exact union gates include identity (zero Patricia visits),
+root-disjoint (one), quarter-interwoven (`W/2 + 1`), and fully interwoven
+(`2W - 1`). All four allocate at most one `TrieSpace` parent. The work follows
+the actually touched Patricia branches, with no width-based surrogate.
+
 ## Join-All And Meet-All
 
-`joinAll` folds tries with structural union. Its useful property is that sparse
-branches are copied whole whenever only one operand contains the branch.
+`joinAll` identity-deduplicates operands, then reduces distinct tries in a
+balanced union tree. Sparse/disjoint Patricia branches are grafted whole,
+whereas genuinely interwoven branches pay for their touched structure. K
+references to one trie cost O(K) identity checks and no trie descent; they do
+not become K traversals of the referenced depth.
 
 `meetAll` is the non-trivial operation. A naive implementation would enumerate
 paths from one trie and check membership in all others, which is acceptable as a
@@ -101,12 +121,51 @@ aggregates and uses the constant-time `nodeKnown` constructor. It never rescans
 the completed sibling map. Consequently a flat `k`-head relation no longer pays
 the previous quadratic aggregate-maintenance cost.
 
+Bulk `fromPaths`/`fromEncodedPaths` construction uses a mutable builder followed
+by one immutable freeze. Only final trie/Patricia nodes are allocated and
+summarized; transient persistent versions are not produced. Incremental
+`insertItems` is iterative over the path and rebuilds its saved frames
+bottom-up, avoiding recursion depth and retaining O(D) path work.
+
 The scanning `node` constructor remains for genuinely bulk results whose full
-child map is new. `joinAll` scans its new children once; algebraic `binaryValue`
-only selects provenance and does not rebuild; concrete zipper insertion routes
-through the same delta update. `TrieConstructionAsymptoticTest` certifies these
-claims with exact scan/allocation counters, while
+child map is new. Algebraic `binaryValue` only selects provenance and does not
+rebuild; concrete zipper insertion routes through the same delta update.
+`TrieConstructionAsymptoticTest` certifies these claims with exact
+scan/allocation counters, while
 `trieConstructionAsymptoticBenchmark` records wall-clock scaling.
+
+Composition preserves the left child-map topology. It transforms child values
+in place structurally, constructs one descendant parent, and unions the right
+operand only at a left node which is both terminal and branching. The common
+prefix-free case therefore visits the left trie once, shares the complete right
+operand, and allocates only rebuilt internal left nodes.
+
+## Closure, Cursor, And Range Layers
+
+A sole path's suffix language is built as a minimal acyclic suffix automaton.
+The suffix-link accepting chain recognizes exactly the non-empty suffixes, and
+the automaton DAG is used directly as a `TrieSpace`. Repeated, periodic, and
+non-periodic paths all construct in O(D) time and allocations. General
+multi-path closure uses identity-deduplicated balanced unions; the zipper layer
+caches one reachable-graph closure summary containing every head frontier and
+the all-tail frontier.
+
+Read cursors retain their current focus and ancestor stack, so descending D
+items is O(D). Zipper frames retain the original parent aggregates and rebuild
+with one child delta per ancestor. Ordered sibling arrays and indices are
+created once per frame and reused for O(1) adjacent movement.
+
+Ordered range nodes cache children and cumulative path ranks. Concrete slices
+binary-search the first overlapping rank. Virtual ranges extend a shared rank
+frontier monotonically, while last/drop-last projections do the analogous work
+from the right. Independently queried children no longer restart at a range
+edge.
+
+Virtual `PatchChild` is a one-key overlay until enumeration is requested; a
+concrete parent/replacement pair updates the underlying `IntMap` and aggregate
+counts immediately. Path concatenation is flattened into one iterative builder,
+iterator contexts use persistent-map updates, and binder-dependency and
+left-associated-intersection flattening are cached/iterative.
 
 ## PathMap Influence
 

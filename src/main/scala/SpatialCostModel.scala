@@ -253,7 +253,7 @@ object SpatialCostModels:
           val work = kind match
             // concat traverses the left trie and grafts the complete right trie
             // at terminals. The right operand and Cartesian result are shared.
-            case SpatialCostOperation.Composition => mul(SizeExpr.const(3), left.nodesUpper)
+            case SpatialCostOperation.Composition => left.nodesUpper
             // restrictBy walks the prefix trie and grafts accepted source
             // subtries wholesale. Its complexity is independent of |left|.
             case SpatialCostOperation.Restriction => right.nodesUpper
@@ -265,8 +265,8 @@ object SpatialCostModels:
             case _ => fallback.workUpper
           val components = kind match
             case SpatialCostOperation.Composition => SpatialCostComponents(
-              nodeVisits = mul(SizeExpr.const(3), left.nodesUpper),
-              allocations = left.nodesUpper,
+              nodeVisits = left.nodesUpper,
+              allocations = left.internalNodesUpper,
             )
             case SpatialCostOperation.Restriction => SpatialCostComponents(
               nodeVisits = mul(SizeExpr.const(2), right.nodesUpper),

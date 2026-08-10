@@ -17888,3 +17888,69 @@ morkl.SpatialTypeTest:
 - Optimized open-program wall-clock Spearman smoke: reference=1.000, trie=0.800, zipper=1.000, graph=1.000.
 - Independent-product rewrite and sharing regressions remain covered by TrieSpaceTest; reference/trie/zipper/graph denotations agree in the focused impacted suites.
 - Added docs/REVIEW_5_RESPONSE.md and updated spatial-cost/trie-runtime documentation. git diff --check passed excluding append-only build.log.
+FAIL TrieSpaceTest after cached Patricia aggregates (details: /tmp/zippy-trie-space.out)
+PASS TrieSpaceTest after cached Patricia aggregates
+PASS TrieSpaceTest after aggregate-aware joins and cursor rebuilds
+FAIL TrieSpaceTest after linear paths, cached dependencies, range ranks, and closure summaries (details: /tmp/zippy-trie-space.out)
+FAIL TrieSpaceTest after lazy cumulative range ranks (details: /tmp/zippy-trie-space.out)
+PASS TrieSpaceTest after cached bidirectional range frontiers
+PASS ZipperDenotationOracleTest after cursor, patch, range, and closure changes
+FAIL TrieLayerAsymptoticTest (details: /tmp/zippy-layer-asymptotic.out)
+FAIL TrieLayerAsymptoticTest (details: /tmp/zippy-layer-asymptotic.out)
+PASS TrieLayerAsymptoticTest (algebra, closures, cursors, siblings, paths, iteration, intersections)
+FAIL SpatialCostCounterTest after trie-layer asymptotic changes (details: /tmp/zippy-cost-counter.out)
+FAIL TrieLayerAsymptoticTest after Patricia structural instrumentation and suffix automaton (details: /tmp/zippy-layer-compile.out)
+PASS TrieLayerAsymptoticTest after Patricia structural instrumentation and suffix automaton
+PASS TrieLayerAsymptoticTest with constant/disjoint/interwoven Patricia regimes
+PASS TrieSpaceTest after shape-preserving composition
+PASS SpatialCostCounterTest after shape-preserving composition
+PASS TrieConstructionAsymptoticTest after aggregate-aware balanced joins
+PASS trie algebra distribution benchmark 256->16384 (identity 0.27x; root-disjoint 0.54x; interwoven 66.75x; interwoven Patricia@max=65535; raw: /tmp/zippy-distribution-benchmark.csv)
+PASS TrieLayerAsymptoticTest with exact 2W-1 fully-interwoven union law
+PASS trie algebra four-distribution benchmark (identity/root-disjoint/mixed/interwoven; raw: /tmp/zippy-distribution-benchmark2.csv)
+PASS ZipperDenotationOracleTest after final Patricia and composition changes
+PASS TrieLayerAsymptoticTest final (exact algebra regimes and suffix denotation)
+PASS TrieSpaceTest final after fused Patricia leaf cases
+PASS SpatialCostCorrelationTest after composition model tightening
+PASS existing trie algebra asymptotic benchmark (1K..65K; raw: /tmp/zippy-trie-algebra-final.csv)
+PASS trie construction asymptotic benchmark (256..16K; raw: /tmp/zippy-trie-construction-final.csv)
+PASS independent-product benchmark (raw: /tmp/zippy-independent-product-final.csv)
+PASS construction benchmark after separating bulk insertion from algebra metadata (raw: /tmp/zippy-trie-construction-native-update.csv)
+PASS construction benchmark with synchronized weak identity cache (raw: /tmp/zippy-trie-construction-hash-cache.csv)
+FAIL TrieLayerAsymptoticTest after insertion separation (details: /tmp/zippy-layer-cache-final.out)
+FAIL TrieLayerAsymptoticTest after shallow-tip aggregate fusion (details: /tmp/zippy-layer-shallow-final.out)
+PASS TrieConstructionAsymptoticTest with one-shot bulk freeze
+PASS bulk-freeze construction benchmark (raw: /tmp/zippy-trie-construction-bulk-final.csv)
+FAIL TrieLayerAsymptoticTest with bulk-frozen operands (details: /tmp/zippy-layer-bulk-final.out)
+PASS TrieLayerAsymptoticTest final with iterative deep insertion
+PASS TrieConstructionAsymptoticTest final with bulk freeze and iterative incremental insertion
+PASS TrieSpaceTest final after bulk builder and iterative insertion
+PASS SpatialCostCounterTest final
+PASS final four-distribution algebra benchmark with exact Patricia counts (raw: /tmp/zippy-distribution-final.csv)
+PASS trie algebra benchmark with inlined disabled-meter fast path (raw: /tmp/zippy-trie-algebra-inlined-meter.csv)
+PASS trie algebra benchmark with open-addressed weak aggregate cache (raw: /tmp/zippy-trie-algebra-open-cache.csv)
+PASS trie algebra benchmark with operation-local ChildMap aggregate propagation (raw: /tmp/zippy-trie-algebra-local-aggregate.csv)
+FAIL TrieLayerAsymptoticTest with local aggregates (details: /tmp/zippy-layer-local-aggregate.out)
+PASS TrieLayerAsymptoticTest final with exact operation-local aggregates
+FAIL final trie/zipper semantic gates (details: /tmp/zippy-semantic-final.out)
+PASS TrieSpaceTest final with local aggregate results
+PASS ZipperDenotationOracleTest final with local aggregate results
+PASS SpatialCostCounterTest final with local child-map aggregates
+PASS final distribution benchmark with local ChildMap aggregates (raw: /tmp/zippy-distribution-local-final.csv)
+PASS final existing trie algebra benchmark (raw: /tmp/zippy-trie-algebra-ultimate.csv)
+PASS final independent-product benchmark (raw: /tmp/zippy-independent-product-ultimate.csv)
+PASS trie algebra benchmark with touched-output restriction summaries (raw: /tmp/zippy-trie-algebra-restrict-scan.csv)
+PASS TrieLayerAsymptoticTest ultimate
+PASS TrieConstructionAsymptoticTest ultimate
+PASS TrieLayerAsymptoticTest after weak aggregate-cache compaction and constant-time Nil/Tip summaries (raw: /tmp/zippy-cache-fix-test.out)
+PASS non-long trieBenchmarkReport after aggregate-cache fix (raw: /tmp/zippy-trie-benchmark-current.out; report: docs/TRIE_BENCHMARKS.md)
+PASS non-long zipperAlgebraBenchmarkReport (raw: /tmp/zippy-zipper-algebra-current.out; report: docs/ZIPPER_ALGEBRA_BENCHMARKS.md)
+PASS non-long zipperIterRangeTailMicroReport (raw: /tmp/zippy-zipper-micro-current.out; report: docs/ZIPPER_ITER_RANGE_MICRO.md)
+PASS non-long zipperLargeBenchmarkReport (raw: /tmp/zippy-zipper-large-current.out; report: docs/ZIPPER_LARGE_BENCHMARKS.md)
+PASS non-long trieAlgebraAsymptoticBenchmark (raw: /tmp/zippy-trie-algebra-current.csv)
+PASS non-long trieConstructionAsymptoticBenchmark (raw: /tmp/zippy-trie-construction-current.csv)
+PASS non-long trieAlgebraDistributionReport (raw: /tmp/zippy-trie-distribution-current.csv)
+PASS non-long independentProductBenchmark (raw: /tmp/zippy-independent-product-current.csv)
+PASS post-benchmark spatialCostCorrelationReport and spatialCostCounterReport (raw: /tmp/zippy-cost-correlation-current.out, /tmp/zippy-cost-counter-current.out)
+PASS final non-long benchmark sweep: 8 benchmark entry points plus 2 spatial-cost validation reports; constantFoldExecutorReport excluded as explicit long; raw outputs in /tmp/zippy-*-final.*
+PASS final restored-cache TrieLayerAsymptoticTest; complete benchmark impact report: docs/ASYMPTOTIC_BENCHMARK_IMPACT.md; build.log contains summaries only for this sweep

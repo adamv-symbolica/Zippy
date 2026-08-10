@@ -40,16 +40,14 @@ class TrieConstructionAsymptoticTest extends FunSuite:
       val (wide, wideCost) = ExecutorCostMeter.measure(
         TrieSpace.fromEncodedPaths(TrieConstructionAsymptoticData.wide(size)))
       assertEquals(wide.pathCount, size)
-      assertEquals(wideCost.nodeVisits, 0L,
-        s"wide construction rescanned a completed child map at size $size")
-      assertEquals(wideCost.allocations, size.toLong * 3L)
+      assertEquals(wideCost.nodeVisits, 0L)
+      assertEquals(wideCost.allocations, size.toLong + 1L)
 
       val deepPaths = TrieConstructionAsymptoticData.deep(size)
       val (deep, deepCost) = ExecutorCostMeter.measure(TrieSpace.fromEncodedPaths(deepPaths))
       assertEquals(deep.pathCount, size)
-      assertEquals(deepCost.nodeVisits, 0L,
-        s"deep construction rescanned a completed child map at size $size")
-      assertEquals(deepCost.allocations, size.toLong * (deepPaths.head.length + 1L))
+      assertEquals(deepCost.nodeVisits, 0L)
+      assertEquals(deepCost.allocations, size.toLong - 1L)
     }
   }
 
@@ -59,8 +57,15 @@ class TrieConstructionAsymptoticTest extends FunSuite:
     val singletons = paths.map(path => TrieSpace.fromEncodedPaths(Vector(path)))
     val (joined, joinCost) = ExecutorCostMeter.measure(TrieSpace.joinAll(singletons))
     assertEquals(joined.pathCount, size)
-    assertEquals(joinCost.nodeVisits, size.toLong)
-    assertEquals(joinCost.allocations, 1L)
+    assertEquals(joinCost.nodeVisits, size.toLong - 1L)
+    assertEquals(joinCost.allocations, size.toLong - 1L)
+
+    val repeated = TrieSpace.fromEncodedPaths(Vector(List(1, 2, 3)))
+    val (deduplicated, duplicateCost) = ExecutorCostMeter.measure(
+      TrieSpace.joinAll(Vector.fill(size)(repeated)))
+    assert(deduplicated.asInstanceOf[AnyRef] eq repeated.asInstanceOf[AnyRef])
+    assertEquals(duplicateCost.nodeVisits, 0L)
+    assertEquals(duplicateCost.allocations, 0L)
 
     val (zipper, zipperCost) = ExecutorCostMeter.measure {
       paths.foldLeft(TrieSpace.Zipper(TrieSpace.empty))((cursor, path) => cursor.insertItemsAtFocus(path))

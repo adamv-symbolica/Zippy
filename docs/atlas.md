@@ -19,8 +19,8 @@ flowchart LR
 | Component | Responsibility | Uses / feeds |
 | --- | --- | --- |
 | `src/main/scala/MORKL.scala` | AST, contexts, `SpaceValue` oracle, routines, graph IR/transpiler/interpreters, source lowering, conservative compiler, DSL. | Foundation for every backend; graph backend feeds `exec`/`execT`; `Supercompiler` adds process specialization. |
-| `TrieSpace.scala` | Interned `PathItem` ids; immutable `IntMap` trie with set, prefix, product, tail/head, closure, and ordered-range operations; `evalTrie`, trie graph executors. | Native denotation and the eager implementation used by graph and zipper checks. |
-| `TrieIntMapOps.scala` | Patricia-style child-map union/intersection/difference/restriction with identity/empty metadata. | Called by `TrieSpace`; structural reuse is a runtime invariant. |
+| `TrieSpace.scala` | Interned `PathItem` ids; aggregate-aware immutable `IntMap` trie with set, prefix, product, suffix-automaton closure, cached cursor/range layers, and `evalTrie`/graph executors. | Native denotation and the eager implementation used by graph and zipper checks. |
+| `TrieIntMapOps.scala` | Distribution-sensitive Patricia child-map algebra, aggregate-preserving update/build operations, and identity/empty metadata. | Called by `TrieSpace`; touched-branch work and structural reuse are runtime invariants. |
 | `ZipperSpace.scala` | `SpaceZipper` virtual nodes, memoization, focus/context edits, demand-driven child movement, virtual algebra, range/frontier closures, `transpileZ`/`evalZ`/`execZ`. | Reuses trie leaves and path interning; must materialize to the trie denotation. |
 | `Supercompiler.scala` | Binder-safe substitution/canonicalization, embedding/MSG whistle, process-tree driving and residual routines. | Complements `MORKL.Supercompiler` source passes; residuals run through normal evaluators/backends. |
 | `ResultSpaceSize.scala` | Symbolic lower/upper cardinality expressions, per-operator bounds, audit reporting. | Analyses source/normalized programs; optional Z3 refinement tightens Boolean correlations. |
@@ -36,7 +36,7 @@ flowchart LR
 
 | Area | Files | Role |
 | --- | --- | --- |
-| Core semantics | `MORKL.scala` (tests), `TrieSpaceTest.scala` | DSL examples; exhaustive/random reference–trie–graph agreement; epsilon, closure, recursion, lowering, and zipper regressions. |
+| Core semantics | `MORKL.scala` (tests), `TrieSpaceTest.scala`, `TrieLayerAsymptoticTest.scala` | DSL examples; exhaustive/random reference–trie–graph agreement; epsilon, closure, recursion, lowering, zipper regressions, and exact distribution-sensitive trie-layer counters. |
 | Zipper oracle | `ZipperDenotationOracleTest.scala`, `ZipperFuzzerTest.scala` | Exhaustive small denotations, virtual cursor behavior, generated programs, backend verifier, corpus/timing analysis. |
 | Domain references | `ReferenceExamplesTest.scala` | Independent Datalog, Life, puzzle, NOAA, and n-queens checks. |
 | Supercompilation | `SupercompilerProcessTest.scala` | Binding, matching/generalization, termination, residual-size/soundness checks. |
