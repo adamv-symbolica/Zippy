@@ -256,6 +256,31 @@ class SpatialCostCounterTest extends FunSuite:
     assertEquals(Vector(zipperActual(small), zipperActual(large)), Vector(3L, 3L))
   }
 
+  test("intersection charges a virtual zipper union only to the demanded frontier") {
+    val a = SpaceMention("lazy_union_a")
+    val b = SpaceMention("lazy_union_b")
+    val c = SpaceMention("lazy_union_c")
+    val expression = Space.Intersection(Space.Union(Space.Mention(a), Space.Mention(b)), Space.Mention(c))
+    val demand = SpaceValue(Set(Syntax.parse("shared.hit")))
+
+    def predicted(count: Int, backend: SpatialBackend): Long =
+      val left = SpaceValue((0 until count).map(i => Syntax.parse(s"left.$i")).toSet + Syntax.parse("shared.hit"))
+      val right = SpaceValue((0 until count).map(i => Syntax.parse(s"right.$i")).toSet)
+      val assumptions = SpatialAssumptions(spaces = Map(
+        a -> SpatialType.exact(left),
+        b -> SpatialType.exact(right),
+        c -> SpatialType.exact(demand),
+      ))
+      val analyzed = SpatialTypeAnalysis.output(expression, assumptions)
+      constant(analyzed.cost.forBackend(backend).workUpper, s"$backend lazy union $count")
+
+    val zipper = Vector(32, 512, 4096).map(predicted(_, SpatialBackend.Zipper))
+    val reference = Vector(32, 512, 4096).map(predicted(_, SpatialBackend.Reference))
+    assertEquals(zipper.distinct.size, 1, s"zipper work should depend on C, not the inner union: $zipper")
+    assert(reference.sliding(2).forall(window => window(0) < window(1)),
+      s"reference work should retain eager union construction: $reference")
+  }
+
   test("iteration round bounds match every executor") {
     val sourceMention = SpaceMention("round_source")
     val rest = SpaceMention("round_rest")

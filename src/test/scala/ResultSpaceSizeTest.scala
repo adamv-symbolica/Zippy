@@ -2,8 +2,23 @@ package morkl
 
 import munit.FunSuite
 import morkl.Syntax.{*, given}
+import java.io.{ByteArrayOutputStream, PrintStream}
 
 class ResultSpaceSizeTest extends FunSuite:
+  test("analyzer Z3 wrapper distinguishes missing executable from timeout") {
+    val missing = intercept[MissingZ3Executable] {
+      Z3Executable.runCommand(Vector("/definitely/missing/morkl-z3"), "", waitMillis = 10L)
+    }
+    assert(missing.getMessage.contains("Install Z3"), missing.getMessage)
+
+    val diagnostics = ByteArrayOutputStream()
+    val timed = Console.withErr(PrintStream(diagnostics)) {
+      Z3Executable.runCommand(Vector("/bin/sh", "-c", "sleep 1"), "", waitMillis = 20L)
+    }
+    assertEquals(timed, None)
+    assert(diagnostics.toString.contains("Z3 timed out"), diagnostics.toString)
+  }
+
   test("natural expression normalization removes proved dominated bounds") {
     val p = SizeExpr.symbol("P")
     val a = SizeExpr.symbol("A")
@@ -389,7 +404,7 @@ class ResultSpaceSizeTest extends FunSuite:
     val lookupBaseline = ResultSpaceSize.estimateBaseline(lookup)
     val lookupRefined = ResultSpaceSize.estimate(lookup)
     assertEquals(lookupBaseline.upper.evaluate, None)
-    assertEquals(lookupRefined.upper.evaluate, Some(BigInt(4)))
+    assertEquals(lookupRefined, ResultSizeEstimate.exact(SizeExpr.const(3)))
     assertEquals(eval(lookup).paths.size, 3)
 
     val source = S"map_source"
@@ -414,6 +429,26 @@ class ResultSpaceSizeTest extends FunSuite:
     assertEquals(evaluated(ResultSpaceSize.estimateBaseline(nestedMap).upper, context), BigInt(16))
     assertEquals(evaluated(ResultSpaceSize.estimate(nestedMap).upper, context), BigInt(4))
     assertEquals(eval(nestedMap)(using emptyPathContext, context, emptyRoutines).paths.size, 4)
+  }
+
+  test("restriction and reconstruct iteration preserve nonzero lower bounds") {
+    val sourceValue = SpaceValue(PathValue(Nil), Syntax.parse("a.x"), Syntax.parse("b.y"))
+    val source = Space.Literal(sourceValue)
+    val prefixes = Space.Literal(SpaceValue(Syntax.parse("a"), Syntax.parse("b")))
+    val selected = ResultSpaceSize.estimate(Space.Restriction(source, prefixes))
+    assertEquals(selected, ResultSizeEstimate.exact(SizeExpr.const(2)))
+    assertEquals(ResultSpaceSize.estimate(Space.Restriction(source, source)), ResultSizeEstimate.exact(SizeExpr.const(3)))
+    assertEquals(
+      ResultSpaceSize.estimate(Space.Restriction(source, Space.Singleton(Path.Constant(PathValue(Nil))))),
+      ResultSizeEstimate.exact(SizeExpr.const(3)),
+    )
+
+    val head = PathRef("reconstruct_head").known(1)
+    val rest = SpaceMention("reconstruct_rest")
+    val reconstruct = Space.Iteration(source, head, rest,
+      Space.Wrap(Space.Mention(rest), Path.Deref(head)))
+    assertEquals(ResultSpaceSize.estimate(reconstruct), ResultSizeEstimate.exact(SizeExpr.const(2)))
+    assertEquals(eval(reconstruct).paths.size, 2)
   }
 
   test("operation subset constraints cross opaque Z3 atoms") {

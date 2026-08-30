@@ -58,7 +58,7 @@ absorption, and ordinary difference.
 - Scala 3.8.1 with `--source 3.3`
 - egglog
 - Z3
-- Vampire at `/Applications/Vampire` for the full proof gate
+- Vampire on `PATH` (or supplied with `--vampire`) for the full proof gate
 - Python 3 for orchestration and dataset utilities
 
 The commands below use bounded JVM memory because the complete proof and fuzz
@@ -105,14 +105,20 @@ python3 tools/proof_pipeline.py \
   --solver-workers 1
 ```
 
+For a larger bounded universe, `--long` expands the default alphabet and path
+depth and uses the runner's parallel solver workers. Explicit `--alphabet`,
+`--max-len`, and `--solver-workers` values still take precedence.
+
 Use a small worker count on memory-constrained machines. Some ordered `Range`
 obligations are CPU-heavy, and excessive parallelism can turn contention into a
 misleading wall-clock timeout.
 
 ### Proof Status
 
-The current [`docs/proofs/PROOF_REPORT.md`](docs/proofs/PROOF_REPORT.md) status is
-`PASS_WITH_PROOF_DEBT`.
+The checked-in [`docs/proofs/PROOF_REPORT.md`](docs/proofs/PROOF_REPORT.md)
+status is `PASS_WITH_PROOF_DEBT`: Vampire, Z3, and egglog all executed
+successfully, while bounded operational obligations remain explicitly recorded
+as proof debt.
 
 The operational manifest contains:
 
@@ -211,5 +217,9 @@ The repository also includes a reproducible NOAA slice under
   focused egg models, and named first-order bridge theorems rather than one
   complete scheduler bisimulation.
 - The main path-set track must compile with `valued/` removed.
+- Spatial analysis is an explicit compiler/reporting API, not an automatic
+  phase of every evaluation. `Supercompiler.specialize` invokes it only when
+  selecting a guarded specialization; callers that want a standalone report
+  use `Supercompiler.optimizedSpatialType`.
 
 The complete current inventory is maintained in [`fallbacks.md`](docs/fallbacks.md).

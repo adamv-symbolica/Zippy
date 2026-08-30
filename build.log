@@ -17958,3 +17958,45 @@ PASS Review 6 focused suites: TrieConstructionAsymptoticTest, TrieLayerAsymptoti
 BENCH Review 6 incremental union K=512/2048/8192/32768: trieVisits=K, patriciaVisits=7907/35811/159715/704483, allocations=K-1, ms=1.047/4.797/16.059/76.999 (raw: /tmp/review6-incremental-union-batch.csv)
 PASS Review 6 affected non-long reports: trie algebra, Patricia distribution, zipper large, trie benchmark; 63/63 Patricia cost rows sound and <=8x (ratio range 1.000..7.324)
 PASS Review 6 final recursive-component check: SpatialTypeTest; Reference recursive Patricia cost remains zero
+CHANGE plan.md 1: synchronized README proof wording with generated PARTIAL PASS and conditional PASS_WITH_PROOF_DEBT semantics
+CHANGE plan.md 2: removed duplicate datalog-morkl.txt; terminating/datalog_a.txt remains canonical
+CHANGE plan.md 3: replaced obsolete PathItem.Symbol documentation examples with PathItem(...)
+CHANGE plan.md 4: proof runner now resolves Vampire from --vampire, VAMPIRE, then PATH; removed machine-specific default and documentation
+CHANGE plan.md 5: documented/tested zipper helper calls with path+space arguments; cornerstone zipper generation lowers recursive semi-naive calls to Fixpoint first
+CHANGE plan.md 6: added focused demand-driven tail-fixpoint certificate: TailsClosure child answered through frontier state with zero Kleene rounds
+CHANGE plan.md 7: exact literal dependent fibers/restrictions, reconstruction lower bounds, symbolic fiber degree, and parameterized puzzle arithmetic coverage
+CHANGE plan.md 8: correlated nested-map/product analysis avoids double-counting partitions; exact literal fibers and identity-DAG annotated-bound memoization added
+CHANGE plan.md 9: verified recursive cost recurrence discovery, closed forms, and executor round bounds
+CHANGE plan.md 10: removed 24 tautological cornerstone SMT2 files; generator/manifest now retain 28 TPTP and 7 egg certificates
+CHANGE plan.md 11: README now states spatial analysis and specialization are explicit APIs, not automatic evaluation/compiler phases
+CHANGE plan.md 12: retired superficial validate_*_acceptance scanners from the proof decision; retained structural manifest, negative-control, frontier, termination, and operational-closure gates
+CHANGE plan.md 13: removed stale laws.diff review artifact
+CHANGE plan.md 14: shared Z3 wrapper throws an actionable missing-executable error and reports timeout firing; ResultPathLength now shares it
+CHANGE plan.md 15: removed all six tracked Aunt/GOL *_full_open_*.smt2 files, ignored ephemeral pattern, and disabled those huge bounded expansions in the generator
+CHANGE plan.md 16: added direct SCC cornerstone, unignored all-backend test, benchmark row, spatial certificate, 4 TPTP+egg examples, and structural full-program FOL artifact
+CHANGE plan.md 17: added --long default universe a,b,c through length 4 with explicit-option precedence; solver obligations retain the parallel worker pool
+CHANGE plan.md 18: proof gate now requires exact structural FOL manifest identities for semi-naive Datalog, arbitrary 2x2 puzzle, complete 24-state step, and SCC
+CHANGE plan.md 19: graph structural equality/hash normalize loop binder constants; alpha-renamed iteration branches now share one subgraph
+CHANGE plan.md 20: audited generic operation-local Patricia aggregate propagation and asymptotic touched-node regressions for size-only merges
+CHANGE plan.md 21: zipper cost for (A union B) intersection C is capped by C's demanded frontier while eager backend costs remain unchanged
+CHANGE plan.md 22: generated and registered Vampire bridges for SpatialType normalize, joinAlternatives, and meet interval implementations
+ARTIFACT main proof generation: wrote 291 SMT2 and 265 TPTP artifacts from Scala
+ARTIFACT cornerstone generation: wrote 28 TPTP and 7 egg artifacts, including SCC; no tautological SMT2 output
+ARTIFACT open-program generation: wrote 90 bounded SMT2 obligations and 9 structural full-program FOL obligations, including SCC
+ENV verification used portable scala-cli 1.16.0, provisioned Temurin 17, and verified Z3 5.0.0 archive SHA-256 d4922cebc9f0a55629231ec0c62f0bbedf8006eddaed4e68199ad19626b697f6
+PASS ResultSpaceSizeTest: 11/11 including missing Z3, timeout diagnostics, exact fibers, nested map, and restriction/reconstruction lower bounds
+PASS SpatialCostCounterTest: 5/5 including fixed-demand lazy union/intersection scaling and all-executor round bounds
+PASS TrieSpaceTest: full suite including alpha sharing, helper calls, lowered semi-naive recursion, and zero-round focused tail fixpoint
+PASS Imperative: SCC executes identically on reference, trie, zipper, and compiled graph backends; pre-existing push-out test remains explicitly ignored
+EXPERIMENT CornerstoneSpatialTypeTest initially exceeded the old 30s suite budget at about 33s after semantic assertions passed; suite timeout raised to the repository-established 1 minute
+PASS CornerstoneSpatialTypeTest: 9/9 in 31.7s including SCC E^2, n-queens, and puzzle widths 1..3
+FAIL ad-hoc `scala-cli test .` verification omitted repository dependency flags and therefore could not resolve munit; no source failure, corrected with documented command
+PASS corrected focused Scala verification used Scala 3.8.1/source 3.3 plus munit and collection-contrib dependencies
+EXPERIMENT proof gate at intentionally short 30s budget: range_nested_last_last timed out; egglog was unavailable because the gate was not yet explicitly skipped
+PASS proof gate at documented 300s budget: every structural/manifest invariant and all Z3 obligations passed; Vampire and egglog explicitly skipped, report status PARTIAL PASS
+DOC added resolution.md mapping all 22 review items to concrete implementation, artifacts, tests, and explicit remaining proof limits
+PASS --long manifest smoke: default expands to alphabet a,b,c / max length 4 / 121 paths; explicit --alphabet=a,b --max-len=3 remains 15 paths
+ENV installed Vampire 5.1.0 at /home/ubuntu/.local/bin/vampire; official release SHA-256 495828dc76cb17a27080d62dedce755e46de96f47f06f5f0ad4be9cdaf6f968f matched the downloaded archive
+ENV installed minimal Rust 1.98.0 plus build-essential/pkg-config, then egglog 2.0.0 at /home/ubuntu/.local/bin/egglog
+PASS solver smoke: egglog executed formal.egg and Vampire proved spatial_code_normalize_bridge_fo with SZS status Theorem
+PASS complete proof gate at 300s budgets: every structural/manifest invariant, Vampire obligation, Z3 obligation, and egglog model passed; report status PASS_WITH_PROOF_DEBT with 433 bounded rows and 0 UNPROVED rows

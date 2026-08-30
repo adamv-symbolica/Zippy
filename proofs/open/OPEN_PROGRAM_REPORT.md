@@ -1,8 +1,8 @@
 # Open Program Proof Report
 
-Generated Z3 obligations: 96
-Generated structural FOL obligations: 8
-Skipped relations: 6
+Generated Z3 obligations: 90
+Generated structural FOL obligations: 9
+Skipped relations: 12
 
 ## Generated
 
@@ -83,18 +83,12 @@ Skipped relations: 6
 | `aunt-open` | `space_optimized_open` | `Aunt,siblingOfParent,female,a,b` | `1` | `6` | Expanded source equals source optimizer for all bounded symbolic inputs. |
 | `aunt-open` | `raw_graph_roundtrip_open` | `Aunt,siblingOfParent,female,a,b` | `1` | `6` | Expanded source equals raw graph transpile/untranspile for all bounded symbolic inputs. |
 | `aunt-open` | `optimized_graph_roundtrip_open` | `Aunt,siblingOfParent,female,a,b` | `1` | `6` | Expanded source equals optimized graph transpile/untranspile for all bounded symbolic inputs. |
-| `aunt-full-open` | `space_optimized_open` | `Aunt,parent,child,female,person,a,b` | `3` | `400` | Expanded source equals source optimizer for all bounded symbolic inputs. |
-| `aunt-full-open` | `raw_graph_roundtrip_open` | `Aunt,parent,child,female,person,a,b` | `3` | `400` | Expanded source equals raw graph transpile/untranspile for all bounded symbolic inputs. |
-| `aunt-full-open` | `optimized_graph_roundtrip_open` | `Aunt,parent,child,female,person,a,b` | `3` | `400` | Expanded source equals optimized graph transpile/untranspile for all bounded symbolic inputs. |
 | `semi-naive-datalog-open` | `space_optimized_open` | `path,complete,delta,a,b` | `3` | `156` | Expanded source equals source optimizer for all bounded symbolic inputs. |
 | `semi-naive-datalog-open` | `raw_graph_roundtrip_open` | `path,complete,delta,a,b` | `3` | `156` | Expanded source equals raw graph transpile/untranspile for all bounded symbolic inputs. |
 | `semi-naive-datalog-open` | `optimized_graph_roundtrip_open` | `path,complete,delta,a,b` | `3` | `156` | Expanded source equals optimized graph transpile/untranspile for all bounded symbolic inputs. |
 | `gol-open` | `space_optimized_open` | `Cell,-1,0,1,2` | `1` | `6` | Expanded source equals source optimizer for all bounded symbolic inputs. |
 | `gol-open` | `raw_graph_roundtrip_open` | `Cell,-1,0,1,2` | `1` | `6` | Expanded source equals raw graph transpile/untranspile for all bounded symbolic inputs. |
 | `gol-open` | `optimized_graph_roundtrip_open` | `Cell,-1,0,1,2` | `1` | `6` | Expanded source equals optimized graph transpile/untranspile for all bounded symbolic inputs. |
-| `gol-full-open` | `space_optimized_open` | `Cell,hit,-1,0,1,2` | `3` | `43` | Expanded source equals source optimizer for all bounded symbolic inputs. |
-| `gol-full-open` | `raw_graph_roundtrip_open` | `Cell,hit,-1,0,1,2` | `3` | `43` | Expanded source equals raw graph transpile/untranspile for all bounded symbolic inputs. |
-| `gol-full-open` | `optimized_graph_roundtrip_open` | `Cell,hit,-1,0,1,2` | `3` | `43` | Expanded source equals optimized graph transpile/untranspile for all bounded symbolic inputs. |
 | `temperature-open` | `space_optimized_open` | `cell,0,1` | `2` | `13` | Expanded source equals source optimizer for all bounded symbolic inputs. |
 | `temperature-open` | `raw_graph_roundtrip_open` | `cell,0,1` | `2` | `13` | Expanded source equals raw graph transpile/untranspile for all bounded symbolic inputs. |
 | `temperature-open` | `optimized_graph_roundtrip_open` | `cell,0,1` | `2` | `13` | Expanded source equals optimized graph transpile/untranspile for all bounded symbolic inputs. |
@@ -109,9 +103,15 @@ Skipped relations: 6
 
 | Program | Relation | Reason |
 | --- | --- | --- |
+| `aunt-full-open` | `space_optimized_open` | disabled for this proof case; current structural source/graph bias would make this obligation too large |
+| `aunt-full-open` | `raw_graph_roundtrip_open` | disabled for this proof case; current structural source/graph bias would make this obligation too large |
+| `aunt-full-open` | `optimized_graph_roundtrip_open` | disabled for this proof case; current structural source/graph bias would make this obligation too large |
 | `semi-naive-datalog-full-open` | `space_optimized_open` | disabled for this proof case; current structural source/graph bias would make this obligation too large |
 | `semi-naive-datalog-full-open` | `raw_graph_roundtrip_open` | disabled for this proof case; current structural source/graph bias would make this obligation too large |
 | `semi-naive-datalog-full-open` | `optimized_graph_roundtrip_open` | disabled for this proof case; current structural source/graph bias would make this obligation too large |
+| `gol-full-open` | `space_optimized_open` | disabled for this proof case; current structural source/graph bias would make this obligation too large |
+| `gol-full-open` | `raw_graph_roundtrip_open` | disabled for this proof case; current structural source/graph bias would make this obligation too large |
+| `gol-full-open` | `optimized_graph_roundtrip_open` | disabled for this proof case; current structural source/graph bias would make this obligation too large |
 | `sliding-puzzle-2x2-full-open` | `space_optimized_open` | disabled for this proof case; current structural source/graph bias would make this obligation too large |
 | `sliding-puzzle-2x2-full-open` | `raw_graph_roundtrip_open` | disabled for this proof case; current structural source/graph bias would make this obligation too large |
 | `sliding-puzzle-2x2-full-open` | `optimized_graph_roundtrip_open` | disabled for this proof case; current structural source/graph bias would make this obligation too large |

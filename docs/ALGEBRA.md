@@ -980,18 +980,18 @@ extension (p: Path) def `+₂` (s: Space): Space =
 
 extension (s: Space) def arithmetic: Space = Space.GroundedSS(s, s => SpaceValue(
   (for
-    case PathValue(PathItem.Symbol("+") :: PathItem.Symbol(x) :: PathItem.Symbol(y) :: Nil) <- s.paths
-  yield PathValue(PathItem.Symbol((x.toInt + y.toInt).toString) :: Nil)) union
+    case PathValue(PathItem("+") :: PathItem(x) :: PathItem(y) :: Nil) <- s.paths
+  yield PathValue(PathItem((x.toInt + y.toInt).toString) :: Nil)) union
 
   (for
     case PathValue(
-      PathItem.Symbol("+₂") ::
-      PathItem.Symbol(x0) :: PathItem.Symbol(x1) ::
-      PathItem.Symbol(y0) :: PathItem.Symbol(y1) :: Nil
+      PathItem("+₂") ::
+      PathItem(x0) :: PathItem(x1) ::
+      PathItem(y0) :: PathItem(y1) :: Nil
     ) <- s.paths
   yield PathValue(
-    PathItem.Symbol((x0.toInt + y0.toInt).toString) ::
-    PathItem.Symbol((x1.toInt + y1.toInt).toString) :: Nil))
+    PathItem((x0.toInt + y0.toInt).toString) ::
+    PathItem((x1.toInt + y1.toInt).toString) :: Nil))
 ))
 ```
 
@@ -1000,7 +1000,7 @@ Cardinality evaluates a space and returns the size as a one-item path:
 ```scala
 def card(space: Space): Path =
   Path.GroundedSP(space, sv =>
-    PathValue(List(PathItem.Symbol(sv.paths.size.toString))))
+    PathValue(List(PathItem(sv.paths.size.toString))))
 ```
 
 This lets a count guard remain a space expression. For example, `Singleton(card(xs)) /\ ss"2"` is nonempty exactly when `xs` has size two.

@@ -336,21 +336,17 @@ class Imperative extends FunSuite:
     assert(stack.top.last.asInstanceOf[SpaceValue] == SpaceValue("Aunt.Ann.Liz", "Aunt.Jim.Ann", "Aunt.Pat.Liz"))
   }
 
-  test("scc exec".ignore) {
-    val code = transpile(Routines.seedless_scc_routine, None)
-    val reachable_code = transpile(Routines.reachable_routine, None)
-    //    println(code.show)
-    val graph = eval(Literal(Graphs.scc_context.resolve(SpaceMention("g2")))("edge"))
-    val transpose = eval(Literal(graph).iter(P"x", S"r", S"r".iter(P"y", S"_", Singleton(P"y" x P"x"))))
-    val nodes = eval(Literal(graph).iter(P"fwd", S"_1", sP"fwd") \/ Literal(transpose).iter(P"bwd", S"_2", sP"bwd"))
-
-    val stack = collection.mutable.Stack(new Array[PathValue | SpaceValue | Null](code.nodes.length))
-    stack.top(0) = graph
-    stack.top(1) = transpose
-    stack.top(2) = nodes
-    exec(code, stack, {case "seedless_scc" => code; case "reachable" => reachable_code})
-    println(stack.top.last.asInstanceOf[SpaceValue])
-//    assert(stack.top.last.asInstanceOf[SpaceValue] == SpaceValue("Aunt.Ann.Liz", "Aunt.Jim.Ann", "Aunt.Pat.Liz"))
+  test("scc cornerstone executes on every backend") {
+    val body = SccCornerstone.body
+    val expected = SccCornerstone.expected
+    assertEquals(eval(body), expected)
+    assertEquals(evalTrie(body).toSpaceValue, expected)
+    assertEquals(evalZ(body).toSpaceValue, expected)
+    val compiled = Supercompiler.compile(Routine(RoutinePtr("scc_cornerstone_exec"), Vector.empty, Vector.empty, body))
+    val graph = compiled.graph.getOrElse(fail("SCC compilation produced no operation graph"))
+    val stack = collection.mutable.Stack(new Array[List[Int] | TrieSpace | Null](graph.nodes.length))
+    execT(graph, stack)
+    assertEquals(stack.top.last.asInstanceOf[TrieSpace].toSpaceValue, expected)
   }
 
   test("mermaid") {

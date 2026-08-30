@@ -1864,6 +1864,34 @@ object ProofArtifacts:
         "fof(conj, conjecture, ! [S,T] : (agamma(T,aexact(S)) <=> T = S)).",
       ),
       VampireProblem(
+        "spatial_code_normalize_bridge_fo",
+        block(
+          spatialIntervalCoreTptp,
+          "% SpatialType.normalize: retain a valid interval, otherwise Bottom.",
+          "fof(code_normalize_valid, axiom, ! [L,U] : (ssubset(L,U) => code_normalize(L,U) = aint(L,U))).",
+          "fof(code_normalize_invalid, axiom, ! [L,U] : (~ssubset(L,U) => code_normalize(L,U) = abot)).",
+        ),
+        "fof(conj, conjecture, ! [L,U] : code_normalize(L,U) = anorm(L,U)).",
+      ),
+      VampireProblem(
+        "spatial_code_join_bridge_fo",
+        block(
+          spatialCompleteLatticeTptp,
+          "% SpatialType.joinAlternatives interval branch in SpatialType.scala.",
+          "fof(code_join_interval, axiom, ! [L1,U1,L2,U2] : code_join(aint(L1,U1),aint(L2,U2)) = aint(sinter(L1,L2),sunion(U1,U2))).",
+        ),
+        "fof(conj, conjecture, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => code_join(aint(L1,U1),aint(L2,U2)) = ajoin(aint(L1,U1),aint(L2,U2)))).",
+      ),
+      VampireProblem(
+        "spatial_code_meet_bridge_fo",
+        block(
+          spatialCompleteLatticeTptp,
+          "% SpatialType.meet interval branch: union must, intersect may, normalize.",
+          "fof(code_meet_interval, axiom, ! [L1,U1,L2,U2] : code_meet(aint(L1,U1),aint(L2,U2)) = anorm(sunion(L1,L2),sinter(U1,U2))).",
+        ),
+        "fof(conj, conjecture, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => code_meet(aint(L1,U1),aint(L2,U2)) = ameet(aint(L1,U1),aint(L2,U2)))).",
+      ),
+      VampireProblem(
         "spatial_join_upper_left_fo",
         spatialCompleteLatticeTptp,
         "fof(conj, conjecture, ! [A,B] : ((atype(A) & atype(B)) => aleq(A,ajoin(A,B)))).",

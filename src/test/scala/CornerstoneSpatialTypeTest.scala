@@ -2,6 +2,7 @@ package morkl
 
 import munit.FunSuite
 import morkl.Syntax.{*, given}
+import scala.concurrent.duration.*
 
 object CornerstoneAbstractInterpretations:
   private def exactLength(length: Int): PathLengthEstimate =
@@ -101,13 +102,18 @@ object CornerstoneAbstractInterpretations:
     u("blank"), u("tile1"), u("tile2"), u("tile3"), u("tile4"),
     u("tile5"), u("tile6"), u("tile7"), u("tile8"),
   )
+  def slidingPuzzleStateCount(width: Int): BigInt =
+    require(width >= 1, s"puzzle width must be positive: $width")
+    val cells = width * width
+    if cells == 1 then BigInt(1)
+    else (1 to cells).iterator.map(BigInt(_)).product / 2
   lazy val puzzle: SpatialType = SpatialTypeAnalysis.outputRoutineAbstract(
     Routine(RoutinePtr("eight_puzzle_reachable_abstract"), Vector.empty, Vector(puzzleStartMention), puzzleFixpoint),
     SpatialRoutineAnnotations(
       spaces = Map(puzzleStartMention -> puzzleStart),
       resultLaws = Vector(SpatialBoundLaw.ConnectedFiniteComponent(
         puzzleStartMention,
-        SizeExpr.const((1 to 9).iterator.map(BigInt(_)).product / 2),
+        SizeExpr.const(slidingPuzzleStateCount(3)),
       )),
     ),
     routines = puzzleContext,
@@ -146,6 +152,18 @@ object CornerstoneAbstractInterpretations:
     routines = queensContext,
   )
 
+  private val sccEdgesMention = SpaceMention("scc_edges")
+  lazy val scc: SpatialType = SpatialTypeAnalysis.outputRoutineAbstract(
+    Routine(RoutinePtr("scc_abstract"), Vector.empty, Vector(sccEdgesMention),
+      SccCornerstone.expression(Space.Mention(sccEdgesMention))),
+    SpatialRoutineAnnotations(
+      spaces = Map(sccEdgesMention -> pattern(SizeExpr.symbol("sccEdges"), u("source"), u("target"))),
+      resultLaws = Vector(SpatialBoundLaw.ProvedUpperBound(
+        SizeExpr.multiply(SizeExpr.symbol("sccEdges"), SizeExpr.symbol("sccEdges")))),
+    ),
+    PartialFunction.empty,
+  )
+
   lazy val all: Vector[(String, SpatialType)] = Vector(
     "aunt" -> aunt,
     "semi-naive-datalog-fixpoint" -> datalog,
@@ -163,12 +181,15 @@ object CornerstoneAbstractInterpretations:
     "eight-puzzle-all-states" -> (() => CornerstoneAbstractInterpretations.puzzle),
     "temperature" -> (() => CornerstoneAbstractInterpretations.temperature),
     "nqueens" -> (() => CornerstoneAbstractInterpretations.nqueens),
+    "scc-mutual-reachability" -> (() => CornerstoneAbstractInterpretations.scc),
   ).foreach { (name, compute) =>
     val result = compute()
     println(s"$name\tsize=${result.size.show}\tlength=${result.pathLength.show}\tstrata=${result.strata.size}")
   }
 
 class CornerstoneSpatialTypeTest extends FunSuite:
+  override val munitTimeout: Duration = 1.minute
+
   private def transitiveClosure(edges: Set[(Int, Int)]): Set[(Int, Int)] =
     var known = edges
     var changed = true
@@ -251,6 +272,13 @@ class CornerstoneSpatialTypeTest extends FunSuite:
     assert(puzzle.strata.forall(_.cardinality.upper.evaluate.exists(_ <= 181440)))
   }
 
+  test("SCC cornerstone retains pair shape and the E-squared certificate") {
+    import CornerstoneAbstractInterpretations.scc
+    assertEquals(scc.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(2)))
+    assertEquals(scc.size.lower, SizeExpr.Zero)
+    assert(scc.size.upper.show.contains("sccEdges"), scc.size.show)
+  }
+
   test("directed closure cardinality contract is exhaustive on all three-node graphs") {
     val possible = (for left <- 0 until 3; right <- 0 until 3 yield left -> right).toVector
     for mask <- 0 until (1 << possible.size) do
@@ -277,4 +305,10 @@ class CornerstoneSpatialTypeTest extends FunSuite:
     import CornerstoneAbstractInterpretations.nqueensConstraintProblem
     val known = Vector[BigInt](1, 0, 0, 2, 10, 4)
     assertEquals((1 to 6).map(size => nqueensConstraintProblem(size).count).toVector, known)
+  }
+
+  test("sliding-puzzle component bounds are parameterized by board width") {
+    import CornerstoneAbstractInterpretations.slidingPuzzleStateCount
+    assertEquals((1 to 3).map(slidingPuzzleStateCount).toVector,
+      Vector[BigInt](1, 12, 181440))
   }

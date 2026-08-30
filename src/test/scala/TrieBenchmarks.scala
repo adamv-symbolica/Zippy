@@ -579,6 +579,7 @@ object TrieBenchmarks:
       ProgramCase("aunt synthetic", "process-sc static family 24 people", scAuntResidual.top, scPeopleCtx, scPeopleTrie, scAuntResidual.env, defs = scAuntResidual.routines.values.toVector, runs = 3, prep = Some(scAuntResidualProfile)),
       ProgramCase("graph two-hop", "reference 90-chain", twoHop.body, graphCtx, graphTrie, runs = 3),
       ProgramCase("graph mutual", "reference 90-chain", mutual.body, graphCtx, graphTrie, runs = 3),
+      ProgramCase("scc", "direct mutual reachability", SccCornerstone.body, runs = 3),
       ProgramCase(
         "datalog semi-naive",
         "reference 24-chain",

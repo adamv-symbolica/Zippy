@@ -15,7 +15,7 @@ Not everything in the pasted critique is addressed.
 The largest concrete change since the critique is real executable zipper support in Scala:
 `SpaceZipper.Cursor` / `CursorContext`, `PatchChild`, plug-invariance tests, virtual focus edits, exact observations, and exhaustive bounded oracle tests. This addresses the core "it is only a derivative, not a zipper" complaint for the Scala runtime path.
 
-The formal/egg side is still behind, but the operational track is less toy-like now. `zipper-descend.egg` has relational key analyses, exact positive key witnesses, negative nullable hooks, bounded virtual movement via `PatchFrameCtx` / `PatchChildOp`, alphabet-free concrete suffix-closure rules, finite `tail-frontier` observations, and explicit `HeadZ` / `IterZ` / `FixpointZ` forms for the operational cases currently justified. The repo now also has a proof gate in `tools/proof_pipeline.py`: Scala (`morkl.ProofArtifactGeneratorMain`) generates every SMT2/TPTP proof artifact and manifest, Scala (`morkl.generateZipperEggTests`) generates the independent example egg files, and the Python runner only invokes `/Applications/Vampire`, Z3, and egglog. Vampire proves first-order equivalence obligations connecting path-set, eager-trie, zipper membership/child/terminal notions, and grouped-head Iteration materialization, while Z3 bounded-checks concrete finite-language laws with negative controls, including Iteration schemas and small puzzle/n-queens examples. It still does not provide a complete cost semantics, a unified operational egg prelude, a non-vacuous normal-form semantics for all ops, recursive global virtual cursor saturation, or Antimirov closure state for fully general virtual closures.
+The formal/egg side is still behind, but the operational track is less toy-like now. `zipper-descend.egg` has relational key analyses, exact positive key witnesses, negative nullable hooks, bounded virtual movement via `PatchFrameCtx` / `PatchChildOp`, alphabet-free concrete suffix-closure rules, finite `tail-frontier` observations, and explicit `HeadZ` / `IterZ` / `FixpointZ` forms for the operational cases currently justified. The repo now also has a proof gate in `tools/proof_pipeline.py`: Scala (`morkl.ProofArtifactGeneratorMain`) generates every SMT2/TPTP proof artifact and manifest, Scala (`morkl.generateZipperEggTests`) generates the independent example egg files, and the Python runner invokes the configured Vampire command, Z3, and egglog. Vampire proves first-order equivalence obligations connecting path-set, eager-trie, zipper membership/child/terminal notions, and grouped-head Iteration materialization, while Z3 bounded-checks concrete finite-language laws with negative controls, including Iteration schemas and small puzzle/n-queens examples. It still does not provide a complete cost semantics, a unified operational egg prelude, a non-vacuous normal-form semantics for all ops, recursive global virtual cursor saturation, or Antimirov closure state for fully general virtual closures.
 
 ## Section 1: "It isn't a zipper"
 
@@ -182,7 +182,8 @@ Status: **Mostly addressed, but not perfect.**
 Status: **Partial.**
 
 Done:
-- Added a Vampire/TPTP equivalence gate using `/Applications/Vampire`.
+- Added a Vampire/TPTP equivalence gate using the configured `--vampire`,
+  `VAMPIRE`, or `PATH` command.
 - Added `morkl.ProofArtifactGeneratorMain` as the Scala source of truth for reproducible TPTP obligations under `proofs/vampire/generated/`.
 - Added the bounded SMT/Z3 law table to the same Scala source and generated reproducible SMT-LIB artifacts under `proofs/generated/`.
 - Added `proofs/proof_manifest.tsv`, generated from Scala and consumed by the Python runner.

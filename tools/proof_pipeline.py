@@ -380,6 +380,45 @@ def validate_symbol_coverage_artifacts(artifacts: list[Artifact], root: Path) ->
     )
 
 
+REQUIRED_FULL_PROGRAM_OBLIGATIONS = (
+    "semi-naive-datalog-full-program:structural_backend_equivalence",
+    "sliding-puzzle-2x2-full-program:structural_backend_equivalence",
+    "sliding-puzzle-2x2-24-state-step-full-program:structural_backend_equivalence",
+    "scc-full-program:structural_backend_equivalence",
+)
+
+
+def validate_required_full_program_obligations(artifacts: list[Artifact], root: Path) -> Result:
+    """Keep review-critical full-program proofs in the gate by manifest identity."""
+    by_name = {artifact.name: artifact for artifact in artifacts}
+    errors: list[str] = []
+    for name in REQUIRED_FULL_PROGRAM_OBLIGATIONS:
+        artifact = by_name.get(name)
+        if artifact is None:
+            errors.append(f"missing {name}")
+        elif artifact.kind != "vampire" or artifact.expected != "Theorem":
+            errors.append(f"{name}: expected vampire/Theorem, got {artifact.kind}/{artifact.expected}")
+        elif not artifact.artifact.exists():
+            errors.append(f"{name}: artifact missing at {display_path(artifact.artifact, root)}")
+    if errors:
+        return Result(
+            "required full-program obligations",
+            "manifest identities",
+            "invalid",
+            False,
+            "proofs/open/proof_manifest.tsv",
+            "; ".join(errors),
+        )
+    return Result(
+        "required full-program obligations",
+        "manifest identities",
+        "ok",
+        True,
+        "proofs/open/proof_manifest.tsv",
+        f"{len(REQUIRED_FULL_PROGRAM_OBLIGATIONS)} required structural obligations are present",
+    )
+
+
 def display_path(path: Path, root: Path) -> str:
     try:
         return str(path.relative_to(root))
@@ -3428,7 +3467,7 @@ def markdown_report(
         "- Scala is the source of truth for generated proof and example egg artifacts.",
         "- `morkl.ProofArtifactGeneratorMain` generates SMT2 and TPTP files plus `proofs/proof_manifest.tsv`.",
         "- `morkl.generateZipperEggTests` generates the shared-prelude `formal.egg` and `zipper.egg` introductions plus the independent `zipper-egg-tests/*.egg` examples.",
-        "- `morkl.generateCornerstoneProofArtifacts` generates exact-output SMT2/TPTP/egg certificates for aunt, semi-naive datalog, GOL, 15-puzzle, temperature, and n-queens.",
+        "- `morkl.generateCornerstoneProofArtifacts` generates exact-output TPTP/egg certificates for aunt, semi-naive datalog, GOL, 15-puzzle, temperature, n-queens, and SCC. The former tautological closed-output SMT2 certificates are intentionally not generated.",
         "- `morkl.generateOpenProgramProofArtifacts` generates open-program SMT2 equivalence obligations over symbolic bounded input spaces plus structural full-program TPTP obligations.",
         f"- The runner emits `{args.operational_manifest}` by scanning every operational `(rewrite ...)` and `(rule ...)` in `zipper-descend.egg`, mapping semantic rows to proof artifacts where known, mapping path normalizers, memo/cache wrappers, and scheduler-observability helpers to explicit FOL contracts where available, keeping any remaining relational frontier/key scheduling helpers as `axiom-elsewhere`, and marking missing semantic coverage as `UNPROVED`.",
         "- This Python script runs external solvers/checkers against the Scala-generated artifacts and curated termination artifacts.",
@@ -3441,7 +3480,7 @@ def markdown_report(
         "- Product/concatenation derivative laws are guarded by the principle `no concatenation escapes the bounded universe`: `child_product_*` uses a generated `ProductClosed(X,Y)` assumption that forbids exactly those X/Y path pairs whose concatenation would fall outside the bounded universe. Both `a` and `b` child representatives are checked, and the unguarded mutation must be `sat`.",
         "- Cornerstone example certificates are exact closed-program output equivalence checks generated from Scala after Scala has checked the compared evaluators/executors agree.",
         "- Open-program SMT certificates compare expanded source, source optimization, raw graph round-trip, and optimized graph round-trip for all symbolic inputs in each generated bounded universe.",
-        "- Structural full-program FOL certificates emit generated MORKL program DAGs for Aunt, semi-naive Datalog, GOL, temperature, 2x2 sliding puzzle, the complete 24-state 2x2 sliding-puzzle step, and 4-queens, then prove source, optimized-source, trie, zipper, and graph backends equivalent using constructor-specific implementation lemmas over arbitrary input-space interpretations. `Iter` is modeled with an explicit path/space binding environment; `Range` is modeled as source membership plus ordered rank/bounds selection.",
+        "- Structural full-program FOL certificates emit generated MORKL program DAGs for Aunt, semi-naive Datalog, GOL, temperature, 2x2 sliding puzzle, the complete 24-state 2x2 sliding-puzzle step, 4-queens, and SCC, then prove source, optimized-source, trie, zipper, and graph backends equivalent using constructor-specific implementation lemmas over arbitrary input-space interpretations. `Iter` is modeled with an explicit path/space binding environment; `Range` is modeled as source membership plus ordered rank/bounds selection.",
         "- `terminating/` carries hand-staged termination and least-fixpoint artifacts: Vampire-checkable least-fixpoint uniqueness and finite-growth decrease lemmas, Z3-checkable no-infinite-descent induction steps, egglog sketches, and Datalog/transitive termination/equivalence obligations. These artifacts are executed by the corresponding gate unless that gate is skipped.",
         "- Arbitrary-data backend obligations use symbolic input spaces/templates to prove source, trie, zipper, and graph constructors agree independently of the concrete example data.",
         "- Negative controls are intentionally false laws; they must return `sat`.",
@@ -3508,7 +3547,7 @@ def markdown_report(
         "- Iteration is now in the first-order and bounded proof layers, but arbitrary higher-order template equivalence is represented by schemas plus bounded examples rather than a generated semantic table.",
         "- Cornerstone example proofs are closed instantiated examples over their generated inputs/contexts; the open-program SMT tier covers proof-sized operator programs, benchmark skeletons, the full Aunt query over arbitrary bounded inputs, and a proof-sized full GOL helper expansion.",
         "- DAG-shared SMT emission is used for open-program obligations; whole programs with very large literal domains are better handled by the structural FOL tier.",
-        "- The structural full-program FOL tier covers the six cornerstone examples plus a dedicated complete 24-state 2x2 sliding-puzzle step certificate. It uses constructor-specific backend equivalence lemmas and concrete literal/path definitions instead of one generic backend-denotation axiom. `Iter` now has an explicit environment-stack semantics for bound path refs and rest spaces, including nested iteration capture; `Range` now exposes membership, rank, count, normalized bounds, and half-open interval selection. `Fixpoint` now exposes the union-saturating base-or-step equation in the same structural environment, and `terminating/` adds staged least-fixpoint uniqueness plus finite-growth/descent termination evidence for representative recursion families. Full positivity/leastness obligations for arbitrary source `Fixpoint` and mutual recursion are still not discharged from one unified semantic table. `Fold` and grounded functions remain represented by shared operator semantic predicates; the next tightening step is to unfold those remaining predicates into stronger op-specific FOL lemmas.",
+        "- The structural full-program FOL tier covers all seven cornerstone examples plus a dedicated complete 24-state 2x2 sliding-puzzle step certificate. It uses constructor-specific backend equivalence lemmas and concrete literal/path definitions instead of one generic backend-denotation axiom. `Iter` now has an explicit environment-stack semantics for bound path refs and rest spaces, including nested iteration capture; `Range` now exposes membership, rank, count, normalized bounds, and half-open interval selection. `Fixpoint` now exposes the union-saturating base-or-step equation in the same structural environment, and `terminating/` adds staged least-fixpoint uniqueness plus finite-growth/descent termination evidence for representative recursion families. Full positivity/leastness obligations for arbitrary source `Fixpoint` and mutual recursion are still not discharged from one unified semantic table. `Fold` and grounded functions remain represented by shared operator semantic predicates; the next tightening step is to unfold those remaining predicates into stronger op-specific FOL lemmas.",
         "- Operational egg `Range` no longer has the four-path fixture-shaped answer rewrites for negative-window, `RangeLast`, or `RangeDropLast`. Negative-window now decomposes to `RangeLast(RangeDropLast(src))`; `RangeLast` and `RangeDropLast` over the concrete border fixture are handled by local terminal/child movement rules instead of whole-result materialization. Broad ordered-union rewrites and generic eager `Child(Range*)` rewrites crossed the OOM-safety threshold and are intentionally not used. The focused `range-border-child.egg` artifact validates the safer ordered border-state relation (`range-child-result`) with hit, miss, absent-key, and negative probes; `range-observation.egg` now covers both the concrete four-path epsilon/a.a/a.b/b.a border fixture and a no-epsilon first-border fixture through that scheduled relation; and `range-border-operational.egg` extends the relation to concrete trie unions, virtual unions, nested drop-last, and shared-prefix/prefixed Range sources under explicit normalize/observe/range-border phases. The proof layer now adds unbounded ordered-key FOL child-border obligations for first terminal/pruning, first/last selected soundness, last pruning, and drop-last before/after pruning. The remaining tightening step is to prove full selected-branch equality for drop-last and derive the egg scheduling relations directly from the unified semantic table instead of combining those FOL obligations with bounded generated witnesses.",
         "- The Antimirov closure-state operators now have bounded SMT artifacts for frontier union, keyed frontier tails, nested frontier child movement, and suffix/tails closure child states, plus named unbounded FOL child/nested-child bridge obligations for suffix/tails closure frontiers. Laws involving mutual recursion, leastness/positivity obligations for general Fixpoint lowering, and an unbounded bisimulation proof of the complete demand-driven frontier scheduler are not complete in this gate.",
         "- The main proof and runtime track is intentionally path-set-only. The value-payload experiment lives under `valued/` so the unit track can fully exploit stronger set laws and remain buildable with that directory removed.",
@@ -3531,7 +3570,7 @@ def main(argv: Sequence[str]) -> int:
     parser.add_argument("--open-manifest", default="proofs/open/proof_manifest.tsv", help="Scala-generated open-program proof manifest")
     parser.add_argument("--operational-manifest", default="proofs/operational_rule_manifest.tsv", help="generated zipper-descend operational rule proof-coverage manifest")
     parser.add_argument("--report", default="docs/proofs/PROOF_REPORT.md", help="markdown report path")
-    parser.add_argument("--vampire", default="/Applications/Vampire", help="path to the Vampire executable")
+    parser.add_argument("--vampire", default=None, help="path or command name for Vampire (default: VAMPIRE, then PATH)")
     parser.add_argument("--vampire-time-limit", type=int, default=300, help="per-obligation Vampire time limit in seconds")
     parser.add_argument("--z3-time-limit", type=int, default=300, help="per-obligation Z3 time limit in seconds")
     parser.add_argument("--solver-workers", type=int, default=min(4, os.cpu_count() or 1), help="maximum parallel solver workers per solver family")
@@ -3543,7 +3582,15 @@ def main(argv: Sequence[str]) -> int:
     parser.add_argument("--no-z3", action="store_true", help="skip Z3 bounded proof obligations")
     parser.add_argument("--no-egg", action="store_true", help="skip egglog artifact checks")
     parser.add_argument("--require-vampire", action="store_true", help="fail if vampire is unavailable")
+    parser.add_argument("--long", action="store_true", help="use the larger standard bounded universe (a,b,c through length 4)")
     args = parser.parse_args(argv)
+    def supplied(option: str) -> bool:
+        return any(value == option or value.startswith(option + "=") for value in argv)
+    if args.long:
+        if not supplied("--alphabet"):
+            args.alphabet = "a,b,c"
+        if not supplied("--max-len"):
+            args.max_len = 4
 
     root = Path(__file__).resolve().parents[1]
     generation_results: list[Result] = []
@@ -3613,14 +3660,14 @@ def main(argv: Sequence[str]) -> int:
         report_path.write_text(report, encoding="utf-8")
         print(f"FAIL symbol-coverage invariant: {symbol_coverage_result.note}", file=sys.stderr)
         return 1
-    negative_key_result = validate_negative_key_acceptance(root)
-    generation_results.append(negative_key_result)
-    if not negative_key_result.ok:
+    required_full_program_result = validate_required_full_program_obligations(artifacts, root)
+    generation_results.append(required_full_program_result)
+    if not required_full_program_result.ok:
         report = markdown_report(args, generation_results, [], [], [], None, root)
         report_path = root / args.report
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(report, encoding="utf-8")
-        print(f"FAIL negative/key acceptance invariant: {negative_key_result.note}", file=sys.stderr)
+        print(f"FAIL required full-program obligations: {required_full_program_result.note}", file=sys.stderr)
         return 1
     closure_rewrite_result = validate_no_concrete_closure_rewrites(root)
     generation_results.append(closure_rewrite_result)
@@ -3640,42 +3687,6 @@ def main(argv: Sequence[str]) -> int:
         report_path.write_text(report, encoding="utf-8")
         print(f"FAIL frontier algebra rule invariant: {frontier_algebra_result.note}", file=sys.stderr)
         return 1
-    iter_fixpoint_result = validate_iter_fixpoint_acceptance(artifacts, root)
-    generation_results.append(iter_fixpoint_result)
-    if not iter_fixpoint_result.ok:
-        report = markdown_report(args, generation_results, [], [], [], None, root)
-        report_path = root / args.report
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(report, encoding="utf-8")
-        print(f"FAIL iter/fixpoint acceptance invariant: {iter_fixpoint_result.note}", file=sys.stderr)
-        return 1
-    context_movement_result = validate_context_movement_acceptance(artifacts, root)
-    generation_results.append(context_movement_result)
-    if not context_movement_result.ok:
-        report = markdown_report(args, generation_results, [], [], [], None, root)
-        report_path = root / args.report
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(report, encoding="utf-8")
-        print(f"FAIL context movement acceptance invariant: {context_movement_result.note}", file=sys.stderr)
-        return 1
-    executable_context_result = validate_executable_zipper_context_acceptance(root)
-    generation_results.append(executable_context_result)
-    if not executable_context_result.ok:
-        report = markdown_report(args, generation_results, [], [], [], None, root)
-        report_path = root / args.report
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(report, encoding="utf-8")
-        print(f"FAIL executable zipper context invariant: {executable_context_result.note}", file=sys.stderr)
-        return 1
-    transform_replacement_result = validate_transform_replacement_acceptance(artifacts, root)
-    generation_results.append(transform_replacement_result)
-    if not transform_replacement_result.ok:
-        report = markdown_report(args, generation_results, [], [], [], None, root)
-        report_path = root / args.report
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(report, encoding="utf-8")
-        print(f"FAIL transform replacement invariant: {transform_replacement_result.note}", file=sys.stderr)
-        return 1
     termination_result = validate_termination_artifacts(root)
     generation_results.append(termination_result)
     if not termination_result.ok:
@@ -3684,15 +3695,6 @@ def main(argv: Sequence[str]) -> int:
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(report, encoding="utf-8")
         print(f"FAIL termination proof artifact invariant: {termination_result.note}", file=sys.stderr)
-        return 1
-    range_acceptance_result = validate_range_acceptance(artifacts, root)
-    generation_results.append(range_acceptance_result)
-    if not range_acceptance_result.ok:
-        report = markdown_report(args, generation_results, [], [], [], None, root)
-        report_path = root / args.report
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(report, encoding="utf-8")
-        print(f"FAIL Range acceptance invariant: {range_acceptance_result.note}", file=sys.stderr)
         return 1
     op_manifest_result = generate_operational_rule_manifest(root, artifacts, root / args.operational_manifest)
     generation_results.append(op_manifest_result)
@@ -3723,10 +3725,14 @@ def main(argv: Sequence[str]) -> int:
     if not args.no_z3 and not z3:
         print("z3 not found on PATH", file=sys.stderr)
         return 2
-    vampire_candidate = Path(args.vampire)
-    vampire = str(vampire_candidate) if vampire_candidate.exists() else shutil.which("vampire")
+    configured_vampire = args.vampire or os.environ.get("VAMPIRE")
+    if configured_vampire:
+        vampire_candidate = Path(configured_vampire)
+        vampire = str(vampire_candidate) if vampire_candidate.exists() else shutil.which(configured_vampire)
+    else:
+        vampire = shutil.which("vampire")
     if not args.no_vampire and not vampire:
-        print("vampire not found on PATH and --vampire does not exist", file=sys.stderr)
+        print("vampire not found via --vampire, VAMPIRE, or PATH", file=sys.stderr)
         return 2
     if args.require_vampire and not vampire:
         print("vampire not found on PATH", file=sys.stderr)

@@ -1425,21 +1425,27 @@ def graphReferenceErrors(g: RecursiveOpGraph, path: Vector[Int] = Vector.empty):
   }
   (rootBad ++ nodeBad).toVector
 
+private def alphaNormalizedGraphNode(node: Node[(Int, Int)]): Node[(Int, Int)] =
+  node.operation match
+    case "Iteration" | "Fold" | "Fixpoint" | "ExtractPathRef" | "ExtractSpaceMention" =>
+      node.copy(constant = "<binder>")
+    case _ => node
+
 def graphStructurallyEqual(a: RecursiveOpGraph, b: RecursiveOpGraph): Boolean =
-  a.root == b.root &&
+  alphaNormalizedGraphNode(a.root) == alphaNormalizedGraphNode(b.root) &&
     a.nodes.length == b.nodes.length &&
     a.nodes.iterator.zip(b.nodes.iterator).forall {
-      case (Left(x), Left(y)) => x == y
+      case (Left(x), Left(y)) => alphaNormalizedGraphNode(x) == alphaNormalizedGraphNode(y)
       case (Right(x), Right(y)) => graphStructurallyEqual(x, y)
       case _ => false
     }
 
 def graphStructuralHash(g: RecursiveOpGraph): Int =
   import scala.util.hashing.MurmurHash3
-  var hash = MurmurHash3.productHash(g.root)
+  var hash = MurmurHash3.productHash(alphaNormalizedGraphNode(g.root))
   for entry <- g.nodes do
     val next = entry match
-      case Left(node) => MurmurHash3.productHash(node)
+      case Left(node) => MurmurHash3.productHash(alphaNormalizedGraphNode(node))
       case Right(subgraph) => graphStructuralHash(subgraph)
     hash = MurmurHash3.mix(hash, next)
   MurmurHash3.finalizeHash(hash, g.nodes.size + 1)

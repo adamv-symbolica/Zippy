@@ -125,6 +125,7 @@ object OpenProgramProofArtifacts:
       defs = Vector(Routines.aunt_query_routine),
       alphabet = Vector("Aunt", "parent", "child", "female", "person", "a", "b"),
       maxLen = 3,
+      relations = Set.empty,
       note = "Full Aunt query routine over arbitrary bounded family/people spaces.",
     )
 
@@ -184,6 +185,7 @@ object OpenProgramProofArtifacts:
       alphabet = Vector("Cell", "hit", "-1", "0", "1", "2"),
       maxLen = 3,
       explicitUniverse = Some(lifeUniverse(-1 to 2)),
+      relations = Set.empty,
       note = "Full pure Game-of-Life nextStep routine over arbitrary bounded field data, using the same neighbor/range-cardinality construction on a proof-sized coordinate window.",
     )
 
@@ -487,6 +489,12 @@ object OpenProgramProofArtifacts:
         queens4.copy(name = RoutinePtr("nqueens_4_full_program")),
         defs = queensDefs,
         note = "Full pure 4-queens program.",
+      ),
+      OpenProgramCase(
+        "scc-full-program",
+        Routine(RoutinePtr("scc_full_program"), Vector.empty, Vector(SpaceMention("edges")),
+          SccCornerstone.expression(S"edges")),
+        note = "Direct SCC mutual-reachability program over arbitrary edge data.",
       ),
     )
 

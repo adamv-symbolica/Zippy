@@ -38,28 +38,43 @@ enum Z3SetFormula:
     case Z3SetFormula.And(left, right) => left.contains(mask) && right.contains(mask)
     case Z3SetFormula.Not(value) => !value.contains(mask)
 
-private object Z3Executable:
+final class MissingZ3Executable(message: String, cause: Throwable)
+    extends IllegalStateException(message, cause)
+
+private[morkl] object Z3Executable:
   private val executable = Option(System.getProperty("morkl.z3")).filter(_.nonEmpty).getOrElse("z3")
   private val timeoutMillis = Option(System.getProperty("morkl.z3.timeoutMillis"))
     .flatMap(_.toLongOption).getOrElse(1000L).max(1L)
 
+  private[morkl] def runCommand(
+    command: Seq[String],
+    script: String,
+    waitMillis: Long = timeoutMillis + 500L
+  ): Option[String] =
+    val process =
+      try ProcessBuilder(command*).redirectErrorStream(true).start()
+      catch
+        case error: java.io.IOException =>
+          throw MissingZ3Executable(
+            s"unable to start Z3 command '${command.mkString(" ")}'. Install Z3 or set -Dmorkl.z3=/path/to/z3",
+            error
+          )
+    val writer = process.outputWriter(StandardCharsets.UTF_8)
+    writer.write(script)
+    writer.close()
+    if !process.waitFor(waitMillis, TimeUnit.MILLISECONDS) then
+      process.destroyForcibly()
+      Console.err.println(s"Z3 timed out after ${waitMillis}ms while evaluating an analyzer obligation")
+      None
+    else
+      val source = Source.fromInputStream(process.getInputStream, StandardCharsets.UTF_8.name())
+      try
+        val output = source.mkString
+        if process.exitValue() == 0 then Some(output) else None
+      finally source.close()
+
   def run(script: String): Option[String] =
-    try
-      val process = ProcessBuilder(executable, "-in", "-smt2").redirectErrorStream(true).start()
-      val writer = process.outputWriter(StandardCharsets.UTF_8)
-      writer.write(script)
-      writer.close()
-      if !process.waitFor(timeoutMillis + 500L, TimeUnit.MILLISECONDS) then
-        process.destroyForcibly()
-        None
-      else
-        val source = Source.fromInputStream(process.getInputStream, StandardCharsets.UTF_8.name())
-        try
-          val output = source.mkString
-          if process.exitValue() == 0 then Some(output) else None
-        finally source.close()
-    catch
-      case _: Exception => None
+    runCommand(Vector(executable, "-in", "-smt2"), script)
 
   def timeoutOption: String = s"(set-option :timeout $timeoutMillis)\n"
 
@@ -281,6 +296,7 @@ object Z3ResultSpaceSize:
 
   private def strengthen(baseline: ResultSizeEstimate, refinement: ResultSizeEstimate): ResultSizeEstimate =
     if baseline == refinement then baseline
+    else if refinement.exact then refinement
     else ResultSizeEstimate(
       if baseline.upper == refinement.upper then baseline.upper else SizeExpr.minimum(baseline.upper, refinement.upper),
       if baseline.lower == refinement.lower then baseline.lower else SizeExpr.maximum(baseline.lower, refinement.lower)

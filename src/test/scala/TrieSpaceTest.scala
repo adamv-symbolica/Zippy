@@ -1062,6 +1062,23 @@ class TrieSpaceTest extends FunSuite:
     assertEquals(execTValue(shared, routine.mentions, tctx), expected)
   }
 
+  test("optimal sharing treats renamed iteration binders as alpha-equivalent") {
+    val first = S"xs".iter(P"left_head", S"left_tail", Space.Singleton("tag" x P"left_head"))
+    val second = S"xs".iter(P"right_head", S"right_tail", Space.Singleton("tag" x P"right_head"))
+    val routine = R"share_alpha_iterations"(S"xs") := (first \/ second)
+    val raw = transpile(routine)
+    val shared = optimize_sharing(raw)
+    val ctx = SpaceContextMap(Map(SpaceMention("xs") -> SpaceValue("a.left", "b.right")))
+    val tctx = TrieSpaceContext.fromReference(ctx)
+    val expected = eval(routine.body)(using sc = ctx)
+
+    assertEquals(subgraphCount(raw, "Iteration"), 2)
+    assertEquals(subgraphCount(shared, "Iteration"), 1, shared.show)
+    assertGraphWellScoped(shared, "alpha-equivalent subgraph sharing")
+    assertEquals(execValue(shared, routine.mentions, ctx), expected)
+    assertEquals(execTValue(shared, routine.mentions, tctx), expected)
+  }
+
   test("loop invariant hoist lifts transitive invariant DAG out of iteration") {
     val routine = R"loop_hoist"(S"xs", S"ys") :=
       S"xs".iter(P"h", S"tail",
@@ -1482,6 +1499,38 @@ class TrieSpaceTest extends FunSuite:
       )
     )
     assertEquals(exactHead.toSpaceValue, SpaceValue("b"))
+  }
+
+  test("zipper transpilation executes nonrecursive helpers with path and space arguments") {
+    val helper = R"zipper_helper"(P"prefix", S"input") :=
+      (P"prefix" x S"input") \/ ("tails" x \/(S"input"))
+    val call = R"zipper_helper"("tag", Space.Literal(SpaceValue("a.1", "a.2", "b.3")))
+    val routines = mod(helper)
+    assertEquals(evalZ(call)(using PathContext.emptyMap, ZipperSpaceContext.emptyMap, routines).toSpaceValue,
+      eval(call)(using PathContext.emptyMap, SpaceContextMap(Map.empty), routines))
+  }
+
+  test("semi-naive helper recursion lowers to an executable zipper fixpoint") {
+    val edges = Space.Literal(SpaceValue("edge.a.b", "edge.b.c", "edge.c.d"))
+    val routine = DatalogExample.semiNaiveTransitive
+    val call = routine.name(DatalogExample.semiNaiveInitial(edges))("complete.path")
+    val routines = mod(routine)
+    val lowered = Supercompiler.lowerFixpointCalls(call, routines)
+    assert(collect(lowered)(spre = { case Space.Fixpoint(_, _, _) => () })._1.nonEmpty, lowered.show)
+    assertEquals(evalZ(lowered).toSpaceValue,
+      eval(call)(using PathContext.emptyMap, SpaceContextMap(Map.empty), routines))
+  }
+
+  test("tail fixpoint answers a focused child without eager Kleene rounds") {
+    val source = Space.Literal(SpaceValue(
+      (0 until 256).map(i => Syntax.parse(s"root.$i.leaf")).toSet,
+    ))
+    val state = SpaceMention("focused_fixpoint_state")
+    val zipper = transpileZ(Space.Fixpoint(source, state, Space.TailsUnion(Space.Mention(state))))
+    val root = TrieSpace.intern(Syntax.parse("root")).head
+    val (focused, cost) = ExecutorCostMeter.measure(zipper.child(root).toSpaceValue)
+    assertEquals(focused.paths.size, 256)
+    assertEquals(cost.rounds, 0L, s"tail closure should use its demand-driven frontier, saw $cost")
   }
 
   test("zipper range over virtual operands stays a border traversal") {

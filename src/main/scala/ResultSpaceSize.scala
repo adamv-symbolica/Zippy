@@ -68,7 +68,13 @@ enum SizeExpr:
   /** Resolve a sound one-sided bound using only annotations. Unknown natural
     * values contribute zero to lower bounds and infinity to upper bounds. */
   def annotatedBound(direction: Z3BoundDirection): Option[BigInt] =
-    def lower(value: SizeExpr): BigInt = value match
+    def lower(value: SizeExpr): BigInt =
+      SizeExpr.cachedAnnotatedLower(value).getOrElse {
+        val result = lowerUncached(value)
+        SizeExpr.cacheAnnotatedLower(value, result)
+        result
+      }
+    def lowerUncached(value: SizeExpr): BigInt = value match
       case SizeExpr.Const(n) => n
       case SizeExpr.Symbol(_) | SizeExpr.SizeOf(_) | SizeExpr.Infinity => BigInt(0)
       case SizeExpr.Add(terms) => terms.map(lower).sum
@@ -86,7 +92,13 @@ enum SizeExpr:
           case None => lower(ifZero).min(lower(ifNonZero))
       case value @ SizeExpr.Z3Cardinality(_, storedDirection, _) =>
         value.annotatedValue.orElse(z3Bound(value, storedDirection)).getOrElse(BigInt(0))
-    def upper(value: SizeExpr): Option[BigInt] = value match
+    def upper(value: SizeExpr): Option[BigInt] =
+      SizeExpr.cachedAnnotatedUpper(value).getOrElse {
+        val result = upperUncached(value)
+        SizeExpr.cacheAnnotatedUpper(value, result)
+        result
+      }
+    def upperUncached(value: SizeExpr): Option[BigInt] = value match
       case SizeExpr.Const(n) => Some(n)
       case SizeExpr.Symbol(_) | SizeExpr.SizeOf(_) | SizeExpr.Infinity => None
       case SizeExpr.Add(terms) =>
@@ -211,6 +223,28 @@ case class AsymptoticOrder(exponentials: Int, degree: Int, logarithms: Int) exte
   def show: String = s"O(exp^$exponentials n^$degree log^$logarithms n)"
 
 object SizeExpr:
+  private val annotatedLowerCache = java.util.IdentityHashMap[SizeExpr, BigInt]()
+  private val annotatedUpperCache = java.util.IdentityHashMap[SizeExpr, Option[BigInt]]()
+  private val AnnotatedCacheLimit = 200000
+
+  private def cachedAnnotatedLower(value: SizeExpr): Option[BigInt] = annotatedLowerCache.synchronized {
+    Option(annotatedLowerCache.get(value))
+  }
+
+  private def cachedAnnotatedUpper(value: SizeExpr): Option[Option[BigInt]] = annotatedUpperCache.synchronized {
+    Option.when(annotatedUpperCache.containsKey(value))(annotatedUpperCache.get(value))
+  }
+
+  private def cacheAnnotatedLower(value: SizeExpr, result: BigInt): Unit = annotatedLowerCache.synchronized {
+    if annotatedLowerCache.size >= AnnotatedCacheLimit then annotatedLowerCache.clear()
+    annotatedLowerCache.put(value, result)
+  }
+
+  private def cacheAnnotatedUpper(value: SizeExpr, result: Option[BigInt]): Unit = annotatedUpperCache.synchronized {
+    if annotatedUpperCache.size >= AnnotatedCacheLimit then annotatedUpperCache.clear()
+    annotatedUpperCache.put(value, result)
+  }
+
   val Zero: SizeExpr = SizeExpr.Const(0)
   val One: SizeExpr = SizeExpr.Const(1)
 
@@ -685,6 +719,32 @@ object ResultSpaceSize:
         .maxOption
         .fold(BigInt(0))(BigInt(_))
 
+  private def literalRestrictionSize(source: SpaceValue, prefixes: SpaceValue): BigInt =
+    BigInt(source.paths.count(path => prefixes.paths.exists(prefix => path.items.startsWith(prefix.items))))
+
+  private def reconstructsIterationSource(body: Space, symbol: PathRef, rest: SpaceMention): Boolean = body match
+    case Space.Wrap(Space.Mention(tail), Path.Deref(head)) => tail == rest && head == symbol
+    case Space.Composition(Space.Singleton(Path.Deref(head)), Space.Mention(tail)) => tail == rest && head == symbol
+    case _ => false
+
+  /** Exact union of literal lookup fibers selected by the source heads. This
+    * keeps dependent fibers distinct instead of multiplying max-fiber by the
+    * number of source groups. */
+  private def exactLiteralLookupIteration(
+    source: Space,
+    symbol: PathRef,
+    body: Space,
+  ): Option[BigInt] = (source, body) match
+    case (Space.Literal(sourceValue), Space.Unwrap(Space.Literal(relation), Path.Deref(ref))) if ref == symbol =>
+      val heads = sourceValue.paths.flatMap(_.items.headOption)
+      val tails = for
+        path <- relation.paths
+        head <- path.items.headOption
+        if heads(head)
+      yield PathValue(path.items.tail)
+      Some(BigInt(tails.size))
+    case _ => None
+
   /** True when every possible member is headed (the empty set is vacuously so). */
   private def headedOnly(space: Space): Boolean = space match
     case Space.Empty => true
@@ -763,9 +823,16 @@ object ResultSpaceSize:
           else ResultSizeEstimate(l.upper, SizeExpr.positiveDifference(l.lower, r.upper))
       case Space.Restriction(left, prefixes) =>
         val l = rec(left)
-        val p = rec(prefixes)
-        if exactZero(l) || exactZero(p) then ResultSizeEstimate.empty
-        else ResultSizeEstimate(l.upper, SizeExpr.Zero)
+        if sameSpaceInstance(left, prefixes) then l
+        else
+          val p = rec(prefixes)
+          if exactZero(l) || exactZero(p) then ResultSizeEstimate.empty
+          else (left, prefixes) match
+            case (Space.Literal(source), Space.Literal(prefixValues)) =>
+              ResultSizeEstimate.exact(SizeExpr.const(literalRestrictionSize(source, prefixValues)))
+            case (_, Space.Singleton(Path.Constant(PathValue(Nil)))) => l
+            case (_, Space.Literal(prefixValues)) if prefixValues.paths.contains(PathValue(Nil)) => l
+            case _ => ResultSizeEstimate(l.upper, SizeExpr.Zero)
       case Space.Raffination(left, prefixes) =>
         val l = rec(left)
         val p = rec(prefixes)
@@ -800,6 +867,18 @@ object ResultSpaceSize:
           case None =>
             val source = rec(src)
             if exactZero(source) then ResultSizeEstimate.empty
+            else if operationLaws && reconstructsIterationSource(body, symbol, rest) then
+              src match
+                case Space.Literal(value) =>
+                  ResultSizeEstimate.exact(SizeExpr.const(value.paths.count(_.items.nonEmpty)))
+                case _ =>
+                  ResultSizeEstimate(
+                    source.upper,
+                    if headedOnly(src) then source.lower
+                    else SizeExpr.positiveDifference(source.lower, SizeExpr.One),
+                  )
+            else if operationLaws && exactLiteralLookupIteration(src, symbol, body).nonEmpty then
+              ResultSizeEstimate.exact(SizeExpr.const(exactLiteralLookupIteration(src, symbol, body).get))
             else
               val restEstimate =
                 if rest.sizeHint >= 0 then ResultSizeEstimate.exact(SizeExpr.const(rest.sizeHint))

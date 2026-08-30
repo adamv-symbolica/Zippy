@@ -1,10 +1,7 @@
 package morkl
 
-import java.nio.charset.StandardCharsets
-import java.util.concurrent.TimeUnit
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
-import scala.io.Source
 
 /** Symbolic bounds on the length of every path in a result space.
   * `Infinity` is both an unknown upper bound and the lower-bound identity for
@@ -435,28 +432,6 @@ object ResultPathLength:
       case Space.GroundedPS(_, _) | Space.GroundedSS(_, _) => opaque(space, boundSpaces, boundPaths)
       case Space.Range(src, _, _) => rec(src)
 
-private object PathLengthZ3Executable:
-  private val executable = Option(System.getProperty("morkl.z3")).filter(_.nonEmpty).getOrElse("z3")
-  private val timeoutMillis = Option(System.getProperty("morkl.z3.timeoutMillis"))
-    .flatMap(_.toLongOption).getOrElse(1000L).max(1L)
-
-  def run(script: String): Option[String] =
-    try
-      val process = ProcessBuilder(executable, "-in", "-smt2").redirectErrorStream(true).start()
-      val writer = process.outputWriter(StandardCharsets.UTF_8)
-      writer.write(script)
-      writer.close()
-      if !process.waitFor(timeoutMillis + 500L, TimeUnit.MILLISECONDS) then
-        process.destroyForcibly()
-        None
-      else
-        val source = Source.fromInputStream(process.getInputStream, StandardCharsets.UTF_8.name())
-        try Option.when(process.exitValue() == 0)(source.mkString)
-        finally source.close()
-    catch case _: Exception => None
-
-  def timeoutOption: String = s"(set-option :timeout $timeoutMillis)\n"
-
 case class Z3PathLengthProblem(
   formula: Z3SetFormula,
   lengths: Vector[PathLengthEstimate],
@@ -536,13 +511,13 @@ private object Z3PathLengthSolver:
          |""".stripMargin
     }.mkString
     val script =
-      s"""${PathLengthZ3Executable.timeoutOption}(set-logic QF_LIA)
+      s"""${Z3Executable.timeoutOption}(set-logic QF_LIA)
          |$declarations
          |$constraints
          |$relationConstraints
          |$checks
          |""".stripMargin
-    PathLengthZ3Executable.run(script).flatMap { output =>
+    Z3Executable.run(script).flatMap { output =>
       val statuses = relevant.map(mask => mask -> status(output, s"MASK_$mask"))
       Option.when(statuses.forall(_._2.exists(_ != "unknown")))(
         statuses.collect { case (mask, Some("sat")) => mask }.toSet

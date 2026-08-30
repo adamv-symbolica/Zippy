@@ -260,6 +260,40 @@ object SpatialTypeAnalysis:
       SizeExpr.add(left.size.lower, right.size.lower), result.size.lower,
       operationKind = SpatialCostOperation.Union)
 
+  /** A zipper union is a virtual view. When its only consumer is an
+    * intersection, traversal is bounded by the demanded operand's frontier;
+    * the reference/trie/graph costs deliberately retain their eager bounds. */
+  private def capZipperUnionForDemand(unionType: SpatialType, demand: SpatialType): SpatialType =
+    val cost = unionType.cost
+    val original = cost.forBackend(SpatialBackend.Zipper)
+    val demandNodes = SpatialCostMeasure(demand).nodesUpper
+    val cap = SizeExpr.multiply(SizeExpr.const(2), demandNodes)
+    val bounded = original.copy(
+      workUpper = SizeExpr.minimum(original.workUpper, cap),
+      allocationUpper = SizeExpr.minimum(original.allocationUpper, demandNodes),
+      componentsUpper = original.componentsUpper.copy(
+        nodeVisits = SizeExpr.minimum(original.componentsUpper.nodeVisits, cap),
+        allocations = SizeExpr.minimum(original.componentsUpper.allocations, demandNodes),
+      ),
+    )
+    unionType.copy(cost = cost.copy(backend = cost.backend.updated(SpatialBackend.Zipper, bounded)))
+
+  private def capZipperIntersectionForDemand(value: SpatialType, demand: SpatialType): SpatialType =
+    val cost = value.cost
+    val original = cost.forBackend(SpatialBackend.Zipper)
+    val demandNodes = SpatialCostMeasure(demand).nodesUpper
+    // One demand traversal plus a membership descent into each virtual-union branch.
+    val cap = SizeExpr.multiply(SizeExpr.const(3), demandNodes)
+    val bounded = original.copy(
+      workUpper = SizeExpr.minimum(original.workUpper, cap),
+      allocationUpper = SizeExpr.minimum(original.allocationUpper, demandNodes),
+      componentsUpper = original.componentsUpper.copy(
+        nodeVisits = SizeExpr.minimum(original.componentsUpper.nodeVisits, cap),
+        allocations = SizeExpr.minimum(original.componentsUpper.allocations, demandNodes),
+      ),
+    )
+    value.copy(cost = cost.copy(backend = cost.backend.updated(SpatialBackend.Zipper, bounded)))
+
   private def intersection(left: SpatialType, right: SpatialType): SpatialType =
     if left.isBottom || right.isBottom then return SpatialType.bottom
     if left.isEmpty || right.isEmpty then return SpatialType.empty
@@ -772,7 +806,20 @@ object SpatialTypeAnalysis:
           case _ => union(rec(left), rec(right))
       case Space.Intersection(left, right) =>
         if left == right then rec(left)
-        else intersection(rec(left), rec(right))
+        else
+          val leftType = rec(left)
+          val rightType = rec(right)
+          val demandedLeft = left match
+            case Space.Union(_, _) => capZipperUnionForDemand(leftType, rightType)
+            case _ => leftType
+          val demandedRight = right match
+            case Space.Union(_, _) => capZipperUnionForDemand(rightType, leftType)
+            case _ => rightType
+          val combined = intersection(demandedLeft, demandedRight)
+          (left, right) match
+            case (Space.Union(_, _), _) => capZipperIntersectionForDemand(combined, rightType)
+            case (_, Space.Union(_, _)) => capZipperIntersectionForDemand(combined, leftType)
+            case _ => combined
       case Space.Subtraction(left, right) =>
         if left == right then SpatialType.empty
         else subtraction(rec(left), rec(right))
