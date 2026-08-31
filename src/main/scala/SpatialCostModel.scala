@@ -368,8 +368,4 @@ object SpatialCostModels:
 /** Closed forms used by recursive and fixed-point cost transfers. */
 object SpatialRecurrence:
   def solve(additive: SizeExpr, branching: SizeExpr, rounds: SizeExpr): SizeExpr =
-    branching.annotatedValue match
-      case Some(value) if value == 0 => additive
-      case Some(value) if value == 1 => SizeExpr.multiply(additive, rounds)
-      case Some(value) => SizeExpr.multiply(additive, SizeExpr.symbol(s"geom($value,${rounds.show})"))
-      case None => SizeExpr.multiply(additive, SizeExpr.symbol(s"geom(${branching.show},${rounds.show})"))
+    SizeExpr.multiply(additive, SizeExpr.geometricSeries(branching, rounds))

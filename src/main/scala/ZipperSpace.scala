@@ -8,6 +8,11 @@ trait SpaceZipper:
   def child(item: Int): SpaceZipper
   def childKeys: IterableOnce[Int]
   def knownEmpty: Boolean = false
+  /** A cheap exact value or upper bound for the number of immediate keys.
+    * Consumers may use this to choose which operand to enumerate, but never
+    * for denotational decisions.  In particular, virtual unions can add their
+    * operand hints without forcing either child iterator. */
+  def childKeySizeHint: Option[Int] = None
   def nonterminal: Boolean = !terminal
   def childKeySet: Set[Int] = childrenIterator.map(_._1).toSet
   def observation: SpaceZipper.Observation =
@@ -17,9 +22,19 @@ trait SpaceZipper:
     childKeys.iterator.map(k => k -> child(k)).filterNot(_._2.isEmpty)
   def concrete: Option[TrieSpace] = None
   def isEmpty: Boolean = !terminal && !childrenIterator.hasNext
-  def hasChild(item: Int): Boolean = !child(item).isEmpty
-  lazy val pathCount: Int =
+  protected final def meteredChildProbe(result: => Boolean): Boolean =
+    ExecutorCostMeter.cursorProbe()
+    result
+  protected final def meteredChildKeys(keys: Iterator[Int]): Iterator[Int] =
+    keys.map { key =>
+      ExecutorCostMeter.cursorProbe()
+      key
+    }
+  def hasChild(item: Int): Boolean = meteredChildProbe(!child(item).isEmpty)
+  protected final def pathCountByTraversal: Int =
     (if terminal then 1 else 0) + childrenIterator.map(_._2.pathCount).sum
+  lazy val pathCount: Int =
+    concrete.fold(pathCountByTraversal)(_.pathCount)
   def orderedChildrenIterator: Iterator[(Int, SpaceZipper)] =
     orderedChildren.iterator
   def orderedChildren: Array[(Int, SpaceZipper)] =
@@ -34,14 +49,14 @@ trait SpaceZipper:
       else if comparison > 0 then high = middle - 1
       else return middle
     -1
-  def materialize: TrieSpace =
-    concrete.getOrElse {
-      val children = childrenIterator.flatMap { (item, z) =>
-        val childTrie = z.materialize
-        Option.when(!childTrie.isEmpty)(item -> childTrie)
-      }
-      TrieSpace.node(terminal, IntMap.from(children))
+  protected final def materializeByTraversal: TrieSpace =
+    val children = childrenIterator.flatMap { (item, z) =>
+      val childTrie = z.materialize
+      Option.when(!childTrie.isEmpty)(item -> childTrie)
     }
+    TrieSpace.node(terminal, IntMap.from(children))
+  def materialize: TrieSpace =
+    concrete.getOrElse(materializeByTraversal)
   def toSpaceValue: SpaceValue = materialize.toSpaceValue
 
 object SpaceZipper:
@@ -134,6 +149,12 @@ object SpaceZipper:
     case RangeReconstruct(start: Int, end: Int)
     case PrefixedRangeReconstruct(prefix: List[Int], start: Int, end: Int)
 
+  /** A cursor backed by a higher-order fixpoint engine rather than by one of
+    * the first-order zipper constructors below. Artifact exporters can name
+    * this boundary and materialize it explicitly without silently treating an
+    * unrelated future zipper implementation as a concrete trie. */
+  private[morkl] sealed trait DeferredFixpointFocus extends SpaceZipper
+
   def union(a: SpaceZipper, b: SpaceZipper): SpaceZipper =
     if sameValue(a, b) then a
     else if a.knownEmpty then b
@@ -186,6 +207,17 @@ object SpaceZipper:
     if src.knownEmpty then empty else memo(Iteration(src, branch, template))
   def fixpoint(src: SpaceZipper, template: IterTemplateTag): SpaceZipper =
     if src.knownEmpty then empty else memo(Fixpoint(src, template))
+  /** A general inflationary fixpoint whose observable trie equations are
+    * saturated only when a terminal or child frontier is requested. */
+  def fixpoint(src: SpaceZipper)(step: SpaceZipper => SpaceZipper): SpaceZipper =
+    new DemandFixpointEngine(src, step).root
+  /** A lazy exact fallback for fixpoint steps that are not proved positive.
+    * The first observation performs the same synchronous Kleene rounds as the
+    * reference evaluator; construction itself never starts a round. */
+  def synchronousFixpoint(src: SpaceZipper)(step: SpaceZipper => SpaceZipper): SpaceZipper =
+    new SynchronousFixpointEngine(src, step).root
+  def whenHeaded(src: SpaceZipper, value: => SpaceZipper): SpaceZipper =
+    if src.knownEmpty then empty else memo(HeadedGuard(src, () => value))
   def wrap(src: SpaceZipper, prefix: List[Int]): SpaceZipper =
     if src.knownEmpty then empty else if prefix.isEmpty then src else memo(Prefix(prefix, src))
   def unwrap(src: SpaceZipper, prefix: List[Int]): SpaceZipper =
@@ -262,8 +294,25 @@ object SpaceZipper:
     keys ++= b.iterator
     keys
 
+  private def addKeyHints(values: IterableOnce[SpaceZipper]): Option[Int] =
+    var total = 0L
+    val iterator = values.iterator
+    while iterator.hasNext do
+      iterator.next().childKeySizeHint match
+        case Some(value) => total = (total + value.toLong).min(Int.MaxValue.toLong)
+        case None => return None
+    Some(total.toInt)
+
+  private def smallerByKeys(left: SpaceZipper, right: SpaceZipper): (SpaceZipper, SpaceZipper) =
+    (left.childKeySizeHint, right.childKeySizeHint) match
+      case (Some(l), Some(r)) => if l <= r then left -> right else right -> left
+      case (Some(_), None) => left -> right
+      case (None, Some(_)) => right -> left
+      case _ => if left.childKeySize <= right.childKeySize then left -> right else right -> left
+
   private def smallestByKeys(zs: Vector[SpaceZipper]): SpaceZipper =
-    zs.minBy(_.childKeySize)
+    zs.filter(_.childKeySizeHint.nonEmpty).minByOption(_.childKeySizeHint.get)
+      .getOrElse(zs.minBy(_.childKeySize))
 
   private def closureReachable(root: SpaceZipper): Vector[SpaceZipper] =
     val seen = java.util.IdentityHashMap[AnyRef, java.lang.Boolean]()
@@ -309,6 +358,20 @@ object SpaceZipper:
       uniqueByIdentity(all.result().iterator),
     )
 
+  /** Exact synchronous fallback for order-sensitive fixpoint steps. A lazy
+    * prefix solver cannot retroactively recover a Range member that was true
+    * in an earlier global approximation but was not demanded in that round. */
+  private def kleeneUnion(initial: SpaceZipper)(step: SpaceZipper => SpaceZipper): SpaceZipper =
+    var current = initial.materialize
+    var changed = true
+    while changed do
+      ExecutorCostMeter.round()
+      val stepped = step(traversal(current)).materialize
+      val next = current.union(stepped)
+      changed = next != current
+      current = next
+    traversal(current)
+
   private def directTailFrontier(src: SpaceZipper, item: Int): Vector[SpaceZipper] =
     val tail = src.child(item)
     if tail.isEmpty then Vector.empty else Vector(tail)
@@ -333,17 +396,6 @@ object SpaceZipper:
       frontierCandidates(src)
     case _ =>
       Vector.empty
-
-  private def kleeneUnion(initial: SpaceZipper)(step: SpaceZipper => SpaceZipper): SpaceZipper =
-    var current = initial.materialize
-    var changed = true
-    while changed do
-      ExecutorCostMeter.round()
-      val stepped = step(traversal(current)).materialize
-      val next = current.union(stepped)
-      changed = next != current
-      current = next
-    traversal(current)
 
   sealed trait CursorContext:
     def path: Vector[Int]
@@ -447,9 +499,10 @@ object SpaceZipper:
     override lazy val pathCount: Int = space.pathCount
     override def child(item: Int): SpaceZipper =
       space.children.get(item).fold(empty)(Trie(_))
-    override def hasChild(item: Int): Boolean = space.children.contains(item)
+    override def hasChild(item: Int): Boolean = meteredChildProbe(space.children.contains(item))
     override def childKeySize: Int = space.childCount
-    override def childKeys: IterableOnce[Int] = space.children.keysIterator
+    override def childKeySizeHint: Option[Int] = Some(space.childCount)
+    override def childKeys: IterableOnce[Int] = meteredChildKeys(space.children.keysIterator)
     override def childKeySet: Set[Int] = space.children.keySet
     override def childrenIterator: Iterator[(Int, SpaceZipper)] =
       space.children.iterator.map((item, child) => item -> Trie(child))
@@ -465,20 +518,20 @@ object SpaceZipper:
     override def concrete: Option[TrieSpace] = src.concrete
     override def knownEmpty: Boolean = src.knownEmpty
     override lazy val childKeySize: Int = childKeyVector.length
+    override def childKeySizeHint: Option[Int] = src.childKeySizeHint
     private lazy val childKeyVector: Vector[Int] = src.childKeys.iterator.toVector
     override def childKeys: IterableOnce[Int] = childKeyVector.iterator
     override def child(item: Int): SpaceZipper =
       childCache.getOrElseUpdate(item, memo(src.child(item)))
-    override lazy val isEmpty: Boolean = !terminal && childrenVector.isEmpty
+    override lazy val isEmpty: Boolean = src.isEmpty
+    override def hasChild(item: Int): Boolean = src.hasChild(item)
     private lazy val childrenVector: Vector[(Int, SpaceZipper)] =
       childKeyVector.iterator.map(k => k -> child(k)).filterNot(_._2.isEmpty).toVector
     override def childrenIterator: Iterator[(Int, SpaceZipper)] = childrenVector.iterator
-    override lazy val pathCount: Int =
-      (if terminal then 1 else 0) + childrenVector.iterator.map(_._2.pathCount).sum
+    override lazy val pathCount: Int = src.pathCount
     override lazy val orderedChildren: Array[(Int, SpaceZipper)] =
       childrenVector.toArray.sortWith((a, b) => TrieSpace.comparePaths(a._1 :: Nil, b._1 :: Nil) < 0)
-    override lazy val materialize: TrieSpace =
-      concrete.getOrElse(src.materialize)
+    override lazy val materialize: TrieSpace = src.materialize
 
   case class Union(left: SpaceZipper, right: SpaceZipper) extends SpaceZipper:
     override def knownEmpty: Boolean = left.knownEmpty && right.knownEmpty
@@ -488,8 +541,12 @@ object SpaceZipper:
         r <- right.concrete
       yield l.union(r)
     override def terminal: Boolean = left.terminal || right.terminal
+    override def isEmpty: Boolean = left.isEmpty && right.isEmpty
+    override def hasChild(item: Int): Boolean =
+      meteredChildProbe(left.hasChild(item) || right.hasChild(item))
     override def child(item: Int): SpaceZipper = union(left.child(item), right.child(item))
     override def childKeys: IterableOnce[Int] = unionKeys(left.childKeys, right.childKeys)
+    override def childKeySizeHint: Option[Int] = addKeyHints(Vector(left, right))
 
   case class JoinAll(children: Vector[SpaceZipper]) extends SpaceZipper:
     override def knownEmpty: Boolean = children.forall(_.knownEmpty)
@@ -497,7 +554,11 @@ object SpaceZipper:
       val concreteChildren = children.map(_.concrete)
       Option.when(concreteChildren.forall(_.isDefined))(TrieSpace.joinAll(concreteChildren.flatten))
     override def terminal: Boolean = children.exists(_.terminal)
+    override def isEmpty: Boolean = children.forall(_.isEmpty)
+    override def hasChild(item: Int): Boolean =
+      meteredChildProbe(children.exists(_.hasChild(item)))
     override def child(item: Int): SpaceZipper = joinAll(children.iterator.map(_.child(item)))
+    override def childKeySizeHint: Option[Int] = addKeyHints(children)
     override def childKeys: IterableOnce[Int] =
       val keys = mutable.LinkedHashSet.empty[Int]
       children.foreach(z => keys ++= z.childKeys.iterator)
@@ -512,10 +573,24 @@ object SpaceZipper:
       yield l.intersect(r)
     override def terminal: Boolean = left.terminal && right.terminal
     override def child(item: Int): SpaceZipper = intersection(left.child(item), right.child(item))
+    override def childKeySizeHint: Option[Int] =
+      (left.childKeySizeHint, right.childKeySizeHint) match
+        case (Some(l), Some(r)) => Some(l.min(r))
+        case (hint @ Some(_), None) => hint
+        case (None, hint @ Some(_)) => hint
+        case _ => None
     override def childKeys: IterableOnce[Int] =
-      val (small, large) =
-        if left.childKeySize <= right.childKeySize then left -> right else right -> left
+      val (small, large) = smallerByKeys(left, right)
       small.childKeys.iterator.filter(large.hasChild)
+    /** Do not synthesize a concrete virtual operand merely to count or emit a
+      * demanded intersection.  Stored tries still use the native merge; a
+      * virtual side is probed only along keys supplied by the smaller side. */
+    override lazy val pathCount: Int =
+      if storedConcrete(left).nonEmpty && storedConcrete(right).nonEmpty then concrete.get.pathCount
+      else pathCountByTraversal
+    override def materialize: TrieSpace =
+      if storedConcrete(left).nonEmpty && storedConcrete(right).nonEmpty then concrete.get
+      else materializeByTraversal
 
   case class MeetAll(children: Vector[SpaceZipper]) extends SpaceZipper:
     override def knownEmpty: Boolean = children.exists(_.knownEmpty)
@@ -524,9 +599,15 @@ object SpaceZipper:
       Option.when(concreteChildren.forall(_.isDefined))(TrieSpace.meetAll(concreteChildren.flatten))
     override def terminal: Boolean = children.forall(_.terminal)
     override def child(item: Int): SpaceZipper = meetAll(children.iterator.map(_.child(item)))
+    override def childKeySizeHint: Option[Int] =
+      children.iterator.flatMap(_.childKeySizeHint).minOption
     override def childKeys: IterableOnce[Int] =
       val small = smallestByKeys(children)
       small.childKeys.iterator.filter(k => children.forall(_.hasChild(k)))
+    override lazy val pathCount: Int =
+      if children.forall(storedConcrete(_).nonEmpty) then concrete.get.pathCount else pathCountByTraversal
+    override def materialize: TrieSpace =
+      if children.forall(storedConcrete(_).nonEmpty) then concrete.get else materializeByTraversal
 
   case class Subtraction(left: SpaceZipper, right: SpaceZipper) extends SpaceZipper:
     override def knownEmpty: Boolean = left.knownEmpty
@@ -538,6 +619,7 @@ object SpaceZipper:
     override def terminal: Boolean = left.terminal && !right.terminal
     override def child(item: Int): SpaceZipper = subtraction(left.child(item), right.child(item))
     override def childKeySize: Int = left.childKeySize
+    override def childKeySizeHint: Option[Int] = left.childKeySizeHint
     override def childKeys: IterableOnce[Int] = left.childKeys
 
   case class Restriction(src: SpaceZipper, prefixes: SpaceZipper) extends SpaceZipper:
@@ -554,12 +636,12 @@ object SpaceZipper:
     override def childKeys: IterableOnce[Int] =
       if prefixes.terminal then src.childKeys
       else
-        val (small, large) =
-          if src.childKeySize <= prefixes.childKeySize then src -> prefixes else prefixes -> src
+        val (small, large) = smallerByKeys(src, prefixes)
         small.childKeys.iterator.filter(large.hasChild)
 
   case class Concat(left: SpaceZipper, right: SpaceZipper) extends SpaceZipper:
     override def knownEmpty: Boolean = left.knownEmpty || right.knownEmpty
+    override def isEmpty: Boolean = left.isEmpty || right.isEmpty
     override def terminal: Boolean = left.terminal && right.terminal
     override def materialize: TrieSpace =
       if knownEmpty then TrieSpace.empty else left.materialize.concat(right.materialize)
@@ -575,6 +657,7 @@ object SpaceZipper:
 
   case class Prefix(prefix: List[Int], src: SpaceZipper) extends SpaceZipper:
     override def knownEmpty: Boolean = src.knownEmpty
+    override def isEmpty: Boolean = src.isEmpty
     override def concrete: Option[TrieSpace] =
       src.concrete.map(_.wrapItems(prefix))
     override def terminal: Boolean = prefix.isEmpty && src.terminal
@@ -588,6 +671,8 @@ object SpaceZipper:
         case head :: _ => Iterator.single(head)
     override def childKeySize: Int =
       if prefix.isEmpty then src.childKeySize else 1
+    override def childKeySizeHint: Option[Int] =
+      if prefix.isEmpty then src.childKeySizeHint else Some(1)
 
   case class NonEmpty(src: SpaceZipper) extends SpaceZipper:
     override def knownEmpty: Boolean = src.knownEmpty
@@ -596,6 +681,7 @@ object SpaceZipper:
     override def hasChild(item: Int): Boolean = src.hasChild(item)
     override def childKeys: IterableOnce[Int] = src.childKeys
     override def childKeySize: Int = src.childKeySize
+    override def childKeySizeHint: Option[Int] = src.childKeySizeHint
     override def childrenIterator: Iterator[(Int, SpaceZipper)] = src.childrenIterator
 
   case class TailsUnion(src: SpaceZipper) extends SpaceZipper:
@@ -889,6 +975,174 @@ object SpaceZipper:
     override lazy val pathCount: Int =
       (if terminal then 1 else 0) + childrenVector.iterator.map(_._2.pathCount).sum
 
+  /** Shared solver for the cyclic trie equations induced by
+    *
+    *   state = initial \/ step(state)
+    *
+    * A cell stores only monotone observations (nullable and candidate child
+    * keys) for one demanded prefix. Re-entrant reads during a solver round see
+    * the preceding approximation; newly demanded dependency cells enqueue the
+    * next round. No path outside the dependency cone of the consumer is
+    * materialized. */
+  private final class DemandFixpointEngine(
+    initial: SpaceZipper,
+    step: SpaceZipper => SpaceZipper,
+  ):
+    private final class Cell:
+      var terminal = false
+      var keys = Set.empty[Int]
+      var terminalDemanded = false
+      var keysDemanded = false
+
+    private val cells = mutable.LinkedHashMap.empty[Vector[Int], Cell]
+    private val initialFocuses = mutable.HashMap.empty[Vector[Int], SpaceZipper]
+    private var solving = false
+    private var version = 0L
+    private var stabilizedVersion = -1L
+    private var roundStepRoot: SpaceZipper | Null = null
+    private var roundTerminals = Map.empty[Vector[Int], Boolean]
+    private var roundKeys = Map.empty[Vector[Int], Set[Int]]
+
+    val root: SpaceZipper = focus(Vector.empty)
+
+    private def descend(value: SpaceZipper, path: Vector[Int]): SpaceZipper =
+      path.foldLeft(value)((current, item) => current.child(item))
+
+    private def initialAt(path: Vector[Int]): SpaceZipper =
+      initialFocuses.getOrElseUpdate(path, descend(initial, path))
+
+    private def steppedAt(path: Vector[Int]): SpaceZipper =
+      val current = roundStepRoot
+      if current == null then throw IllegalStateException("demand fixpoint step requested outside a solver round")
+      descend(current, path)
+
+    private def cell(path: Vector[Int]): Cell =
+      cells.getOrElseUpdate(path, {
+        version += 1
+        new Cell
+      })
+
+    def focus(path: Vector[Int]): DemandFixpointFocus =
+      // Cells, rather than cursor wrappers, carry the shared approximation.
+      // Fresh wrappers ensure inherited lazy observations such as `pathCount`
+      // cannot survive into a later solver version (Range uses those
+      // observations to select its border children).
+      new DemandFixpointFocus(this, path)
+
+    private def demand(path: Vector[Int], terminal: Boolean): Cell = synchronized {
+      val value = cell(path)
+      if terminal && !value.terminalDemanded then
+        value.terminalDemanded = true
+        version += 1
+      else if !terminal && !value.keysDemanded then
+        value.keysDemanded = true
+        version += 1
+      if !solving && stabilizedVersion != version then stabilize()
+      value
+    }
+
+    def terminal(path: Vector[Int]): Boolean =
+      val value = demand(path, terminal = true)
+      if solving then roundTerminals.getOrElse(path, false) else value.terminal
+    def keys(path: Vector[Int]): Set[Int] =
+      val value = demand(path, terminal = false)
+      if solving then roundKeys.getOrElse(path, Set.empty) else value.keys
+
+    private def stabilize(): Unit =
+      solving = true
+      try
+        var changed = true
+        while changed do
+          val before = version
+          ExecutorCostMeter.round()
+          // A Kleene round is synchronous: every dependency read observes the
+          // same preceding approximation. This is required even for
+          // inflationary fixpoints whose step contains an order-sensitive
+          // operator such as Range; updating sibling cells in place would
+          // otherwise make the result depend on traversal order.
+          roundTerminals = cells.iterator.map((path, value) => path -> value.terminal).toMap
+          roundKeys = cells.iterator.map((path, value) => path -> value.keys).toMap
+          // Iteration and Memo nodes intentionally cache branch/key frontiers.
+          // Rebuild the virtual step once per approximation so those caches
+          // observe heads discovered by the preceding solver round.
+          roundStepRoot = step(focus(Vector.empty))
+          val snapshot = cells.toVector
+          snapshot.foreach { (path, value) =>
+            if value.terminalDemanded && !value.terminal then
+              if initialAt(path).terminal || steppedAt(path).terminal then
+                value.terminal = true
+                version += 1
+            if value.keysDemanded then
+              val discovered =
+                initialAt(path).childKeys.iterator.toSet ++ steppedAt(path).childKeys.iterator
+              val enlarged = value.keys ++ discovered
+              if enlarged.size != value.keys.size then
+                value.keys = enlarged
+                version += 1
+          }
+          changed = version != before
+        stabilizedVersion = version
+      finally
+        roundStepRoot = null
+        roundTerminals = Map.empty
+        roundKeys = Map.empty
+        solving = false
+
+  private final class DemandFixpointFocus(
+    engine: DemandFixpointEngine,
+    path: Vector[Int],
+  ) extends DeferredFixpointFocus:
+    override def terminal: Boolean = engine.terminal(path)
+    override def child(item: Int): SpaceZipper = engine.focus(path :+ item)
+    override def childKeys: IterableOnce[Int] = engine.keys(path)
+    override def knownEmpty: Boolean = false
+
+  /** Delays an exact global iteration until a consumer actually observes the
+    * result. This is intentionally separate from DemandFixpointEngine: an
+    * order-sensitive or negative step can have transient outputs that a
+    * prefix-only monotone cell cannot reconstruct after the fact. */
+  private final class SynchronousFixpointEngine(
+    src: SpaceZipper,
+    step: SpaceZipper => SpaceZipper,
+  ):
+    private lazy val lowered = kleeneUnion(src)(step)
+    val root: SpaceZipper = focus(Vector.empty)
+    def focus(path: Vector[Int]): SpaceZipper = new SynchronousFixpointFocus(this, path)
+    def at(path: Vector[Int]): SpaceZipper =
+      path.foldLeft(lowered)((current, item) => current.child(item))
+
+  private final class SynchronousFixpointFocus(
+    engine: SynchronousFixpointEngine,
+    path: Vector[Int],
+  ) extends DeferredFixpointFocus:
+    private def observed = engine.at(path)
+    override def terminal: Boolean = observed.terminal
+    // Prefix navigation itself is not an observation. In particular, source
+    // Unwrap lowering can install a focused cursor without starting the exact
+    // rounds during transpileZ construction.
+    override def child(item: Int): SpaceZipper = engine.focus(path :+ item)
+    override def hasChild(item: Int): Boolean = observed.hasChild(item)
+    override def childKeys: IterableOnce[Int] = observed.childKeys
+    override def childKeySize: Int = observed.childKeySize
+    override def childKeySizeHint: Option[Int] = None
+    override def childrenIterator: Iterator[(Int, SpaceZipper)] = observed.childrenIterator
+    override def concrete: Option[TrieSpace] = observed.concrete
+    override def isEmpty: Boolean = observed.isEmpty
+    override lazy val pathCount: Int = observed.pathCount
+    override def materialize: TrieSpace = observed.materialize
+
+  /** Defers the "iteration source has a head" guard used by a branch body
+    * that is independent of its binders. This matters when the source itself
+    * is a cyclic demand fixpoint: construction must not query the cycle. */
+  case class HeadedGuard(src: SpaceZipper, value: () => SpaceZipper) extends SpaceZipper:
+    private lazy val guarded = value()
+    private def enabled: Boolean = src.childKeys.iterator.exists(src.hasChild)
+    override def knownEmpty: Boolean = src.knownEmpty || guarded.knownEmpty
+    override def terminal: Boolean = enabled && guarded.terminal
+    override def child(item: Int): SpaceZipper = if enabled then guarded.child(item) else empty
+    override def childKeys: IterableOnce[Int] = if enabled then guarded.childKeys else Iterator.empty
+    override def childKeySizeHint: Option[Int] = guarded.childKeySizeHint
+
   case class Fixpoint(src: SpaceZipper, template: IterTemplateTag) extends SpaceZipper:
     private lazy val lowered: SpaceZipper = template match
       case IterTemplateTag.Tail => TailsClosure(src)
@@ -927,7 +1181,7 @@ object SpaceZipper:
     override def child(key: Int): SpaceZipper =
       if key == item then replacement else parent.child(key)
     override def hasChild(key: Int): Boolean =
-      if key == item then !replacement.isEmpty else parent.hasChild(key)
+      if key == item then meteredChildProbe(!replacement.isEmpty) else parent.hasChild(key)
     override lazy val isEmpty: Boolean =
       !terminal && childKeySize == 0
     override lazy val childKeySize: Int =
@@ -992,7 +1246,7 @@ object SpaceZipper:
     override def child(item: Int): SpaceZipper =
       childCache.getOrElseUpdate(item, selectedChild(item))
     override def hasChild(item: Int): Boolean =
-      !child(item).isEmpty
+      meteredChildProbe(!child(item).isEmpty)
     override def childKeys: IterableOnce[Int] =
       selectedChildren.iterator.map(_._1)
     override def childKeySize: Int =
@@ -1182,26 +1436,124 @@ def transpileZ(s: Space)(using
         case other => output += other
     output.result()
 
+  /** Whether an expression observes a fixpoint state at all, respecting the
+    * two space binders that can shadow it. Host path callbacks may embed a
+    * space expression, so path traversal is part of the check. */
+  def dependsOnState(expression: Space, variable: SpaceMention): Boolean =
+    def recp(path: Path, bound: Set[String]): Boolean = path match
+      case Path.Deref(_) | Path.Constant(_) => false
+      case Path.Concat(left, right) => recp(left, bound) || recp(right, bound)
+      case Path.GroundedPP(src, _) => recp(src, bound)
+      case Path.GroundedSP(src, _) => recs(src, bound)
+    def recs(value: Space, bound: Set[String]): Boolean = value match
+      case Space.Mention(sm) => sm.s == variable.s && !bound(variable.s)
+      case Space.Empty | Space.Literal(_) => false
+      case Space.Call(_, refs, mentions) =>
+        refs.exists(recp(_, bound)) || mentions.exists(recs(_, bound))
+      case Space.Singleton(path) => recp(path, bound)
+      case Space.Union(left, right) => recs(left, bound) || recs(right, bound)
+      case Space.Intersection(left, right) => recs(left, bound) || recs(right, bound)
+      case Space.Subtraction(left, right) => recs(left, bound) || recs(right, bound)
+      case Space.Restriction(src, prefixes) => recs(src, bound) || recs(prefixes, bound)
+      case Space.Raffination(src, prefixes) => recs(src, bound) || recs(prefixes, bound)
+      case Space.Composition(left, right) => recs(left, bound) || recs(right, bound)
+      case Space.Iteration(src, _, rest, templates) =>
+        recs(src, bound) || recs(templates, bound + rest.s)
+      case Space.Fold(src, initial, _, _, rest, templates, update) =>
+        recs(src, bound) || recp(initial, bound) ||
+          recs(templates, bound + rest.s) || recp(update, bound)
+      case Space.Fixpoint(initial, boundVariable, step) =>
+        recs(initial, bound) || recs(step, bound + boundVariable.s)
+      case Space.Wrap(src, prefix) => recs(src, bound) || recp(prefix, bound)
+      case Space.Unwrap(src, prefix) => recs(src, bound) || recp(prefix, bound)
+      case Space.TailsUnion(src) => recs(src, bound)
+      case Space.TailsIntersection(src) => recs(src, bound)
+      case Space.PrefixClosure(src) => recs(src, bound)
+      case Space.SuffixClosure(src) => recs(src, bound)
+      case Space.TailsClosure(src) => recs(src, bound)
+      case Space.GroundedPS(path, _) => recp(path, bound)
+      case Space.GroundedSS(src, _) => recs(src, bound)
+      case Space.Range(src, _, _) => recs(src, bound)
+    recs(expression, Set.empty)
+
+  /** Structural proof obligation for DemandFixpointEngine. The admitted
+    * operators are monotone in every state-dependent operand and expose
+    * membership through local trie equations. Range and TailsIntersection are
+    * order/cardinality-sensitive; subtraction and raffination are admitted
+    * only when their negative operand is state-independent. Fold, nested
+    * fixpoints, calls and host callbacks are rejected when state-dependent.
+    *
+    * Positivity alone is not a productivity proof: state-dependent generic
+    * iteration and head-stripping projections can answer a shallow output
+    * observation from a deeper state prefix. Those forms use the exact lazy
+    * synchronous fallback unless an earlier dedicated template handles them. */
+  def demandFixpointPositive(expression: Space, variable: SpaceMention): Boolean =
+    if !dependsOnState(expression, variable) then true
+    else expression match
+      case Space.Mention(sm) => sm.s == variable.s
+      case Space.Union(left, right) =>
+        demandFixpointPositive(left, variable) && demandFixpointPositive(right, variable)
+      case Space.Intersection(left, right) =>
+        demandFixpointPositive(left, variable) && demandFixpointPositive(right, variable)
+      case Space.Subtraction(left, right) =>
+        demandFixpointPositive(left, variable) && !dependsOnState(right, variable)
+      case Space.Restriction(src, prefixes) =>
+        demandFixpointPositive(src, variable) && demandFixpointPositive(prefixes, variable)
+      case Space.Raffination(src, prefixes) =>
+        demandFixpointPositive(src, variable) && !dependsOnState(prefixes, variable)
+      case Space.Composition(left, right) =>
+        // Concatenation dependencies are at the same or a shorter demanded
+        // path. Static/state-dependent Wrap has the same causal direction.
+        demandFixpointPositive(left, variable) && demandFixpointPositive(right, variable)
+      // Generic iteration binds the recursive source's tail. Even a positive
+      // body can therefore answer a shallow observation from a strictly
+      // deeper state focus and grow an unbounded dependency chain. Exact bare
+      // Tail/Head/Reconstruct templates are selected before this predicate.
+      case Space.Iteration(_, _, _, _) => false
+      case Space.Wrap(src, prefix) =>
+        demandFixpointPositive(src, variable) &&
+          !dependsOnState(Space.Singleton(prefix), variable)
+      // Unwrap(outputPrefix) asks the recursive state at a strictly deeper
+      // path. DemandFixpointFocus deliberately cannot claim unknown focuses
+      // empty, so even a finite result can create an unbounded dependency
+      // chain (a, a.a, ...). Exact synchronous rounds are required.
+      case Space.Unwrap(_, _) => false
+      // These projections can answer a shallow observation only by exploring
+      // arbitrarily deeper recursive focuses. A bare TailsUnion(state) is
+      // handled earlier by the dedicated finite Tail template; generic nested
+      // forms require exact synchronous rounds.
+      case Space.TailsUnion(_) |
+          Space.PrefixClosure(_) |
+          Space.SuffixClosure(_) |
+          Space.TailsClosure(_) => false
+      case Space.Empty | Space.Literal(_) => true
+      case Space.Call(_, _, _) |
+          Space.Singleton(_) |
+          Space.Fold(_, _, _, _, _, _, _) |
+          Space.Fixpoint(_, _, _) |
+          Space.TailsIntersection(_) |
+          Space.GroundedPS(_, _) |
+          Space.GroundedSS(_, _) |
+          Space.Range(_, _, _) => false
+
   def recs(x: Space)(using ipc: IntPathContext, zsc: ZipperSpaceContext): SpaceZipper = x match
     case Space.Empty => SpaceZipper.empty
-    case Space.Call(rp, refs, mentions) =>
-      val refvs = refs.map(recp)
-      val Routine(_, refns, mentionns, body) = rc(rp)
-      val mentionZippers = mentions.map(recs)
-      if topLevelSelfUnion(body, rp) then
-        throw UnsupportedOperationException(
-          s"zipper transpile cannot lower recursive top-level self-union call ${rp.s}; " +
-            "refuse the old evalTrie materialization fallback"
-        )
-      else if containsRoutineCall(body, rp) then
-        throw UnsupportedOperationException(
-          s"zipper transpile cannot lower recursive routine call ${rp.s}; " +
-            "lower recursion to Space.Fixpoint before evalZ/execZ"
-        )
+    case call @ Space.Call(rp, refs, mentions) =>
+      val lowered = Supercompiler.lowerFixpointCalls(call, rc)
+      if lowered != call then recs(lowered)
       else
-        val pctx = IntPathContextMap(Map.from(refns zip refvs))
-        val sctx = ZipperSpaceContextMap(Map.from(mentionns zip mentionZippers))
-        recs(body)(using pctx, sctx)
+        val refvs = refs.map(recp)
+        val Routine(_, refns, mentionns, body) = rc(rp)
+        val mentionZippers = mentions.map(recs)
+        if topLevelSelfUnion(body, rp) || containsRoutineCall(body, rp) then
+          throw UnsupportedOperationException(
+            s"zipper transpile cannot safely lower recursive routine call ${rp.s}; " +
+              "the routine is outside the union-saturating fixpoint fragment"
+          )
+        else
+          val pctx = IntPathContextMap(Map.from(refns zip refvs))
+          val sctx = ZipperSpaceContextMap(Map.from(mentionns zip mentionZippers))
+          recs(body)(using pctx, sctx)
     case Space.Mention(sm) => zsc.resolve(sm)
     case Space.Singleton(p) => SpaceZipper.singleton(recp(p))
     case Space.Literal(sv) => SpaceZipper.literal(sv)
@@ -1229,8 +1581,6 @@ def transpileZ(s: Space)(using
     case Space.TailsClosure(src) => SpaceZipper.TailsClosure(recs(src))
     case Space.Iteration(src, symbol, rest, templates) =>
       val srcZ = recs(src)
-      def sourceHasHead: Boolean =
-        srcZ.childKeys.iterator.exists(srcZ.hasChild)
       def singletonRangeSelected(start: Int, end: Int): Boolean =
         RangeBounds.normalize(size = 1, start, end) == (0 -> 1)
       def lowerTemplate(template: Space): SpaceZipper = template match
@@ -1323,7 +1673,7 @@ def transpileZ(s: Space)(using
             Some(SpaceZipper.IterTemplateTag.PrefixedRangeReconstruct(staticPrefix, start, end))
           )
         case _ if !spaceDependsOnBound(template, symbol, rest) =>
-          if sourceHasHead then recs(template) else SpaceZipper.empty
+          SpaceZipper.whenHeaded(srcZ, recs(template))
         case Space.Union(left, right) =>
           SpaceZipper.union(lowerTemplate(left), lowerTemplate(right))
         case Space.Wrap(inner, prefix) if !pathDependsOnBound(prefix, symbol, rest) =>
@@ -1419,15 +1769,12 @@ def transpileZ(s: Space)(using
             case Some(tag) =>
               SpaceZipper.fixpoint(initialZ, tag)
             case None =>
-              var current = initialZ.materialize
-              var changed = true
-              while changed do
-                ExecutorCostMeter.round()
-                val stepped = recs(step)(using ipc, zsc.grown(Map(variable -> SpaceZipper.traversal(current)))).materialize
-                val next = current.union(stepped)
-                changed = next != current
-                current = next
-              SpaceZipper.traversal(current)
+              val lowerStep = (state: SpaceZipper) =>
+                recs(step)(using ipc, zsc.grown(Map(variable -> state)))
+              if demandFixpointPositive(step, variable) then
+                SpaceZipper.fixpoint(initialZ)(lowerStep)
+              else
+                SpaceZipper.synchronousFixpoint(initialZ)(lowerStep)
     case Space.GroundedPS(p, f) => SpaceZipper.literal(f(TrieSpace.decode(recp(p))))
     case Space.GroundedSS(src, f) => SpaceZipper.literal(f(recs(src).toSpaceValue))
     case Space.Range(x, start, end) => SpaceZipper.range(recs(x), start, end)

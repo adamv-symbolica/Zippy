@@ -74,8 +74,12 @@ class TrieLayerAsymptoticTest extends FunSuite:
 
   test("wide disjoint algebra preserves Patricia aggregates without output-width scans") {
     val width = 8192
-    val left = TrieSpace.fromPaths((0 until width).map(index => path(s"l$index")))
-    val right = TrieSpace.fromPaths((0 until width).map(index => path(s"r$index")))
+    // Use controlled encoded keys so this test measures the intended
+    // root-disjoint Patricia regime independently of process-global PathItem
+    // interning order. Sequentially interning l*/r* can straddle a Patricia
+    // prefix boundary after another suite has already allocated labels.
+    val left = TrieSpace.fromEncodedPaths((0 until width).map(index => index :: Nil))
+    val right = TrieSpace.fromEncodedPaths((0 until width).map(index => (index + (1 << 28)) :: Nil))
     val (union, cost) = ExecutorCostMeter.measure(left.union(right))
     assertEquals(union.pathCount, width * 2)
     assertEquals(cost.nodeVisits, 1L)

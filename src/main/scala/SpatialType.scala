@@ -28,6 +28,21 @@ enum SpatialItem:
       value.show.toIntOption.exists(number => number < minimum + offset || number > maximum + offset)
     case _ => false
 
+  /** Equality of every concrete item represented by two envelopes. Unknown
+    * labels are descriptive names, not logical variables, so two equally
+    * named unknowns are not a definite match. */
+  def definitelySame(that: SpatialItem): Boolean = (this, that) match
+    case (SpatialItem.Constant(left), SpatialItem.Constant(right)) => left == right
+    case (SpatialItem.Affine(_, leftOffset, leftMin, leftMax),
+          SpatialItem.Affine(_, rightOffset, rightMin, rightMax))
+        if leftMin == leftMax && rightMin == rightMax =>
+      leftMin + leftOffset == rightMin + rightOffset
+    case (SpatialItem.Constant(value), SpatialItem.Affine(_, offset, minimum, maximum))
+        if minimum == maximum => value.show.toIntOption.contains(minimum + offset)
+    case (SpatialItem.Affine(_, offset, minimum, maximum), SpatialItem.Constant(value))
+        if minimum == maximum => value.show.toIntOption.contains(minimum + offset)
+    case _ => false
+
   /** Language inclusion between item abstractions. This is deliberately
     * stronger than equality: a literal item is contained by an unknown item,
     * and an affine item is contained by a wider affine domain. */
@@ -56,7 +71,8 @@ case class SpatialPattern(items: Vector[SpatialItem]):
       items.take(prefix.items.length).zip(prefix.items).exists((left, right) => left.definitelyDifferent(right))
 
   def definitelyHasPrefix(prefix: SpatialPattern): Boolean =
-    prefix.items.length <= items.length && items.take(prefix.items.length) == prefix.items
+    prefix.items.length <= items.length &&
+      items.take(prefix.items.length).zip(prefix.items).forall((left, right) => left.definitelySame(right))
 
   /** Every path represented by this pattern is represented by `that`. */
   def isSubsumedBy(that: SpatialPattern): Boolean =
@@ -188,22 +204,59 @@ case class SpatialType(
         if eligible.isEmpty then SpatialDegreeEstimate(
           ResultSizeEstimate.empty, ResultSizeEstimate.empty, ResultSizeEstimate.empty, ResultSizeEstimate.empty)
         else
+          // A stratum whose length interval merely crosses the prefix depth
+          // may contribute edges, but contributes no mandatory edge: all of
+          // its concrete paths could lie below the requested depth.
+          val edgeStrata = eligible.map { stratum =>
+            val definitelyEligible = stratum.length.lower.annotatedBound(Z3BoundDirection.Lower)
+              .exists(_ >= prefixLength)
+            stratum.copy(cardinality = stratum.cardinality.copy(
+              lower = if definitelyEligible then stratum.cardinality.lower else SizeExpr.Zero))
+          }
+          val edges = SpatialType.fromStrata(edgeStrata).size
           val keyUppers = eligible.map { stratum =>
             val choices = stratum.pattern.toVector.flatMap(_.items.take(prefixLength)).map(SpatialFacts.itemChoices)
             if choices.size == prefixLength then SizeExpr.minimum(stratum.cardinality.upper, SizeExpr.multiply(choices*))
             else stratum.cardinality.upper
           }
-          val stratumKeys = ResultSizeEstimate(SizeExpr.add(keyUppers*), SizeExpr.positive(size.lower))
+          val keyLowers = edgeStrata.map { stratum =>
+            stratum.pattern match
+              case Some(pattern) if pattern.length >= prefixLength =>
+                val suffixChoices = pattern.items.drop(prefixLength).map(SpatialFacts.itemChoices)
+                val capacity = SizeExpr.multiply(suffixChoices*)
+                if capacity == SizeExpr.Infinity then SizeExpr.positive(stratum.cardinality.lower)
+                else SizeExpr.ceilingDivide(stratum.cardinality.lower, capacity)
+              case _ => SizeExpr.positive(stratum.cardinality.lower)
+          }
+          val stratumKeys = ResultSizeEstimate(
+            SizeExpr.add(keyUppers*),
+            SizeExpr.maximum(keyLowers*),
+          )
           val shapeKeys = shape.prefixCount(prefixLength)
           val keys = ResultSizeEstimate(
             SizeExpr.minimum(stratumKeys.upper, shapeKeys.upper),
-            SizeExpr.maximum(stratumKeys.lower, shapeKeys.lower),
+            // The bounded trie's deeper lower projection can combine head and
+            // tail witnesses from different fibers. The stratum/capacity law
+            // above is the correlation-safe lower bound for degree inference.
+            stratumKeys.lower,
           )
-          val oneKey = keys.upper.annotatedValue.contains(BigInt(1))
+          val maximumFiberCapacity = SizeExpr.add(eligible.map { stratum =>
+            stratum.pattern match
+              case Some(pattern) if pattern.length >= prefixLength =>
+                SizeExpr.multiply(pattern.items.drop(prefixLength).map(SpatialFacts.itemChoices)*)
+              case _ => stratum.cardinality.upper
+          }*)
+          val minimumLower = SizeExpr.positive(edges.lower)
+          val minimumUpper = SizeExpr.minimum(edges.upper,
+            SizeExpr.ifZero(keys.lower, edges.upper,
+              SizeExpr.ceilingDivide(edges.upper, keys.lower)))
+          val maximumLower = SizeExpr.maximum(minimumLower,
+            SizeExpr.ceilingDivide(edges.lower, keys.upper))
+          val maximumUpper = SizeExpr.minimum(edges.upper, maximumFiberCapacity)
           SpatialDegreeEstimate(
-            ResultSizeEstimate(if oneKey then size.upper else size.upper, SizeExpr.positive(size.lower)),
-            ResultSizeEstimate(size.upper, if oneKey then size.lower else SizeExpr.positive(size.lower)),
-            size,
+            ResultSizeEstimate(minimumUpper, minimumLower),
+            ResultSizeEstimate(maximumUpper, maximumLower),
+            edges,
             keys,
           )
 
@@ -315,14 +368,15 @@ object SpatialType:
             stratum.cardinality.lower,
           ))
         }.filterNot(_.cardinality.upper == SizeExpr.Zero)
+        if clamped.isEmpty then
+          if size.lower.annotatedBound(Z3BoundDirection.Lower).exists(_ > 0) then return bottom
+          else return empty.copy(cost = value.cost)
         if clamped.exists(s => constantContradiction(s.cardinality.lower, s.cardinality.upper)) then return bottom
         val projectedSize = derivedSize(clamped)
-        val nextSize =
-          if size.exact then size
-          else ResultSizeEstimate(
-            SizeExpr.minimum(size.upper, projectedSize.upper),
-            SizeExpr.maximum(size.lower, projectedSize.lower),
-          )
+        val nextSize = ResultSizeEstimate(
+          SizeExpr.minimum(size.upper, projectedSize.upper),
+          SizeExpr.maximum(size.lower, projectedSize.lower),
+        )
         if constantContradiction(nextSize.lower, nextSize.upper) then return bottom
         val nextLength =
           if nextSize.upper == SizeExpr.Zero then PathLengthEstimate.empty
@@ -374,6 +428,14 @@ object SpatialType:
   /** Lattice meet of two descriptions of the same concrete space. */
   def meet(left: SpatialType, right: SpatialType): SpatialType =
     if left.bottom || right.bottom then bottom
+    else if
+      left.strata.exists(l =>
+        l.cardinality.lower.annotatedBound(Z3BoundDirection.Lower).exists(_ > 0) &&
+          right.strata.forall(r => strataDisjoint(l, r))) ||
+      right.strata.exists(r =>
+        r.cardinality.lower.annotatedBound(Z3BoundDirection.Lower).exists(_ > 0) &&
+          left.strata.forall(l => strataDisjoint(l, r)))
+    then bottom
     else
       val size = ResultSizeEstimate(
         SizeExpr.minimum(left.size.upper, right.size.upper),
@@ -409,6 +471,13 @@ object SpatialType:
   def lessOrEqual(left: SpatialType, right: SpatialType): Boolean =
     if left.bottom then true
     else if right.bottom then left.bottom
+    // Path-length strata describe members, so they impose no obligation on
+    // the empty concrete space.  Its inclusion depends only on whether the
+    // right abstraction permits cardinality zero.
+    else if left.isEmpty then
+      SizeExpr.provablyNoGreater(right.size.lower, SizeExpr.Zero) &&
+        right.strata.forall(stratum =>
+          SizeExpr.provablyNoGreater(stratum.cardinality.lower, SizeExpr.Zero))
     else
       val scalar = SizeExpr.provablyNoGreater(left.size.upper, right.size.upper) &&
         SizeExpr.provablyNoGreater(right.size.lower, left.size.lower)
@@ -421,14 +490,31 @@ object SpatialType:
           case (_, None) => true
           case _ => inner.upper == outer.upper
         lower && upper
-      scalar && lengthInside(left.pathLength, right.pathLength) && left.strata.forall { l =>
+      def shapeInside(inner: SpatialStratum, outer: SpatialStratum): Boolean =
+        lengthInside(inner.length, outer.length) &&
+          (outer.pattern.isEmpty || inner.pattern.exists(_.isSubsumedBy(outer.pattern.get)))
+      val possiblePathsCovered = left.strata.forall { l =>
         right.strata.exists { r =>
-          lengthInside(l.length, r.length) &&
-            (r.pattern.isEmpty || l.pattern.exists(_.isSubsumedBy(r.pattern.get))) &&
+          shapeInside(l, r) &&
             SizeExpr.provablyNoGreater(l.cardinality.upper, r.cardinality.upper) &&
             SizeExpr.provablyNoGreater(r.cardinality.lower, l.cardinality.lower)
         }
       }
+      // The left-to-right check above does not see a mandatory right stratum
+      // that is absent from the left altogether.  Require each such obligation
+      // to be supplied by one narrower left stratum.  This is deliberately a
+      // sufficient (not complete) test: several disjoint left witnesses could
+      // establish the same aggregate lower bound, but declining that case is
+      // safe for convergence whereas accepting a missing witness is not.
+      val mandatoryPathsCovered = right.strata.forall { r =>
+        SizeExpr.provablyNoGreater(r.cardinality.lower, SizeExpr.Zero) ||
+          left.strata.exists { l =>
+            shapeInside(l, r) &&
+              SizeExpr.provablyNoGreater(r.cardinality.lower, l.cardinality.lower)
+          }
+      }
+      scalar && lengthInside(left.pathLength, right.pathLength) &&
+        possiblePathsCovered && mandatoryPathsCovered
 
   /** Widen growing cardinalities while retaining a shape invariant only when
     * a subsequent transfer confirms that no new shape escapes it. */
@@ -471,7 +557,15 @@ object SpatialType:
       SpatialStratum(PathLengthEstimate.exact(PathLengthExpr.const(length)), cardinality)
     })
 
-case class SpatialPrefixCoverage(prefix: PathRef, space: SpaceMention, lengths: Set[Int] = Set.empty):
+/** A semantic input fact that a concrete prefix selects at least
+  * `minimumMatches` paths from the named space at the covered source lengths.
+  * The default preserves the original non-empty-fiber contract. */
+case class SpatialPrefixCoverage(
+  prefix: PathRef,
+  space: SpaceMention,
+  lengths: Set[Int] = Set.empty,
+  minimumMatches: SizeExpr = SizeExpr.One,
+):
   def covers(length: Int): Boolean = lengths.isEmpty || lengths(length)
 
 case class SpatialAssumptions(
@@ -503,11 +597,21 @@ enum SpatialBoundLaw:
   /** Any non-empty legal seed set within the named component saturates that
     * connected finite component. */
   case ConnectedFiniteComponent(seed: SpaceMention, capacity: SizeExpr)
+  /** Reachability in the parity component of a width-by-width sliding puzzle.
+    * Capacity is derived from the board parameter in production code. */
+  case SlidingPuzzleReachability(seed: SpaceMention, width: Int)
+  /** Mutual reachability is contained in directed transitive closure. Unlike
+    * closure itself it need not contain any input edge (an acyclic graph is a
+    * non-empty counterexample), so its general lower bound is zero. */
+  case MutualReachability(input: SpaceMention)
   /** A symbolic upper envelope supplied with its semantic type annotation. */
   case ProvedUpperBound(value: SizeExpr)
   /** Exact solution count derived from annotated finite domains and
     * relational constraints, without executing the MORKL routine. */
   case FiniteConstraintSolutions(problem: FiniteIntConstraintProblem, nodeBudget: Long = 1000000L)
+  /** Parameterized n-queens constraint domain, derived without executing the
+    * MORKL search program. */
+  case NQueensSolutions(size: Int, nodeBudget: Long = 1000000L)
 
 object SpatialBoundLaw:
   private def input(
@@ -547,11 +651,24 @@ object SpatialBoundLaw:
               val exact = SizeExpr.ifZero(seedSize.upper, SizeExpr.Zero, capacity)
               ResultSizeEstimate.exact(exact)
             else ResultSizeEstimate(capacity, SizeExpr.Zero)
+          case SpatialBoundLaw.SlidingPuzzleReachability(seed, width) =>
+            val seedSize = input(seed, inputs)
+            val capacity = SizeExpr.const(FiniteStateCardinality.slidingPuzzleReachableStates(width))
+            if seedSize.exact then
+              val exact = SizeExpr.ifZero(seedSize.upper, SizeExpr.Zero, capacity)
+              ResultSizeEstimate.exact(exact)
+            else ResultSizeEstimate(capacity, SizeExpr.Zero)
+          case SpatialBoundLaw.MutualReachability(source) =>
+            val edgeSize = input(source, inputs)
+            ResultSizeEstimate(SizeExpr.multiply(edgeSize.upper, edgeSize.upper), SizeExpr.Zero)
           case SpatialBoundLaw.ProvedUpperBound(value) =>
             ResultSizeEstimate(value, SizeExpr.Zero)
           case SpatialBoundLaw.FiniteConstraintSolutions(problem, nodeBudget) =>
             problem.countWithin(nodeBudget).fold(ResultSizeEstimate.unknown)(count =>
               ResultSizeEstimate.exact(SizeExpr.const(count)))
+          case SpatialBoundLaw.NQueensSolutions(size, nodeBudget) =>
+            FiniteIntConstraintProblem.nQueens(size).countWithin(nodeBudget)
+              .fold(ResultSizeEstimate.unknown)(count => ResultSizeEstimate.exact(SizeExpr.const(count)))
         val next = ResultSizeEstimate(
           SizeExpr.minimum(current.size.upper, asserted.upper),
           SizeExpr.maximum(current.size.lower, asserted.lower),
@@ -615,6 +732,29 @@ case class FiniteIntConstraintProblem(
     Option.unless(exhausted)(result)
 
   lazy val count: BigInt = countWithin(Long.MaxValue).get
+
+object FiniteIntConstraintProblem:
+  def nQueens(size: Int): FiniteIntConstraintProblem =
+    require(size >= 0, s"n-queens size must be non-negative: $size")
+    val indices = (0 until size).toVector
+    FiniteIntConstraintProblem(
+      domains = Vector.fill(size)((1 to size).toVector),
+      constraints = Vector(FiniteIntConstraint.AllDifferent(indices)) ++
+        (for left <- indices; right <- indices if left < right yield
+          FiniteIntConstraint.AbsDifferenceNotEqual(left, right, right - left)),
+    )
+
+object FiniteStateCardinality:
+  def factorial(value: Int): BigInt =
+    require(value >= 0, s"factorial argument must be non-negative: $value")
+    if value <= 1 then BigInt(1) else (2 to value).iterator.map(BigInt(_)).product
+
+  /** Exactly one of the two permutation-parity components is reachable for a
+    * board with at least two cells; the 1x1 board has one state. */
+  def slidingPuzzleReachableStates(width: Int): BigInt =
+    require(width >= 1, s"puzzle width must be positive: $width")
+    val cells = Math.multiplyExact(width, width)
+    if cells == 1 then BigInt(1) else factorial(cells) / 2
 
 case class SpatialAnalysisConfig(
   patternLimit: Int = 64,

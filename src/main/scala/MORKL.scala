@@ -6,6 +6,7 @@ import scala.collection.Searching
 import java.util.Base64
 import java.util.Locale
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import scala.language.implicitConversions
 
 
@@ -720,9 +721,23 @@ def eval(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceC
   ResultSpaceSizeAudit.observe(s, result)(using pc, sc, rc)
   result
 
+enum GraphNodeConstantRole:
+  case Semantic, BinderName
+
+object GraphNodeConstantRole:
+  def forOperation(operation: String): GraphNodeConstantRole = operation match
+    case "Iteration" | "Fold" | "Fixpoint" | "ExtractPathRef" | "ExtractSpaceMention" => BinderName
+    case _ => Semantic
+
 case class Node[R](operation: String, constant: String, kind: "path" | "space", inputs: Vector[R]):
   def show: String = s"$operation[${constant}](${inputs.mkString(", ")}): $kind"
   def map[S](f: R => S): Node[S] = copy(inputs=inputs.map(f))
+  /** Binder uses have already been resolved to graph positions, which are the
+    * graph's de Bruijn coordinates. Only the display name is erased from an
+    * alpha signature; semantic payloads remain byte-for-byte significant. */
+  def alphaNormalized: Node[R] = GraphNodeConstantRole.forOperation(operation) match
+    case GraphNodeConstantRole.BinderName => copy(constant = "<binder>")
+    case GraphNodeConstantRole.Semantic => this
 class RecursiveOpGraph(var root: Node[(Int, Int)],
                        val parent: Option[RecursiveOpGraph],
                        val nodes: ArrayBuffer[Either[Node[(Int, Int)], RecursiveOpGraph]],
@@ -1426,10 +1441,7 @@ def graphReferenceErrors(g: RecursiveOpGraph, path: Vector[Int] = Vector.empty):
   (rootBad ++ nodeBad).toVector
 
 private def alphaNormalizedGraphNode(node: Node[(Int, Int)]): Node[(Int, Int)] =
-  node.operation match
-    case "Iteration" | "Fold" | "Fixpoint" | "ExtractPathRef" | "ExtractSpaceMention" =>
-      node.copy(constant = "<binder>")
-    case _ => node
+  node.alphaNormalized
 
 def graphStructurallyEqual(a: RecursiveOpGraph, b: RecursiveOpGraph): Boolean =
   alphaNormalizedGraphNode(a.root) == alphaNormalizedGraphNode(b.root) &&
@@ -3450,6 +3462,13 @@ def otypes(
 
 object Syntax:
   import Path.*
+  private def stableBinderDigest(value: String): String =
+    MessageDigest.getInstance("SHA-256")
+      .digest(value.getBytes(StandardCharsets.UTF_8))
+      .take(12)
+      .map("%02x".format(_))
+      .mkString
+
   given parse: Conversion[String, PathValue] = s => PathValue(s.split('.').map(PathItem.apply).toList)
   given constant: Conversion[String, Path] = (parse andThen Path.Constant.apply)(_)
   given parse2: Conversion[(String, String), (PathValue, PathValue)] = (x, y) => (parse(x), parse(y))
@@ -3490,15 +3509,30 @@ object Syntax:
             Space.Iteration(Space.Mention(sm4), h4._4.pr.known(1), t.variable,
               subs(rhs)(ppre = { case Path.Deref(pr) if pr == h4._1.pr || pr == h4._2.pr || pr == h4._3.pr || pr == h4._4.pr => Path.Deref(pr.known(1)) }))))))
     infix def iterk(k: Int, t: Space.Mention, rhs: Path => Space): Space =
-      val rhsh = rhs.hashCode().toHexString
+      require(k >= 0, s"iteration arity must be non-negative, got $k")
+      // Function values inherit identity-based hashCode, so deriving binder
+      // names from `rhs.hashCode` made generated proof artifacts differ on
+      // every JVM run. Build the body once with canonical probe refs and hash
+      // only its stable printed syntax plus the surrounding source.
+      val probeRefs = Vector.tabulate(k)(i => PathRef(s"__iterk_probe_$i").known(1))
+      val probePath = Path.fromFactors(probeRefs.map(Path.Deref(_): Path.Deref))
+      val probeBody = rhs(probePath)
+      val rhsh = stableBinderDigest(s"k=$k;t=${t.variable.s};source=${x.show};body=${probeBody.show}")
       val prs = Vector.tabulate(k)(i => PathRef(s"${i}h$rhsh").known(1))
       val sms = Vector.tabulate(k)(i => if i != k - 1 then SpaceMention(s"r${i}h$rhsh") else t.variable)
       val ss = Vector.tabulate(k)(i => if i == 0 then x else Space.Mention(sms(i-1)))
-      def rec(i: Int): Space =
-        if i == k then
-          subs(rhs(Path.fromFactors(prs.map(Path.Deref(_): Path.Deref))))(spost = {
-            case Space.Mention(sm) if sm.s == t.variable.s && k == 0 => x
+      // Preserve the original DSL construction/capture behavior by invoking
+      // the body builder with its final references. The probe above is only a
+      // stable hash input; rewriting it afterward with generic substitution
+      // can cross binders introduced inside `rhs`.
+      val body =
+        if k == 0 then
+          subs(probeBody)(spost = {
+            case Space.Mention(sm) if sm.s == t.variable.s => x
           })
+        else rhs(Path.fromFactors(prs.map(Path.Deref(_): Path.Deref)))
+      def rec(i: Int): Space =
+        if i == k then body
         else
           Space.Iteration(ss(i), prs(i), sms(i), rec(i + 1))
       val res = ReferenceHints.tag(rec(0))

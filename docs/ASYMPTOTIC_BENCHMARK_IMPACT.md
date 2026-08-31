@@ -127,12 +127,19 @@ quickly, so it must not be read as an across-the-board optimized-runtime win.
 | 128 | 256 | 0.2888 | 0.2595 | 1.11x | 48.83x | 0.4967 |
 | 256 | 512 | 0.2124 | 0.3507 | 0.61x | 80.46x | 0.7001 |
 
-## Full cornerstone-program runtime report
+## Historical pre-SCC cornerstone runtime comparison
 
-Every runtime row is included below for the affected trie, zipper, and compiled
-trie backends. Times are milliseconds. The ratio column is baseline/current.
-Rows at the report's 0.001 ms timer floor should be treated as equality, not a
-resolved speed difference.
+This table is the complete old/new comparison for the program set measured in
+the 2026-08-08 trie-layer sweep. Both snapshots predate the direct SCC
+cornerstone, so this is a frozen historical comparison rather than a current
+inventory of cornerstone programs. The current generated
+[trie](TRIE_BENCHMARKS.md) and
+[large-zipper](ZIPPER_LARGE_BENCHMARKS.md) reports include the SCC row.
+
+Every runtime row measured in that historical sweep is included below for the
+affected trie, zipper, and compiled-trie backends. Times are milliseconds. The
+ratio column is baseline/current. Rows at the report's 0.001 ms timer floor
+should be treated as equality, not a resolved speed difference.
 
 | benchmark | evalTrie old → new | ratio | evalZ old → new | ratio | execT old → new | ratio |
 |---|---:|---:|---:|---:|---:|---:|
@@ -164,11 +171,11 @@ evalZ rows, and 0.685x across 9 execT rows. This is a 2.2% evalTrie regression,
 22.6% evalZ improvement, and 31.5% execT regression in this one sweep. The
 per-row spread is much larger than those aggregates.
 
-### Compilation
+### Historical pre-SCC compilation comparison
 
-Compilation is not the target of the trie-layer changes, but the report times it,
-so every total is included. These single-shot values are especially sensitive to
-JIT and GC state.
+Compilation is not the target of the trie-layer changes, but the historical
+sweep timed it, so every total from that pre-SCC program set is included. These
+single-shot values are especially sensitive to JIT and GC state.
 
 | benchmark | total compile ms old → new | ratio |
 |---|---:|---:|

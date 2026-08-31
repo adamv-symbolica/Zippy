@@ -52,6 +52,12 @@ object ExecutorCostMeter:
     val value = active
     if value != null then value.nodeVisits += count
 
+  /** One logical cursor-membership probe. Zipper operations use this instead
+    * of leaving `hasChild` work invisible; it shares the semantic-node bucket
+    * so existing static node-visit bounds cover both traversal and probing. */
+  def cursorProbe(count: Long = 1L): Unit =
+    visitNode(count)
+
   /** Visits to immutable Patricia-map nodes. Kept separate from semantic trie
     * nodes so disjoint joins, shared branches, and fully interwoven maps retain
     * their distinct measured asymptotics. */

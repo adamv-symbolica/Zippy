@@ -435,14 +435,14 @@ class Imperative extends FunSuite:
                             |  12 Singleton[]((1,0)): space
                             |  13 Call[reachable]((0,1), (0,2), (1,12)): space
                             |  14 Subtraction[]((1,11), (1,13)): space
-                            |  15 Call[scc]((0,0), (0,1), (1,14)): space
+                            |  15 Call[seedless_scc]((0,0), (0,1), (1,14)): space
                             |  16 Union[]((1,9), (1,15)): space
                             |  17 Singleton[]((1,0)): space
                             |  18 Call[reachable]((0,1), (0,2), (1,17)): space
                             |  19 Singleton[]((1,0)): space
                             |  20 Call[reachable]((0,0), (0,2), (1,19)): space
                             |  21 Subtraction[]((1,18), (1,20)): space
-                            |  22 Call[scc]((0,0), (0,1), (1,21)): space
+                            |  22 Call[seedless_scc]((0,0), (0,1), (1,21)): space
                             |  23 Union[]((1,16), (1,22)): space
                             |  24 Singleton[]((1,0)): space
                             |  25 Call[reachable]((0,0), (0,2), (1,24)): space
@@ -450,7 +450,7 @@ class Imperative extends FunSuite:
                             |  27 Singleton[]((1,0)): space
                             |  28 Call[reachable]((0,1), (0,2), (1,27)): space
                             |  29 Subtraction[]((1,26), (1,28)): space
-                            |  30 Call[scc]((0,0), (0,1), (1,29)): space
+                            |  30 Call[seedless_scc]((0,0), (0,1), (1,29)): space
                             |  31 Union[]((1,23), (1,30)): space""".stripMargin)
       assert(optimize(code).show == """Routine[seedless_scc](): space
                                       |0 ExtractSpaceMention[fwd](): space
@@ -467,14 +467,14 @@ class Imperative extends FunSuite:
                                       |  6 Subtraction[]((1,5), (1,2)): space
                                       |  7 Wrap[]((1,6), (1,0)): space
                                       |  8 Subtraction[]((1,3), (1,4)): space
-                                      |  9 Call[scc]((0,0), (0,1), (1,8)): space
+                                      |  9 Call[seedless_scc]((0,0), (0,1), (1,8)): space
                                       |  10 Union[]((1,7), (1,9)): space
                                       |  11 Subtraction[]((1,4), (1,3)): space
-                                      |  12 Call[scc]((0,0), (0,1), (1,11)): space
+                                      |  12 Call[seedless_scc]((0,0), (0,1), (1,11)): space
                                       |  13 Union[]((1,10), (1,12)): space
                                       |  14 Subtraction[]((0,2), (1,3)): space
                                       |  15 Subtraction[]((1,14), (1,4)): space
-                                      |  16 Call[scc]((0,0), (0,1), (1,15)): space
+                                      |  16 Call[seedless_scc]((0,0), (0,1), (1,15)): space
                                       |  17 Union[]((1,13), (1,16)): space""".stripMargin)
     }
   }
@@ -517,17 +517,50 @@ class Routines extends FunSuite:
     assert(eval(fwd_a_no_ad)(using rc = Map(RoutinePtr("reachable") -> reachable_routine), sc = scc_context) == SpaceValue("a", "b"))
   }
 
-  test("scc") {
+  test("recursive SCC routine remains executable in set and trie evaluators") {
     given PathContext = PathContext.emptyMap
     val graph = S"g3"
     val transpose = graph("edge").iter(P"x", S"r", S"r".iter(P"y", S"_", Singleton(P"y" x P"x")))
     val nodes = graph("edge").iter(P"fwd", S"_1", sP"fwd") \/ transpose.iter(P"bwd", S"_2", sP"bwd")
     val e = R"scc"("42", graph("edge"), transpose, nodes)
-    val actual = eval(e)(using pc = PathContext.emptyMap, rc = Map(RoutinePtr("reachable") -> reachable_routine, RoutinePtr("scc") -> scc_routine), sc = scc_context)
+    val routines = Map(RoutinePtr("reachable") -> reachable_routine, RoutinePtr("scc") -> scc_routine)
+    val actual = eval(e)(using pc = PathContext.emptyMap, rc = routines, sc = scc_context)
+    val trieActual = evalTrie(e)(using pc = PathContext.emptyMap,
+      sc = TrieSpaceContext.fromReference(scc_context), rc = routines).toSpaceValue
+    assertEquals(trieActual, actual)
     val components = actual.paths.groupMap(_.items.head.show)(_.items(1).show).map((representative, members) =>
       members.toSet + representative
     ).toSet
     assertEquals(components, Set(Set("s", "t", "u", "v", "w"), Set("x", "y", "z")))
+
+  }
+
+  test("recursive seedless SCC routine executes its own partition calls") {
+    given PathContext = PathContext.emptyMap
+    val graph = S"g3"
+    val transpose = graph("edge").iter(P"x", S"r", S"r".iter(P"y", S"_", Singleton(P"y" x P"x")))
+    val nodes = graph("edge").iter(P"fwd", S"_1", sP"fwd") \/ transpose.iter(P"bwd", S"_2", sP"bwd")
+    val call = seedless_scc_routine.name(graph("edge"), transpose, nodes)
+    val routines = Map(
+      RoutinePtr("reachable") -> reachable_routine,
+      RoutinePtr("seedless_scc") -> seedless_scc_routine,
+    )
+    val actual = eval(call)(using pc = PathContext.emptyMap, rc = routines, sc = scc_context)
+    val trieActual = evalTrie(call)(using pc = PathContext.emptyMap,
+      sc = TrieSpaceContext.fromReference(scc_context), rc = routines).toSpaceValue
+
+    assertEquals(trieActual, actual)
+    val components = actual.paths.groupMap(_.items.head.show)(_.items(1).show).map((representative, members) =>
+      members.toSet + representative
+    ).toSet
+    assertEquals(components, Set(Set("s", "t", "u", "v", "w"), Set("x", "y", "z")))
+
+    val zipperFailure = intercept[UnsupportedOperationException] {
+      evalZ(call)(using pc = PathContext.emptyMap,
+        sc = ZipperSpaceContext.fromReference(scc_context), rc = routines)
+    }
+    assert(zipperFailure.getMessage.contains("outside the union-saturating fixpoint fragment"),
+      zipperFailure.getMessage)
   }
 
   test("naive-oeis") {
@@ -583,9 +616,9 @@ object Routines:
       val pred: Space = R"reachable"(S"fwd", S"nodes", sP"v")
       val desc: Space = R"reachable"(S"bwd", S"nodes", sP"v")
       (P"v" x ((pred /\ desc) \ sP"v")) \/
-        R"scc"(S"fwd", S"bwd", pred \ desc) \/
-        R"scc"(S"fwd", S"bwd", desc \ pred) \/
-        R"scc"(S"fwd", S"bwd", (S"nodes" \ pred) \ desc)
+        R"seedless_scc"(S"fwd", S"bwd", pred \ desc) \/
+        R"seedless_scc"(S"fwd", S"bwd", desc \ pred) \/
+        R"seedless_scc"(S"fwd", S"bwd", (S"nodes" \ pred) \ desc)
     })
 
   def fixpoint(f: Space => Space) = RoutinePtr(s"step${f.hashCode()}")(S"last") :=

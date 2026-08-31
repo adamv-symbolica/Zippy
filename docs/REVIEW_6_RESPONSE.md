@@ -36,9 +36,13 @@ That is the measured sequential-key distribution: one increasingly deep touched
 spine per delta, not a scan of the accumulator width.
 
 `TrieConstructionAsymptoticTest` also evaluates an actual `Space.Fixpoint` with a
-wide accumulator and one new path. Widths 256 and 4,096 take the same number of
-semantic trie visits and exactly two rounds. This guards the evaluator call site,
-not only direct `TrieSpace.union`.
+wide accumulator and one new path at widths 256, 1,024, 4,096, and 16,384. It
+requires at most eight semantic trie visits, a width-invariant allocation count,
+exactly two rounds, and Patricia work below a constant multiple of the fixed
+32-bit key depth. Exact visit counts are intentionally not compared across
+widths: process-global path-label interning changes the numeric `IntMap` layout
+without changing the constant-depth complexity claim. This guards the evaluator
+call site, not only direct `TrieSpace.union`.
 
 The existing generated semi-naive datalog benchmark also improves on the final
 code: 40 nodes move from 31.520 to 30.667 ms, and 80 nodes from 110.226 to 87.099
@@ -68,11 +72,15 @@ representation actually traversed:
 Zipper inherits the native trie work, and Graph adds dispatch only to semantic
 node visits. Reference operations retain zero Patricia work.
 
-The asymmetric counter corpus now gates `patriciaVisits` independently with the
-same requirements as every other component: predicted ≥ actual, predicted ≤ 8×
-actual, stable when an irrelevant operand grows, and strictly increasing when the
-traversed operand grows. All 63 optimized-backend rows pass. Prediction/actual
-ratios range from 1.000 to 7.324 with a mean of 1.678. Representative Trie rows:
+The asymmetric counter corpus now gates `patriciaVisits` independently. Every
+row requires predicted ≥ actual, and the corpus still requires stability when
+an irrelevant operand grows and strict growth when the traversed operand grows.
+Unlike the four topology-independent components, Patricia visits do not have a
+process-order-independent ≤8× gate: path labels receive process-global numeric
+ids, so earlier suites can change the `IntMap` topology and exact visit count.
+All 63 optimized-backend rows pass the soundness and asymptotic gates. In the
+canonical focused run, prediction/actual ratios range from 1.000 to 7.324 with a
+mean of 1.678. Representative rows from that recorded run are:
 
 | case | predicted | actual |
 |---|---:|---:|

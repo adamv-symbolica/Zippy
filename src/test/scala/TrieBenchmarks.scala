@@ -587,7 +587,6 @@ object TrieBenchmarks:
         rc = datalogDefs,
         defs = Vector(semiNaive),
         runs = 2,
-        zipperNote = Some("direct evalZ rejects the recursive top-level self-union; use evalTrie/graph rows")
       ),
       ProgramCase(
         "datalog semi-naive",
@@ -597,7 +596,6 @@ object TrieBenchmarks:
         defs = datalogResidual.routines.values.toVector,
         runs = 2,
         prep = Some(datalogResidualProfile),
-        zipperNote = Some("direct evalZ rejects the residual recursive top-level self-union; use evalTrie/graph rows")
       ),
       ProgramCase("life", "reference random 24x24", life, rc = mod(LifeExample.neigh, LifeExample.nextStep), defs = Vector(LifeExample.neigh, LifeExample.nextStep), runs = 2),
       ProgramCase("life", "compile-pass random 24x24", lifeCompiled.routine.name(lifeInitialLiteral), rc = mod(LifeExample.neigh, lifeCompiled.routine), defs = Vector(LifeExample.neigh, lifeCompiled.routine), runs = 2, prep = Some(lifeCompiledProfile)),
@@ -675,7 +673,7 @@ object TrieBenchmarks:
       "",
       "The trie evaluator remains strongest on native path algebra with shared prefixes, joins, restriction, unwrap, and first-symbol iteration. The direct `execT` backend compounds that advantage when the graph is lowered to native ops and optimized callee graphs because it avoids rebuilding old `PathValue` and `SpaceValue` intermediates.",
       "",
-      "`evalZ` is included as a correctness-backed zipper traversal prototype, not yet as the winning runtime for every source shape. Memoized virtual zippers now keep the sliding-puzzle source rows near `evalTrie`, and top-level union-saturating self recursion is rejected as unsupported rather than falling back to concrete `evalTrie` materialization. The separate `ZIPPER_LARGE_BENCHMARKS.md` report contains larger asymptotic product-selector rows where zipper traversal avoids broad intermediate scans. Direct source n-queens remains omitted for `evalZ` with an explicit note because that high-level search tree still needs a dedicated recursive zipper strategy.",
+      "`evalZ` is included as a correctness-backed zipper traversal prototype, not yet as the winning runtime for every source shape. Memoized virtual zippers now keep the sliding-puzzle source rows near `evalTrie`, and union-saturating recursion is lowered and measured directly. Structurally positive, productive steps use prefix-demand cells; the SCC tail projection and semi-naive Datalog's state-negative delta subtraction use the lazy exact synchronous fallback on first observation. The separate `ZIPPER_LARGE_BENCHMARKS.md` report contains larger asymptotic product-selector rows where zipper traversal avoids broad intermediate scans. Direct source n-queens remains omitted for `evalZ` with an explicit note because that high-level search tree still needs a dedicated recursive zipper strategy.",
       "",
       "The pure Game-of-Life source is now intentionally a lowering benchmark: direct `evalTrie` still interprets the high-level relation program, while the graph backend lowers `Range`, `Unwrap`, joins, and literal coordinate relations into direct operations; use the `ROG execT` and compile+`ROG execT` columns for the lowered result.",
       "",

@@ -2,6 +2,9 @@ package morkl
 
 import munit.FunSuite
 import morkl.Syntax.{*, given}
+
+import java.nio.charset.StandardCharsets
+import java.nio.file.{Files, Path as JPath, Paths}
 import scala.concurrent.duration.*
 
 object CornerstoneAbstractInterpretations:
@@ -103,18 +106,12 @@ object CornerstoneAbstractInterpretations:
     u("tile5"), u("tile6"), u("tile7"), u("tile8"),
   )
   def slidingPuzzleStateCount(width: Int): BigInt =
-    require(width >= 1, s"puzzle width must be positive: $width")
-    val cells = width * width
-    if cells == 1 then BigInt(1)
-    else (1 to cells).iterator.map(BigInt(_)).product / 2
+    FiniteStateCardinality.slidingPuzzleReachableStates(width)
   lazy val puzzle: SpatialType = SpatialTypeAnalysis.outputRoutineAbstract(
     Routine(RoutinePtr("eight_puzzle_reachable_abstract"), Vector.empty, Vector(puzzleStartMention), puzzleFixpoint),
     SpatialRoutineAnnotations(
       spaces = Map(puzzleStartMention -> puzzleStart),
-      resultLaws = Vector(SpatialBoundLaw.ConnectedFiniteComponent(
-        puzzleStartMention,
-        SizeExpr.const(slidingPuzzleStateCount(3)),
-      )),
+      resultLaws = Vector(SpatialBoundLaw.SlidingPuzzleReachability(puzzleStartMention, width = 3)),
     ),
     routines = puzzleContext,
   )
@@ -135,20 +132,12 @@ object CornerstoneAbstractInterpretations:
   )
 
   def nqueensConstraintProblem(size: Int): FiniteIntConstraintProblem =
-    val indices = (0 until size).toVector
-    FiniteIntConstraintProblem(
-      domains = Vector.fill(size)((1 to size).toVector),
-      constraints = Vector(FiniteIntConstraint.AllDifferent(indices)) ++
-        (for left <- indices; right <- indices if left < right yield
-          FiniteIntConstraint.AbsDifferenceNotEqual(left, right, right - left)),
-    )
+    FiniteIntConstraintProblem.nQueens(size)
   private val (queensRoutine, queensContext) = NQueensExample.program(4)
   val nqueensConstraints: FiniteIntConstraintProblem = nqueensConstraintProblem(4)
   lazy val nqueens: SpatialType = SpatialTypeAnalysis.outputRoutineAbstract(
     queensRoutine,
-    SpatialRoutineAnnotations(resultLaws = Vector(
-      SpatialBoundLaw.FiniteConstraintSolutions(nqueensConstraints),
-    )),
+    SpatialRoutineAnnotations(resultLaws = Vector(SpatialBoundLaw.NQueensSolutions(size = 4))),
     routines = queensContext,
   )
 
@@ -158,8 +147,7 @@ object CornerstoneAbstractInterpretations:
       SccCornerstone.expression(Space.Mention(sccEdgesMention))),
     SpatialRoutineAnnotations(
       spaces = Map(sccEdgesMention -> pattern(SizeExpr.symbol("sccEdges"), u("source"), u("target"))),
-      resultLaws = Vector(SpatialBoundLaw.ProvedUpperBound(
-        SizeExpr.multiply(SizeExpr.symbol("sccEdges"), SizeExpr.symbol("sccEdges")))),
+      resultLaws = Vector(SpatialBoundLaw.MutualReachability(sccEdgesMention)),
     ),
     PartialFunction.empty,
   )
@@ -171,21 +159,38 @@ object CornerstoneAbstractInterpretations:
     "eight-puzzle-all-states" -> puzzle,
     "temperature" -> temperature,
     "nqueens" -> nqueens,
+    "scc-mutual-reachability" -> scc,
   )
 
-@main def cornerstoneSpatialTypeReport(): Unit =
-  Vector[(String, () => SpatialType)](
-    "aunt" -> (() => CornerstoneAbstractInterpretations.aunt),
-    "semi-naive-datalog-fixpoint" -> (() => CornerstoneAbstractInterpretations.datalog),
-    "game-of-life" -> (() => CornerstoneAbstractInterpretations.life),
-    "eight-puzzle-all-states" -> (() => CornerstoneAbstractInterpretations.puzzle),
-    "temperature" -> (() => CornerstoneAbstractInterpretations.temperature),
-    "nqueens" -> (() => CornerstoneAbstractInterpretations.nqueens),
-    "scc-mutual-reachability" -> (() => CornerstoneAbstractInterpretations.scc),
-  ).foreach { (name, compute) =>
-    val result = compute()
-    println(s"$name\tsize=${result.size.show}\tlength=${result.pathLength.show}\tstrata=${result.strata.size}")
-  }
+object CornerstoneSpatialReport:
+  val DefaultOutput: JPath = Paths.get("docs/CORNERSTONE_ABSTRACT_INTERPRETATIONS_GENERATED.md")
+
+  private def tableCell(value: String): String = value.replace("|", "\\|").replace("\n", " ")
+
+  def render(results: Vector[(String, SpatialType)] = CornerstoneAbstractInterpretations.all): String =
+    val rows = results.map { (name, result) =>
+      s"| `$name` | `${tableCell(result.size.show)}` | `${tableCell(result.pathLength.show)}` | ${result.strata.size} |"
+    }
+    (Vector(
+      "# Generated Cornerstone Spatial Summary",
+      "",
+      "This deterministic table is generated from the production `SpatialTypeAnalysis` entry point. The analysis does not execute or materialize any concrete cornerstone output.",
+      "",
+      "Regenerate it with `scala-cli run src/main/scala src/test/scala --test --server=false --scala 3.8.1 --source 3.3 --dependency org.scalameta::munit:1.2.1 --dependency org.scala-lang.modules::scala-collection-contrib:0.3.0 --main-class morkl.cornerstoneSpatialTypeReport --`.",
+      "",
+      "| Program | Cardinality interval | Path-length interval | Strata |",
+      "| --- | --- | --- | ---: |",
+    ) ++ rows).mkString("\n") + "\n"
+
+  def write(output: JPath = DefaultOutput): JPath =
+    Option(output.getParent).foreach(parent => Files.createDirectories(parent))
+    Files.writeString(output, render(), StandardCharsets.UTF_8)
+    output
+
+@main def cornerstoneSpatialTypeReport(args: String*): Unit =
+  require(args.length <= 1, "usage: cornerstoneSpatialTypeReport [output-file]")
+  val output = CornerstoneSpatialReport.write(args.headOption.map(Paths.get(_)).getOrElse(CornerstoneSpatialReport.DefaultOutput))
+  println(s"wrote ${CornerstoneAbstractInterpretations.all.length} cornerstone spatial analyses to $output")
 
 class CornerstoneSpatialTypeTest extends FunSuite:
   override val munitTimeout: Duration = 1.minute
@@ -255,6 +260,7 @@ class CornerstoneSpatialTypeTest extends FunSuite:
     assertEquals(puzzle.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(9)))
     assertEquals(temperature.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(4)))
     assertEquals(nqueens.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(4)))
+    assertEquals(scc.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(2)))
 
     assert(all.forall((_, result) => result.exactValue.isEmpty))
     assertEquals(aunt.size.lower, SizeExpr.Zero)
@@ -270,6 +276,11 @@ class CornerstoneSpatialTypeTest extends FunSuite:
     assertEquals(nqueens.size, ResultSizeEstimate.exact(SizeExpr.const(2)))
     assert(nqueens.strata.forall(_.cardinality.upper.evaluate.exists(_ <= 2)))
     assert(puzzle.strata.forall(_.cardinality.upper.evaluate.exists(_ <= 181440)))
+    assertEquals(
+      Files.readString(CornerstoneSpatialReport.DefaultOutput, StandardCharsets.UTF_8),
+      CornerstoneSpatialReport.render(all),
+      "regenerate the checked cornerstone spatial summary with morkl.cornerstoneSpatialTypeReport",
+    )
   }
 
   test("SCC cornerstone retains pair shape and the E-squared certificate") {
@@ -287,6 +298,19 @@ class CornerstoneSpatialTypeTest extends FunSuite:
       assert(closure.size >= edges.size, s"closure dropped an edge for mask $mask")
       assert(closure.size <= edges.size * edges.size,
         s"closure exceeded E^2 for mask $mask: E=${edges.size}, closure=${closure.size}")
+  }
+
+  test("SCC mutual-reachability envelope is exhaustive on all three-node graphs") {
+    val possible = (for left <- 0 until 3; right <- 0 until 3 yield left -> right).toVector
+    for mask <- 0 until (1 << possible.size) do
+      val edges = possible.indices.collect { case index if (mask & (1 << index)) != 0 => possible(index) }.toSet
+      val closure = transitiveClosure(edges)
+      val mutual = closure.intersect(closure.map(_.swap))
+      assert(mutual.size <= edges.size * edges.size,
+        s"mutual reachability exceeded E^2 for mask $mask: E=${edges.size}, mutual=${mutual.size}")
+    val acyclic = Set(0 -> 1, 1 -> 2)
+    val closure = transitiveClosure(acyclic)
+    assertEquals(closure.intersect(closure.map(_.swap)), Set.empty)
   }
 
   test("Game of Life output is contained in the nine-cell image of every live cell") {

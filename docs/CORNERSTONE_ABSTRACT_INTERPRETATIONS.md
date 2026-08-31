@@ -1,5 +1,11 @@
 # Cornerstone abstract interpretations
 
+The checked numeric summary in
+[`CORNERSTONE_ABSTRACT_INTERPRETATIONS_GENERATED.md`](CORNERSTONE_ABSTRACT_INTERPRETATIONS_GENERATED.md)
+is produced deterministically by the production `SpatialTypeAnalysis` entry
+point. Regenerate it with `morkl.cornerstoneSpatialTypeReport`; the ordinary
+cornerstone artifact generator and proof pipeline regenerate it as well.
+
 These results are computed at open routine boundaries from one explicit
 `SpatialRoutineAnnotations` value per program. `outputRoutineAbstract` never
 invokes the exact-value evaluator, including for literal ranges and
@@ -34,6 +40,7 @@ reduced result is their intersection, never a substitution.
 | Full 8-puzzle closure | fixpoint retains the nine-item board schema | legal nonempty seed saturates `9!/2` component | exactly `181440` | exact length 9 |
 | Temperature restriction | `[0,W]`, source schema | none | `[0,W]` | exact length 4 |
 | 4-queens generator | generator structure derives four-coordinate paths | finite-domain CSP has 2 solutions | exactly `2` | exact length 4 |
+| SCC mutual reachability | closure/intersection retains the two-item edge schema | mutual reachability is contained in directed closure; `upper ≤ E²` | `[0,E²]` | exact length 2 |
 
 ## Aunt query
 
@@ -142,11 +149,27 @@ analysis retains the structurally derived exact path length four and has
 The same generic constraint domain derives `1,0,0,2,10,4` for board sizes one
 through six directly from annotated finite domains and constraints.
 
+## SCC mutual reachability
+
+The SCC cornerstone computes pairs that are reachable in both the graph and
+its transpose. For `E` distinct input edges, mutual reachability is a subset of
+the directed transitive closure and therefore contains at most `E²` ordered
+pairs. Its sound general lower bound is zero: a non-empty acyclic graph can have
+no pair that is mutually reachable. The analysis retains the exact pair schema
+and path length two without evaluating a concrete graph.
+
+The report uses the production `MutualReachability` law, shared with normal
+routine analysis. An exhaustive three-node graph test checks the `E²` envelope
+and the acyclic zero-lower counterexample independently.
+
 ## Remaining precision boundary
 
-None of the six analyses materializes a concrete output. Every cornerstone now
+None of the seven analyses materializes a concrete output. Every cornerstone now
 retains its exact output path length; Life additionally retains its eight
-affine alternatives. The principal remaining gaps are dependent relation fibers
-for the Aunt query, a first-class graph/degree domain rather than supplied
-closure contracts, a symbolic arithmetic expression for parameterized puzzle
-and queens sizes, and lower coverage facts for spatial restrictions.
+affine alternatives. The domain now has quantitative prefix coverage, symbolic
+key/fiber min/max arithmetic, and a dependent `relation(head)` lookup transfer.
+The remaining precision boundary is broader key-correlated degree maps and
+automatic inference of coverage/graph contracts from arbitrary routine syntax.
+Puzzle component capacity, n-queens solution counts, and SCC mutual
+reachability are parameterized production laws, but they remain explicit
+semantic annotations rather than discoveries made by executing a routine.

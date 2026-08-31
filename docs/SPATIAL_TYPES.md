@@ -32,7 +32,17 @@ Pattern inclusion is item-wise: a constant is included by the same constant, a c
 
 `SpatialCompilation.specialize` consumes only `SpatialRoutineAnnotations` and returns `SpecializedRoutine(precondition, residual, facts)`. It eliminates abstractly dead nodes, folds proved constants, and applies empty identities. `applicableTo` checks real space arguments with full gamma membership (and path arguments against their path types), so a conditionally valid residual cannot be installed unconditionally. `Supercompiler.specialize` is the production consumer: it derives exact annotations only for syntactically concrete call arguments, calls `SpatialCompilation.selectApplicable`, and installs the residual only after that guard succeeds. The selected facts are retained in `SupercompileReport.spatialRewriteFacts`.
 
-`SpatialAssumptions` maps free space mentions and path references to input types. `SpatialPrefixCoverage(k, xs, lengths)` is an optional dependency asserting that path `k` prefixes a represented fiber of `xs` at the selected lengths. This small dependency is necessary for positive restriction lower bounds: knowing only that `k` has length three cannot prove that an arbitrary length-four path starts with `k`.
+`SpatialAssumptions` maps free space mentions and path references to input types.
+`SpatialPrefixCoverage(k, xs, lengths, minimumMatches)` is an optional,
+quantitative dependency asserting that `k` selects at least `minimumMatches`
+paths from `xs` at the selected lengths (the default is one). Restriction keeps
+one aggregate witness per exact length: witnesses for overlapping patterns or
+prefixes combine by maximum, while distinct path lengths may add. It attaches
+the witness to a stratum only when that stratum is the sole class at its length,
+so one global match is never duplicated across disjoint patterns. This
+dependency is necessary for positive restriction lower bounds: knowing only
+that `k` has length three cannot prove that an arbitrary length-four path starts
+with `k`.
 
 Iteration is group-sensitive. A constant head has at most one group when its
 source is nonempty; an affine head has at most the size of its declared domain;
@@ -41,7 +51,11 @@ entire fiber, not one arbitrary path, so a constant-headed stratum passes its
 full cardinality into the body. Canonical nested iterator chains that consume a
 complete source path are additionally interpreted pointwise: their total upper
 is the number of source paths times the per-path leaf result, instead of a
-product of independent group estimates.
+product of independent group estimates. The scalar size analysis recognizes
+the same pointwise map forms through nested iteration, fixed-path products,
+wrap/unwrap, selectors, and unions. An injective head/tail reconstruction arm
+also preserves the headed source lower bound even when a correlated sibling
+arm has a weak lower estimate.
 
 `outputRoutine` and its compatibility alias `outputRoutineAbstract` (also
 exposed as `Supercompiler.abstractSpatialType`) always interpret a routine body
@@ -54,21 +68,28 @@ The strict API takes one `SpatialRoutineAnnotations` value containing path and
 space argument types, prefix coverage, and `SpatialBoundLaw` result-type laws.
 Those laws are input annotations, not evaluator callbacks or facts learned from
 an output. They intersect the structural cardinality with facts such as
-subset-of-image multiplicity, source containment, directed-closure bounds, a
-finite universe, or a connected finite component. The only generic exact-count
-law accepts an annotated `FiniteIntConstraintProblem`; there is deliberately no
-raw `ExactCardinality(number)` hook. Structural and semantic evidence form a
+subset-of-image multiplicity, source containment, directed-closure bounds,
+mutual-reachability bounds, a finite universe, or a connected finite component.
+Production laws derive sliding-puzzle component capacity from board width and
+n-queens constraints from board size. The generic exact-count law accepts an
+annotated `FiniteIntConstraintProblem`; there is deliberately no raw
+`ExactCardinality(number)` hook. Structural and semantic evidence form a
 reduced product: neither side can weaken the other. An exact semantic claim
 that contradicts an exact structural result produces `bottom`; it is never
 substituted for the structural result.
 
 `FiniteIntConstraintProblem` is the first small relational component. It counts
 finite-domain assignments subject to all-different, disequality, and absolute-
-difference constraints. The 4-queens report uses it to prove two outputs without
-executing the zero-argument MORKL generator. Counting has a deterministic node
-budget; budget exhaustion contributes no refinement. See
+difference constraints. `FiniteIntConstraintProblem.nQueens(n)` constructs the
+production constraint problem, and `NQueensSolutions(n)` uses it without
+executing the MORKL generator. `SlidingPuzzleReachability(seed,width)` similarly
+uses the production factorial/parity capacity, while `MutualReachability(edges)`
+gives the sound `[0,E²]` SCC envelope. Counting has a deterministic node budget;
+budget exhaustion contributes no refinement. See
 [CORNERSTONE_ABSTRACT_INTERPRETATIONS.md](CORNERSTONE_ABSTRACT_INTERPRETATIONS.md)
-for all six open-program results.
+for the contracts and all seven cornerstone results. The checked
+[generated summary](CORNERSTONE_ABSTRACT_INTERPRETATIONS_GENERATED.md) records
+the deterministic output of the production analysis entry point.
 
 ## Example
 
@@ -141,11 +162,16 @@ without exposing `SizeExpr` resolution rules to each consumer.
 key count, and the average as an edge/key ratio. It is exact for constant types.
 For symbolic patterns, constants contribute one choice, affine items contribute
 their finite domain capped by stratum cardinality, and unknown items contribute
-the stratum cardinality. `depthProfile` lifts the same rule to every item depth.
-This is a non-dependent envelope: it does not yet retain correlations between a
-specific key and its degree. For `{edge.a.b, edge.a.c, edge.b.c}` at prefix
-length two it reports minimum degree 1, maximum degree 2, three edges, two keys,
-and average `3/2`.
+the stratum cardinality. Symbolic key lower bounds use suffix capacity
+(`ceil(edges/suffixCapacity)`), while minimum/maximum fiber bounds use the
+derived key interval and maximum suffix capacity. `depthProfile` lifts the same
+rule to every item depth. Iterator bodies of the exact form `relation(head)`
+consume these bounds directly: selected-key count times maximum degree caps the
+upper, and quantitative prefix coverage supplies a lower witness without
+assuming different keys have disjoint suffixes. Arbitrary key-specific degree
+correlation is still outside the domain. For
+`{edge.a.b, edge.a.c, edge.b.c}` at prefix length two it reports minimum degree
+1, maximum degree 2, three edges, two keys, and average `3/2`.
 
 `SpatialBackendSelection.candidates` converts those facts into optimization
 recommendations: bounded-depth trie unrolling, common-prefix zipper pre-focus,
@@ -201,9 +227,12 @@ counters. Transfers are derived from the relevant representation. Iteration
 charges grouping plus each body cost scaled by its head groups plus collection;
 fixpoint work is scaled by a sound symbolic round bound. Recursive costs use
 `SpatialRecurrence.solve`, fed by a syntax-only decreasing-measure detector for
-tails, non-empty unwraps, and iterator rests. A recurrence is closed only when
-every self-call decreases; otherwise named recursive work/allocation/round atoms
-remain visible.
+tails, non-empty unwraps, and iterator rests. Its closed form is the executable
+natural-number expression `additive * geomSeries(branching, rounds)`; constant
+arguments evaluate exactly (for example `3 * geomSeries(2,4) = 45`) and the
+asymptotic projection distinguishes linear from exponential recurrence growth.
+A recurrence is closed only when every self-call decreases; otherwise named
+recursive work/allocation/round atoms remain visible.
 
 Patricia work is not treated as a constant multiple of semantic trie visits.
 Composition is bounded by the Patricia nodes of the traversed left trie;
@@ -249,7 +278,12 @@ Numerical audits use `annotatedBound`, which resolves constants, propagated
 one-sided arithmetic, and Z3 constraints from their abstract atom bounds.
 Opaque `SizeOf`/minimum-length/maximum-length atoms contribute only their safe
 zero/infinity envelope; the legacy `evaluate` helper is reserved for downstream
-concrete validation.
+concrete validation. `ResultSpaceSize.estimateReported` and
+`SpatialTypeAnalysis.outputReported` return structured `Z3Diagnostic` values for
+process timeouts, solver timeouts/unknowns, nonzero exits, and I/O failures while
+retaining the compositional fallback. A timeout is also printed when it fires;
+failure to start the configured Z3 executable is a hard error rather than silent
+degradation.
 
 The opt-in extended corpus generates all 24 `Space` constructors, including
 cross-routine `Call`, `Empty`, raffination, fold, bounded fixpoints, every closure/tails form, and grounded space operations in addition

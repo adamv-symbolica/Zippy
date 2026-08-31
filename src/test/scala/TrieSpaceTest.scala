@@ -1079,6 +1079,80 @@ class TrieSpaceTest extends FunSuite:
     assertEquals(execTValue(shared, routine.mentions, tctx), expected)
   }
 
+  test("optimal sharing alpha-converts nested iteration binders") {
+    def nested(outer: PathRef, tails: SpaceMention, inner: PathRef, rest: SpaceMention): Space =
+      Space.Iteration(S"xs", outer, tails,
+        Space.Iteration(Space.Mention(tails), inner, rest,
+          Space.Singleton(Path.Concat(Path.Deref(outer), Path.Deref(inner)))))
+    val first = nested(PathRef("left_outer"), SpaceMention("left_tails"),
+      PathRef("left_inner"), SpaceMention("left_rest"))
+    val second = nested(PathRef("right_outer"), SpaceMention("right_tails"),
+      PathRef("right_inner"), SpaceMention("right_rest"))
+    val routine = R"share_nested_alpha"(S"xs") := (first \/ second)
+    val raw = transpile(routine)
+    val shared = optimize_sharing(raw)
+    val ctx = SpaceContextMap(Map(SpaceMention("xs") -> SpaceValue("a.1.x", "a.2.y", "b.3.z")))
+    val tctx = TrieSpaceContext.fromReference(ctx)
+    val expected = eval(routine.body)(using sc = ctx)
+
+    assertEquals(subgraphCount(raw, "Iteration"), 4)
+    assertEquals(subgraphCount(shared, "Iteration"), 2, shared.show)
+    assertGraphWellScoped(shared, "nested alpha-equivalent sharing")
+    assertEquals(execValue(shared, routine.mentions, ctx), expected)
+    assertEquals(execTValue(shared, routine.mentions, tctx), expected)
+  }
+
+  test("optimal sharing keeps non-alpha-equivalent nested binder uses separate") {
+    def nested(useOuter: Boolean, suffix: String): Space =
+      val outer = PathRef(s"${suffix}_outer")
+      val tails = SpaceMention(s"${suffix}_tails")
+      val inner = PathRef(s"${suffix}_inner")
+      val rest = SpaceMention(s"${suffix}_rest")
+      Space.Iteration(S"xs", outer, tails,
+        Space.Iteration(Space.Mention(tails), inner, rest,
+          Space.Singleton(Path.Deref(if useOuter then outer else inner))))
+    val routine = R"reject_false_alpha"(S"xs") := (nested(useOuter = true, "left") \/ nested(useOuter = false, "right"))
+    val raw = transpile(routine)
+    val shared = optimize_sharing(raw)
+    val ctx = SpaceContextMap(Map(SpaceMention("xs") -> SpaceValue("a.1.x", "a.2.y", "b.3.z")))
+    val tctx = TrieSpaceContext.fromReference(ctx)
+    val expected = eval(routine.body)(using sc = ctx)
+
+    assertEquals(subgraphCount(raw, "Iteration"), 4)
+    assertEquals(subgraphCount(shared, "Iteration"), 4,
+      s"outer and inner de Bruijn coordinates must remain distinct:\n${shared.show}")
+    assertGraphWellScoped(shared, "non-alpha nested sharing")
+    assertEquals(execValue(shared, routine.mentions, ctx), expected)
+    assertEquals(execTValue(shared, routine.mentions, tctx), expected)
+  }
+
+  test("optimal sharing alpha-converts fixpoint and fold binders") {
+    def closure(name: String): Space =
+      val state = SpaceMention(s"${name}_state")
+      Space.Fixpoint(S"xs", state, Space.Mention(state) \/ Space.TailsUnion(Space.Mention(state)))
+    def folded(name: String): Space =
+      val acc = PathRef(s"${name}_acc")
+      val head = PathRef(s"${name}_head")
+      val rest = SpaceMention(s"${name}_rest")
+      Space.Fold(S"xs", Path.Constant(Syntax.parse("seed")), acc, head, rest,
+        Space.Singleton(Path.Concat(Path.Deref(acc), Path.Deref(head))), Path.Deref(acc))
+    val routine = R"share_alpha_loops"(S"xs") :=
+      (closure("left") \/ closure("right")) \/ (folded("left") \/ folded("right"))
+    val raw = transpile(routine)
+    val shared = optimize_sharing(raw)
+    val ctx = SpaceContextMap(Map(SpaceMention("xs") -> SpaceValue("a.1", "b.2")))
+    val tctx = TrieSpaceContext.fromReference(ctx)
+    val expected = eval(routine.body)(using sc = ctx)
+
+    assertEquals(subgraphCount(raw, "Fixpoint"), 2)
+    assertEquals(subgraphCount(shared, "Fixpoint"), 1, shared.show)
+    assertEquals(subgraphCount(raw, "Fold"), 2)
+    assertEquals(subgraphCount(shared, "Fold"), 1, shared.show)
+    assertGraphWellScoped(shared, "fixpoint/fold alpha sharing")
+    assertEquals(execValue(shared, routine.mentions, ctx), expected)
+    assertEquals(execTValue(shared, routine.mentions, tctx), expected)
+  }
+
   test("loop invariant hoist lifts transitive invariant DAG out of iteration") {
     val routine = R"loop_hoist"(S"xs", S"ys") :=
       S"xs".iter(P"h", S"tail",
@@ -1152,14 +1226,15 @@ class TrieSpaceTest extends FunSuite:
     assert(note.contains("fallback_leaf"), note)
   }
 
-  test("zipper transpile rejects recursive self-union calls instead of materializing evalTrie") {
+  test("zipper transpile lowers union-saturating recursive helper calls itself") {
     val recursive = R"zipper_self_union"(S"x") := S"x" \/ R"zipper_self_union"(S"x")
-    val failure = intercept[UnsupportedOperationException] {
-      evalZValue(recursive.name(s("seed")))(using rc = mod(recursive))
-    }
+    val call = recursive.name(s("seed"))
+    val (zipper, construction) = ExecutorCostMeter.measure(
+      transpileZ(call)(using PathContext.emptyMap, ZipperSpaceContext.emptyMap, mod(recursive)))
 
-    assert(failure.getMessage.contains("recursive top-level self-union"), failure.getMessage)
-    assert(failure.getMessage.contains("evalTrie materialization fallback"), failure.getMessage)
+    assertEquals(construction.rounds, 0L)
+    assertEquals(zipper.toSpaceValue,
+      eval(call)(using PathContext.emptyMap, SpaceContextMap(Map.empty), mod(recursive)))
   }
 
   test("zipper transpile rejects non-lowered recursive calls outside top-level self-union") {
@@ -1169,7 +1244,7 @@ class TrieSpaceTest extends FunSuite:
     }
 
     assert(failure.getMessage.contains("recursive routine call"), failure.getMessage)
-    assert(failure.getMessage.contains("Space.Fixpoint"), failure.getMessage)
+    assert(failure.getMessage.contains("outside the union-saturating fixpoint fragment"), failure.getMessage)
   }
 
   test("graph optimizer handles generated pure sliding puzzle graph") {
@@ -1222,6 +1297,7 @@ class TrieSpaceTest extends FunSuite:
     assertGraphWellScoped(graph, "lowered mutual fixpoint graph")
     assertEquals(eval(lowered), expected)
     assertEquals(evalTrieValue(lowered), expected)
+    assertEquals(evalZValue(R"mutual_a"(s("a")))(using rc = mod(a, b)), expected)
     assertEquals(execValue(graph, Vector.empty, SpaceContextMap(Map.empty)), expected)
     assertEquals(execTValue(graph, Vector.empty, TrieSpaceContext.emptyMap), expected)
   }
@@ -1510,15 +1586,228 @@ class TrieSpaceTest extends FunSuite:
       eval(call)(using PathContext.emptyMap, SpaceContextMap(Map.empty), routines))
   }
 
-  test("semi-naive helper recursion lowers to an executable zipper fixpoint") {
+  test("semi-naive helper recursion auto-lowers to a lazy exact zipper fixpoint") {
     val edges = Space.Literal(SpaceValue("edge.a.b", "edge.b.c", "edge.c.d"))
     val routine = DatalogExample.semiNaiveTransitive
     val call = routine.name(DatalogExample.semiNaiveInitial(edges))("complete.path")
     val routines = mod(routine)
-    val lowered = Supercompiler.lowerFixpointCalls(call, routines)
-    assert(collect(lowered)(spre = { case Space.Fixpoint(_, _, _) => () })._1.nonEmpty, lowered.show)
-    assertEquals(evalZ(lowered).toSpaceValue,
+    val (zipper, construction) = ExecutorCostMeter.measure(
+      transpileZ(call)(using PathContext.emptyMap, ZipperSpaceContext.emptyMap, routines))
+    assertEquals(construction.rounds, 0L, s"recursive helper construction must stay lazy: $construction")
+    assertEquals(zipper.toSpaceValue,
       eval(call)(using PathContext.emptyMap, SpaceContextMap(Map.empty), routines))
+  }
+
+  test("general SCC fixpoint stays construction-lazy and agrees after full traversal") {
+    val (zipper, construction) = ExecutorCostMeter.measure(transpileZ(SccCornerstone.body))
+    val a = TrieSpace.intern(Syntax.parse("a")).head
+    val b = TrieSpace.intern(Syntax.parse("b")).head
+    val (reachable, focusedCost) = ExecutorCostMeter.measure(zipper.child(a).child(b).terminal)
+
+    assertEquals(construction.rounds, 0L, s"fixpoint construction performed eager rounds: $construction")
+    assert(reachable, s"a.b should be discovered by the SCC closure; cost=$focusedCost")
+    assert(focusedCost.rounds > 0L, s"the first consumer should trigger saturation: $focusedCost")
+    assertEquals(zipper.toSpaceValue, SccCornerstone.expected)
+  }
+
+  test("generic iteration fixpoint uses exact rounds across head propagation") {
+    val state = SpaceMention("multi_round_state")
+    def enables(prefix: String, output: String, suffix: String): Space =
+      val head = PathRef(s"${prefix}_head")
+      val rest = SpaceMention(s"${prefix}_rest")
+      Space.Iteration(
+        Space.Unwrap(Space.Mention(state), Path.Constant(Syntax.parse(prefix))),
+        head,
+        rest,
+        Space.Singleton(Path.Constant(Syntax.parse(s"$output.$suffix"))),
+      )
+    val expression = Space.Fixpoint(
+      Space.Literal(SpaceValue("a.seed")),
+      state,
+      enables("a", "b", "seed") \/ enables("b", "c", "seed") \/ enables("c", "d", "seed"),
+    )
+    val (zipper, construction) = ExecutorCostMeter.measure(transpileZ(expression))
+    val d = TrieSpace.intern(Syntax.parse("d.seed"))
+    val (found, demandCost) = ExecutorCostMeter.measure(d.foldLeft(zipper)((z, item) => z.child(item)).terminal)
+
+    assertEquals(construction.rounds, 0L)
+    assert(found, s"new heads must feed later exact rounds: $demandCost")
+    assert(demandCost.rounds >= 3L, s"expected multi-round propagation, saw $demandCost")
+    assertEquals(zipper.toSpaceValue, SpaceValue("a.seed", "b.seed", "c.seed", "d.seed"))
+  }
+
+  test("causal wrapped fixpoint remains prefix-demanded across propagation rounds") {
+    val state = SpaceMention("wrapped_demand_state")
+    val a = Path.Constant(Syntax.parse("a"))
+    val limit = Space.Literal(SpaceValue("a", "a.a", "a.a.a"))
+    val expression = Space.Fixpoint(
+      Space.Literal(SpaceValue(PathValue(Nil))),
+      state,
+      Space.Intersection(Space.Wrap(Space.Mention(state), a), limit),
+    )
+    val expected = SpaceValue(
+      PathValue(Nil),
+      Syntax.parse("a"),
+      Syntax.parse("a.a"),
+      Syntax.parse("a.a.a"),
+    )
+    val (zipper, construction) = ExecutorCostMeter.measure(transpileZ(expression))
+    val deepest = TrieSpace.intern(Syntax.parse("a.a.a"))
+    val (found, demandCost) = ExecutorCostMeter.measure(
+      deepest.foldLeft(zipper)((focus, item) => focus.child(item)).terminal,
+    )
+
+    assertEquals(construction.rounds, 0L)
+    assert(found, s"causal prefix dependencies must propagate to the bounded depth: $demandCost")
+    assert(demandCost.rounds >= 3L, s"expected several demanded prefix rounds: $demandCost")
+    assertEquals(zipper.toSpaceValue, expected)
+    assertEquals(zipper.toSpaceValue, eval(expression))
+  }
+
+  test("tail-emitting generic iteration uses the exact fixpoint fallback") {
+    val state = SpaceMention("iteration_productivity_state")
+    val head = PathRef("iteration_productivity_head")
+    val rest = SpaceMention("iteration_productivity_rest")
+    val expression = Space.Fixpoint(
+      Space.Literal(SpaceValue("a")),
+      state,
+      Space.Iteration(
+        Space.Mention(state),
+        head,
+        rest,
+        Space.Mention(rest) \/ Space.Literal(SpaceValue("x")),
+      ),
+    )
+    val expected = SpaceValue(PathValue(Nil), Syntax.parse("a"), Syntax.parse("x"))
+    val (zipper, construction) = ExecutorCostMeter.measure(transpileZ(expression))
+    val (nullable, observation) = ExecutorCostMeter.measure(zipper.terminal)
+
+    assertEquals(construction.rounds, 0L)
+    assert(nullable, s"the first exact iteration round emits epsilon: $observation")
+    assert(observation.rounds > 0L,
+      s"generic tail binding must not enter the non-productive prefix solver: $observation")
+    assertEquals(zipper.toSpaceValue, expected)
+    assertEquals(zipper.toSpaceValue, eval(expression))
+  }
+
+  test("state-dependent tails intersection uses the lazy exact fixpoint fallback") {
+    val state = SpaceMention("tails_intersection_state")
+    val expression = Space.Fixpoint(
+      Space.Literal(SpaceValue("a", "b")),
+      state,
+      Space.Literal(SpaceValue("x.z")) \/
+        Space.TailsIntersection(Space.Mention(state)),
+    )
+    val expected = SpaceValue(
+      PathValue(Nil),
+      Syntax.parse("a"),
+      Syntax.parse("b"),
+      Syntax.parse("x.z"),
+    )
+    val (zipper, construction) = ExecutorCostMeter.measure(transpileZ(expression))
+    val focusedPath = TrieSpace.intern(Syntax.parse("x.z"))
+    val (found, focusedCost) = ExecutorCostMeter.measure(
+      focusedPath.foldLeft(zipper)((focus, item) => focus.child(item)).terminal,
+    )
+
+    assertEquals(construction.rounds, 0L,
+      s"even an exact fallback must remain lazy until observation: $construction")
+    assert(found, s"the focused literal branch must terminate without expanding a cyclic MeetAll: $focusedCost")
+    assert(focusedCost.rounds > 0L,
+      s"an unproved order-sensitive step must run synchronous rounds, not prefix cells: $focusedCost")
+    assertEquals(zipper.toSpaceValue, expected)
+    assertEquals(zipper.toSpaceValue, eval(expression))
+  }
+
+  test("state-dependent unwrap uses the productive exact fixpoint fallback") {
+    val state = SpaceMention("unwrap_fixpoint_state")
+    val expression = Space.Fixpoint(
+      Space.Literal(SpaceValue("a")),
+      state,
+      Space.Unwrap(Space.Mention(state), Path.Constant(Syntax.parse("a"))),
+    )
+    val expected = SpaceValue(PathValue(Nil), Syntax.parse("a"))
+    val (zipper, construction) = ExecutorCostMeter.measure(transpileZ(expression))
+    val (nullable, observation) = ExecutorCostMeter.measure(zipper.terminal)
+
+    assertEquals(construction.rounds, 0L)
+    assert(nullable, s"the exact first round exposes epsilon: $observation")
+    assert(observation.rounds > 0L,
+      s"state-dependent Unwrap must not enter the non-productive prefix solver: $observation")
+    assertEquals(zipper.toSpaceValue, expected)
+    assertEquals(zipper.toSpaceValue, eval(expression))
+  }
+
+  test("union-wrapped recursive tails union uses the exact fixpoint fallback") {
+    val state = SpaceMention("nested_tails_union_state")
+    val expression = Space.Fixpoint(
+      Space.Literal(SpaceValue("a")),
+      state,
+      Space.TailsUnion(Space.Mention(state)) \/ Space.Literal(SpaceValue("x")),
+    )
+    val expected = SpaceValue(PathValue(Nil), Syntax.parse("a"), Syntax.parse("x"))
+    val (zipper, construction) = ExecutorCostMeter.measure(transpileZ(expression))
+    val (materialized, observation) = ExecutorCostMeter.measure(zipper.toSpaceValue)
+
+    assertEquals(construction.rounds, 0L)
+    assert(observation.rounds > 0L,
+      s"a nested tail projection must not grow an unbounded prefix dependency cone: $observation")
+    assertEquals(materialized, expected)
+    assertEquals(materialized, eval(expression))
+  }
+
+  test("intersection enumerates a hinted frontier without sizing an unknown operand") {
+    val delegate = SpaceZipper.traversal(TrieSpace.fromSpaceValue(SpaceValue("keep.hit", "other.value")))
+    var unknownKeysEnumerated = false
+    val noHint = new SpaceZipper:
+      override def terminal: Boolean = delegate.terminal
+      override def child(item: Int): SpaceZipper = delegate.child(item)
+      override def childKeys: IterableOnce[Int] =
+        unknownKeysEnumerated = true
+        delegate.childKeys
+    val demand = SpaceZipper.traversal(TrieSpace.fromSpaceValue(SpaceValue("keep.hit")))
+    val result = SpaceZipper.intersection(noHint, demand)
+
+    assertEquals(result.toSpaceValue, SpaceValue("keep.hit"))
+    assert(!unknownKeysEnumerated, "the no-hint operand should receive membership probes, not frontier enumeration")
+  }
+
+  test("memoized union emptiness does not enumerate descendant key frontiers") {
+    var enumerated = false
+    def nonEmptyTrap(label: String): SpaceZipper = new SpaceZipper:
+      override def terminal: Boolean = false
+      override def isEmpty: Boolean = false
+      override def child(item: Int): SpaceZipper = SpaceZipper.empty
+      override def childKeys: IterableOnce[Int] =
+        enumerated = true
+        fail(s"$label descendant keys were enumerated by an emptiness probe")
+
+    val joined = SpaceZipper.union(nonEmptyTrap("left"), nonEmptyTrap("right"))
+    val (_, cost) = ExecutorCostMeter.measure(assert(!joined.isEmpty))
+
+    assert(!enumerated)
+    assertEquals(cost.nodeVisits, 0L,
+      s"propagated exact emptiness should not perform a child-membership traversal: $cost")
+  }
+
+  test("size-only zipper merges use native aggregate counts without width scans") {
+    def measured(width: Int): Vector[(Int, ExecutorCostCounts)] =
+      val left = SpaceZipper.traversal(TrieSpace.fromSpaceValue(SpaceValue(
+        (0 until width).map(i => Syntax.parse(s"left.$i")).toSet)))
+      val right = SpaceZipper.traversal(TrieSpace.fromSpaceValue(SpaceValue(
+        (0 until width).map(i => Syntax.parse(s"right.$i")).toSet)))
+      Vector(
+        ExecutorCostMeter.measure(SpaceZipper.union(left, right).pathCount),
+        ExecutorCostMeter.measure(SpaceZipper.intersection(left, right).pathCount),
+        ExecutorCostMeter.measure(SpaceZipper.subtraction(left, right).pathCount),
+      )
+    val small = measured(64)
+    val large = measured(4096)
+
+    assertEquals(small.map(_._1), Vector(128, 0, 64))
+    assertEquals(large.map(_._1), Vector(8192, 0, 4096))
+    assertEquals(large.map(_._2.patriciaVisits), small.map(_._2.patriciaVisits),
+      s"disjoint size-only merges should not scale with an untouched width: small=$small large=$large")
   }
 
   test("tail fixpoint answers a focused child without eager Kleene rounds") {

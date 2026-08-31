@@ -2,6 +2,7 @@ package morkl
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Path as JPath, Paths}
+import java.security.MessageDigest
 
 object ProofArtifacts:
   type PathTuple = Vector[String]
@@ -15,7 +16,7 @@ object ProofArtifacts:
     val index: Map[PathTuple, Int] = paths.zipWithIndex.toMap
     val width: Int = paths.length
     val zero: String = bv(BigInt(0))
-    val epsilon: String = mask(Vector(Vector.empty))
+    val epsilon: String = singleton(Vector.empty)
 
     def bv(value: BigInt): String = s"(_ bv$value $width)"
 
@@ -27,7 +28,11 @@ object ProofArtifacts:
 
     def bit(space: String, path: PathTuple): String =
       val i = index(path)
-      s"(not (= (bvand $space ${bv(BigInt(1) << i)}) $zero))"
+      s"(= ((_ extract $i $i) $space) #b1)"
+
+    def singleton(path: PathTuple): String =
+      val i = index(path)
+      s"(bvshl ${bv(BigInt(1))} ${bv(BigInt(i))})"
 
   def atoms(maxLen: Int, alphabet: Vector[String]): Vector[PathTuple] =
     def product(n: Int): Vector[PathTuple] =
@@ -52,7 +57,15 @@ object ProofArtifacts:
   private def bor(parts0: Iterable[String], ctx: Ctx): String =
     val parts = parts0.filter(_ != ctx.zero).toVector
     if parts.isEmpty then ctx.zero
-    else parts.tail.foldLeft(parts.head)((acc, part) => s"(bvor $acc $part)")
+    else if parts.length == 1 then parts.head
+    else
+      // Preserve the left-associated binary term without repeatedly copying
+      // its already-rendered prefix.
+      val out = StringBuilder()
+      parts.tail.foreach(_ => out.append("(bvor "))
+      out.append(parts.head)
+      parts.tail.foreach(part => out.append(' ').append(part).append(')'))
+      out.result()
 
   private def bandBool(parts0: Iterable[String]): String =
     val parts = parts0.toVector
@@ -66,14 +79,77 @@ object ProofArtifacts:
     else if parts.length == 1 then parts.head
     else s"(or ${parts.mkString(" ")})"
 
-  private def intSum(parts0: Iterable[String]): String =
-    val parts = parts0.toVector
-    if parts.isEmpty then "0"
-    else if parts.length == 1 then parts.head
-    else s"(+ ${parts.mkString(" ")})"
+  private def rangeRankWidth(ctx: Ctx): Int =
+    math.max(1, Integer.SIZE - Integer.numberOfLeadingZeros(ctx.width))
 
-  private def clampInt(value: String, lo: String, hi: String): String =
-    s"(ite (< $value $lo) $lo (ite (> $value $hi) $hi $value))"
+  private def rangeRankBv(value: Long, ctx: Ctx): String =
+    s"(_ bv$value ${rangeRankWidth(ctx)})"
+
+  private def minRankConstant(value: Long, count: String, ctx: Ctx): String =
+    if value <= 0 then rangeRankBv(0, ctx)
+    else if value >= ctx.width.toLong then count
+    else
+      val constant = rangeRankBv(value, ctx)
+      s"(ite (bvule $constant $count) $constant $count)"
+
+  private def saturatingRankSub(count: String, amount: Long, ctx: Ctx): String =
+    if amount <= 0 then count
+    else if amount > ctx.width.toLong then rangeRankBv(0, ctx)
+    else
+      val constant = rangeRankBv(amount, ctx)
+      s"(ite (bvule $constant $count) (bvsub $count $constant) ${rangeRankBv(0, ctx)})"
+
+  private def rangeBoundsBv(start: Int, end: Int, count: String, ctx: Ctx): (String, String) =
+    val lower =
+      if start == 0 then rangeRankBv(0, ctx)
+      else if start > 0 then minRankConstant(start.toLong - 1L, count, ctx)
+      else saturatingRankSub(count, -start.toLong, ctx)
+    val upper =
+      if end == 0 then count
+      else if start == 0 && end > 0 then minRankConstant(end.toLong, count, ctx)
+      else if end > 0 then minRankConstant(end.toLong - 1L, count, ctx)
+      else saturatingRankSub(count, -end.toLong, ctx)
+    lower -> upper
+
+  private def productSmt(left: String, right: String, ctx: Ctx): String =
+    val terms = ctx.paths.map { result =>
+      val decompositions =
+        (0 to result.length).iterator.flatMap { split =>
+          val prefix = result.take(split)
+          val suffix = result.drop(split)
+          if ctx.index.contains(prefix) && ctx.index.contains(suffix) then
+            Some(bandBool(Vector(ctx.bit(left, prefix), ctx.bit(right, suffix))))
+          else None
+        }.toVector
+      s"(ite ${borBool(decompositions)} ${ctx.singleton(result)} ${ctx.zero})"
+    }
+    bor(terms, ctx)
+
+  private def restrictionSmt(src: String, prefixes: String, ctx: Ctx): String =
+    val selected = ctx.paths.map { path =>
+      val prefixPresent = borBool(
+        (0 to path.length).iterator
+          .map(path.take)
+          .filter(ctx.index.contains)
+          .map(ctx.bit(prefixes, _))
+          .toVector,
+      )
+      val keep = bandBool(Vector(ctx.bit(src, path), prefixPresent))
+      s"(ite $keep ${ctx.singleton(path)} ${ctx.zero})"
+    }
+    bor(selected, ctx)
+
+  private def unwrapBySmt(src: String, prefixes: String, ctx: Ctx): String =
+    val clauses = Array.fill(ctx.width)(scala.collection.mutable.ArrayBuffer.empty[String])
+    for result <- ctx.paths; split <- 0 to result.length do
+      val prefix = result.take(split)
+      val suffix = result.drop(split)
+      for suffixIndex <- ctx.index.get(suffix) if ctx.index.contains(prefix) do
+        clauses(suffixIndex) += bandBool(Vector(ctx.bit(prefixes, prefix), ctx.bit(src, result)))
+    val terms = ctx.paths.indices.map { index =>
+      s"(ite ${borBool(clauses(index))} ${ctx.singleton(ctx.paths(index))} ${ctx.zero})"
+    }
+    bor(terms, ctx)
 
   sealed trait SpaceExpr:
     def smt(ctx: Ctx): String
@@ -113,58 +189,40 @@ object ProofArtifacts:
 
   case class Product(left: SpaceExpr, right: SpaceExpr) extends SpaceExpr:
     override def smt(ctx: Ctx): String =
-      val leftSmt = left.smt(ctx)
-      val rightSmt = right.smt(ctx)
-      val terms =
-        for
-          p <- ctx.paths
-          q <- ctx.paths
-          r = p ++ q
-          if ctx.index.contains(r)
-        yield
-          val cond = bandBool(Vector(ctx.bit(leftSmt, p), ctx.bit(rightSmt, q)))
-          s"(ite $cond ${ctx.mask(Vector(r))} ${ctx.zero})"
-      bor(terms, ctx)
+      productSmt(left.smt(ctx), right.smt(ctx), ctx)
     override def vars: Set[String] = left.vars ++ right.vars
 
   case class Wrap(prefix: PathTuple, src: SpaceExpr) extends SpaceExpr:
     override def smt(ctx: Ctx): String =
-      val srcSmt = src.smt(ctx)
-      val terms =
-        for
-          q <- ctx.paths
-          r = prefix ++ q
-          if ctx.index.contains(r)
-        yield s"(ite ${ctx.bit(srcSmt, q)} ${ctx.mask(Vector(r))} ${ctx.zero})"
-      bor(terms, ctx)
+      if ctx.index.contains(prefix) then productSmt(ctx.singleton(prefix), src.smt(ctx), ctx)
+      else
+        val srcSmt = src.smt(ctx)
+        val terms =
+          for
+            q <- ctx.paths
+            r = prefix ++ q
+            if ctx.index.contains(r)
+          yield s"(ite ${ctx.bit(srcSmt, q)} ${ctx.singleton(r)} ${ctx.zero})"
+        bor(terms, ctx)
     override def vars: Set[String] = src.vars
 
   case class Unwrap(src: SpaceExpr, prefix: PathTuple) extends SpaceExpr:
     override def smt(ctx: Ctx): String =
-      val srcSmt = src.smt(ctx)
-      val terms =
-        for
-          q <- ctx.paths
-          r = prefix ++ q
-          if ctx.index.contains(r)
-        yield s"(ite ${ctx.bit(srcSmt, r)} ${ctx.mask(Vector(q))} ${ctx.zero})"
-      bor(terms, ctx)
+      if ctx.index.contains(prefix) then unwrapBySmt(src.smt(ctx), ctx.singleton(prefix), ctx)
+      else
+        val srcSmt = src.smt(ctx)
+        val terms =
+          for
+            q <- ctx.paths
+            r = prefix ++ q
+            if ctx.index.contains(r)
+          yield s"(ite ${ctx.bit(srcSmt, r)} ${ctx.singleton(q)} ${ctx.zero})"
+        bor(terms, ctx)
     override def vars: Set[String] = src.vars
 
   case class UnwrapBy(src: SpaceExpr, prefixes: SpaceExpr) extends SpaceExpr:
     override def smt(ctx: Ctx): String =
-      val srcSmt = src.smt(ctx)
-      val prefixesSmt = prefixes.smt(ctx)
-      val terms =
-        for
-          prefix <- ctx.paths
-          q <- ctx.paths
-          r = prefix ++ q
-          if ctx.index.contains(r)
-        yield
-          val cond = bandBool(Vector(ctx.bit(prefixesSmt, prefix), ctx.bit(srcSmt, r)))
-          s"(ite $cond ${ctx.mask(Vector(q))} ${ctx.zero})"
-      bor(terms, ctx)
+      unwrapBySmt(src.smt(ctx), prefixes.smt(ctx), ctx)
     override def vars: Set[String] = src.vars ++ prefixes.vars
 
   case class Child(item: String, src: SpaceExpr) extends SpaceExpr:
@@ -174,7 +232,8 @@ object ProofArtifacts:
   case class Iter(src: SpaceExpr,
                   body: (SpaceExpr, SpaceExpr) => SpaceExpr,
                   bodyVars: Set[String] = Set.empty,
-                  label: String = "iter") extends SpaceExpr:
+                  label: String = "iter",
+                  cacheTag: Option[String] = None) extends SpaceExpr:
     override def smt(ctx: Ctx): String =
       val srcVars = src.vars
       val terms = ctx.alphabet.map { head =>
@@ -189,14 +248,7 @@ object ProofArtifacts:
 
   case class Restriction(src: SpaceExpr, prefixes: SpaceExpr) extends SpaceExpr:
     override def smt(ctx: Ctx): String =
-      val srcSmt = src.smt(ctx)
-      val prefixesSmt = prefixes.smt(ctx)
-      val byPrefix = ctx.paths.map { prefix =>
-        val kept = ctx.paths.filter(r => r.length >= prefix.length && r.take(prefix.length) == prefix)
-        val selectSrc = bor(kept.map(r => s"(ite ${ctx.bit(srcSmt, r)} ${ctx.mask(Vector(r))} ${ctx.zero})"), ctx)
-        s"(ite ${ctx.bit(prefixesSmt, prefix)} $selectSrc ${ctx.zero})"
-      }
-      bor(byPrefix, ctx)
+      restrictionSmt(src.smt(ctx), prefixes.smt(ctx), ctx)
     override def vars: Set[String] = src.vars ++ prefixes.vars
 
   case class Raffination(src: SpaceExpr, prefixes: SpaceExpr) extends SpaceExpr:
@@ -212,7 +264,7 @@ object ProofArtifacts:
       val srcSmt = src.smt(ctx)
       val terms = ctx.paths.collect {
         case path if path.nonEmpty =>
-          s"(ite ${ctx.bit(srcSmt, path)} ${ctx.mask(Vector(path.tail))} ${ctx.zero})"
+          s"(ite ${ctx.bit(srcSmt, path)} ${ctx.singleton(path.tail)} ${ctx.zero})"
       }
       bor(terms, ctx)
     override def vars: Set[String] = src.vars
@@ -246,7 +298,7 @@ object ProofArtifacts:
           val hasFull = if ctx.index.contains(full) then ctx.bit(srcSmt, full) else "false"
           s"(or (not ${childPresent(head)}) $hasFull)"
         }
-        s"(ite ${bandBool(clauses)} ${ctx.mask(Vector(tail))} ${ctx.zero})"
+        s"(ite ${bandBool(clauses)} ${ctx.singleton(tail)} ${ctx.zero})"
       }
       bor(terms, ctx)
     override def vars: Set[String] = src.vars
@@ -256,7 +308,7 @@ object ProofArtifacts:
       val srcSmt = src.smt(ctx)
       val terms = ctx.alphabet.map { head =>
         val present = borBool(ctx.paths.filter(path => path.nonEmpty && path.head == head).map(path => ctx.bit(srcSmt, path)))
-        s"(ite $present ${ctx.mask(Vector(Vector(head)))} ${ctx.zero})"
+        s"(ite $present ${ctx.singleton(Vector(head))} ${ctx.zero})"
       }
       bor(terms, ctx)
     override def vars: Set[String] = src.vars
@@ -277,7 +329,7 @@ object ProofArtifacts:
           path <- ctx.paths
           if path.nonEmpty
           i <- 1 to path.length
-        yield s"(ite ${ctx.bit(srcSmt, path)} ${ctx.mask(Vector(path.take(i)))} ${ctx.zero})"
+        yield s"(ite ${ctx.bit(srcSmt, path)} ${ctx.singleton(path.take(i))} ${ctx.zero})"
       bor(terms, ctx)
     override def vars: Set[String] = src.vars
 
@@ -289,7 +341,7 @@ object ProofArtifacts:
           path <- ctx.paths
           if path.nonEmpty
           i <- 0 until path.length
-        yield s"(ite ${ctx.bit(srcSmt, path)} ${ctx.mask(Vector(path.drop(i)))} ${ctx.zero})"
+        yield s"(ite ${ctx.bit(srcSmt, path)} ${ctx.singleton(path.drop(i))} ${ctx.zero})"
       bor(terms, ctx)
     override def vars: Set[String] = src.vars
 
@@ -301,43 +353,130 @@ object ProofArtifacts:
 
   case class Range(src: SpaceExpr, start: Int, end: Int) extends SpaceExpr:
     override def smt(ctx: Ctx): String =
+      val normalized = normalizeNestedRangesForSmt(this)
+      if normalized != this then return normalized.smt(ctx)
+
       val srcSmt = src.smt(ctx)
-      val count = intSum(ctx.paths.map(path => s"(ite ${ctx.bit(srcSmt, path)} 1 0)"))
-      val lower =
-        if start == 0 then "0"
-        else if start > 0 then (start - 1).toString
-        else s"(+ $count $start)"
-      val upper =
-        if end == 0 then count
-        else if start == 0 && end > 0 then end.toString
-        else if end > 0 then (end - 1).toString
-        else s"(+ $count $end)"
-      val lo = clampInt(lower, "0", count)
-      val hi = clampInt(upper, "0", count)
-      val nonEmptySlice = s"(> $hi $lo)"
+      if start == 0 && end == 0 then return srcSmt
+      if staticallyEmptyRange(start, end) then return ctx.zero
+
+      // Bind the source once and build path ranks as a prefix recurrence.
+      // Rebuilding a complete `take(i)` sum for every path made this encoding
+      // quadratic in the bounded-universe width (and duplicated large source
+      // expressions at every bit probe).
+      val srcName = "__pa_direct_range_src"
+      val rankNames = (1 to ctx.width).map(i => s"__pa_direct_range_rank_$i").toVector
+      val ranks = rangeRankBv(0, ctx) +: rankNames
+      val count = ranks.last
+      val (lo, hi) = rangeBoundsBv(start, end, count, ctx)
+      val nonEmptySlice = s"(bvugt $hi $lo)"
       val terms = ctx.paths.zipWithIndex.map { (path, i) =>
-        val rankBefore = intSum(ctx.paths.take(i).map(q => s"(ite ${ctx.bit(srcSmt, q)} 1 0)"))
+        val rankBefore = ranks(i)
         val cond = bandBool(Vector(
           nonEmptySlice,
-          ctx.bit(srcSmt, path),
-          s"(>= $rankBefore $lo)",
-          s"(< $rankBefore $hi)",
+          ctx.bit(srcName, path),
+          s"(bvuge $rankBefore $lo)",
+          s"(bvult $rankBefore $hi)",
         ))
-        s"(ite $cond ${ctx.mask(Vector(path))} ${ctx.zero})"
+        s"(ite $cond ${ctx.singleton(path)} ${ctx.zero})"
       }
-      bor(terms, ctx)
+      val out = StringBuilder()
+      out.append("(let ((").append(srcName).append(' ').append(srcSmt).append(")) ")
+      rankNames.zipWithIndex.foreach { (rank, i) =>
+        out.append("(let ((").append(rank).append(" (bvadd ")
+          .append(ranks(i)).append(" (ite ").append(ctx.bit(srcName, ctx.paths(i)))
+          .append(' ').append(rangeRankBv(1, ctx)).append(' ').append(rangeRankBv(0, ctx)).append(")))) ")
+      }
+      out.append(bor(terms, ctx))
+      (0 to ctx.width).foreach(_ => out.append(')'))
+      out.result()
     override def vars: Set[String] = src.vars
+
+  /** Compose the Range slices whose endpoints stay independent of the source
+    * cardinality. Other mixtures of positive and negative endpoints are left
+    * nested because their composed endpoint can depend on the runtime count.
+    *
+    * Positive starts are one-based (so start `s` has zero-based offset
+    * `s - 1`), while a positive prefix `Range(_, 0, e)` contains `e` items.
+    * Negative suffixes compose by retaining the shorter of the two suffixes.
+    * A positive prefix at least as wide as a negative suffix's static capacity
+    * selects that entire suffix.
+    */
+  private def composeNestedRangeForSmt(range: Range): Option[Range] =
+    def exactIndex(value: Long): Option[Int] =
+      if value >= Int.MinValue.toLong && value <= Int.MaxValue.toLong then Some(value.toInt)
+      else None
+
+    range match
+      // A positive suffix followed by another positive suffix.
+      case Range(Range(base, innerStart, 0), outerStart, 0)
+          if innerStart > 0 && outerStart > 0 =>
+        exactIndex(innerStart.toLong + outerStart.toLong - 1L)
+          .map(composedStart => Range(base, composedStart, 0))
+
+      // A positive suffix followed by a positive prefix.
+      case Range(Range(base, innerStart, 0), 0, outerEnd)
+          if innerStart > 0 && outerEnd > 0 =>
+        exactIndex(innerStart.toLong + outerEnd.toLong)
+          .map(composedEnd => Range(base, innerStart, composedEnd))
+
+      // A negative suffix contains at most -innerStart items. A positive
+      // prefix covering that capacity is therefore the identity on it.
+      case Range(inner @ Range(_, innerStart, 0), 0, outerEnd)
+          if innerStart < 0 && outerEnd > 0 &&
+            outerEnd.toLong >= -innerStart.toLong =>
+        Some(inner)
+
+      // A negative suffix followed by another negative suffix.
+      case Range(Range(base, innerStart, 0), outerStart, 0)
+          if innerStart < 0 && outerStart < 0 =>
+        Some(Range(base, math.max(innerStart, outerStart), 0))
+
+      case _ => None
+
+  /** Endpoint-only empty slices. Zero/zero is the full-range sentinel and is
+    * deliberately excluded; mixed-sign ordering depends on the source count.
+    */
+  private def staticallyEmptyRange(start: Int, end: Int): Boolean =
+    (start == end && start != 0) ||
+      (start > 0 && end > 0 && start > end) ||
+      (start < 0 && end < 0 && start > end)
+
+  @scala.annotation.tailrec
+  private def normalizeNestedRangesForSmt(range: Range): Range =
+    composeNestedRangeForSmt(range) match
+      case Some(composed) => normalizeNestedRangesForSmt(composed)
+      case None => range
+
+  enum FixpointRoundBound:
+    /** General inflationary iteration over a finite bit-vector lattice. */
+    case FiniteUniverse
+    /** Each newly derived path moves strictly in one path-length direction. */
+    case PathLength
+    /** One application reaches an idempotent image. */
+    case OneStep
+    /** The body is a subset of the current state, so inflation adds nothing. */
+    case Reductive
+
+    def rounds(ctx: Ctx): Int = this match
+      case FiniteUniverse => ctx.width
+      case PathLength => ctx.maxLen
+      case OneStep => 1
+      case Reductive => 0
 
   case class FixpointExpr(initial: SpaceExpr,
                           body: SpaceExpr => SpaceExpr,
                           bodyVars: Set[String] = Set.empty,
-                          label: String = "fix") extends SpaceExpr:
+                          label: String = "fix",
+                          cacheTag: Option[String] = None,
+                          roundBound: FixpointRoundBound = FixpointRoundBound.FiniteUniverse) extends SpaceExpr:
     override def smt(ctx: Ctx): String =
-      val names = (0 to ctx.width).map(i => s"__${label}_fp_$i").toVector
+      val rounds = roundBound.rounds(ctx)
+      val names = (0 to rounds).map(i => s"__${label}_fp_$i").toVector
       val bindings = Vector.newBuilder[(String, String)]
       bindings += names.head -> initial.smt(ctx)
       var i = 0
-      while i < ctx.width do
+      while i < rounds do
         val state = Raw(names(i), vars)
         bindings += names(i + 1) -> s"(bvor ${names(i)} ${body(state).smt(ctx)})"
         i += 1
@@ -383,12 +522,109 @@ object ProofArtifacts:
       bandBool(clauses)
     override def vars: Set[String] = left.vars ++ right.vars
 
+  /** Exact executable semantics for the bounded path universe used by emitted
+    * SMT. This is intentionally independent of string serialization and lets
+    * generators establish that a focused universe still carries concrete
+    * production witnesses before asking a solver about backend equality.
+    */
+  def evaluate(expr: SpaceExpr,
+               ctx: Ctx,
+               variables: Map[String, Set[PathTuple]] = Map.empty,
+               respectFixpointRoundBounds: Boolean = false): Set[PathTuple] =
+    val universe = ctx.index.keySet
+    def bounded(paths: Iterable[PathTuple]): Set[PathTuple] = paths.iterator.filter(universe).toSet
+    def loop(current: SpaceExpr): Set[PathTuple] = current match
+      case Var(name) => bounded(variables.getOrElse(name,
+        throw IllegalArgumentException(s"missing bounded proof variable $name")))
+      case Const(paths) => bounded(paths)
+      case Raw(term, _) =>
+        throw IllegalArgumentException(s"raw SMT term cannot be concretely evaluated: $term")
+      case Union(left, right) => loop(left) ++ loop(right)
+      case Intersection(left, right) => loop(left) intersect loop(right)
+      case Diff(left, right) => loop(left) -- loop(right)
+      case Product(left, right) =>
+        bounded(for prefix <- loop(left); suffix <- loop(right) yield prefix ++ suffix)
+      case Wrap(prefix, src) => bounded(loop(src).map(prefix ++ _))
+      case Unwrap(src, prefix) =>
+        bounded(loop(src).collect { case path if path.startsWith(prefix) => path.drop(prefix.length) })
+      case UnwrapBy(src, prefixes) =>
+        val source = loop(src)
+        bounded(for
+          prefix <- loop(prefixes)
+          path <- source
+          if path.startsWith(prefix)
+        yield path.drop(prefix.length))
+      case Child(item, src) => loop(Unwrap(src, Vector(item)))
+      case Iter(src, body, _, _, _) =>
+        val source = loop(src)
+        val heads = source.iterator.flatMap(_.headOption).toSet
+        bounded(heads.iterator.flatMap { head =>
+          val tails = source.collect { case path if path.nonEmpty && path.head == head => path.tail }
+          loop(body(Const(Vector(Vector(head))), Const(tails.toVector))).iterator
+        }.toSet)
+      case Restriction(src, prefixes) =>
+        val prefixSet = loop(prefixes)
+        loop(src).filter(path => prefixSet.exists(prefix => path.startsWith(prefix)))
+      case Raffination(src, prefixes) => loop(src) -- loop(Restriction(src, prefixes))
+      case NonEmpty(src) => loop(src) - Vector.empty
+      case TailsUnion(src) => bounded(loop(src).collect { case path if path.nonEmpty => path.tail })
+      case FrontierUnion(src) => loop(TailsUnion(src))
+      case FrontierTailUnion(src, item) => loop(Child(item, src))
+      case FrontierChildUnion(src, item) => loop(Child(item, FrontierState(src)))
+      case FrontierState(active) => loop(active)
+      case TailsIntersection(src) =>
+        val grouped = loop(src).collect { case path if path.nonEmpty => path.head -> path.tail }.groupMap(_._1)(_._2)
+        val childSets: Vector[Set[PathTuple]] = grouped.valuesIterator.map(_.toSet).toVector
+        if childSets.isEmpty then Set.empty
+        else bounded(childSets.reduce((left: Set[PathTuple], right: Set[PathTuple]) => left.intersect(right)))
+      case Head(src) => bounded(loop(src).collect { case path if path.nonEmpty => Vector(path.head) })
+      case PatchChild(parent, item, replacement) =>
+        loop(Diff(parent, Restriction(parent, singleton(item)))) ++ loop(Wrap(Vector(item), replacement))
+      case PrefixClosure(src) =>
+        bounded(loop(src).iterator.flatMap(path => (1 to path.length).iterator.map(path.take)).toSet)
+      case SuffixClosure(src) =>
+        bounded(loop(src).iterator.flatMap(path => (0 until path.length).iterator.map(path.drop)).toSet)
+      case TailsClosure(src) =>
+        val source = loop(src)
+        if source.isEmpty then Set.empty else loop(SuffixClosure(Const(source.toVector))) + Vector.empty
+      case Range(src, start, end) =>
+        val source = loop(src)
+        val ordered = ctx.paths.filter(source)
+        val count = ordered.length
+        val lower = if start == 0 then 0 else if start > 0 then start - 1 else count + start
+        val upper = if end == 0 then count else if start == 0 && end > 0 then end else if end > 0 then end - 1 else count + end
+        val lo = math.max(0, math.min(count, lower))
+        val hi = math.max(0, math.min(count, upper))
+        if hi <= lo then Set.empty else ordered.slice(lo, hi).toSet
+      case FixpointExpr(initial, body, _, _, _, roundBound) =>
+        var state = loop(initial)
+        var changed = true
+        var rounds = 0
+        val roundLimit =
+          if respectFixpointRoundBounds then roundBound.rounds(ctx)
+          else ctx.width
+        while changed && rounds < roundLimit do
+          val next = state ++ loop(body(Const(state.toVector)))
+          changed = next != state
+          state = next
+          rounds += 1
+        state
+      case IfNullable(src, yes, no) => if loop(src).contains(Vector.empty) then loop(yes) else loop(no)
+      case IfEmpty(src, yes, no) => if loop(src).isEmpty then loop(yes) else loop(no)
+    loop(expr)
+
   private final class SharedSmtEmitter(ctx: Ctx):
     private val bindings = scala.collection.mutable.ArrayBuffer.empty[(String, String)]
     private val cache = scala.collection.mutable.LinkedHashMap.empty[String, String]
     private val identityIds = java.util.IdentityHashMap[AnyRef, String]()
+    private val structuralKeys = java.util.IdentityHashMap[AnyRef, String]()
     private var nextBinding = 0
     private var nextIdentity = 0
+    private var needsProduct = false
+    private var needsRestriction = false
+    private var needsUnwrapBy = false
+    private val possibleCache = scala.collection.mutable.HashMap.empty[String, Set[PathTuple]]
+    private val allPossiblePaths = ctx.paths.toSet
 
     def renderSpace(expr: SpaceExpr): String = wrap(emitSpace(expr))
 
@@ -399,15 +635,33 @@ object ProofArtifacts:
       val right = emitSpace(rhs)
       wrap(s"(not (= $left $right))")
 
+    def helperDefinitions: Vector[String] =
+      val sort = s"(_ BitVec ${ctx.width})"
+      Vector(
+        Option.when(needsProduct)(
+          s"(define-fun __pa_product ((left $sort) (right $sort)) $sort ${productSmt("left", "right", ctx)})"),
+        Option.when(needsRestriction)(
+          s"(define-fun __pa_restriction ((src $sort) (prefixes $sort)) $sort ${restrictionSmt("src", "prefixes", ctx)})"),
+        Option.when(needsUnwrapBy)(
+          s"(define-fun __pa_unwrap_by ((src $sort) (prefixes $sort)) $sort ${unwrapBySmt("src", "prefixes", ctx)})"),
+      ).flatten
+
     private def fresh(): String =
       val out = s"__pa_$nextBinding"
       nextBinding += 1
       out
 
     private def wrap(root: String): String =
-      bindings.foldRight(root) { case ((name, term), inner) =>
-        s"(let (($name $term)) $inner)"
+      // `foldRight` with string interpolation repeatedly copied the entire
+      // accumulated suffix. Full-open programs can have thousands of shared
+      // bindings, making otherwise-linear serialization quadratic.
+      val out = StringBuilder()
+      bindings.foreach { (name, term) =>
+        out.append("(let ((").append(name).append(' ').append(term).append(")) ")
       }
+      out.append(root)
+      bindings.indices.foreach(_ => out.append(')'))
+      out.result()
 
     private def identityKey(x: AnyRef): String =
       val cached = identityIds.get(x)
@@ -426,7 +680,87 @@ object ProofArtifacts:
         name
       })
 
-    private def emitSpace(expr: SpaceExpr): String = expr match
+    /** A sound may-contain abstraction used only to remove Iter branches whose
+      * source child is statically impossible. Variables and opaque raw terms
+      * start at the full bounded universe; every transfer below over-approximates
+      * the concrete path-set operator, so pruning cannot remove a real result.
+      */
+    private def possiblePaths(expr: SpaceExpr): Set[PathTuple] =
+      val key = spaceKey(expr)
+      possibleCache.getOrElseUpdate(key, expr match
+        case Var(_) | Raw(_, _) => allPossiblePaths
+        case Const(paths) => paths.iterator.filter(ctx.index.contains).toSet
+        case Union(left, right) => possiblePaths(left) ++ possiblePaths(right)
+        case Intersection(left, right) => possiblePaths(left) intersect possiblePaths(right)
+        case Diff(left, _) => possiblePaths(left)
+        case Product(left, right) =>
+          (for
+            prefix <- possiblePaths(left).iterator
+            suffix <- possiblePaths(right).iterator
+            result = prefix ++ suffix
+            if ctx.index.contains(result)
+          yield result).toSet
+        case Wrap(prefix, src) =>
+          possiblePaths(src).iterator.map(prefix ++ _).filter(ctx.index.contains).toSet
+        case Unwrap(src, prefix) =>
+          possiblePaths(src).iterator.collect {
+            case path if path.startsWith(prefix) => path.drop(prefix.length)
+          }.filter(ctx.index.contains).toSet
+        case UnwrapBy(src, prefixes) =>
+          val prefixUpper = possiblePaths(prefixes)
+          possiblePaths(src).iterator.flatMap { path =>
+            prefixUpper.iterator.collect {
+              case prefix if path.startsWith(prefix) => path.drop(prefix.length)
+            }
+          }.filter(ctx.index.contains).toSet
+        case Child(item, src) => possiblePaths(Unwrap(src, Vector(item)))
+        case Iter(src, body, _, _, _) =>
+          val sourceUpper = possiblePaths(src)
+          val heads = sourceUpper.iterator.flatMap(_.headOption).toSet
+          heads.iterator.flatMap { head =>
+            val tailUpper = sourceUpper.iterator.collect {
+              case path if path.nonEmpty && path.head == head => path.tail
+            }.filter(ctx.index.contains).toVector
+            possiblePaths(body(singleton(head), Const(tailUpper))).iterator
+          }.toSet
+        case Restriction(src, prefixes) =>
+          val prefixUpper = possiblePaths(prefixes)
+          possiblePaths(src).filter(path => prefixUpper.exists(prefix => path.startsWith(prefix)))
+        case Raffination(src, _) => possiblePaths(src)
+        case NonEmpty(src) => possiblePaths(src) - Vector.empty
+        case TailsUnion(src) =>
+          possiblePaths(src).iterator.collect { case path if path.nonEmpty => path.tail }.toSet
+        case FrontierUnion(src) => possiblePaths(TailsUnion(src))
+        case FrontierTailUnion(src, item) => possiblePaths(Child(item, src))
+        case FrontierChildUnion(src, item) => possiblePaths(Child(item, FrontierState(src)))
+        case FrontierState(active) => possiblePaths(active)
+        case TailsIntersection(src) =>
+          possiblePaths(src).iterator.collect { case path if path.nonEmpty => path.tail }.toSet
+        case Head(src) =>
+          possiblePaths(src).iterator.collect {
+            case path if path.nonEmpty => Vector(path.head)
+          }.filter(ctx.index.contains).toSet
+        case PatchChild(parent, item, replacement) =>
+          possiblePaths(parent) ++ possiblePaths(Wrap(Vector(item), replacement))
+        case PrefixClosure(src) =>
+          possiblePaths(src).iterator.flatMap(path => (1 to path.length).iterator.map(path.take)).toSet
+        case SuffixClosure(src) =>
+          possiblePaths(src).iterator.flatMap(path => (0 until path.length).iterator.map(path.drop)).toSet
+        case TailsClosure(src) =>
+          val sourceUpper = possiblePaths(src)
+          if sourceUpper.isEmpty then Set.empty
+          else possiblePaths(SuffixClosure(src)) + Vector.empty
+        case Range(src, _, _) => possiblePaths(src)
+        case FixpointExpr(_, _, _, _, _, _) => allPossiblePaths
+        case IfNullable(_, yes, no) => possiblePaths(yes) ++ possiblePaths(no)
+        case IfEmpty(_, yes, no) => possiblePaths(yes) ++ possiblePaths(no)
+      )
+
+    private def emitSpace(expr0: SpaceExpr): String =
+      val expr = expr0 match
+        case range: Range => normalizeNestedRangesForSmt(range)
+        case other => other
+      expr match {
       case Var(name) => name
       case Const(paths) => ctx.mask(paths)
       case Raw(term, _) => term
@@ -438,63 +772,52 @@ object ProofArtifacts:
         bind("space", spaceKey(expr), s"(bvand ${emitSpace(left)} (bvnot ${emitSpace(right)}))")
       case Product(left, right) =>
         bind("space", spaceKey(expr), {
-          val leftSmt = emitSpace(left)
-          val rightSmt = emitSpace(right)
-          val terms =
-            for
-              p <- ctx.paths
-              q <- ctx.paths
-              r = p ++ q
-              if ctx.index.contains(r)
-            yield
-              val cond = bandBool(Vector(ctx.bit(leftSmt, p), ctx.bit(rightSmt, q)))
-              s"(ite $cond ${ctx.mask(Vector(r))} ${ctx.zero})"
-          bor(terms, ctx)
+          needsProduct = true
+          s"(__pa_product ${emitSpace(left)} ${emitSpace(right)})"
         })
       case Wrap(prefix, src) =>
         bind("space", spaceKey(expr), {
-          val srcSmt = emitSpace(src)
-          val terms =
-            for
-              q <- ctx.paths
-              r = prefix ++ q
-              if ctx.index.contains(r)
-            yield s"(ite ${ctx.bit(srcSmt, q)} ${ctx.mask(Vector(r))} ${ctx.zero})"
-          bor(terms, ctx)
+          if ctx.index.contains(prefix) then
+            needsProduct = true
+            s"(__pa_product ${ctx.singleton(prefix)} ${emitSpace(src)})"
+          else
+            val srcSmt = emitSpace(src)
+            val terms =
+              for
+                q <- ctx.paths
+                r = prefix ++ q
+                if ctx.index.contains(r)
+              yield s"(ite ${ctx.bit(srcSmt, q)} ${ctx.singleton(r)} ${ctx.zero})"
+            bor(terms, ctx)
         })
       case Unwrap(src, prefix) =>
         bind("space", spaceKey(expr), {
-          val srcSmt = emitSpace(src)
-          val terms =
-            for
-              q <- ctx.paths
-              r = prefix ++ q
-              if ctx.index.contains(r)
-            yield s"(ite ${ctx.bit(srcSmt, r)} ${ctx.mask(Vector(q))} ${ctx.zero})"
-          bor(terms, ctx)
+          if ctx.index.contains(prefix) then
+            needsUnwrapBy = true
+            s"(__pa_unwrap_by ${emitSpace(src)} ${ctx.singleton(prefix)})"
+          else
+            val srcSmt = emitSpace(src)
+            val terms =
+              for
+                q <- ctx.paths
+                r = prefix ++ q
+                if ctx.index.contains(r)
+              yield s"(ite ${ctx.bit(srcSmt, r)} ${ctx.singleton(q)} ${ctx.zero})"
+            bor(terms, ctx)
         })
       case UnwrapBy(src, prefixes) =>
         bind("space", spaceKey(expr), {
-          val srcSmt = emitSpace(src)
-          val prefixesSmt = emitSpace(prefixes)
-          val terms =
-            for
-              prefix <- ctx.paths
-              q <- ctx.paths
-              r = prefix ++ q
-              if ctx.index.contains(r)
-            yield
-              val cond = bandBool(Vector(ctx.bit(prefixesSmt, prefix), ctx.bit(srcSmt, r)))
-              s"(ite $cond ${ctx.mask(Vector(q))} ${ctx.zero})"
-          bor(terms, ctx)
+          needsUnwrapBy = true
+          s"(__pa_unwrap_by ${emitSpace(src)} ${emitSpace(prefixes)})"
         })
       case Child(item, src) =>
         bind("space", spaceKey(expr), emitSpace(Unwrap(src, Vector(item))))
-      case iter @ Iter(src, body, _, label) =>
+      case iter @ Iter(src, body, _, label, _) =>
         bind("space", spaceKey(iter), {
           val srcSmt = emitSpace(src)
           val srcVars = src.vars
-          val terms = ctx.alphabet.map { head =>
+          val possibleHeads = possiblePaths(src).iterator.flatMap(_.headOption).toSet
+          val terms = ctx.paths.iterator.flatMap(_.headOption).filter(possibleHeads).toVector.distinct.sorted.map { head =>
             val tailSmt = emitSpace(Child(head, Raw(srcSmt, srcVars)))
             val bodySmt = emitSpace(body(singleton(head), Raw(tailSmt, srcVars)))
             s"(ite (not (= $tailSmt ${ctx.zero})) $bodySmt ${ctx.zero})"
@@ -503,14 +826,8 @@ object ProofArtifacts:
         })
       case Restriction(src, prefixes) =>
         bind("space", spaceKey(expr), {
-          val srcSmt = emitSpace(src)
-          val prefixesSmt = emitSpace(prefixes)
-          val byPrefix = ctx.paths.map { prefix =>
-            val kept = ctx.paths.filter(r => r.length >= prefix.length && r.take(prefix.length) == prefix)
-            val selectSrc = bor(kept.map(r => s"(ite ${ctx.bit(srcSmt, r)} ${ctx.mask(Vector(r))} ${ctx.zero})"), ctx)
-            s"(ite ${ctx.bit(prefixesSmt, prefix)} $selectSrc ${ctx.zero})"
-          }
-          bor(byPrefix, ctx)
+          needsRestriction = true
+          s"(__pa_restriction ${emitSpace(src)} ${emitSpace(prefixes)})"
         })
       case Raffination(src, prefixes) =>
         bind("space", spaceKey(expr), emitSpace(Diff(src, Restriction(src, prefixes))))
@@ -521,7 +838,7 @@ object ProofArtifacts:
           val srcSmt = emitSpace(src)
           val terms = ctx.paths.collect {
             case path if path.nonEmpty =>
-              s"(ite ${ctx.bit(srcSmt, path)} ${ctx.mask(Vector(path.tail))} ${ctx.zero})"
+              s"(ite ${ctx.bit(srcSmt, path)} ${ctx.singleton(path.tail)} ${ctx.zero})"
           }
           bor(terms, ctx)
         })
@@ -547,7 +864,7 @@ object ProofArtifacts:
               val hasFull = if ctx.index.contains(full) then ctx.bit(srcSmt, full) else "false"
               s"(or (not ${childPresent(head)}) $hasFull)"
             }
-            s"(ite ${bandBool(clauses)} ${ctx.mask(Vector(tail))} ${ctx.zero})"
+            s"(ite ${bandBool(clauses)} ${ctx.singleton(tail)} ${ctx.zero})"
           }
           bor(terms, ctx)
         })
@@ -556,7 +873,7 @@ object ProofArtifacts:
           val srcSmt = emitSpace(src)
           val terms = ctx.alphabet.map { head =>
             val present = borBool(ctx.paths.filter(path => path.nonEmpty && path.head == head).map(path => ctx.bit(srcSmt, path)))
-            s"(ite $present ${ctx.mask(Vector(Vector(head)))} ${ctx.zero})"
+            s"(ite $present ${ctx.singleton(Vector(head))} ${ctx.zero})"
           }
           bor(terms, ctx)
         })
@@ -575,7 +892,7 @@ object ProofArtifacts:
               path <- ctx.paths
               if path.nonEmpty
               i <- 1 to path.length
-            yield s"(ite ${ctx.bit(srcSmt, path)} ${ctx.mask(Vector(path.take(i)))} ${ctx.zero})"
+            yield s"(ite ${ctx.bit(srcSmt, path)} ${ctx.singleton(path.take(i))} ${ctx.zero})"
           bor(terms, ctx)
         })
       case SuffixClosure(src) =>
@@ -586,7 +903,7 @@ object ProofArtifacts:
               path <- ctx.paths
               if path.nonEmpty
               i <- 0 until path.length
-            yield s"(ite ${ctx.bit(srcSmt, path)} ${ctx.mask(Vector(path.drop(i)))} ${ctx.zero})"
+            yield s"(ite ${ctx.bit(srcSmt, path)} ${ctx.singleton(path.drop(i))} ${ctx.zero})"
           bor(terms, ctx)
         })
       case TailsClosure(src) =>
@@ -594,40 +911,42 @@ object ProofArtifacts:
           val srcSmt = emitSpace(src)
           s"(ite (= $srcSmt ${ctx.zero}) ${ctx.zero} (bvor ${ctx.epsilon} ${emitSpace(SuffixClosure(src))}))"
         })
+      case Range(src, 0, 0) => emitSpace(src)
+      case Range(_, start, end) if staticallyEmptyRange(start, end) => ctx.zero
       case Range(src, start, end) =>
         bind("space", spaceKey(expr), {
           val srcSmt = emitSpace(src)
           val srcKey = spaceKey(src)
-          val count = bind("int", s"range-count:$srcKey", intSum(ctx.paths.map(path => s"(ite ${ctx.bit(srcSmt, path)} 1 0)")))
-          val lower =
-            if start == 0 then "0"
-            else if start > 0 then (start - 1).toString
-            else s"(+ $count $start)"
-          val upper =
-            if end == 0 then count
-            else if start == 0 && end > 0 then end.toString
-            else if end > 0 then (end - 1).toString
-            else s"(+ $count $end)"
-          val lo = bind("int", s"range-lo:$srcKey:$start:$end", clampInt(lower, "0", count))
-          val hi = bind("int", s"range-hi:$srcKey:$start:$end", clampInt(upper, "0", count))
-          val nonEmptySlice = bind("bool", s"range-nonempty:$srcKey:$start:$end", s"(> $hi $lo)")
+          val ranks = scala.collection.mutable.ArrayBuffer[String](rangeRankBv(0, ctx))
+          ctx.paths.zipWithIndex.foreach { (path, i) =>
+            ranks += bind(
+              "rank",
+              s"range-rank:$srcKey:${i + 1}",
+              s"(bvadd ${ranks.last} (ite ${ctx.bit(srcSmt, path)} ${rangeRankBv(1, ctx)} ${rangeRankBv(0, ctx)}))",
+            )
+          }
+          val count = bind("rank", s"range-count:$srcKey", ranks.last)
+          val (lower, upper) = rangeBoundsBv(start, end, count, ctx)
+          val lo = bind("rank", s"range-lo:$srcKey:$start:$end", lower)
+          val hi = bind("rank", s"range-hi:$srcKey:$start:$end", upper)
+          val nonEmptySlice = bind("bool", s"range-nonempty:$srcKey:$start:$end", s"(bvugt $hi $lo)")
           val terms = ctx.paths.zipWithIndex.map { (path, i) =>
-            val rankBefore = bind("int", s"range-rank:$srcKey:$i", intSum(ctx.paths.take(i).map(q => s"(ite ${ctx.bit(srcSmt, q)} 1 0)")))
+            val rankBefore = ranks(i)
             val cond = bandBool(Vector(
               nonEmptySlice,
               ctx.bit(srcSmt, path),
-              s"(>= $rankBefore $lo)",
-              s"(< $rankBefore $hi)",
+              s"(bvuge $rankBefore $lo)",
+              s"(bvult $rankBefore $hi)",
             ))
-            s"(ite $cond ${ctx.mask(Vector(path))} ${ctx.zero})"
+            s"(ite $cond ${ctx.singleton(path)} ${ctx.zero})"
           }
           bor(terms, ctx)
         })
-      case fix @ FixpointExpr(initial, body, _, label) =>
+      case fix @ FixpointExpr(initial, body, _, label, _, roundBound) =>
         bind("space", spaceKey(fix), {
           var current = emitSpace(initial)
           var i = 0
-          while i < ctx.width do
+          while i < roundBound.rounds(ctx) do
             val bodySmt = emitSpace(body(Raw(current)))
             current = bind("space", s"fix-step:${identityKey(fix)}:$i", s"(bvor $current $bodySmt)")
             i += 1
@@ -640,6 +959,7 @@ object ProofArtifacts:
           val srcSmt = emitSpace(src)
           s"(ite (= $srcSmt ${ctx.zero}) ${emitSpace(yes)} ${emitSpace(no)})"
         })
+      }
 
     private def emitBool(expr: BoolExpr): String = expr match
       case NonEmptyAssumption(src) =>
@@ -663,37 +983,69 @@ object ProofArtifacts:
           bandBool(clauses)
         })
 
-    private def spaceKey(expr: SpaceExpr): String = expr match
-      case Var(name) => s"var:$name"
-      case Const(paths) => s"const:${paths.map(_.mkString(".")).mkString(";")}"
-      case Raw(term, _) => s"raw:$term"
-      case Union(left, right) => s"union(${spaceKey(left)},${spaceKey(right)})"
-      case Intersection(left, right) => s"inter(${spaceKey(left)},${spaceKey(right)})"
-      case Diff(left, right) => s"diff(${spaceKey(left)},${spaceKey(right)})"
-      case Product(left, right) => s"product(${spaceKey(left)},${spaceKey(right)})"
-      case Wrap(prefix, src) => s"wrap(${prefix.mkString(".")},${spaceKey(src)})"
-      case Unwrap(src, prefix) => s"unwrap(${spaceKey(src)},${prefix.mkString(".")})"
-      case UnwrapBy(src, prefixes) => s"unwrap-by(${spaceKey(src)},${spaceKey(prefixes)})"
-      case Child(item, src) => s"child($item,${spaceKey(src)})"
-      case x: Iter => s"iter:${identityKey(x)}"
-      case Restriction(src, prefixes) => s"restriction(${spaceKey(src)},${spaceKey(prefixes)})"
-      case Raffination(src, prefixes) => s"raffination(${spaceKey(src)},${spaceKey(prefixes)})"
-      case NonEmpty(src) => s"nonempty(${spaceKey(src)})"
-      case TailsUnion(src) => s"tails-union(${spaceKey(src)})"
-      case FrontierUnion(src) => s"frontier-union(${spaceKey(src)})"
-      case FrontierTailUnion(src, item) => s"frontier-tail-union(${spaceKey(src)},$item)"
-      case FrontierChildUnion(src, item) => s"frontier-child-union(${spaceKey(src)},$item)"
-      case FrontierState(active) => s"frontier-state(${spaceKey(active)})"
-      case TailsIntersection(src) => s"tails-intersection(${spaceKey(src)})"
-      case Head(src) => s"head(${spaceKey(src)})"
-      case PatchChild(parent, item, replacement) => s"patch-child(${spaceKey(parent)},$item,${spaceKey(replacement)})"
-      case PrefixClosure(src) => s"prefix-closure(${spaceKey(src)})"
-      case SuffixClosure(src) => s"suffix-closure(${spaceKey(src)})"
-      case TailsClosure(src) => s"tails-closure(${spaceKey(src)})"
-      case Range(src, start, end) => s"range(${spaceKey(src)},$start,$end)"
-      case x: FixpointExpr => s"fix:${identityKey(x)}"
-      case IfNullable(src, yes, no) => s"if-nullable(${spaceKey(src)},${spaceKey(yes)},${spaceKey(no)})"
-      case IfEmpty(src, yes, no) => s"if-empty(${spaceKey(src)},${spaceKey(yes)},${spaceKey(no)})"
+    private def structuralDigest(kind: String, parts: IterableOnce[String]): String =
+      val md = MessageDigest.getInstance("SHA-256")
+      def add(value: String): Unit =
+        val bytes = value.getBytes(StandardCharsets.UTF_8)
+        md.update((bytes.length >>> 24).toByte)
+        md.update((bytes.length >>> 16).toByte)
+        md.update((bytes.length >>> 8).toByte)
+        md.update(bytes.length.toByte)
+        md.update(bytes)
+      add(kind)
+      parts.iterator.foreach(add)
+      java.util.HexFormat.of().formatHex(md.digest())
+
+    private def nodeKey(kind: String, parts: String*): String =
+      structuralDigest(kind, parts)
+
+    private def spaceKey(expr: SpaceExpr): String =
+      val ref = expr.asInstanceOf[AnyRef]
+      val cached = structuralKeys.get(ref)
+      if cached != null then cached
+      else
+        val out = expr match
+          case Var(name) => nodeKey("var", name)
+          case Const(paths) =>
+            structuralDigest("const", Iterator(paths.length.toString) ++ paths.iterator.flatMap { path =>
+              Iterator(path.length.toString) ++ path.iterator
+            })
+          case Raw(term, _) => nodeKey("raw", term)
+          case Union(left, right) => nodeKey("union", spaceKey(left), spaceKey(right))
+          case Intersection(left, right) => nodeKey("inter", spaceKey(left), spaceKey(right))
+          case Diff(left, right) => nodeKey("diff", spaceKey(left), spaceKey(right))
+          case Product(left, right) => nodeKey("product", spaceKey(left), spaceKey(right))
+          case Wrap(prefix, src) => structuralDigest("wrap", prefix.iterator ++ Iterator(spaceKey(src)))
+          case Unwrap(src, prefix) => structuralDigest("unwrap", Iterator(spaceKey(src)) ++ prefix.iterator)
+          case UnwrapBy(src, prefixes) => nodeKey("unwrap-by", spaceKey(src), spaceKey(prefixes))
+          case Child(item, src) => nodeKey("child", item, spaceKey(src))
+          case iter @ Iter(src, _, _, label, cacheTag) =>
+            cacheTag match
+              case Some(tag) => nodeKey("iter-tagged", label, tag, spaceKey(src))
+              case None => nodeKey("iter-identity", identityKey(iter))
+          case Restriction(src, prefixes) => nodeKey("restriction", spaceKey(src), spaceKey(prefixes))
+          case Raffination(src, prefixes) => nodeKey("raffination", spaceKey(src), spaceKey(prefixes))
+          case NonEmpty(src) => nodeKey("nonempty", spaceKey(src))
+          case TailsUnion(src) => nodeKey("tails-union", spaceKey(src))
+          case FrontierUnion(src) => nodeKey("frontier-union", spaceKey(src))
+          case FrontierTailUnion(src, item) => nodeKey("frontier-tail-union", spaceKey(src), item)
+          case FrontierChildUnion(src, item) => nodeKey("frontier-child-union", spaceKey(src), item)
+          case FrontierState(active) => nodeKey("frontier-state", spaceKey(active))
+          case TailsIntersection(src) => nodeKey("tails-intersection", spaceKey(src))
+          case Head(src) => nodeKey("head", spaceKey(src))
+          case PatchChild(parent, item, replacement) => nodeKey("patch-child", spaceKey(parent), item, spaceKey(replacement))
+          case PrefixClosure(src) => nodeKey("prefix-closure", spaceKey(src))
+          case SuffixClosure(src) => nodeKey("suffix-closure", spaceKey(src))
+          case TailsClosure(src) => nodeKey("tails-closure", spaceKey(src))
+          case Range(src, start, end) => nodeKey("range", spaceKey(src), start.toString, end.toString)
+          case fix @ FixpointExpr(initial, _, _, label, cacheTag, roundBound) =>
+            cacheTag match
+              case Some(tag) => nodeKey("fix-tagged", label, tag, roundBound.toString, spaceKey(initial))
+              case None => nodeKey("fix-identity", roundBound.toString, identityKey(fix))
+          case IfNullable(src, yes, no) => nodeKey("if-nullable", spaceKey(src), spaceKey(yes), spaceKey(no))
+          case IfEmpty(src, yes, no) => nodeKey("if-empty", spaceKey(src), spaceKey(yes), spaceKey(no))
+        structuralKeys.put(ref, out)
+        out
 
   case class Law(name: String,
                  lhs: SpaceExpr,
@@ -710,6 +1062,8 @@ object ProofArtifacts:
       val assumptionText = assumptions.map { a =>
         (assumptionComments(a, ctx) :+ s"(assert ${emitter.renderBool(a)})").mkString("\n")
       }.mkString("\n")
+      val disequality = emitter.renderDisequality(lhs, rhs)
+      val helperText = emitter.helperDefinitions.mkString("\n")
       Vector(
         "; Generated by morkl.ProofArtifactGeneratorMain",
         s"; $name",
@@ -718,8 +1072,9 @@ object ProofArtifacts:
         "(set-option :produce-models true)",
         "(set-logic ALL)",
         decls,
+        helperText,
         assumptionText,
-        s"(assert ${emitter.renderDisequality(lhs, rhs)})",
+        s"(assert $disequality)",
         "(check-sat)",
         "(get-model)",
         "",
@@ -749,16 +1104,20 @@ object ProofArtifacts:
           "; assumption: source is non-empty in the current bounded universe.",
         )
 
-  def laws: Vector[Law] =
+  def laws(alphabet: Vector[String] = Vector("a", "b")): Vector[Law] =
+    val lawAlphabet = alphabet.distinct
+    require(lawAlphabet.length >= 2, "bounded proof laws require at least two alphabet symbols")
     val x = Var("X")
     val y = Var("Y")
     val z = Var("Z")
     val p = Var("P")
     val q = Var("Q")
-    val a = "a"
-    val b = "b"
+    val a = lawAlphabet(0)
+    val b = lawAlphabet(1)
     val sa = singleton(a)
     val sb = singleton(b)
+    def unionAll(parts: Vector[SpaceExpr]): SpaceExpr =
+      parts.reduceOption[SpaceExpr](Union.apply).getOrElse(Empty)
     def iterTail(src: SpaceExpr): Iter = Iter(src, (_head, tail) => tail, label = "tail")
     def iterHead(src: SpaceExpr): Iter = Iter(src, (head, _tail) => head, label = "head")
     def iterReconstruct(src: SpaceExpr): Iter = Iter(src, (head, tail) => Product(head, tail), label = "reconstruct")
@@ -771,19 +1130,39 @@ object ProofArtifacts:
     def iterPrefixedRangeReconstruct(src: SpaceExpr, prefix: PathTuple, start: Int, end: Int): Iter =
       Iter(src, (head, tail) => Product(Wrap(prefix, head), Range(tail, start, end)), label = s"prefixed-range-reconstruct-$start-$end")
     def fixpointTail(src: SpaceExpr): FixpointExpr =
-      FixpointExpr(src, state => TailsUnion(state), label = "tail")
+      FixpointExpr(src, state => TailsUnion(state), label = "tail", roundBound = FixpointRoundBound.PathLength)
     def fixpointHead(src: SpaceExpr): FixpointExpr =
-      FixpointExpr(src, state => Head(state), label = "head")
+      FixpointExpr(src, state => Head(state), label = "head", roundBound = FixpointRoundBound.OneStep)
     def fixpointReconstruct(src: SpaceExpr): FixpointExpr =
-      FixpointExpr(src, state => NonEmpty(state), label = "reconstruct")
+      FixpointExpr(src, state => NonEmpty(state), label = "reconstruct", roundBound = FixpointRoundBound.Reductive)
     def fixpointPrefixedReconstruct(src: SpaceExpr, prefix: PathTuple): FixpointExpr =
-      FixpointExpr(src, state => iterPrefixedReconstruct(state, prefix), label = s"prefixed-reconstruct-${prefix.mkString(".")}")
+      FixpointExpr(
+        src,
+        state => iterPrefixedReconstruct(state, prefix),
+        label = s"prefixed-reconstruct-${prefix.mkString(".")}",
+        roundBound = if prefix.isEmpty then FixpointRoundBound.Reductive else FixpointRoundBound.PathLength,
+      )
     def fixpointRangeTail(src: SpaceExpr, start: Int, end: Int): FixpointExpr =
-      FixpointExpr(src, state => iterRangeTail(state, start, end), label = s"range-tail-$start-$end")
+      FixpointExpr(
+        src,
+        state => iterRangeTail(state, start, end),
+        label = s"range-tail-$start-$end",
+        roundBound = FixpointRoundBound.PathLength,
+      )
     def fixpointRangeReconstruct(src: SpaceExpr, start: Int, end: Int): FixpointExpr =
-      FixpointExpr(src, state => iterRangeReconstruct(state, start, end), label = s"range-reconstruct-$start-$end")
+      FixpointExpr(
+        src,
+        state => iterRangeReconstruct(state, start, end),
+        label = s"range-reconstruct-$start-$end",
+        roundBound = FixpointRoundBound.Reductive,
+      )
     def fixpointPrefixedRangeReconstruct(src: SpaceExpr, prefix: PathTuple, start: Int, end: Int): FixpointExpr =
-      FixpointExpr(src, state => iterPrefixedRangeReconstruct(state, prefix, start, end), label = s"prefixed-range-reconstruct-${prefix.mkString(".")}-$start-$end")
+      FixpointExpr(
+        src,
+        state => iterPrefixedRangeReconstruct(state, prefix, start, end),
+        label = s"prefixed-range-reconstruct-${prefix.mkString(".")}-$start-$end",
+        roundBound = if prefix.isEmpty then FixpointRoundBound.Reductive else FixpointRoundBound.PathLength,
+      )
     def iterConst(src: SpaceExpr, body: SpaceExpr, bodyVars: String*): Iter =
       Iter(src, (_head, _tail) => body, bodyVars = bodyVars.toSet, label = "const")
     val iterConstY = Iter(x, (_head, _tail) => y, bodyVars = Set("Y"), label = "const-y")
@@ -957,13 +1336,13 @@ object ProofArtifacts:
         Child(b, Restriction(x, p)),
         Union(IfNullable(p, Child(b, x)), Restriction(Child(b, x), Child(b, p))),
       ),
-      Law("tails_union_children", TailsUnion(x), Union(Child(a, x), Child(b, x))),
+      Law("tails_union_children", TailsUnion(x), unionAll(lawAlphabet.map(Child(_, x)))),
       Law("frontier_union_is_tails_union", FrontierState(FrontierUnion(x)), TailsUnion(x)),
       Law("frontier_tail_union_a_is_child", FrontierState(FrontierTailUnion(x, a)), Child(a, x)),
       Law("frontier_tail_union_b_is_child", FrontierState(FrontierTailUnion(x, b)), Child(b, x)),
       Law("frontier_child_union_a_after_b", FrontierState(FrontierChildUnion(FrontierTailUnion(x, b), a)), Child(a, Child(b, x))),
-      Law("child_tails_union_a", Child(a, TailsUnion(x)), Union(Child(a, Child(a, x)), Child(a, Child(b, x)))),
-      Law("child_tails_union_b", Child(b, TailsUnion(x)), Union(Child(b, Child(a, x)), Child(b, Child(b, x)))),
+      Law("child_tails_union_a", Child(a, TailsUnion(x)), unionAll(lawAlphabet.map(head => Child(a, Child(head, x))))),
+      Law("child_tails_union_b", Child(b, TailsUnion(x)), unionAll(lawAlphabet.map(head => Child(b, Child(head, x))))),
       Law(
         "tails_intersection_two_known_heads",
         TailsIntersection(Union(Wrap(Vector(a), Union(Eps, x)), Wrap(Vector(b), Union(Eps, y)))),
@@ -1202,6 +1581,176 @@ object ProofArtifacts:
       Law("bad_range_drop_last_keeps_last_head_negative_control", Child(b, Range(rangeBorderFixture, 0, -1)), Child(b, rangeBorderFixture), expected = "sat"),
       Law("bad_range_negative_window_keeps_last_head_negative_control", Child(b, Range(rangeBorderFixture, -2, -1)), Child(b, rangeBorderFixture), expected = "sat"),
     ) ++ generatedNegativeControls
+
+  def endpointEncodingLaw(ctx: Ctx): Law =
+    val endpoints = Const(Vector(ctx.paths.head, ctx.paths.last).distinct)
+    Law(
+      "bitvector_endpoint_encoding_regression",
+      Restriction(Var("X"), endpoints),
+      Var("X"),
+      note = "Exercises extract membership and bvshl singleton encoding at bit zero and the highest bit; the empty prefix selects the entire source.",
+    )
+
+  private[morkl] case class Z3Problem(
+    name: String,
+    smt2: String,
+    expected: String,
+    note: String,
+  )
+
+  private case class FiniteSpatialObservations(
+    reduced: Vector[FiniteSpatialTypeBridge.Interval],
+    ordered: Vector[Boolean],
+    joined: Vector[FiniteSpatialTypeBridge.Interval],
+    met: Vector[FiniteSpatialTypeBridge.Interval],
+  )
+
+  private def finiteSpatialObservations(): FiniteSpatialObservations =
+    val production = FiniteSpatialTypeBridge.domain.map(FiniteSpatialTypeBridge.embed)
+    def decoded(operation: String, left: Int, right: Option[Int],
+                value: SpatialType): FiniteSpatialTypeBridge.Interval =
+      FiniteSpatialTypeBridge.decode(value).fold(
+        reason => throw IllegalStateException(
+          s"finite SpatialType $operation observation failed closed at ($left,${right.fold("-")(_.toString)}): $reason"),
+        identity,
+      )
+    val reduced = production.indices.map { index =>
+      decoded("reduce", index, None, SpatialType.reduce(production(index)))
+    }.toVector
+    val ordered = (for
+      left <- production.indices
+      right <- production.indices
+    yield SpatialType.lessOrEqual(production(left), production(right))).toVector
+    val joined = (for
+      left <- production.indices
+      right <- production.indices
+    yield decoded("joinAlternatives", left, Some(right),
+      SpatialType.joinAlternatives(production(left), production(right)))).toVector
+    val met = (for
+      left <- production.indices
+      right <- production.indices
+    yield decoded("meet", left, Some(right),
+      SpatialType.meet(production(left), production(right)))).toVector
+    FiniteSpatialObservations(reduced, ordered, joined, met)
+
+  private def finiteSpatialSmt(flipNegativeControl: Boolean): String =
+    val observations = finiteSpatialObservations()
+    val indexWidth = 5
+    def indexLiteral(index: Int): String = s"(_ bv$index $indexWidth)"
+    def maskLiteral(mask: Int): String = s"(_ bv$mask ${FiniteSpatialTypeBridge.Width})"
+    def intervalLiteral(value: FiniteSpatialTypeBridge.Interval): String =
+      s"(mk-abs ${value.isBottom} ${maskLiteral(value.mustMask)} ${maskLiteral(value.mayMask)})"
+    val domain = FiniteSpatialTypeBridge.domain
+    def pairIndex(left: Int, right: Int): Int = left * domain.size + right
+
+    val inputTable = domain.indices.map { index =>
+      s"(assert (= (code-input ${indexLiteral(index)}) ${intervalLiteral(domain(index))}))"
+    }
+    val reduceTable = domain.indices.map { index =>
+      s"(assert (= (code-reduce ${indexLiteral(index)}) ${intervalLiteral(observations.reduced(index))}))"
+    }
+    val orderTable = for
+      left <- domain.indices
+      right <- domain.indices
+    yield
+      val observed = observations.ordered(pairIndex(left, right))
+      val emitted = if flipNegativeControl && left == 0 && right == 0 then !observed else observed
+      s"(assert (= (code-leq ${indexLiteral(left)} ${indexLiteral(right)}) $emitted))"
+    val joinTable = for
+      left <- domain.indices
+      right <- domain.indices
+    yield s"(assert (= (code-join ${indexLiteral(left)} ${indexLiteral(right)}) ${intervalLiteral(observations.joined(pairIndex(left, right)))}))"
+    val meetTable = for
+      left <- domain.indices
+      right <- domain.indices
+    yield s"(assert (= (code-meet ${indexLiteral(left)} ${indexLiteral(right)}) ${intervalLiteral(observations.met(pairIndex(left, right)))}))"
+
+    val reduceCounterexamples = domain.indices.map { index =>
+      s"(not (= (code-reduce ${indexLiteral(index)}) (semantic-reduce (code-input ${indexLiteral(index)}))))"
+    }
+    val orderCounterexamples = for
+      left <- domain.indices
+      right <- domain.indices
+    yield s"(not (= (code-leq ${indexLiteral(left)} ${indexLiteral(right)}) (semantic-leq (code-input ${indexLiteral(left)}) (code-input ${indexLiteral(right)}))))"
+    val joinCounterexamples = for
+      left <- domain.indices
+      right <- domain.indices
+    yield s"(not (= (code-join ${indexLiteral(left)} ${indexLiteral(right)}) (semantic-join (code-input ${indexLiteral(left)}) (code-input ${indexLiteral(right)}))))"
+    val meetCounterexamples = for
+      left <- domain.indices
+      right <- domain.indices
+    yield s"(not (= (code-meet ${indexLiteral(left)} ${indexLiteral(right)}) (semantic-meet (code-input ${indexLiteral(left)}) (code-input ${indexLiteral(right)}))))"
+    val counterexamples = reduceCounterexamples ++ orderCounterexamples ++ joinCounterexamples ++ meetCounterexamples
+
+    val negativeComment =
+      if flipNegativeControl then
+        "; negative-control mutation: deliberately flipped production output code-leq(bottom,bottom) from true to false\n"
+      else ""
+    val semanticDefinitions =
+      s"""(define-fun bits-subset ((left (_ BitVec ${FiniteSpatialTypeBridge.Width})) (right (_ BitVec ${FiniteSpatialTypeBridge.Width}))) Bool
+         |  (= (bvand left (bvnot right)) ${maskLiteral(0)}))
+         |(define-fun semantic-normalize ((must (_ BitVec ${FiniteSpatialTypeBridge.Width})) (may (_ BitVec ${FiniteSpatialTypeBridge.Width}))) Abs
+         |  (ite (bits-subset must may) (mk-abs false must may) abstract-bottom))
+         |(define-fun semantic-reduce ((value Abs)) Abs
+         |  (ite (abs-bottom value) abstract-bottom (semantic-normalize (abs-must value) (abs-may value))))
+         |(define-fun semantic-leq ((left Abs) (right Abs)) Bool
+         |  (let ((l (semantic-reduce left)) (r (semantic-reduce right)))
+         |    (or (abs-bottom l)
+         |        (and (not (abs-bottom r))
+         |             (bits-subset (abs-must r) (abs-must l))
+         |             (bits-subset (abs-may l) (abs-may r))))))
+         |(define-fun semantic-join ((left Abs) (right Abs)) Abs
+         |  (let ((l (semantic-reduce left)) (r (semantic-reduce right)))
+         |    (ite (abs-bottom l) r
+         |      (ite (abs-bottom r) l
+         |        (mk-abs false (bvand (abs-must l) (abs-must r)) (bvor (abs-may l) (abs-may r)))))))
+         |(define-fun semantic-meet ((left Abs) (right Abs)) Abs
+         |  (let ((l (semantic-reduce left)) (r (semantic-reduce right)))
+         |    (ite (or (abs-bottom l) (abs-bottom r)) abstract-bottom
+         |      (semantic-normalize (bvor (abs-must l) (abs-must r)) (bvand (abs-may l) (abs-may r))))))""".stripMargin
+    s"""; Bounded production SpatialType to semantic set-interval bridge.
+       |; Production observations are generated by canonical embedding, the live
+       |; reduce/lessOrEqual/joinAlternatives/meet methods, and a fail-closed decoder.
+       |; The semantic functions below are independent three-bit SMT definitions.
+       |; canonical-domain-size: ${domain.size}
+       |; ordered-pair-count: ${domain.size * domain.size}
+       |; production-observation-count: ${counterexamples.size}
+       |$negativeComment(set-logic ALL)
+       |(define-sort Code () (_ BitVec $indexWidth))
+       |(declare-datatypes () ((Abs (mk-abs (abs-bottom Bool) (abs-must (_ BitVec ${FiniteSpatialTypeBridge.Width})) (abs-may (_ BitVec ${FiniteSpatialTypeBridge.Width}))))))
+       |(define-fun abstract-bottom () Abs (mk-abs true ${maskLiteral(0)} ${maskLiteral(0)}))
+       |$semanticDefinitions
+       |(declare-fun code-input (Code) Abs)
+       |(declare-fun code-reduce (Code) Abs)
+       |(declare-fun code-leq (Code Code) Bool)
+       |(declare-fun code-join (Code Code) Abs)
+       |(declare-fun code-meet (Code Code) Abs)
+       |${(inputTable ++ reduceTable ++ orderTable ++ joinTable ++ meetTable).mkString("\n")}
+       |; Search for any mismatch between the production observation tables and
+       |; the independently specified semantic interval operations.
+       |(assert (or
+       |  ${counterexamples.mkString("\n  ")}
+       |))
+       |(check-sat)
+       |""".stripMargin
+
+  /** Two live core-manifest obligations: the true bounded bridge is UNSAT and
+    * a one-cell mutation of its production table must be SAT.
+    */
+  private[morkl] lazy val finiteSpatialCodeBridgeProblems: Vector[Z3Problem] = Vector(
+    Z3Problem(
+      "spatial_type_finite_code_bridge",
+      finiteSpatialSmt(flipNegativeControl = false),
+      "unsat",
+      "Code-connected bounded theorem over all 28 canonical three-path SpatialType intervals and all 784 ordered pairs; production tables are fail-closed and semantic functions are independently defined in SMT.",
+    ),
+    Z3Problem(
+      "bad_spatial_type_finite_code_bridge_flipped_output_generated_negative_control",
+      finiteSpatialSmt(flipNegativeControl = true),
+      "sat",
+      "Deliberately flips the production lessOrEqual(bottom,bottom) table cell; SAT proves the bounded bridge query detects a wrong implementation observation.",
+    ),
+  )
 
   private def block(lines: String*): String = lines.filter(_.nonEmpty).mkString("\n")
 
@@ -1530,6 +2079,55 @@ object ProofArtifacts:
 
   private def spatialTransferTptp(lines: String*): String = block((spatialIntervalCoreTptp +: lines)*)
 
+  private val spatialSubsetSemanticsTptp: String =
+    "fof(spatial_subset, axiom, ! [A,B] : (ssubset(A,B) <=> ! [P] : (p_mem(P,A) => p_mem(P,B))))."
+
+  private val spatialTailsUnionSemanticsTptp: String =
+    "fof(spatial_set_tails_union, axiom, ! [P,S] : (p_mem(P,stails_union(S)) <=> ? [I] : p_mem(cons(I,P),S)))."
+
+  private val spatialPrefixClosureSemanticsTptp: String =
+    "fof(spatial_set_prefix_closure, axiom, ! [P,S] : (p_mem(P,sprefix_closure(S)) <=> (~(P = nil) & ? [Q] : (p_mem(Q,S) & p_prefix(P,Q)))))."
+
+  private val spatialSuffixClosureSemanticsTptp: String =
+    "fof(spatial_set_suffix_closure, axiom, ! [P,S] : (p_mem(P,ssuffix_closure(S)) <=> (~(P = nil) & ? [Prefix,Full] : (p_append(Prefix,P,Full) & p_mem(Full,S)))))."
+
+  private val spatialTailsClosureSemanticsTptp: String =
+    "fof(spatial_set_tails_closure, axiom, ! [P,S] : (p_mem(P,stails_closure(S)) <=> (snonempty(S) & (P = nil | p_mem(P,ssuffix_closure(S))))))."
+
+  private val spatialSetNonemptySemanticsTptp: String =
+    "fof(spatial_set_nonempty, axiom, ! [S] : (snonempty(S) <=> ? [P] : p_mem(P,S)))."
+
+  private val spatialClosureTransferTptp: String = block(
+    "fof(spatial_gamma_interval, axiom, ! [S,L,U] : (agamma(S,aint(L,U)) <=> (ssubset(L,U) & ssubset(L,S) & ssubset(S,U)))).",
+    "fof(spatial_normalize_valid, axiom, ! [L,U] : (ssubset(L,U) => anorm(L,U) = aint(L,U))).",
+    "fof(lemma_spatial_tails_union_monotone, axiom, ! [A,B] : (ssubset(A,B) => ssubset(stails_union(A),stails_union(B)))).",
+    "fof(lemma_spatial_prefix_closure_monotone, axiom, ! [A,B] : (ssubset(A,B) => ssubset(sprefix_closure(A),sprefix_closure(B)))).",
+    "fof(lemma_spatial_suffix_closure_monotone, axiom, ! [A,B] : (ssubset(A,B) => ssubset(ssuffix_closure(A),ssuffix_closure(B)))).",
+    "fof(lemma_spatial_tails_closure_monotone, axiom, ! [A,B] : (ssubset(A,B) => ssubset(stails_closure(A),stails_closure(B)))).",
+    "fof(spatial_abs_tails_union, axiom, ! [L,U] : (ssubset(L,U) => abs_tails_union(aint(L,U)) = anorm(stails_union(L),stails_union(U)))).",
+    "fof(spatial_abs_prefix_closure, axiom, ! [L,U] : (ssubset(L,U) => abs_prefix_closure(aint(L,U)) = anorm(sprefix_closure(L),sprefix_closure(U)))).",
+    "fof(spatial_abs_suffix_closure, axiom, ! [L,U] : (ssubset(L,U) => abs_suffix_closure(aint(L,U)) = anorm(ssuffix_closure(L),ssuffix_closure(U)))).",
+    "fof(spatial_abs_tails_closure, axiom, ! [L,U] : (ssubset(L,U) => abs_tails_closure(aint(L,U)) = anorm(stails_closure(L),stails_closure(U)))).",
+  )
+
+  private val suffixClosureRecurrenceFormula: String =
+    "! [I,P,A] : (p_mem(cons(I,P),ssuffix_closure(A)) <=> (p_mem(cons(I,P),A) | ? [H] : p_mem(cons(H,cons(I,P)),ssuffix_closure(A))))"
+
+  private val suffixClosureRecurrenceTptp: String = block(
+    "fof(path_suffix_step_decompose, axiom, ! [I,P,Full] : ((? [Prefix] : p_append(Prefix,cons(I,P),Full)) <=> (Full = cons(I,P) | ? [H,Prefix] : p_append(Prefix,cons(H,cons(I,P)),Full)))).",
+    spatialSuffixClosureSemanticsTptp,
+    "fof(path_cons_not_nil, axiom, ! [I,P] : ~(cons(I,P) = nil)).",
+  )
+
+  private val suffixClosureDerivativeTptp: String = block(
+    "fof(path_cons_not_nil, axiom, ! [I,P] : ~(cons(I,P) = nil)).",
+    s"fof(lemma_set_suffix_closure_nonempty_recurrence, axiom, $suffixClosureRecurrenceFormula).",
+    "fof(set_union, axiom, ! [P,A,B] : (p_mem(P,sunion(A,B)) <=> (p_mem(P,A) | p_mem(P,B)))).",
+    "fof(set_nonempty_paths, axiom, ! [P,S] : (p_mem(P,snonempty_paths(S)) <=> (p_mem(P,S) & ~(P = nil)))).",
+    "fof(set_tails_union, axiom, ! [P,S] : (p_mem(P,stails_union(S)) <=> ? [I] : p_mem(cons(I,P),S))).",
+    "fof(set_child, axiom, ! [P,S,I] : (p_mem(P,schild(S,I)) <=> p_mem(cons(I,P),S))).",
+  )
+
   val keySetTptp: String = block(
     "% Finite child-key set algebra used by the zipper scheduler.",
     "% This is intentionally separated from path-set denotation: key sets are",
@@ -1763,7 +2361,13 @@ object ProofArtifacts:
     graphZipperAxiomTptp,
   )
 
-  case class VampireProblem(name: String, prelude: String, conjecture: String, expected: String = "Theorem"):
+  private val plainVampireStrategyNote = "vampire-strategy=plain"
+
+  case class VampireProblem(name: String,
+                            prelude: String,
+                            conjecture: String,
+                            expected: String = "Theorem",
+                            note: String = ""):
     def tptp: String = Vector("% Generated by morkl.ProofArtifactGeneratorMain", s"% $name", prelude, conjecture, "").mkString("\n")
 
   private def pathTerm(depth: Int): (String, Vector[String]) =
@@ -1827,6 +2431,7 @@ object ProofArtifacts:
         "spatial_optimizer_preserves_analysis_soundness_fo",
         spatialOptimizerBridge,
         "fof(conj, conjecture, ! [E,R,A] : (abstracts(R,A) => gamma(eval(opt(E),R),analyze(E,A)))).",
+        note = plainVampireStrategyNote,
       ),
       VampireProblem(
         "spatial_trie_bounded_depth_selection_fo",
@@ -1862,34 +2467,6 @@ object ProofArtifacts:
         "spatial_exact_concretization_fo",
         spatialIntervalCoreTptp,
         "fof(conj, conjecture, ! [S,T] : (agamma(T,aexact(S)) <=> T = S)).",
-      ),
-      VampireProblem(
-        "spatial_code_normalize_bridge_fo",
-        block(
-          spatialIntervalCoreTptp,
-          "% SpatialType.normalize: retain a valid interval, otherwise Bottom.",
-          "fof(code_normalize_valid, axiom, ! [L,U] : (ssubset(L,U) => code_normalize(L,U) = aint(L,U))).",
-          "fof(code_normalize_invalid, axiom, ! [L,U] : (~ssubset(L,U) => code_normalize(L,U) = abot)).",
-        ),
-        "fof(conj, conjecture, ! [L,U] : code_normalize(L,U) = anorm(L,U)).",
-      ),
-      VampireProblem(
-        "spatial_code_join_bridge_fo",
-        block(
-          spatialCompleteLatticeTptp,
-          "% SpatialType.joinAlternatives interval branch in SpatialType.scala.",
-          "fof(code_join_interval, axiom, ! [L1,U1,L2,U2] : code_join(aint(L1,U1),aint(L2,U2)) = aint(sinter(L1,L2),sunion(U1,U2))).",
-        ),
-        "fof(conj, conjecture, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => code_join(aint(L1,U1),aint(L2,U2)) = ajoin(aint(L1,U1),aint(L2,U2)))).",
-      ),
-      VampireProblem(
-        "spatial_code_meet_bridge_fo",
-        block(
-          spatialCompleteLatticeTptp,
-          "% SpatialType.meet interval branch: union must, intersect may, normalize.",
-          "fof(code_meet_interval, axiom, ! [L1,U1,L2,U2] : code_meet(aint(L1,U1),aint(L2,U2)) = anorm(sunion(L1,L2),sinter(U1,U2))).",
-        ),
-        "fof(conj, conjecture, ! [L1,U1,L2,U2] : ((ssubset(L1,U1) & ssubset(L2,U2)) => code_meet(aint(L1,U1),aint(L2,U2)) = ameet(aint(L1,U1),aint(L2,U2)))).",
       ),
       VampireProblem(
         "spatial_join_upper_left_fo",
@@ -2075,19 +2652,39 @@ object ProofArtifacts:
         "fof(conj, conjecture, ! [S,L,U,Prefix] : (agamma(S,aint(L,U)) => (agamma(swrap(S,Prefix),abs_wrap(aint(L,U),Prefix)) & agamma(sunwrap(S,Prefix),abs_unwrap(aint(L,U),Prefix))))).",
       ),
       VampireProblem(
-        "spatial_closure_transfer_sound_fo",
-        spatialTransferTptp(
-          "fof(spatial_set_tails_union, axiom, ! [P,S] : (p_mem(P,stails_union(S)) <=> ? [I] : p_mem(cons(I,P),S))).",
-          "fof(spatial_set_prefix_closure, axiom, ! [P,S] : (p_mem(P,sprefix_closure(S)) <=> (~(P = nil) & ? [Q] : (p_mem(Q,S) & p_prefix(P,Q))))).",
-          "fof(spatial_set_suffix_closure, axiom, ! [P,S] : (p_mem(P,ssuffix_closure(S)) <=> (~(P = nil) & ? [Prefix,Full] : (p_append(Prefix,P,Full) & p_mem(Full,S))))).",
-          "fof(spatial_set_tails_closure, axiom, ! [P,S] : (p_mem(P,stails_closure(S)) <=> (snonempty(S) & (P = nil | p_mem(P,ssuffix_closure(S)))))).",
-          "fof(spatial_set_nonempty, axiom, ! [S] : (snonempty(S) <=> ? [P] : p_mem(P,S))).",
-          "fof(spatial_abs_tails_union, axiom, ! [L,U] : (ssubset(L,U) => abs_tails_union(aint(L,U)) = anorm(stails_union(L),stails_union(U)))).",
-          "fof(spatial_abs_prefix_closure, axiom, ! [L,U] : (ssubset(L,U) => abs_prefix_closure(aint(L,U)) = anorm(sprefix_closure(L),sprefix_closure(U)))).",
-          "fof(spatial_abs_suffix_closure, axiom, ! [L,U] : (ssubset(L,U) => abs_suffix_closure(aint(L,U)) = anorm(ssuffix_closure(L),ssuffix_closure(U)))).",
-          "fof(spatial_abs_tails_closure, axiom, ! [L,U] : (ssubset(L,U) => abs_tails_closure(aint(L,U)) = anorm(stails_closure(L),stails_closure(U))))."
+        "spatial_tails_union_monotone_fo",
+        block(spatialSubsetSemanticsTptp, spatialTailsUnionSemanticsTptp),
+        "fof(conj, conjecture, ! [A,B] : (ssubset(A,B) => ssubset(stails_union(A),stails_union(B)))).",
+        note = plainVampireStrategyNote,
+      ),
+      VampireProblem(
+        "spatial_prefix_closure_monotone_fo",
+        block(spatialSubsetSemanticsTptp, spatialPrefixClosureSemanticsTptp),
+        "fof(conj, conjecture, ! [A,B] : (ssubset(A,B) => ssubset(sprefix_closure(A),sprefix_closure(B)))).",
+        note = plainVampireStrategyNote,
+      ),
+      VampireProblem(
+        "spatial_suffix_closure_monotone_fo",
+        block(spatialSubsetSemanticsTptp, spatialSuffixClosureSemanticsTptp),
+        "fof(conj, conjecture, ! [A,B] : (ssubset(A,B) => ssubset(ssuffix_closure(A),ssuffix_closure(B)))).",
+        note = plainVampireStrategyNote,
+      ),
+      VampireProblem(
+        "spatial_tails_closure_monotone_fo",
+        block(
+          spatialSubsetSemanticsTptp,
+          spatialSuffixClosureSemanticsTptp,
+          spatialSetNonemptySemanticsTptp,
+          spatialTailsClosureSemanticsTptp,
         ),
+        "fof(conj, conjecture, ! [A,B] : (ssubset(A,B) => ssubset(stails_closure(A),stails_closure(B)))).",
+        note = plainVampireStrategyNote,
+      ),
+      VampireProblem(
+        "spatial_closure_transfer_sound_fo",
+        spatialClosureTransferTptp,
         "fof(conj, conjecture, ! [S,L,U] : (agamma(S,aint(L,U)) => (agamma(stails_union(S),abs_tails_union(aint(L,U))) & agamma(sprefix_closure(S),abs_prefix_closure(aint(L,U))) & agamma(ssuffix_closure(S),abs_suffix_closure(aint(L,U))) & agamma(stails_closure(S),abs_tails_closure(aint(L,U)))))).",
+        note = plainVampireStrategyNote,
       ),
       VampireProblem(
         "spatial_range_safe_transfer_fo",
@@ -2624,9 +3221,16 @@ object ProofArtifacts:
         "fof(conj, conjecture, ! [P,A,I] : (p_mem(P,schild(sprefix_closure_below(A),I)) <=> p_mem(P,sprefix_closure_below(schild(A,I))))).",
       ),
       VampireProblem(
+        "set_suffix_closure_nonempty_recurrence_fo",
+        suffixClosureRecurrenceTptp,
+        s"fof(conj, conjecture, $suffixClosureRecurrenceFormula).",
+        note = plainVampireStrategyNote,
+      ),
+      VampireProblem(
         "set_child_suffix_closure_derivative",
-        trieSetTptp,
+        suffixClosureDerivativeTptp,
         "fof(conj, conjecture, ! [P,A,I] : (p_mem(P,schild(ssuffix_closure(A),I)) <=> p_mem(P,schild(sunion(snonempty_paths(A),stails_union(ssuffix_closure(A))),I)))).",
+        note = plainVampireStrategyNote,
       ),
       VampireProblem(
         "set_child_tails_closure_derivative",
@@ -2635,8 +3239,9 @@ object ProofArtifacts:
       ),
       VampireProblem(
         "antimirov_suffix_frontier_state_child_fo",
-        trieSetTptp,
+        suffixClosureDerivativeTptp,
         "fof(conj, conjecture, ! [P,A,I] : (p_mem(P,schild(ssuffix_closure(A),I)) <=> p_mem(P,schild(sunion(snonempty_paths(A),stails_union(ssuffix_closure(A))),I)))).",
+        note = plainVampireStrategyNote,
       ),
       VampireProblem(
         "antimirov_tails_frontier_state_child_fo",
@@ -2645,8 +3250,9 @@ object ProofArtifacts:
       ),
       VampireProblem(
         "antimirov_suffix_frontier_nested_fo",
-        trieSetTptp,
+        suffixClosureDerivativeTptp,
         "fof(conj, conjecture, ! [P,A,I,J] : (p_mem(P,schild(schild(ssuffix_closure(A),I),J)) <=> p_mem(P,schild(schild(sunion(snonempty_paths(A),stails_union(ssuffix_closure(A))),I),J)))).",
+        note = plainVampireStrategyNote,
       ),
       VampireProblem(
         "antimirov_tails_frontier_nested_fo",
@@ -3286,22 +3892,27 @@ object ProofArtifacts:
     val eggOutDir = outDir.resolve("egg")
     Files.createDirectories(eggOutDir)
     Files.createDirectories(manifest.getParent)
-    val z3Artifacts = laws.map { law =>
+    val z3Artifacts = (laws(ctx.alphabet) :+ endpointEncodingLaw(ctx)).map { law =>
       val artifact = outDir.resolve(s"${law.name}.smt2")
       Files.writeString(artifact, law.smt2(ctx), StandardCharsets.UTF_8)
       Artifact("z3", law.name, law.expected, artifact.toString, law.note)
     }
+    val spatialBridgeArtifacts = finiteSpatialCodeBridgeProblems.map { problem =>
+      val artifact = outDir.resolve(s"${problem.name}.smt2")
+      Files.writeString(artifact, problem.smt2, StandardCharsets.UTF_8)
+      Artifact("z3", problem.name, problem.expected, artifact.toString, problem.note)
+    }
     val vampireArtifacts = vampireProblems.map { problem =>
       val artifact = vampireOutDir.resolve(s"${problem.name}.p")
       Files.writeString(artifact, problem.tptp, StandardCharsets.UTF_8)
-      Artifact("vampire", problem.name, problem.expected, artifact.toString)
+      Artifact("vampire", problem.name, problem.expected, artifact.toString, problem.note)
     }
     val eggArtifacts = eggProblems.map { problem =>
       val artifact = eggOutDir.resolve(s"${problem.name}.egg")
       Files.writeString(artifact, problem.program, StandardCharsets.UTF_8)
       Artifact("egg", problem.name, problem.expected, artifact.toString, problem.note)
     }
-    val artifacts = vampireArtifacts ++ z3Artifacts ++ eggArtifacts
+    val artifacts = vampireArtifacts ++ z3Artifacts ++ spatialBridgeArtifacts ++ eggArtifacts
     val manifestText =
       ("kind\tname\texpected\tartifact\tnote" +:
         artifacts.map(a => Vector(a.kind, a.name, a.expected, a.artifact, a.note).map(manifestField).mkString("\t")))

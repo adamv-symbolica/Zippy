@@ -464,8 +464,8 @@ case class Z3PathLengthProblem(
       size.lower.annotatedBound(Z3BoundDirection.Lower) -> size.upper.annotatedBound(Z3BoundDirection.Upper))
     Z3PathLengthSolver.solve(formula, lengthBounds, sizeBounds, relations, direction)
 
-private object Z3PathLengthSolver:
-  private val cache = TrieMap.empty[String, Option[Set[Int]]]
+private[morkl] object Z3PathLengthSolver:
+  private val cache = TrieMap.empty[String, Set[Int]]
 
   private def sum(values: Iterable[String]): String =
     values.toVector match
@@ -476,6 +476,14 @@ private object Z3PathLengthSolver:
   private def status(output: String, marker: String): Option[String] =
     output.split(marker, 2).lift(1).flatMap(_.linesIterator.map(_.trim)
       .find(line => line == "sat" || line == "unsat" || line == "unknown"))
+
+  private[morkl] def parsePossibleMasks(output: String, relevant: IndexedSeq[Int]): Option[Set[Int]] =
+    if Z3Executable.reportSolverUnknown(output, "path-length atom feasibility") then None
+    else
+      val statuses = relevant.map(mask => mask -> status(output, s"MASK_$mask"))
+      Option.when(statuses.forall(_._2.nonEmpty))(
+        statuses.collect { case (mask, Some("sat")) => mask }.toSet
+      )
 
   private def possibleMasks(
     formula: Z3SetFormula,
@@ -517,12 +525,7 @@ private object Z3PathLengthSolver:
          |$relationConstraints
          |$checks
          |""".stripMargin
-    Z3Executable.run(script).flatMap { output =>
-      val statuses = relevant.map(mask => mask -> status(output, s"MASK_$mask"))
-      Option.when(statuses.forall(_._2.exists(_ != "unknown")))(
-        statuses.collect { case (mask, Some("sat")) => mask }.toSet
-      )
-    }
+    Z3Executable.run(script).flatMap(parsePossibleMasks(_, relevant))
 
   def solve(
     formula: Z3SetFormula,
@@ -536,7 +539,12 @@ private object Z3PathLengthSolver:
       val key = formula.render +
         sizeBounds.map { case (lower, upper) => s":s${lower.getOrElse("_")}:${upper.getOrElse("_")}" }.mkString +
         relations.map(relation => s":${relation.render}").mkString
-      cache.getOrElseUpdate(key, possibleMasks(formula, sizeBounds, relations)).map { possible =>
+      val possible = cache.get(key).orElse {
+        val computed = possibleMasks(formula, sizeBounds, relations)
+        computed.foreach(result => cache.putIfAbsent(key, result))
+        computed
+      }
+      possible.map { possible =>
         val candidates = possible.flatMap { mask =>
           val members = lengthBounds.indices.filter(index => (mask & (1 << index)) != 0)
           val lowers = members.map(lengthBounds(_)._1)

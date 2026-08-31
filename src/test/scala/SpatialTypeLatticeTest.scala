@@ -57,6 +57,33 @@ class SpatialTypeLatticeTest extends FunSuite:
     if results.isEmpty then Bottom
     else Interval(results.reduce(_.intersect(_)), results.reduce(_.union(_)))
 
+  private def mask(values: Concrete): Int =
+    values.foldLeft(0)((result, item) => result | (1 << item))
+
+  private def finite(value: Abstract): FiniteSpatialTypeBridge.Interval = value match
+    case Bottom => FiniteSpatialTypeBridge.Interval(isBottom = true, 0, 0)
+    case Interval(must, may) =>
+      FiniteSpatialTypeBridge.Interval(isBottom = false, mask(must), mask(may))
+
+  private def abstractValue(value: FiniteSpatialTypeBridge.Interval): Abstract =
+    if value.isBottom then Bottom
+    else
+      def members(bits: Int): Concrete =
+        (0 until FiniteSpatialTypeBridge.Width).filter(item => (bits & (1 << item)) != 0).toSet
+      Interval(members(value.mustMask), members(value.mayMask))
+
+  /** Shared production embedding and fail-closed decoder. The semantic oracle
+    * above remains independently implemented in sets.
+    */
+  private def production(value: Abstract): SpatialType =
+    FiniteSpatialTypeBridge.embed(finite(value))
+
+  private def semantic(value: SpatialType): Abstract =
+    FiniteSpatialTypeBridge.decode(value).fold(
+      reason => fail(s"finite production bridge rejected output: $reason"),
+      abstractValue,
+    )
+
   test("the normalized interval quotient is a bounded lattice") {
     domain.foreach { a =>
       assert(leq(Bottom, a))
@@ -170,4 +197,38 @@ class SpatialTypeLatticeTest extends FunSuite:
     assertEquals(widened.size.upper, SizeExpr.Infinity)
     assert(SpatialType.lessOrEqual(joined, widened))
     assertEquals(widened.pathLength, joined.pathLength)
+  }
+
+  test("production SpatialType join, meet, and reduction implement every finite set interval") {
+    domain.foreach { value =>
+      assertEquals(semantic(production(value)), value)
+      assertEquals(semantic(SpatialType.reduce(production(value))), value)
+    }
+    val impossible = production(Interval(Set.empty, Set(0))).copy(
+      size = ResultSizeEstimate.exact(SizeExpr.const(2)))
+    assertEquals(SpatialType.reduce(impossible), SpatialType.bottom)
+    val exactOne = production(Interval(Set(1), Set(1)))
+    val requiresMissingZero = production(Interval(Set(0), Set(0, 1)))
+    assert(!SpatialType.lessOrEqual(exactOne, requiresMissingZero),
+      "an absent mandatory right stratum must prevent convergence")
+    val inconsistentMandatory = production(Interval(Set(0), Set(0))).copy(
+      size = ResultSizeEstimate.empty)
+    assert(!SpatialType.lessOrEqual(production(Interval(Set.empty, Set.empty)), inconsistentMandatory),
+      "empty inclusion must still inspect unreduced mandatory strata")
+    for left <- domain; right <- domain do
+      assertEquals(
+        SpatialType.lessOrEqual(production(left), production(right)),
+        leq(left, right),
+        s"order bridge failed for $left and $right",
+      )
+      assertEquals(
+        semantic(SpatialType.joinAlternatives(production(left), production(right))),
+        join(left, right),
+        s"join bridge failed for $left and $right",
+      )
+      assertEquals(
+        semantic(SpatialType.meet(production(left), production(right))),
+        meet(left, right),
+        s"meet bridge failed for $left and $right",
+      )
   }

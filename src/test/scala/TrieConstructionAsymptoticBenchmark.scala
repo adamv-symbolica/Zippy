@@ -124,7 +124,7 @@ class TrieConstructionAsymptoticTest extends FunSuite:
     }
   }
 
-  test("fixpoint union of a wide accumulator and one delta is width-independent in trie visits") {
+  test("fixpoint union of a wide accumulator and one delta stays within fixed key-depth ceilings") {
     val seed = SpaceMention("fixpoint_union_seed")
     val current = SpaceMention("fixpoint_union_current")
     val delta = PathValue(List(PathItem("new-head"), PathItem("value")))
@@ -133,7 +133,8 @@ class TrieConstructionAsymptoticTest extends FunSuite:
       current,
       Space.Union(Space.Mention(current), Space.Singleton(Path.Constant(delta))),
     )
-    val costs = Vector(256, 4096).map { size =>
+    val widths = Vector(256, 1024, 4096, 16384)
+    val costs = widths.map { size =>
       val initial = TrieSpace.fromPaths((0 until size).map(index =>
         PathValue(List(PathItem(s"h$index"), PathItem("value")))))
       val context = TrieSpaceContextMap(Map(seed -> initial))
@@ -142,7 +143,16 @@ class TrieConstructionAsymptoticTest extends FunSuite:
       assertEquals(result.pathCount, size + 1)
       cost
     }
-    assertEquals(costs.map(_.nodeVisits).distinct.size, 1,
-      s"fixpoint trie visits grew with accumulator width: $costs")
-    assertEquals(costs.map(_.rounds), Vector(2L, 2L))
+    // PathItem ids are assigned process-globally, so earlier suites can change
+    // the numeric Patricia layout. Exact visit counts are not invariant under
+    // that relabeling: the lasting claim is a constant number of semantic
+    // checks and a constant number of fixed-32-bit Patricia spines, independent
+    // of accumulator width.
+    assert(costs.forall(_.nodeVisits <= 8L),
+      s"fixpoint trie visits exceeded the constant semantic ceiling: ${widths.zip(costs)}")
+    assert(costs.forall(_.patriciaVisits <= 8L * Integer.SIZE),
+      s"fixpoint Patricia visits exceeded the fixed-key-depth ceiling: ${widths.zip(costs)}")
+    assertEquals(costs.map(_.allocations).distinct.size, 1,
+      s"fixpoint allocation count changed with accumulator width: ${widths.zip(costs)}")
+    assertEquals(costs.map(_.rounds), Vector.fill(widths.size)(2L))
   }

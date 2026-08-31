@@ -108,6 +108,10 @@ object SpatialRecursion:
     case SizeExpr.Minimum(values) => values.exists(occurs(_, name))
     case SizeExpr.PositiveDifference(left, right) => occurs(left, name) || occurs(right, name)
     case SizeExpr.Positive(inner) => occurs(inner, name)
+    case SizeExpr.CeilingDivide(numerator, denominator) =>
+      occurs(numerator, name) || occurs(denominator, name)
+    case SizeExpr.GeometricSeries(branching, rounds) =>
+      occurs(branching, name) || occurs(rounds, name)
     case SizeExpr.RangeCardinality(inner, _, _) => occurs(inner, name)
     case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
       occurs(condition, name) || occurs(ifZero, name) || occurs(ifNonZero, name)

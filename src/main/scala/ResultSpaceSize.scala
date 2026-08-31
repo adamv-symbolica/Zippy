@@ -13,6 +13,13 @@ enum SizeExpr:
   case Minimum(terms: Vector[SizeExpr])
   case PositiveDifference(left: SizeExpr, right: SizeExpr)
   case Positive(value: SizeExpr)
+  /** Exact natural-number ceiling division. A zero denominator denotes zero;
+    * callers use this only for conditionally inhabited key sets, where the
+    * numerator is then zero as well. */
+  case CeilingDivide(numerator: SizeExpr, denominator: SizeExpr)
+  /** `1 + branching + ... + branching^(rounds - 1)`. This is an executable
+    * closed form, rather than the former opaque `geom(...)` cost atom. */
+  case GeometricSeries(branching: SizeExpr, rounds: SizeExpr)
   case RangeCardinality(value: SizeExpr, start: Int, end: Int)
   case IfZero(condition: SizeExpr, ifZero: SizeExpr, ifNonZero: SizeExpr)
   case Z3Cardinality(problem: Z3CardinalityProblem, direction: Z3BoundDirection, baseline: SizeExpr)
@@ -43,6 +50,12 @@ enum SizeExpr:
         case _ => None
     case SizeExpr.Positive(value) =>
       value.annotatedValue.map(v => if v > 0 then BigInt(1) else BigInt(0))
+    case SizeExpr.CeilingDivide(numerator, denominator) =>
+      for n <- numerator.annotatedValue; d <- denominator.annotatedValue
+      yield SizeExpr.ceilingDivideValue(n, d)
+    case SizeExpr.GeometricSeries(branching, rounds) =>
+      for b <- branching.annotatedValue; r <- rounds.annotatedValue
+      yield SizeExpr.geometricSeriesValue(b, r)
     case SizeExpr.RangeCardinality(value, start, end) =>
       value.annotatedValue.map(SizeExpr.rangeCardinality(_, start, end))
     case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
@@ -84,6 +97,12 @@ enum SizeExpr:
       case SizeExpr.PositiveDifference(left, right) =>
         upper(right).fold(BigInt(0))(r => (lower(left) - r).max(BigInt(0)))
       case SizeExpr.Positive(inner) => if lower(inner) > 0 then BigInt(1) else BigInt(0)
+      case SizeExpr.CeilingDivide(numerator, denominator) =>
+        val denominatorLower = lower(denominator)
+        if denominatorLower <= 0 then BigInt(0)
+        else upper(denominator).fold(BigInt(0))(d => SizeExpr.ceilingDivideValue(lower(numerator), d))
+      case SizeExpr.GeometricSeries(branching, rounds) =>
+        SizeExpr.geometricSeriesValue(lower(branching), lower(rounds))
       case SizeExpr.RangeCardinality(inner, start, end) =>
         inner.annotatedValue.map(SizeExpr.rangeCardinality(_, start, end)).getOrElse(BigInt(0))
       case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
@@ -113,6 +132,14 @@ enum SizeExpr:
       case SizeExpr.Minimum(terms) => terms.flatMap(upper).minOption
       case SizeExpr.PositiveDifference(left, _) => upper(left)
       case SizeExpr.Positive(inner) => upper(inner).map(n => if n == 0 then BigInt(0) else BigInt(1)).orElse(Some(BigInt(1)))
+      case SizeExpr.CeilingDivide(numerator, denominator) =>
+        upper(numerator).flatMap { n =>
+          val d = lower(denominator)
+          Some(if d > 0 then SizeExpr.ceilingDivideValue(n, d) else n)
+        }
+      case SizeExpr.GeometricSeries(branching, rounds) =>
+        for b <- upper(branching); r <- upper(rounds)
+        yield SizeExpr.geometricSeriesValue(b, r)
       case SizeExpr.RangeCardinality(inner, start, end) =>
         inner.annotatedValue.map(SizeExpr.rangeCardinality(_, start, end)).orElse(upper(inner))
       case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
@@ -174,6 +201,12 @@ enum SizeExpr:
         case (None, None) => None
     case SizeExpr.Positive(value) =>
       value.evaluate.map(v => if v > 0 then BigInt(1) else BigInt(0)).orElse(Some(BigInt(1)))
+    case SizeExpr.CeilingDivide(numerator, denominator) =>
+      for n <- numerator.evaluate; d <- denominator.evaluate
+      yield SizeExpr.ceilingDivideValue(n, d)
+    case SizeExpr.GeometricSeries(branching, rounds) =>
+      for b <- branching.evaluate; r <- rounds.evaluate
+      yield SizeExpr.geometricSeriesValue(b, r)
     case SizeExpr.RangeCardinality(value, start, end) =>
       value.evaluate.map(SizeExpr.rangeCardinality(_, start, end))
     case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
@@ -211,8 +244,8 @@ case class SizeGrowth(monomials: Set[Map[String, Int]]):
     that.monomials.exists(right => left.forall((name, power) => power <= right.getOrElse(name, 0)))
   }
 
-/** Readable dominant-order projection for cost comparison. Opaque `geom`
-  * atoms are exponential, log atoms are logarithmic, and ordinary size
+/** Readable dominant-order projection for cost comparison. Geometric series
+  * are exponential when their round count grows, log atoms are logarithmic, and ordinary size
   * symbols contribute polynomial degree. This is a comparison abstraction;
   * the exact finite `SizeExpr` remains the reported bound. */
 case class AsymptoticOrder(exponentials: Int, degree: Int, logarithms: Int) extends Ordered[AsymptoticOrder]:
@@ -271,6 +304,12 @@ object SizeExpr:
           yield prune((for x <- a; y <- b yield
             (x.keySet ++ y.keySet).map(name => name -> (x.getOrElse(name, 0) + y.getOrElse(name, 0))).toMap).toSet))
       case SizeExpr.Positive(inner) => loop(inner).map(_ => Set(Map.empty))
+      case SizeExpr.CeilingDivide(numerator, denominator) =>
+        denominator.annotatedValue.filter(_ > 0).flatMap(_ => loop(numerator))
+      case SizeExpr.GeometricSeries(branching, rounds) => branching.annotatedValue match
+        case Some(value) if value == 0 => Some(Set(Map.empty))
+        case Some(value) if value == 1 => loop(rounds)
+        case _ => None
       case _ => None
     loop(value).map(values => SizeGrowth(prune(values)))
 
@@ -296,6 +335,15 @@ object SizeExpr:
       case SizeExpr.Multiply(factors) =>
         factors.foldLeft(Option(zero))((acc, factor) => for a <- acc; b <- loop(factor) yield plus(a, b))
       case SizeExpr.Positive(inner) => loop(inner).map(_ => zero)
+      case SizeExpr.CeilingDivide(numerator, denominator) =>
+        denominator.annotatedValue.filter(_ > 0).flatMap(_ => loop(numerator))
+      case SizeExpr.GeometricSeries(branching, rounds) => branching.annotatedValue match
+        case Some(value) if value == 0 => Some(zero)
+        case Some(value) if value == 1 => loop(rounds)
+        case Some(value) if value > 1 => loop(rounds).map { order =>
+          if order == zero then zero else AsymptoticOrder(1, 0, 0)
+        }
+        case _ => None
       case _ => None
     loop(value)
 
@@ -351,6 +399,17 @@ object SizeExpr:
       case Vector(term) => term
       case result if result.forall(_.isInstanceOf[SizeExpr.Const]) =>
         const(result.collect { case SizeExpr.Const(value) => value }.sum)
+      case (first @ SizeExpr.IfZero(condition, _, _)) +: rest
+          if rest.forall {
+            case SizeExpr.IfZero(other, _, _) => sameValue(condition, other)
+            case _ => false
+          } =>
+        val guarded = first +: rest
+        ifZero(
+          condition,
+          add(guarded.collect { case SizeExpr.IfZero(_, ifZero, _) => ifZero }*),
+          add(guarded.collect { case SizeExpr.IfZero(_, _, ifNonZero) => ifNonZero }*),
+        )
       case result => SizeExpr.Add(result)
 
   def multiply(values: SizeExpr*): SizeExpr =
@@ -359,6 +418,8 @@ object SizeExpr:
       case other => Vector(other)
     }.toVector
     if factors.contains(Zero) then Zero
+    else if factors.contains(SizeExpr.Infinity) &&
+        factors.filterNot(_ == SizeExpr.Infinity).forall(definitelyPositive) then SizeExpr.Infinity
     else
       val result = factors.filterNot(_ == One).foldLeft(Vector.empty[SizeExpr]) { (kept, factor) =>
         val idempotent = factor match
@@ -413,6 +474,7 @@ object SizeExpr:
       case (SizeExpr.PositiveDifference(SizeExpr.Const(one), _), SizeExpr.Const(b)) if one == 1 => b >= 1
       case (SizeExpr.IfZero(lc, lz, ln), SizeExpr.IfZero(rc, rz, rn)) if lc == rc =>
         noGreater(lz, rz) && noGreater(ln, rn)
+      case (l @ SizeExpr.Add(_), r @ SizeExpr.Add(_)) if additiveSubset(l, r) => true
       case (SizeExpr.Minimum(leftTerms), SizeExpr.Minimum(rightTerms)) =>
         rightTerms.forall(rightTerm => leftTerms.exists(noGreater(_, rightTerm)))
       case (SizeExpr.Minimum(terms), other) => terms.exists(noGreater(_, other))
@@ -462,6 +524,12 @@ object SizeExpr:
           1 + l + loop(right, remaining - l - 1)
         case SizeExpr.Positive(inner) =>
           1 + loop(inner, remaining - 1)
+        case SizeExpr.CeilingDivide(numerator, denominator) =>
+          val n = loop(numerator, remaining - 1)
+          1 + n + loop(denominator, remaining - n - 1)
+        case SizeExpr.GeometricSeries(branching, rounds) =>
+          val b = loop(branching, remaining - 1)
+          1 + b + loop(rounds, remaining - b - 1)
         case SizeExpr.RangeCardinality(inner, _, _) =>
           1 + loop(inner, remaining - 1)
         case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
@@ -489,6 +557,10 @@ object SizeExpr:
           case SizeExpr.Minimum(values) => values.map(loop).mkString("min(", ", ", ")")
           case SizeExpr.PositiveDifference(left, right) => s"relu(${loop(left)} - ${loop(right)})"
           case SizeExpr.Positive(inner) => s"positive(${loop(inner)})"
+          case SizeExpr.CeilingDivide(numerator, denominator) =>
+            s"ceil(${loop(numerator)} / ${loop(denominator)})"
+          case SizeExpr.GeometricSeries(branching, rounds) =>
+            s"geomSeries(${loop(branching)}, ${loop(rounds)})"
           case SizeExpr.RangeCardinality(inner, start, end) => s"rangeSize(${loop(inner)}, $start, $end)"
           case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
             s"ifZero(${loop(condition)}, ${loop(ifZero)}, ${loop(ifNonZero)})"
@@ -575,6 +647,52 @@ object SizeExpr:
     case _ if definitelyPositive(value) => One
     case _ => SizeExpr.Positive(value)
 
+  def ceilingDivide(numerator: SizeExpr, denominator: SizeExpr): SizeExpr =
+    (numerator, denominator) match
+      case (SizeExpr.Const(n), SizeExpr.Const(d)) => const(ceilingDivideValue(n, d))
+      case (SizeExpr.Const(n), _) if n == 0 => Zero
+      case (_, SizeExpr.Const(d)) if d == 1 => numerator
+      case _ if sameValue(numerator, denominator) => positive(numerator)
+      case _ => SizeExpr.CeilingDivide(numerator, denominator)
+
+  private[morkl] def ceilingDivideValue(numerator: BigInt, denominator: BigInt): BigInt =
+    if numerator <= 0 || denominator <= 0 then BigInt(0)
+    else (numerator + denominator - 1) / denominator
+
+  def geometricSeries(branching: SizeExpr, rounds: SizeExpr): SizeExpr =
+    (branching, rounds) match
+      case (_, SizeExpr.Const(r)) if r <= 0 => Zero
+      case (_, SizeExpr.Const(r)) if r == 1 => One
+      case (SizeExpr.Const(b), SizeExpr.Const(r)) => const(geometricSeriesValue(b, r))
+      case (SizeExpr.Const(b), _) if b == 0 => positive(rounds)
+      case (SizeExpr.Const(b), _) if b == 1 => rounds
+      case (_, SizeExpr.Const(r)) if r.isValidInt && r <= 32 =>
+        var power: SizeExpr = One
+        val terms = Vector.newBuilder[SizeExpr]
+        var index = 0
+        while index < r.toInt do
+          terms += power
+          power = multiply(power, branching)
+          index += 1
+        add(terms.result()*)
+      case _ => SizeExpr.GeometricSeries(branching, rounds)
+
+  private[morkl] def geometricSeriesValue(branching: BigInt, rounds: BigInt): BigInt =
+    if rounds <= 0 then BigInt(0)
+    else if branching <= 0 then BigInt(1)
+    else if branching == 1 then rounds
+    else
+      def power(base: BigInt, exponent: BigInt): BigInt =
+        var b = base
+        var e = exponent
+        var result = BigInt(1)
+        while e > 0 do
+          if e.testBit(0) then result *= b
+          e >>= 1
+          if e > 0 then b *= b
+        result
+      (power(branching, rounds) - 1) / (branching - 1)
+
   def isZero(value: SizeExpr): SizeExpr =
     if definitelyPositive(value) then Zero else positiveDifference(One, value)
 
@@ -590,6 +708,9 @@ object SizeExpr:
     case SizeExpr.Maximum(terms) => terms.exists(definitelyPositive)
     case SizeExpr.Minimum(terms) => terms.forall(definitelyPositive)
     case SizeExpr.Positive(inner) => definitelyPositive(inner)
+    case SizeExpr.CeilingDivide(numerator, denominator) =>
+      definitelyPositive(numerator) && definitelyPositive(denominator)
+    case SizeExpr.GeometricSeries(_, rounds) => definitelyPositive(rounds)
     case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
       definitelyPositive(ifZero) && definitelyPositive(ifNonZero)
     case SizeExpr.Infinity => true
@@ -636,6 +757,24 @@ object ResultSpaceSize:
     space: Space,
     assumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty
   ): ResultSizeEstimate = Z3ResultSpaceSize.estimate(space, assumptions)
+
+  /** Cardinality plus structured solver-degradation events. Callers that
+    * publish analysis reports should prefer this entry point so a timeout is
+    * distinguishable from an ordinary compositional bound. */
+  def estimateReported(
+    space: Space,
+    assumptions: Map[SpaceMention, ResultSizeEstimate] = Map.empty,
+  ): Z3AnalysisReport[ResultSizeEstimate] =
+    Z3Diagnostics.capture {
+      val result = estimate(space, assumptions)
+      // Z3 refinement nodes are intentionally lazy in ordinary symbolic
+      // expressions. A reporting entry point must force both abstract sides
+      // while its diagnostic sink is installed, otherwise a later render or
+      // bound query could fire the solver outside the returned report.
+      result.lower.annotatedBound(Z3BoundDirection.Lower)
+      result.upper.annotatedBound(Z3BoundDirection.Upper)
+      result
+    }
 
   /** Original compositional interval analysis, retained as the mandatory
     * solver fallback and as a pointwise baseline for refinement checks.
@@ -722,10 +861,87 @@ object ResultSpaceSize:
   private def literalRestrictionSize(source: SpaceValue, prefixes: SpaceValue): BigInt =
     BigInt(source.paths.count(path => prefixes.paths.exists(prefix => path.items.startsWith(prefix.items))))
 
+  private def containsEpsilon(space: Space): Boolean = space match
+    case Space.Singleton(Path.Constant(PathValue(Nil))) => true
+    case Space.Literal(value) => value.paths.contains(PathValue(Nil))
+    case Space.Union(left, right) => containsEpsilon(left) || containsEpsilon(right)
+    case _ => false
+
+  private def containsPrefix(space: Space, prefix: PathValue): Boolean = space match
+    case Space.Singleton(Path.Constant(value)) => value == prefix
+    case Space.Literal(value) => value.paths(prefix)
+    case Space.Union(left, right) => containsPrefix(left, prefix) || containsPrefix(right, prefix)
+    case _ => false
+
+  private def structurallyContains(space: Space, member: Space): Boolean =
+    space == member || (space match
+      case Space.Union(left, right) => structurallyContains(left, member) || structurallyContains(right, member)
+      case _ => false)
+
+  /** Prove that every source path has a represented prefix. These cases are
+    * content-independent and therefore retain symbolic lower bounds. */
+  private def coveredByPrefixes(source: Space, prefixes: Space): Boolean =
+    containsEpsilon(prefixes) || structurallyContains(prefixes, source) || (source match
+      case Space.Union(left, right) => coveredByPrefixes(left, prefixes) && coveredByPrefixes(right, prefixes)
+      case Space.Wrap(_, Path.Constant(prefix)) => containsPrefix(prefixes, prefix)
+      case Space.Composition(Space.Singleton(Path.Constant(prefix)), _) => containsPrefix(prefixes, prefix)
+      case Space.Restriction(_, represented) => represented == prefixes || structurallyContains(prefixes, represented)
+      case _ => false)
+
   private def reconstructsIterationSource(body: Space, symbol: PathRef, rest: SpaceMention): Boolean = body match
     case Space.Wrap(Space.Mention(tail), Path.Deref(head)) => tail == rest && head == symbol
     case Space.Composition(Space.Singleton(Path.Deref(head)), Space.Mention(tail)) => tail == rest && head == symbol
     case _ => false
+
+  /** A syntactic per-source-path multiplicity for map-like iterator bodies.
+    * Tails partition headed source paths, so these forms remain linear even
+    * through nested iteration and fixed-path products. */
+  private def pointwiseIterationMultiplicity(body: Space, rest: SpaceMention): Option[SizeExpr] = body match
+    case Space.Empty => Some(SizeExpr.Zero)
+    case Space.Singleton(_) => Some(SizeExpr.One)
+    case Space.Literal(value) => Some(SizeExpr.const(value.paths.size))
+    case Space.Mention(variable) if variable == rest => Some(SizeExpr.One)
+    case Space.Union(left, right) =>
+      for l <- pointwiseIterationMultiplicity(left, rest); r <- pointwiseIterationMultiplicity(right, rest)
+      yield SizeExpr.add(l, r)
+    case Space.Intersection(left, right) =>
+      for l <- pointwiseIterationMultiplicity(left, rest); r <- pointwiseIterationMultiplicity(right, rest)
+      yield SizeExpr.minimum(l, r)
+    case Space.Subtraction(left, _) => pointwiseIterationMultiplicity(left, rest)
+    case Space.Restriction(left, _) => pointwiseIterationMultiplicity(left, rest)
+    case Space.Raffination(left, _) => pointwiseIterationMultiplicity(left, rest)
+    case Space.Composition(Space.Singleton(_), right) => pointwiseIterationMultiplicity(right, rest)
+    case Space.Composition(left, Space.Singleton(_)) => pointwiseIterationMultiplicity(left, rest)
+    case Space.Wrap(source, _) => pointwiseIterationMultiplicity(source, rest)
+    case Space.Unwrap(source, _) => pointwiseIterationMultiplicity(source, rest)
+    case Space.TailsUnion(source) => pointwiseIterationMultiplicity(source, rest)
+    case Space.TailsIntersection(source) => pointwiseIterationMultiplicity(source, rest)
+    case Space.Range(source, _, _) => pointwiseIterationMultiplicity(source, rest)
+    case Space.Iteration(Space.Mention(variable), _, innerRest, innerBody) if variable == rest =>
+      pointwiseIterationMultiplicity(innerBody, innerRest)
+    case _ => None
+
+  /** A branch containing an injective reconstruction contributes every headed
+    * source path, even when other correlated branches have weak lower bounds. */
+  private def fixedAcrossIteration(path: Path, symbol: PathRef, rest: SpaceMention): Boolean = path match
+    case Path.Deref(ref) => ref != symbol
+    case Path.Constant(_) => true
+    case Path.Concat(left, right) =>
+      fixedAcrossIteration(left, symbol, rest) && fixedAcrossIteration(right, symbol, rest)
+    case Path.GroundedPP(source, _) => fixedAcrossIteration(source, symbol, rest)
+    case Path.GroundedSP(source, _) => !dependsOnBound(source, Set(rest), Set(symbol))
+
+  private def containsIterationReconstruction(body: Space, symbol: PathRef, rest: SpaceMention): Boolean =
+    reconstructsIterationSource(body, symbol, rest) || (body match
+      case Space.Union(left, right) =>
+        containsIterationReconstruction(left, symbol, rest) || containsIterationReconstruction(right, symbol, rest)
+      case Space.Wrap(source, prefix) if fixedAcrossIteration(prefix, symbol, rest) =>
+        containsIterationReconstruction(source, symbol, rest)
+      case Space.Composition(Space.Singleton(prefix), right) if fixedAcrossIteration(prefix, symbol, rest) =>
+        containsIterationReconstruction(right, symbol, rest)
+      case Space.Composition(left, Space.Singleton(suffix)) if fixedAcrossIteration(suffix, symbol, rest) =>
+        containsIterationReconstruction(left, symbol, rest)
+      case _ => false)
 
   /** Exact union of literal lookup fibers selected by the source heads. This
     * keeps dependent fibers distinct instead of multiplying max-fiber by the
@@ -823,7 +1039,7 @@ object ResultSpaceSize:
           else ResultSizeEstimate(l.upper, SizeExpr.positiveDifference(l.lower, r.upper))
       case Space.Restriction(left, prefixes) =>
         val l = rec(left)
-        if sameSpaceInstance(left, prefixes) then l
+        if sameSpaceInstance(left, prefixes) || coveredByPrefixes(left, prefixes) then l
         else
           val p = rec(prefixes)
           if exactZero(l) || exactZero(p) then ResultSizeEstimate.empty
@@ -913,13 +1129,25 @@ object ResultSpaceSize:
                 flattenedMapUpper match
                   case Some(perElement) => SizeExpr.multiply(source.upper, perElement)
                   case None if independent => SizeExpr.multiply(SizeExpr.positive(source.upper), branch.upper)
+                  case None if operationLaws => pointwiseIterationMultiplicity(body, rest)
+                    .fold(SizeExpr.multiply(source.upper, branch.upper))(multiplicity =>
+                      SizeExpr.minimum(
+                        SizeExpr.multiply(source.upper, branch.upper),
+                        SizeExpr.multiply(source.upper, multiplicity),
+                      ))
                   case None => SizeExpr.multiply(source.upper, branch.upper)
               val headedGuard =
                 if headedOnly(src) then SizeExpr.positive(source.lower)
                 else if operationLaws then SizeExpr.positive(SizeExpr.positiveDifference(source.lower, SizeExpr.One))
                 else SizeExpr.Zero
-              val lower =
-                SizeExpr.multiply(headedGuard, branch.lower)
+              val headedSourceLower =
+                if headedOnly(src) then source.lower
+                else SizeExpr.positiveDifference(source.lower, SizeExpr.One)
+              val lower = SizeExpr.maximum(
+                SizeExpr.multiply(headedGuard, branch.lower),
+                if operationLaws && containsIterationReconstruction(body, symbol, rest)
+                then headedSourceLower else SizeExpr.Zero,
+              )
               ResultSizeEstimate(upper, lower)
       case Space.Fold(src, _, acc, symbol, rest, body, _) =>
         val source = rec(src)

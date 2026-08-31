@@ -233,6 +233,46 @@ class SpatialTypeTest extends FunSuite:
     assert(spatial.size.upper.evaluate.exists(_ >= actual.paths.size))
   }
 
+  test("quantitative prefix coverage preserves a symbolic restriction lower bound") {
+    val source = SpaceMention("quantified_coverage_source")
+    val prefix = PathRef("quantified_coverage_prefix")
+    val sourceType = SpatialType.lengths(
+      2 -> ResultSizeEstimate.exact(SizeExpr.const(10)))
+    val result = SpatialTypeAnalysis.output(
+      Space.Restriction(Space.Mention(source), Space.Singleton(Path.Deref(prefix))),
+      SpatialAssumptions(
+        spaces = Map(source -> sourceType),
+        paths = Map(prefix -> SpatialPathType.length(1, "coverage")),
+        prefixCoverage = Set(SpatialPrefixCoverage(
+          prefix, source, lengths = Set(2), minimumMatches = SizeExpr.const(3))),
+      ),
+    )
+    assertEquals(result.size, ResultSizeEstimate(SizeExpr.const(10), SizeExpr.const(3)))
+  }
+
+  test("one coverage witness is not duplicated across disjoint source strata") {
+    val source = SpaceMention("aggregate_coverage_source")
+    val prefix = PathRef("aggregate_coverage_prefix")
+    val sourceValue = SpaceValue("a.x", "b.y")
+    val expression = Space.Restriction(
+      Space.Mention(source), Space.Singleton(Path.Deref(prefix)))
+    val result = SpatialTypeAnalysis.output(
+      expression,
+      SpatialAssumptions(
+        spaces = Map(source -> SpatialType.exact(sourceValue)),
+        paths = Map(prefix -> SpatialPathType.length(1, "aggregate coverage")),
+        prefixCoverage = Set(SpatialPrefixCoverage(prefix, source, minimumMatches = SizeExpr.One)),
+      ),
+    )
+
+    assertEquals(result.size, ResultSizeEstimate(SizeExpr.const(2), SizeExpr.One))
+    assertEquals(result.strata.map(_.cardinality.lower).toSet, Set(SizeExpr.Zero))
+    given PathContext = PathContextMap(Map(prefix -> Syntax.parse("a")))
+    given SpaceContext = SpaceContextMap(Map(source -> sourceValue))
+    given PartialFunction[RoutinePtr, Routine] = noRoutines
+    assertEquals(eval(expression), SpaceValue("a.x"))
+  }
+
   test("encoded if-empty control has a piecewise exact spatial type") {
     val source = SpaceMention("control_source")
     val fallback = SpaceMention("control_fallback")
@@ -363,6 +403,78 @@ class SpatialTypeTest extends FunSuite:
     assertEquals(degree.edges, ResultSizeEstimate.exact(SizeExpr.const(3)))
     assertEquals(degree.keys, ResultSizeEstimate.exact(SizeExpr.const(2)))
     assertEquals(degree.averageShow, "3..3 / 2..2")
+  }
+
+  test("symbolic graph patterns infer key and fiber-degree arithmetic") {
+    val relation = SpatialType.fromStrata(Vector(SpatialStratum(
+      PathLengthEstimate.exact(PathLengthExpr.const(2)),
+      ResultSizeEstimate.exact(SizeExpr.const(8)),
+      Some(SpatialPattern(Vector(
+        SpatialItem.Affine("key", 0, 0, 3),
+        SpatialItem.Affine("value", 0, 0, 3),
+      ))),
+    )))
+    val degree = relation.fiberDegree(prefixLength = 1)
+    assertEquals(degree.keys, ResultSizeEstimate(SizeExpr.const(4), SizeExpr.const(2)))
+    assertEquals(degree.minimum, ResultSizeEstimate(SizeExpr.const(4), SizeExpr.One))
+    assertEquals(degree.maximum, ResultSizeEstimate(SizeExpr.const(4), SizeExpr.const(2)))
+    assertEquals(degree.edges, ResultSizeEstimate.exact(SizeExpr.const(8)))
+  }
+
+  test("fiber-degree lowers ignore strata that may be shorter than the key") {
+    val maybeHeaded = SpatialType.fromStrata(Vector(SpatialStratum(
+      PathLengthEstimate(PathLengthExpr.Zero, PathLengthExpr.const(2)),
+      ResultSizeEstimate.exact(SizeExpr.One),
+    )))
+    val degree = maybeHeaded.fiberDegree(prefixLength = 1)
+    assertEquals(degree.edges, ResultSizeEstimate(SizeExpr.One, SizeExpr.Zero))
+    assertEquals(degree.keys, ResultSizeEstimate(SizeExpr.One, SizeExpr.Zero))
+    assertEquals(degree.minimum, ResultSizeEstimate(SizeExpr.One, SizeExpr.Zero))
+    assertEquals(degree.maximum, ResultSizeEstimate(SizeExpr.One, SizeExpr.Zero))
+  }
+
+  test("dependent symbolic lookup uses degree caps without assuming disjoint suffix fibers") {
+    val source = SpaceMention("dependent_keys")
+    val relation = SpaceMention("dependent_relation")
+    val head = PathRef("dependent_key")
+    val rest = SpaceMention("dependent_key_rest")
+    val sourceType = SpatialType.fromStrata(Vector(SpatialStratum(
+      PathLengthEstimate.exact(PathLengthExpr.One),
+      ResultSizeEstimate.exact(SizeExpr.One),
+      Some(SpatialPattern(Vector(SpatialItem.Constant(PathItem("0"))))),
+    )))
+    val relationType = SpatialType.fromStrata(Vector(SpatialStratum(
+      PathLengthEstimate.exact(PathLengthExpr.const(2)),
+      ResultSizeEstimate.exact(SizeExpr.const(8)),
+      Some(SpatialPattern(Vector(
+        SpatialItem.Affine("lookup.key", 0, 0, 3),
+        SpatialItem.Affine("lookup.value", 0, 0, 3),
+      ))),
+    )))
+    val lookup = Space.Iteration(
+      Space.Mention(source), head, rest,
+      Space.Unwrap(Space.Mention(relation), Path.Deref(head)),
+    )
+    val result = SpatialTypeAnalysis.output(lookup, SpatialAssumptions(
+      spaces = Map(source -> sourceType, relation -> relationType),
+      prefixCoverage = Set(SpatialPrefixCoverage(head, relation)),
+    ))
+    assertEquals(result.size, ResultSizeEstimate(SizeExpr.const(4), SizeExpr.One))
+
+    val sharedSource = SpatialType.exact(SpaceValue("0", "1"))
+    val sharedRelation = SpatialType.exact(SpaceValue("0.x", "1.x"))
+    val shared = SpatialTypeAnalysis.output(lookup, SpatialAssumptions(
+      spaces = Map(source -> sharedSource, relation -> sharedRelation),
+      prefixCoverage = Set(SpatialPrefixCoverage(head, relation)),
+    ))
+    // Both selected fibers contain the same suffix `x`; key count must not be
+    // multiplied into the lower bound.
+    assertEquals(shared.size.lower, SizeExpr.One)
+    given PathContext = noPaths
+    given SpaceContext = SpaceContextMap(Map(
+      source -> SpaceValue("0", "1"), relation -> SpaceValue("0.x", "1.x")))
+    given PartialFunction[RoutinePtr, Routine] = noRoutines
+    assertEquals(eval(lookup), SpaceValue("x"))
   }
 
   test("spatial projections refine scalar size and path-length projections") {
@@ -606,6 +718,11 @@ class SpatialTypeTest extends FunSuite:
     assertEquals(SizeExpr.asymptotic(linear, Set("N")), Some(AsymptoticOrder(0, 1, 0)))
     assertEquals(SizeExpr.asymptotic(branching, Set("N")), Some(AsymptoticOrder(1, 0, 0)))
     assert(SizeExpr.asymptotic(linear, Set("N")).get < SizeExpr.asymptotic(branching, Set("N")).get)
+    assertEquals(SpatialRecurrence.solve(SizeExpr.const(3), SizeExpr.const(2), SizeExpr.const(4)).annotatedValue,
+      Some(BigInt(45)))
+    assert(branching.show.contains("geomSeries"), branching.show)
+    val unknownBranching = SpatialRecurrence.solve(SizeExpr.const(3), SizeExpr.symbol("B"), n)
+    assertEquals(SizeExpr.asymptotic(unknownBranching, Set("N")), None)
   }
 
   test("recursive routine costs close when every self call consumes tails") {

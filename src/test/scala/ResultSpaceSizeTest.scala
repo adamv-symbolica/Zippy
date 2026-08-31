@@ -12,11 +12,51 @@ class ResultSpaceSizeTest extends FunSuite:
     assert(missing.getMessage.contains("Install Z3"), missing.getMessage)
 
     val diagnostics = ByteArrayOutputStream()
+    val started = System.nanoTime()
     val timed = Console.withErr(PrintStream(diagnostics)) {
-      Z3Executable.runCommand(Vector("/bin/sh", "-c", "sleep 1"), "", waitMillis = 20L)
+      Z3Diagnostics.capture {
+        // The child deliberately never reads stdin. A multi-megabyte script
+        // fills the pipe, proving that the watchdog covers the write as well
+        // as process.waitFor.
+        Z3Executable.runCommand(Vector("/bin/sh", "-c", "sleep 1"), "x" * (4 * 1024 * 1024), waitMillis = 20L)
+      }
     }
-    assertEquals(timed, None)
+    val elapsedMillis = (System.nanoTime() - started) / 1000000L
+    assertEquals(timed.value, None)
+    assert(timed.diagnostics.exists(_.isInstanceOf[Z3Diagnostic.ProcessTimeout]), timed.diagnostics)
+    assert(elapsedMillis < 900L, s"timeout did not cover blocking stdin write: ${elapsedMillis}ms")
     assert(diagnostics.toString.contains("Z3 timed out"), diagnostics.toString)
+
+    val solverDiagnostics = ByteArrayOutputStream()
+    val solverTimeout = Console.withErr(PrintStream(solverDiagnostics)) {
+      Z3Diagnostics.capture {
+        Z3Executable.reportSolverUnknown("unknown\n(:reason-unknown \"timeout\")", "test obligation")
+      }
+    }
+    assert(solverTimeout.value)
+    assert(solverTimeout.diagnostics.exists(_.isInstanceOf[Z3Diagnostic.SolverTimeout]), solverTimeout.diagnostics)
+    assert(
+      solverDiagnostics.toString.contains("Z3 timed out after 1000ms in test obligation"),
+      solverDiagnostics.toString,
+    )
+
+    val pathLengthTimeout = Z3Diagnostics.capture {
+      Z3PathLengthSolver.parsePossibleMasks(
+        "MASK_1\nunknown\n(:reason-unknown \"timeout\")",
+        Vector(1),
+      )
+    }
+    assertEquals(pathLengthTimeout.value, None)
+    assert(pathLengthTimeout.diagnostics.exists {
+      case Z3Diagnostic.SolverTimeout(obligation, _) => obligation.contains("path-length")
+      case _ => false
+    }, pathLengthTimeout.diagnostics)
+
+    val completed = Z3Diagnostics.capture {
+      Z3Executable.runCommand(Vector("/bin/sh", "-c", "printf solved"), "", waitMillis = 100L)
+    }
+    assertEquals(completed.value, Some("solved"))
+    assertEquals(completed.diagnostics, Vector.empty)
   }
 
   test("natural expression normalization removes proved dominated bounds") {
@@ -32,6 +72,17 @@ class ResultSpaceSizeTest extends FunSuite:
       SizeExpr.multiply(SizeExpr.positive(a), SizeExpr.positive(a)),
       SizeExpr.positive(a),
     )
+    assertEquals(
+      SizeExpr.add(
+        SizeExpr.ifZero(a, b, SizeExpr.Zero),
+        SizeExpr.ifZero(a, SizeExpr.Zero, c),
+      ),
+      SizeExpr.ifZero(a, b, c),
+    )
+    val maybeZeroDenominator = SizeExpr.minimum(a, SizeExpr.One)
+    val quotient = SizeExpr.ceilingDivide(SizeExpr.One, maybeZeroDenominator)
+    assertEquals(quotient.annotatedBound(Z3BoundDirection.Lower), Some(BigInt(0)))
+    assertEquals(quotient.annotatedBound(Z3BoundDirection.Upper), Some(BigInt(1)))
   }
 
   private val emptyPathContext = PathContextMap(Map.empty)
@@ -431,6 +482,64 @@ class ResultSpaceSizeTest extends FunSuite:
     assertEquals(eval(nestedMap)(using emptyPathContext, context, emptyRoutines).paths.size, 4)
   }
 
+  test("pointwise tail and nested-group caps contain exhaustive concrete outputs") {
+    val source = S"pointwise_tail_source"
+    val outerHead = PathRef("pointwise_tail_outer_head").known(1)
+    val outerRest = SpaceMention("pointwise_tail_outer_rest")
+    val innerHead = PathRef("pointwise_tail_inner_head").known(1)
+    val innerRest = SpaceMention("pointwise_tail_inner_rest")
+    val tailBodies = Vector[Space](
+      Space.TailsUnion(Space.Mention(outerRest)),
+      Space.TailsIntersection(Space.Mention(outerRest)),
+    )
+    val tailMaps = tailBodies.map(body =>
+      Space.Iteration(source, outerHead, outerRest, body))
+    val nestedMap = Space.Iteration(
+      source,
+      outerHead,
+      outerRest,
+      Space.Iteration(
+        Space.Mention(outerRest),
+        innerHead,
+        innerRest,
+        Space.Union(
+          Space.Singleton(Path.Deref(innerHead)),
+          Space.Mention(innerRest),
+        ),
+      ),
+    )
+    // TailsUnion removes exactly one head; it is TailsClosure, deliberately
+    // absent from the pointwise rule, that can emit many suffixes per path.
+    val universe = Vector(
+      PathValue(Nil),
+      Syntax.parse("a"),
+      Syntax.parse("a.x"),
+      Syntax.parse("a.x.p"),
+      Syntax.parse("a.y.q"),
+      Syntax.parse("b.x.r"),
+      Syntax.parse("b.z.s.t"),
+    )
+    for mask <- 0 until (1 << universe.size) do
+      val sourceValue = SpaceValue(universe.indices.collect {
+        case index if (mask & (1 << index)) != 0 => universe(index)
+      }.toSet)
+      val context = SpaceContextMap(Map(source.variable -> sourceValue))
+      tailMaps.foreach { expression =>
+        val upper = evaluated(ResultSpaceSize.estimate(expression).upper, context)
+        val actual = BigInt(eval(expression)(using emptyPathContext, context, emptyRoutines).paths.size)
+        assert(actual <= upper, s"tail cap excluded mask $mask: actual=$actual upper=$upper")
+        assert(upper <= sourceValue.paths.size,
+          s"one-step tail cap was not linear for mask $mask: upper=$upper source=${sourceValue.paths.size}")
+      }
+      val nestedUpper = evaluated(ResultSpaceSize.estimate(nestedMap).upper, context)
+      val nestedActual = BigInt(eval(nestedMap)(using emptyPathContext, context, emptyRoutines).paths.size)
+      assert(nestedActual <= nestedUpper,
+        s"nested-group cap excluded mask $mask: actual=$nestedActual upper=$nestedUpper")
+      assert(nestedUpper <= BigInt(sourceValue.paths.size * 2),
+        s"nested-group cap was not pointwise for mask $mask: upper=$nestedUpper source=${sourceValue.paths.size}")
+    end for
+  }
+
   test("restriction and reconstruct iteration preserve nonzero lower bounds") {
     val sourceValue = SpaceValue(PathValue(Nil), Syntax.parse("a.x"), Syntax.parse("b.y"))
     val source = Space.Literal(sourceValue)
@@ -449,6 +558,57 @@ class ResultSpaceSizeTest extends FunSuite:
       Space.Wrap(Space.Mention(rest), Path.Deref(head)))
     assertEquals(ResultSpaceSize.estimate(reconstruct), ResultSizeEstimate.exact(SizeExpr.const(2)))
     assertEquals(eval(reconstruct).paths.size, 2)
+  }
+
+  test("symbolic prefix coverage and correlated product maps stay nonzero and linear") {
+    val source = S"symbolic_covered_source"
+    val prefixes = Space.Singleton(Path.Constant(Syntax.parse("tag")))
+    val wrapped = Space.Wrap(source, Path.Constant(Syntax.parse("tag")))
+    assertEquals(ResultSpaceSize.estimate(Space.Restriction(wrapped, prefixes)),
+      ResultSpaceSize.estimate(source))
+
+    val head = PathRef("linear_map_head").known(1)
+    val rest = SpaceMention("linear_map_rest")
+    val reconstruct = Space.Wrap(Space.Mention(rest), Path.Deref(head))
+    val body = Space.Union(
+      reconstruct,
+      Space.Composition(Space.Singleton(Path.Constant(Syntax.parse("copy"))), reconstruct),
+    )
+    val mapped = Space.Iteration(source, head, rest, body)
+    val sourceValue = SpaceValue(
+      PathValue(Nil), Syntax.parse("a.x"), Syntax.parse("b.y"), Syntax.parse("c.z"))
+    val context = SpaceContextMap(Map(source.variable -> sourceValue))
+    val baseline = ResultSpaceSize.estimateBaseline(mapped)
+    val refined = ResultSpaceSize.estimate(mapped)
+    assertEquals(evaluated(baseline.upper, context), BigInt(32))
+    assertEquals(evaluated(refined.upper, context), BigInt(8))
+    assertEquals(evaluated(refined.lower, context), BigInt(3))
+    assertEquals(eval(mapped)(using emptyPathContext, context, emptyRoutines).paths.size, 6)
+  }
+
+  test("binder-dependent grounded wrappers do not inherit an injective reconstruction lower bound") {
+    val head = PathRef("grounded_collision_head").known(1)
+    val rest = SpaceMention("grounded_collision_rest")
+    val source = Space.Literal(SpaceValue(Syntax.parse("a.b"), Syntax.parse("b")))
+    val reconstructed = Space.Wrap(Space.Mention(rest), Path.Deref(head))
+    val collapsingPrefix = Path.GroundedPP(
+      Path.Deref(head),
+      value => if value == Syntax.parse("a") then PathValue(Nil) else Syntax.parse("a"),
+    )
+    val expression = Space.Iteration(
+      source,
+      head,
+      rest,
+      Space.Wrap(reconstructed, collapsingPrefix),
+    )
+
+    assertEquals(eval(expression).paths, Set(Syntax.parse("a.b")))
+    val estimate = ResultSpaceSize.estimate(expression)
+    assert(SizeExpr.provablyNoGreater(estimate.lower, SizeExpr.One), estimate.show)
+    assert(SizeExpr.provablyNoGreater(SizeExpr.One, estimate.upper), estimate.show)
+    val spatial = SpatialTypeAnalysis.output(expression).size
+    assert(SizeExpr.provablyNoGreater(spatial.lower, SizeExpr.One), spatial.show)
+    assert(SizeExpr.provablyNoGreater(SizeExpr.One, spatial.upper), spatial.show)
   }
 
   test("operation subset constraints cross opaque Z3 atoms") {

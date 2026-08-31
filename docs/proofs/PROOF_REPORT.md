@@ -2,44 +2,62 @@
 
 Status: PASS_WITH_PROOF_DEBT
 
+## Provenance
+
+- Generated: `2026-08-31T09:40:42Z`
+- Git: `cf615fb21731040583a5bf3d681a79d9ba436501` (`dirty` working tree)
+- Python: `3.12.3`
+- Scala CLI: `Scala CLI version: 1.16.0`
+- Z3: `Z3 version 5.0.0 - 64 bit`
+- Vampire: `Vampire 5.0.1 (Release build, commit 1b13eaf on 2026-01-18 12:14:50 +0000)`
+- Egglog: `egglog 2.0.0_2026-08-31_`
+
 ## Scope
 
 - Scala is the source of truth for generated proof and example egg artifacts.
 - `morkl.ProofArtifactGeneratorMain` generates SMT2 and TPTP files plus `proofs/proof_manifest.tsv`.
 - `morkl.generateZipperEggTests` generates the shared-prelude `formal.egg` and `zipper.egg` introductions plus the independent `zipper-egg-tests/*.egg` examples.
-- `morkl.generateCornerstoneProofArtifacts` generates exact-output TPTP/egg certificates for aunt, semi-naive datalog, GOL, 15-puzzle, temperature, n-queens, and SCC. The former tautological closed-output SMT2 certificates are intentionally not generated.
+- `morkl.generateCornerstoneProofArtifacts` executes closed-program differential checks for aunt, semi-naive datalog, GOL, 15-puzzle, temperature, n-queens, and SCC. It emits a parity report, not closed-output solver certificates; the old SMT2/TPTP/egg encodings defined both sides as one precomputed answer and were removed.
 - `morkl.generateOpenProgramProofArtifacts` generates open-program SMT2 equivalence obligations over symbolic bounded input spaces plus structural full-program TPTP obligations.
 - The runner emits `proofs/operational_rule_manifest.tsv` by scanning every operational `(rewrite ...)` and `(rule ...)` in `zipper-descend.egg`, mapping semantic rows to proof artifacts where known, mapping path normalizers, memo/cache wrappers, and scheduler-observability helpers to explicit FOL contracts where available, keeping any remaining relational frontier/key scheduling helpers as `axiom-elsewhere`, and marking missing semantic coverage as `UNPROVED`.
 - This Python script runs external solvers/checkers against the Scala-generated artifacts and curated termination artifacts.
 - Operational proof debt in this report: `433` proved-bounded rows, `0` axiom-elsewhere rows, and `0` UNPROVED rows. A zero-UNPROVED report is not the same as a fully unbounded proof.
-- Vampire runs in portfolio mode and proves first-order equivalence obligations connecting zipper membership, eager trie membership, and path-set membership. Iteration is represented as a general head/rest binder with arbitrary template-expression DAGs; body-union distribution, guarded invariant motion, and wrap/product/intersection/diff/restriction hoists have unbounded FOL obligations in addition to bounded counterexample checks.
+- Vampire runs first-order obligations in portfolio mode by default. Generated manifest rows may opt a deliberately decomposed obligation into the plain saturation loop with `vampire-strategy=plain`; this avoids a Vampire 5.0.1 portfolio-child proof-handoff crash without weakening or skipping the theorem. These obligations connect zipper membership, eager trie membership, and path-set membership. Iteration is represented as a general head/rest binder with arbitrary template-expression DAGs; body-union distribution, guarded invariant motion, and wrap/product/intersection/diff/restriction hoists have unbounded FOL obligations in addition to bounded counterexample checks.
 - TailsIntersection has an arbitrary-cardinality closed-frontier refinement theorem. The generated `tails-intersection-frontier.egg` artifact executes the corresponding demand-built key-list fold over a nested virtual union with a repeated head, demonstrating that same-head children merge before the all-head meet.
 - Core unit path-set algebra now has unbounded FOL obligations for union/intersection idempotence and associativity, diff self/union-right, child intersection/diff, restriction/raffination partition/disjointness, path concat epsilon normalization, memo/cache identity, and ordered Range child-border soundness/pruning facts. Operational rows that still cite bounded fixture-specific laws remain `proved-bounded` by weakest-tier accounting.
 - Bounded universe: alphabet `a,b`, max path length `3`, `15` paths.
 - Valid laws are checked by asking Z3 for a counterexample to equality; `unsat` means no bounded counterexample was found.  The bounded law table includes MORKL-style Iteration with head/rest bindings.
 - Product/concatenation derivative laws are guarded by the principle `no concatenation escapes the bounded universe`: `child_product_*` uses a generated `ProductClosed(X,Y)` assumption that forbids exactly those X/Y path pairs whose concatenation would fall outside the bounded universe. Both `a` and `b` child representatives are checked, and the unguarded mutation must be `sat`.
-- Cornerstone example certificates are exact closed-program output equivalence checks generated from Scala after Scala has checked the compared evaluators/executors agree.
+- Closed cornerstone parity is an executable Scala gate. Counterexample-sensitive solver evidence comes from symbolic open-program SMT and structural full-program FOL obligations, rather than duplicating a precomputed closed output on both sides.
 - Open-program SMT certificates compare expanded source, source optimization, raw graph round-trip, and optimized graph round-trip for all symbolic inputs in each generated bounded universe.
-- Structural full-program FOL certificates emit generated MORKL program DAGs for Aunt, semi-naive Datalog, GOL, temperature, 2x2 sliding puzzle, the complete 24-state 2x2 sliding-puzzle step, 4-queens, and SCC, then prove source, optimized-source, trie, zipper, and graph backends equivalent using constructor-specific implementation lemmas over arbitrary input-space interpretations. `Iter` is modeled with an explicit path/space binding environment; `Range` is modeled as source membership plus ordered rank/bounds selection.
+- Structural full-program FOL files emit generated MORKL program DAGs for Aunt, semi-naive Datalog, GOL, temperature, 2x2 and 4x4 sliding puzzle, the complete 24-state 2x2 step, 4-queens, and direct SCC mutual reachability. They check DAG well-formedness and contract consistency under per-constructor axioms equating each backend's membership predicate with source membership; they are not independent implementation-equivalence proofs. `Iter` is modeled with an explicit path/space binding environment and `Range` with source membership plus ordered rank/bounds selection. The recursive divide-and-conquer SCC routine has executable reference/trie parity coverage, not an unbounded structural proof.
 - `terminating/` carries hand-staged termination and least-fixpoint artifacts: Vampire-checkable least-fixpoint uniqueness and finite-growth decrease lemmas, Z3-checkable no-infinite-descent induction steps, egglog sketches, and Datalog/transitive termination/equivalence obligations. These artifacts are executed by the corresponding gate unless that gate is skipped.
-- Arbitrary-data backend obligations use symbolic input spaces/templates to prove source, trie, zipper, and graph constructors agree independently of the concrete example data.
+- Bounded open-program SMT obligations use symbolic input spaces/templates to search independently for backend counterexamples. Full-program structural FOL obligations instead compose explicitly axiomatized backend/source contracts.
 - Negative controls are intentionally false laws; they must return `sat`.
-- Vampire: available at `/home/ubuntu/.local/bin/vampire`
+- Vampire: available as `vampire`
 - Per-obligation solver budgets: Z3 `300s`, Vampire `300s`; solver obligations run with up to `4` workers.
 
 ## Scala Generation Gate
 
 | Step | Expected | Actual | Result |
 | --- | --- | --- | --- |
+| `scala proof artifact generation` | `exit-0` | `exit-0` | PASS |
+| `scala cornerstone proof generation` | `exit-0` | `exit-0` | PASS |
+| `scala open-program proof generation` | `exit-0` | `exit-0` | PASS |
+| `scala egg artifact generation` | `exit-0` | `exit-0` | PASS |
 | `product-guard artifact invariant` | `ProductClosed+negative-control` | `ok` | PASS |
 | `negative-control family invariant` | `all-families-sat` | `ok` | PASS |
 | `symbol-coverage invariant` | `both-symbols-or-symmetry` | `ok` | PASS |
-| `required full-program obligations` | `manifest identities` | `ok` | PASS |
+| `documentation/source-of-truth invariant` | `single-status+current-api` | `ok` | PASS |
+| `required full-program obligations` | `all-structural+named-full-open` | `ok` | PASS |
+| `generated artifact manifest ownership` | `no-orphans+no-missing` | `ok` | PASS |
 | `concrete closure rewrite invariant` | `no-concrete-closure-rewrites` | `ok` | PASS |
 | `frontier algebra rule invariant` | `required-tail-frontier-and-state-rules` | `ok` | PASS |
 | `termination proof artifact invariant` | `solver-runnable least-fixpoint+finite-growth+descent` | `ok` | PASS |
 | `operational rule manifest generation` | `exit-0` | `exit-0` | PASS |
 | `operational manifest closure and proof-debt accounting` | `0-UNPROVED with proof-debt surfaced` | `0-UNPROVED; 433-proof-debt` | PASS |
+| `required operational family coverage` | `iter+fixpoint+range+context` | `ok` | PASS |
+| `generated artifact freshness` | `no-content-drift` | `fresh` | PASS |
 
 ## Vampire Equivalence Gate
 
@@ -65,9 +83,6 @@ Status: PASS_WITH_PROOF_DEBT
 | `spatial_order_partial_order_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_order_partial_order_fo.p` |
 | `spatial_bottom_top_bounds_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_bottom_top_bounds_fo.p` |
 | `spatial_exact_concretization_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_exact_concretization_fo.p` |
-| `spatial_code_normalize_bridge_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_code_normalize_bridge_fo.p` |
-| `spatial_code_join_bridge_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_code_join_bridge_fo.p` |
-| `spatial_code_meet_bridge_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_code_meet_bridge_fo.p` |
 | `spatial_join_upper_left_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_join_upper_left_fo.p` |
 | `spatial_join_upper_right_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_join_upper_right_fo.p` |
 | `spatial_join_interval_least_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_join_interval_least_fo.p` |
@@ -97,6 +112,10 @@ Status: PASS_WITH_PROOF_DEBT
 | `spatial_raffination_variance_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_raffination_variance_fo.p` |
 | `spatial_raffination_transfer_sound_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_raffination_transfer_sound_fo.p` |
 | `spatial_wrap_unwrap_transfer_sound_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_wrap_unwrap_transfer_sound_fo.p` |
+| `spatial_tails_union_monotone_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_tails_union_monotone_fo.p` |
+| `spatial_prefix_closure_monotone_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_prefix_closure_monotone_fo.p` |
+| `spatial_suffix_closure_monotone_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_suffix_closure_monotone_fo.p` |
+| `spatial_tails_closure_monotone_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_tails_closure_monotone_fo.p` |
 | `spatial_closure_transfer_sound_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_closure_transfer_sound_fo.p` |
 | `spatial_range_safe_transfer_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_range_safe_transfer_fo.p` |
 | `spatial_tails_intersection_safe_transfer_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/spatial_tails_intersection_safe_transfer_fo.p` |
@@ -199,6 +218,7 @@ Status: PASS_WITH_PROOF_DEBT
 | `set_child_nonempty_paths` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_nonempty_paths.p` |
 | `set_child_prefix_closure` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_prefix_closure.p` |
 | `set_child_prefix_closure_below` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_prefix_closure_below.p` |
+| `set_suffix_closure_nonempty_recurrence_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_suffix_closure_nonempty_recurrence_fo.p` |
 | `set_child_suffix_closure_derivative` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_suffix_closure_derivative.p` |
 | `set_child_tails_closure_derivative` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/set_child_tails_closure_derivative.p` |
 | `antimirov_suffix_frontier_state_child_fo` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/antimirov_suffix_frontier_state_child_fo.p` |
@@ -310,34 +330,6 @@ Status: PASS_WITH_PROOF_DEBT
 | `zipper_intersection_child_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_intersection_child_equiv.p` |
 | `zipper_diff_terminal_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_diff_terminal_equiv.p` |
 | `zipper_diff_child_equiv` | `Theorem` | `Theorem` | PASS | `proofs/vampire/generated/zipper_diff_child_equiv.p` |
-| `aunt:trie_vs_reference` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/aunt_trie_vs_reference.p` |
-| `aunt:space_optimized` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/aunt_space_optimized.p` |
-| `aunt:zipper_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/aunt_zipper_vs_space.p` |
-| `aunt:graph_execT_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/aunt_graph_execT_vs_space.p` |
-| `semi-naive-datalog:trie_vs_reference` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/semi-naive-datalog_trie_vs_reference.p` |
-| `semi-naive-datalog:space_optimized` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/semi-naive-datalog_space_optimized.p` |
-| `semi-naive-datalog:zipper_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/semi-naive-datalog_zipper_vs_space.p` |
-| `semi-naive-datalog:graph_execT_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/semi-naive-datalog_graph_execT_vs_space.p` |
-| `gol:trie_vs_reference` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/gol_trie_vs_reference.p` |
-| `gol:space_optimized` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/gol_space_optimized.p` |
-| `gol:zipper_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/gol_zipper_vs_space.p` |
-| `gol:graph_execT_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/gol_graph_execT_vs_space.p` |
-| `15-puzzle:trie_vs_reference` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/15-puzzle_trie_vs_reference.p` |
-| `15-puzzle:space_optimized` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/15-puzzle_space_optimized.p` |
-| `15-puzzle:zipper_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/15-puzzle_zipper_vs_space.p` |
-| `15-puzzle:graph_execT_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/15-puzzle_graph_execT_vs_space.p` |
-| `temperature:trie_vs_reference` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/temperature_trie_vs_reference.p` |
-| `temperature:space_optimized` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/temperature_space_optimized.p` |
-| `temperature:zipper_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/temperature_zipper_vs_space.p` |
-| `temperature:graph_execT_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/temperature_graph_execT_vs_space.p` |
-| `nqueens:trie_vs_reference` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/nqueens_trie_vs_reference.p` |
-| `nqueens:space_optimized` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/nqueens_space_optimized.p` |
-| `nqueens:zipper_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/nqueens_zipper_vs_space.p` |
-| `nqueens:graph_execT_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/nqueens_graph_execT_vs_space.p` |
-| `scc:trie_vs_reference` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/scc_trie_vs_reference.p` |
-| `scc:space_optimized` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/scc_space_optimized.p` |
-| `scc:zipper_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/scc_zipper_vs_space.p` |
-| `scc:graph_execT_vs_space` | `Theorem` | `Theorem` | PASS | `proofs/examples/vampire/scc_graph_execT_vs_space.p` |
 | `fixpoint-tail-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/fixpoint_tail_full_program_structural_backend_equivalence.p` |
 | `aunt-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/aunt_full_program_structural_backend_equivalence.p` |
 | `semi-naive-datalog-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/semi_naive_datalog_full_program_structural_backend_equivalence.p` |
@@ -345,6 +337,7 @@ Status: PASS_WITH_PROOF_DEBT
 | `temperature-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/temperature_full_program_structural_backend_equivalence.p` |
 | `sliding-puzzle-2x2-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/sliding_puzzle_2x2_full_program_structural_backend_equivalence.p` |
 | `sliding-puzzle-2x2-24-state-step-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/sliding_puzzle_2x2_24_state_step_full_program_structural_backend_equivalence.p` |
+| `sliding-puzzle-4x4-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/sliding_puzzle_4x4_full_program_structural_backend_equivalence.p` |
 | `nqueens-4-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/nqueens_4_full_program_structural_backend_equivalence.p` |
 | `scc-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/scc_full_program_structural_backend_equivalence.p` |
 | `termination:least_fixpoint_unique` | `Theorem` | `Theorem` | PASS | `terminating/least_fixpoint_unique.p` |
@@ -649,6 +642,9 @@ Status: PASS_WITH_PROOF_DEBT
 | `bad_range_wrap_first_uses_last_generated_negative_control` | `sat` | `sat` | PASS | `proofs/generated/bad_range_wrap_first_uses_last_generated_negative_control.smt2` |
 | `bad_range_wrap_last_uses_first_generated_negative_control` | `sat` | `sat` | PASS | `proofs/generated/bad_range_wrap_last_uses_first_generated_negative_control.smt2` |
 | `bad_range_wrap_drop_last_keeps_last_generated_negative_control` | `sat` | `sat` | PASS | `proofs/generated/bad_range_wrap_drop_last_keeps_last_generated_negative_control.smt2` |
+| `bitvector_endpoint_encoding_regression` | `unsat` | `unsat` | PASS | `proofs/generated/bitvector_endpoint_encoding_regression.smt2` |
+| `spatial_type_finite_code_bridge` | `unsat` | `unsat` | PASS | `proofs/generated/spatial_type_finite_code_bridge.smt2` |
+| `bad_spatial_type_finite_code_bridge_flipped_output_generated_negative_control` | `sat` | `sat` | PASS | `proofs/generated/bad_spatial_type_finite_code_bridge_flipped_output_generated_negative_control.smt2` |
 | `union-open:space_optimized_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/union_open_space_optimized_open.smt2` |
 | `union-open:raw_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/union_open_raw_graph_roundtrip_open.smt2` |
 | `union-open:optimized_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/union_open_optimized_graph_roundtrip_open.smt2` |
@@ -724,18 +720,33 @@ Status: PASS_WITH_PROOF_DEBT
 | `aunt-open:space_optimized_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/aunt_open_space_optimized_open.smt2` |
 | `aunt-open:raw_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/aunt_open_raw_graph_roundtrip_open.smt2` |
 | `aunt-open:optimized_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/aunt_open_optimized_graph_roundtrip_open.smt2` |
+| `aunt-full-open:space_optimized_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/aunt_full_open_space_optimized_open.smt2` |
+| `aunt-full-open:raw_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/aunt_full_open_raw_graph_roundtrip_open.smt2` |
+| `aunt-full-open:optimized_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/aunt_full_open_optimized_graph_roundtrip_open.smt2` |
 | `semi-naive-datalog-open:space_optimized_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/semi_naive_datalog_open_space_optimized_open.smt2` |
 | `semi-naive-datalog-open:raw_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/semi_naive_datalog_open_raw_graph_roundtrip_open.smt2` |
 | `semi-naive-datalog-open:optimized_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/semi_naive_datalog_open_optimized_graph_roundtrip_open.smt2` |
+| `semi-naive-datalog-full-open:space_optimized_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/semi_naive_datalog_full_open_space_optimized_open.smt2` |
+| `semi-naive-datalog-full-open:raw_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/semi_naive_datalog_full_open_raw_graph_roundtrip_open.smt2` |
+| `semi-naive-datalog-full-open:optimized_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/semi_naive_datalog_full_open_optimized_graph_roundtrip_open.smt2` |
 | `gol-open:space_optimized_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/gol_open_space_optimized_open.smt2` |
 | `gol-open:raw_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/gol_open_raw_graph_roundtrip_open.smt2` |
 | `gol-open:optimized_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/gol_open_optimized_graph_roundtrip_open.smt2` |
+| `gol-full-open:space_optimized_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/gol_full_open_space_optimized_open.smt2` |
+| `gol-full-open:raw_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/gol_full_open_raw_graph_roundtrip_open.smt2` |
+| `gol-full-open:optimized_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/gol_full_open_optimized_graph_roundtrip_open.smt2` |
 | `temperature-open:space_optimized_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/temperature_open_space_optimized_open.smt2` |
 | `temperature-open:raw_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/temperature_open_raw_graph_roundtrip_open.smt2` |
 | `temperature-open:optimized_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/temperature_open_optimized_graph_roundtrip_open.smt2` |
 | `sliding-puzzle-2x2-open:space_optimized_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/sliding_puzzle_2x2_open_space_optimized_open.smt2` |
 | `sliding-puzzle-2x2-open:raw_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/sliding_puzzle_2x2_open_raw_graph_roundtrip_open.smt2` |
 | `sliding-puzzle-2x2-open:optimized_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/sliding_puzzle_2x2_open_optimized_graph_roundtrip_open.smt2` |
+| `sliding-puzzle-2x2-full-open:space_optimized_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/sliding_puzzle_2x2_full_open_space_optimized_open.smt2` |
+| `sliding-puzzle-2x2-full-open:raw_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/sliding_puzzle_2x2_full_open_raw_graph_roundtrip_open.smt2` |
+| `sliding-puzzle-2x2-full-open:optimized_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/sliding_puzzle_2x2_full_open_optimized_graph_roundtrip_open.smt2` |
+| `sliding-puzzle-2x2-full-open:bounded_witness_a_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/sliding_puzzle_2x2_full_open_bounded_witness_a_open.smt2` |
+| `sliding-puzzle-2x2-full-open:bounded_witness_b_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/sliding_puzzle_2x2_full_open_bounded_witness_b_open.smt2` |
+| `sliding-puzzle-2x2-full-open:bounded_witness_c_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/sliding_puzzle_2x2_full_open_bounded_witness_c_open.smt2` |
 | `nqueens-4-open:space_optimized_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/nqueens_4_open_space_optimized_open.smt2` |
 | `nqueens-4-open:raw_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/nqueens_4_open_raw_graph_roundtrip_open.smt2` |
 | `nqueens-4-open:optimized_graph_roundtrip_open` | `unsat` | `unsat` | PASS | `proofs/open/smt2/nqueens_4_open_optimized_graph_roundtrip_open.smt2` |
@@ -769,18 +780,11 @@ unsat` | PASS | `terminating/no_infinite_descent.smt2` |
 | `zipper-egg-tests/range-observation.egg` | `exit-0` | `exit-0` | PASS |
 | `zipper-egg-tests/tails-intersection-frontier.egg` | `exit-0` | `exit-0` | PASS |
 | `zipper-egg-tests/temperature-small.egg` | `exit-0` | `exit-0` | PASS |
-| `proofs/examples/egg/15-puzzle.egg` | `exit-0` | `exit-0` | PASS |
-| `proofs/examples/egg/aunt.egg` | `exit-0` | `exit-0` | PASS |
-| `proofs/examples/egg/gol.egg` | `exit-0` | `exit-0` | PASS |
-| `proofs/examples/egg/nqueens.egg` | `exit-0` | `exit-0` | PASS |
-| `proofs/examples/egg/scc.egg` | `exit-0` | `exit-0` | PASS |
-| `proofs/examples/egg/semi-naive-datalog.egg` | `exit-0` | `exit-0` | PASS |
-| `proofs/examples/egg/temperature.egg` | `exit-0` | `exit-0` | PASS |
 | `proofs/generated/egg/arbitrary_backend_rewrite_equivalence.egg` | `exit-0` | `exit-0` | PASS |
 
 ## Operational Rule Manifest
 
-- `/home/ubuntu/Zippy/proofs/operational_rule_manifest.tsv` contains `582` operational rows: `149` proved-unbounded, `433` proved-bounded, `0` axiom-elsewhere, `0` UNPROVED.
+- `proofs/operational_rule_manifest.tsv` contains `582` operational rows: `149` proved-unbounded, `433` proved-bounded, `0` axiom-elsewhere, `0` UNPROVED.
 - Proof debt total: `433` rows. `proved-bounded` rows are accepted by this gate but remain proof-strengthening work. No `axiom-elsewhere` operational rows remain in the current manifest. Of the proved-bounded rows, `433` are mixed FOL+bounded and `0` are bounded-only.
 
 | Status | Tier | Rows |
@@ -799,13 +803,13 @@ unsat` | PASS | `terminating/no_infinite_descent.smt2` |
 
 ## Limits
 
-- Vampire proves the abstraction and local constructor equivalence obligations listed above; it does not yet prove every optimizer rewrite directly from one generated semantic table.
+- Vampire proves the non-full-program abstraction and local constructor laws listed above; it does not prove every optimizer rewrite directly from one generated semantic table. Full-program structural FOL results are only consistency theorems under explicit backend/source agreement axioms.
 - The Z3 algebraic law phase is still a bounded finite-language check.
 - Iteration is now in the first-order and bounded proof layers, but arbitrary higher-order template equivalence is represented by schemas plus bounded examples rather than a generated semantic table.
-- Cornerstone example proofs are closed instantiated examples over their generated inputs/contexts; the open-program SMT tier covers proof-sized operator programs, benchmark skeletons, the full Aunt query over arbitrary bounded inputs, and a proof-sized full GOL helper expansion.
+- Closed cornerstone checks are differential executions, not theorem-prover certificates. The open-program SMT tier covers proof-sized operator programs, benchmark skeletons, and the full Aunt, semi-naive Datalog, proof-sized GOL, and 2x2-puzzle programs over bounded symbolic inputs.
 - DAG-shared SMT emission is used for open-program obligations; whole programs with very large literal domains are better handled by the structural FOL tier.
-- The structural full-program FOL tier covers all seven cornerstone examples plus a dedicated complete 24-state 2x2 sliding-puzzle step certificate. It uses constructor-specific backend equivalence lemmas and concrete literal/path definitions instead of one generic backend-denotation axiom. `Iter` now has an explicit environment-stack semantics for bound path refs and rest spaces, including nested iteration capture; `Range` now exposes membership, rank, count, normalized bounds, and half-open interval selection. `Fixpoint` now exposes the union-saturating base-or-step equation in the same structural environment, and `terminating/` adds staged least-fixpoint uniqueness plus finite-growth/descent termination evidence for representative recursion families. Full positivity/leastness obligations for arbitrary source `Fixpoint` and mutual recursion are still not discharged from one unified semantic table. `Fold` and grounded functions remain represented by shared operator semantic predicates; the next tightening step is to unfold those remaining predicates into stronger op-specific FOL lemmas.
+- The axiomatized structural full-program FOL tier covers all seven cornerstone examples plus a dedicated complete 24-state 2x2 sliding-puzzle step schema. It uses per-constructor backend/source agreement axioms and concrete literal/path definitions, so it validates contract composition and DAG well-formedness rather than the Scala implementations. `Iter` has an explicit environment-stack schema for bound path refs and rest spaces; `Range` exposes membership, rank, count, normalized bounds, and half-open interval selection; `Fixpoint` exposes the union-saturating base-or-step equation. `terminating/` separately adds staged least-fixpoint uniqueness plus finite-growth/descent obligations. Independent implementation proofs for these full programs, arbitrary-source Fixpoint positivity/leastness, mutual recursion, Fold, and grounded functions remain open.
 - Operational egg `Range` no longer has the four-path fixture-shaped answer rewrites for negative-window, `RangeLast`, or `RangeDropLast`. Negative-window now decomposes to `RangeLast(RangeDropLast(src))`; `RangeLast` and `RangeDropLast` over the concrete border fixture are handled by local terminal/child movement rules instead of whole-result materialization. Broad ordered-union rewrites and generic eager `Child(Range*)` rewrites crossed the OOM-safety threshold and are intentionally not used. The focused `range-border-child.egg` artifact validates the safer ordered border-state relation (`range-child-result`) with hit, miss, absent-key, and negative probes; `range-observation.egg` now covers both the concrete four-path epsilon/a.a/a.b/b.a border fixture and a no-epsilon first-border fixture through that scheduled relation; and `range-border-operational.egg` extends the relation to concrete trie unions, virtual unions, nested drop-last, and shared-prefix/prefixed Range sources under explicit normalize/observe/range-border phases. The proof layer now adds unbounded ordered-key FOL child-border obligations for first terminal/pruning, first/last selected soundness, last pruning, and drop-last before/after pruning. The remaining tightening step is to prove full selected-branch equality for drop-last and derive the egg scheduling relations directly from the unified semantic table instead of combining those FOL obligations with bounded generated witnesses.
 - The Antimirov closure-state operators now have bounded SMT artifacts for frontier union, keyed frontier tails, nested frontier child movement, and suffix/tails closure child states, plus named unbounded FOL child/nested-child bridge obligations for suffix/tails closure frontiers. Laws involving mutual recursion, leastness/positivity obligations for general Fixpoint lowering, and an unbounded bisimulation proof of the complete demand-driven frontier scheduler are not complete in this gate.
 - The main proof and runtime track is intentionally path-set-only. The value-payload experiment lives under `valued/` so the unit track can fully exploit stronger set laws and remain buildable with that directory removed.
-- `formal.egg` and `zipper.egg` share one Scala-generated core prelude and remain checked illustrative targets; `zipper-descend.egg` is the comprehensive operational target. Generated example egg files also come from Scala.
+- `formal.egg` and `zipper.egg` share one Scala-generated core prelude and remain checked illustrative targets; `zipper-descend.egg` is the comprehensive operational target. Focused operational egg examples come from Scala; closed-output cornerstone egg tautologies are not generated.

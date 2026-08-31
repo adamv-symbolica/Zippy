@@ -2,9 +2,11 @@ package morkl
 
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
+import java.io.ByteArrayOutputStream
+import java.util.concurrent.atomic.AtomicReference
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
-import scala.io.Source
+import scala.util.DynamicVariable
 
 enum Z3BoundDirection:
   case Lower, Upper
@@ -41,6 +43,47 @@ enum Z3SetFormula:
 final class MissingZ3Executable(message: String, cause: Throwable)
     extends IllegalStateException(message, cause)
 
+enum Z3Diagnostic:
+  case ProcessTimeout(command: Vector[String], timeoutMillis: Long)
+  case NonZeroExit(command: Vector[String], exitCode: Int)
+  case ProcessIoFailure(command: Vector[String], channel: String, detail: String)
+  case SolverTimeout(obligation: String, timeoutMillis: Long)
+  case SolverUnknown(obligation: String, reason: String)
+
+  def show: String = this match
+    case Z3Diagnostic.ProcessTimeout(command, timeoutMillis) =>
+      s"Z3 timed out: process '${command.mkString(" ")}' exceeded ${timeoutMillis}ms"
+    case Z3Diagnostic.NonZeroExit(command, exitCode) =>
+      s"Z3 process '${command.mkString(" ")}' exited with status $exitCode"
+    case Z3Diagnostic.ProcessIoFailure(command, channel, detail) =>
+      s"Z3 process '${command.mkString(" ")}' failed on $channel: $detail"
+    case Z3Diagnostic.SolverTimeout(obligation, timeoutMillis) =>
+      s"Z3 timed out after ${timeoutMillis}ms in $obligation; compositional fallback retained"
+    case Z3Diagnostic.SolverUnknown(obligation, reason) =>
+      s"Z3 returned unknown in $obligation ($reason); compositional fallback retained"
+
+case class Z3AnalysisReport[+A](value: A, diagnostics: Vector[Z3Diagnostic]):
+  def degraded: Boolean = diagnostics.nonEmpty
+
+object Z3Diagnostics:
+  private val sinks = DynamicVariable(List.empty[mutable.ArrayBuffer[Z3Diagnostic]])
+
+  /** Publish every degradation at the point where it is observed. Capturing
+    * callers additionally receive structured data, but ordinary analysis must
+    * not turn the solver's one-second `unknown/timeout` into a silent fallback.
+    */
+  private[morkl] def emit(diagnostic: Z3Diagnostic): Unit =
+    sinks.value.foreach(_ += diagnostic)
+    Console.err.println(diagnostic.show)
+
+  /** Capture solver degradation as data suitable for reports. Diagnostics are
+    * also forwarded to an enclosing capture, so nested spatial/size analyses
+    * cannot hide a timeout. */
+  def capture[A](body: => A): Z3AnalysisReport[A] =
+    val collected = mutable.ArrayBuffer.empty[Z3Diagnostic]
+    val value = sinks.withValue(collected :: sinks.value)(body)
+    Z3AnalysisReport(value, collected.toVector)
+
 private[morkl] object Z3Executable:
   private val executable = Option(System.getProperty("morkl.z3")).filter(_.nonEmpty).getOrElse("z3")
   private val timeoutMillis = Option(System.getProperty("morkl.z3.timeoutMillis"))
@@ -59,24 +102,93 @@ private[morkl] object Z3Executable:
             s"unable to start Z3 command '${command.mkString(" ")}'. Install Z3 or set -Dmorkl.z3=/path/to/z3",
             error
           )
-    val writer = process.outputWriter(StandardCharsets.UTF_8)
-    writer.write(script)
-    writer.close()
+    val output = ByteArrayOutputStream()
+    val writerFailure = AtomicReference[Throwable | Null](null)
+    val readerFailure = AtomicReference[Throwable | Null](null)
+    val writerTask: Runnable = () =>
+      try
+        val writer = process.outputWriter(StandardCharsets.UTF_8)
+        try writer.write(script)
+        finally writer.close()
+      catch case error: Throwable => writerFailure.set(error)
+    val readerTask: Runnable = () =>
+      try
+        process.getInputStream.transferTo(output)
+        ()
+      catch case error: Throwable => readerFailure.set(error)
+    val writerThread = new Thread(writerTask, "morkl-z3-stdin")
+    val readerThread = new Thread(readerTask, "morkl-z3-stdout")
+    writerThread.setDaemon(true)
+    readerThread.setDaemon(true)
+    writerThread.start()
+    readerThread.start()
     if !process.waitFor(waitMillis, TimeUnit.MILLISECONDS) then
+      process.descendants().forEach(child =>
+        child.destroyForcibly()
+        ()
+      )
       process.destroyForcibly()
-      Console.err.println(s"Z3 timed out after ${waitMillis}ms while evaluating an analyzer obligation")
+      process.waitFor(50L, TimeUnit.MILLISECONDS)
+      // Closing while another thread is blocked in write can wait on the
+      // stream monitor. Destroy first so the writer is released by EPIPE.
+      try process.getOutputStream.close() catch case _: Throwable => ()
+      try process.getInputStream.close() catch case _: Throwable => ()
+      writerThread.join(50L)
+      readerThread.join(50L)
+      val diagnostic = Z3Diagnostic.ProcessTimeout(command.toVector, waitMillis)
+      Z3Diagnostics.emit(diagnostic)
       None
     else
-      val source = Source.fromInputStream(process.getInputStream, StandardCharsets.UTF_8.name())
-      try
-        val output = source.mkString
-        if process.exitValue() == 0 then Some(output) else None
-      finally source.close()
+      // Normally process exit closes both pipes immediately. Keep an explicit
+      // secondary deadline for a hostile descendant that inherited a pipe;
+      // partial output is rejected rather than returned as a successful solve.
+      val ioJoinMillis = waitMillis.max(250L)
+      writerThread.join(ioJoinMillis)
+      readerThread.join(ioJoinMillis)
+      if writerThread.isAlive || readerThread.isAlive then
+        // These are daemon helpers. Do not synchronously close a stream while
+        // its helper owns the stream monitor; interruption plus a degraded
+        // result keeps this call bounded and the OS closes the pipe at EOF.
+        writerThread.interrupt()
+        readerThread.interrupt()
+        val channels = Vector(
+          Option.when(writerThread.isAlive)("stdin"),
+          Option.when(readerThread.isAlive)("stdout/stderr"),
+        ).flatten.mkString("+")
+        val diagnostic = Z3Diagnostic.ProcessIoFailure(
+          command.toVector, channels, s"pipe did not reach EOF within ${ioJoinMillis}ms")
+        Z3Diagnostics.emit(diagnostic)
+        return None
+      val rendered = new String(output.toByteArray, StandardCharsets.UTF_8)
+      val ioFailure = Option(writerFailure.get()).map("stdin" -> _)
+        .orElse(Option(readerFailure.get()).map("stdout" -> _))
+      if ioFailure.nonEmpty then
+        val (channel, error) = ioFailure.get
+        val diagnostic = Z3Diagnostic.ProcessIoFailure(
+          command.toVector, channel, Option(error.getMessage).getOrElse(error.getClass.getSimpleName))
+        Z3Diagnostics.emit(diagnostic)
+        None
+      else if process.exitValue() == 0 then Some(rendered)
+      else
+        val diagnostic = Z3Diagnostic.NonZeroExit(command.toVector, process.exitValue())
+        Z3Diagnostics.emit(diagnostic)
+        None
 
   def run(script: String): Option[String] =
     runCommand(Vector(executable, "-in", "-smt2"), script)
 
   def timeoutOption: String = s"(set-option :timeout $timeoutMillis)\n"
+  def solverTimeoutMillis: Long = timeoutMillis
+
+  private[morkl] def reportSolverUnknown(output: String, obligation: String): Boolean =
+    val unknown = output.contains("unknown")
+    if unknown then
+      if !output.contains(":reason-unknown") || output.toLowerCase.contains("timeout") then
+        Z3Diagnostics.emit(Z3Diagnostic.SolverTimeout(obligation, timeoutMillis))
+      else
+        val reason = output.linesIterator.find(_.contains(":reason-unknown")).getOrElse("unknown")
+        Z3Diagnostics.emit(Z3Diagnostic.SolverUnknown(obligation, reason))
+    unknown
 
 case class Z3CardinalityProblem(
   formula: Z3SetFormula,
@@ -178,6 +290,8 @@ private object Z3CardinalitySolver:
     Z3Executable.run(script) match
       case Some(output) if !output.contains("unknown") && !output.contains("error") =>
         Solution(sectionValue(output, "LOWER"), if canMaximize then sectionValue(output, "UPPER") else None)
+      case Some(output) if Z3Executable.reportSolverUnknown(output, "cardinality optimization") =>
+        Solution(None, None)
       case _ => Solution(None, None)
 
   def solve(
@@ -191,7 +305,13 @@ private object Z3CardinalitySolver:
       val key = formula.render +
         bounds.map { case (lower, upper) => s":${lower.getOrElse("_")}:${upper.getOrElse("_")}" }.mkString +
         relations.map(relation => s":${relation.render}").mkString
-      val solution = cache.getOrElseUpdate(key, query(formula, bounds, relations))
+      val solution = cache.get(key).getOrElse {
+        val computed = query(formula, bounds, relations)
+        // A degraded result must be retried and re-reported on the next
+        // analysis, rather than becoming an unmarked process-wide cache hit.
+        if computed.lower.nonEmpty || computed.upper.nonEmpty then cache.putIfAbsent(key, computed).getOrElse(computed)
+        else computed
+      }
       direction match
         case Z3BoundDirection.Lower => solution.lower
         case Z3BoundDirection.Upper => solution.upper
@@ -206,7 +326,7 @@ private object Z3BooleanRelations:
 
   def solve(left: Z3SetFormula, right: Z3SetFormula, atomCount: Int): Option[Relations] =
     val key = s"$atomCount:${left.render}:${right.render}"
-    cache.getOrElseUpdate(key, {
+    cache.get(key).getOrElse {
       val declarations = (0 until atomCount).map(index => s"(declare-const a$index Bool)").mkString("\n")
       def check(marker: String, counterexample: String): String =
         s"""(echo "$marker")
@@ -222,7 +342,8 @@ private object Z3BooleanRelations:
            |${check("RIGHT_SUBSET", s"(and ${right.render} (not ${left.render}))")}
            |${check("DISJOINT", s"(and ${left.render} ${right.render})")}
            |""".stripMargin
-      Z3Executable.run(script).flatMap { output =>
+      val computed = Z3Executable.run(script).flatMap { output =>
+        Z3Executable.reportSolverUnknown(output, "Boolean relation checks")
         for
           leftStatus <- status(output, "LEFT_SUBSET")
           rightStatus <- status(output, "RIGHT_SUBSET")
@@ -230,7 +351,9 @@ private object Z3BooleanRelations:
           if leftStatus != "unknown" && rightStatus != "unknown" && disjointStatus != "unknown"
         yield Relations(leftStatus == "unsat", rightStatus == "unsat", disjointStatus == "unsat")
       }
-    })
+      computed.foreach(value => cache.putIfAbsent(key, Some(value)))
+      computed
+    }
 
 object Z3ResultSpaceSize:
   private val maxAtoms = Option(System.getProperty("morkl.z3.maxCardinalityAtoms"))
@@ -296,7 +419,9 @@ object Z3ResultSpaceSize:
 
   private def strengthen(baseline: ResultSizeEstimate, refinement: ResultSizeEstimate): ResultSizeEstimate =
     if baseline == refinement then baseline
-    else if refinement.exact then refinement
+    else if refinement.exact &&
+        SizeExpr.provablyNoGreater(baseline.lower, refinement.lower) &&
+        SizeExpr.provablyNoGreater(refinement.upper, baseline.upper) then refinement
     else ResultSizeEstimate(
       if baseline.upper == refinement.upper then baseline.upper else SizeExpr.minimum(baseline.upper, refinement.upper),
       if baseline.lower == refinement.lower then baseline.lower else SizeExpr.maximum(baseline.lower, refinement.lower)

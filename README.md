@@ -62,7 +62,10 @@ absorption, and ordinary difference.
 - Python 3 for orchestration and dataset utilities
 
 The commands below use bounded JVM memory because the complete proof and fuzz
-suites are intentionally substantial.
+suites are intentionally substantial. The ordinary Scala suite uses a 1.5 GiB
+heap. The proof-only command uses a 4 GiB heap: generation of the mandatory,
+non-vacuous four-direction 2x2-puzzle obligations over its focused width-125
+universe measured 4,582,176 KiB peak resident memory including JVM overhead.
 
 ## Build and Test
 
@@ -87,15 +90,16 @@ egglog zipper-descend.egg
 ```
 
 `formal.egg` and `zipper.egg` are generated together from
-`IllustrativeEggArtifacts.scala`; a freshness test prevents the checked-in
-artifacts from drifting from that source.
+`IllustrativeEggArtifacts.scala`. The proof pipeline regenerates every
+committed artifact in scope and fails when the same run changes one, so a
+successful report also certifies generator freshness.
 
 ## Proof Pipeline
 
 Run the complete proof gate with five minutes per Z3 or Vampire obligation:
 
 ```bash
-env _JAVA_OPTIONS='-Xmx1536m -Xss64m' \
+env _JAVA_OPTIONS='-Xmx4g -Xss64m' \
   PYTHONPYCACHEPREFIX=/tmp/morkl_pycache \
 python3 tools/proof_pipeline.py \
   --alphabet a,b \
@@ -106,36 +110,35 @@ python3 tools/proof_pipeline.py \
 ```
 
 For a larger bounded universe, `--long` expands the default alphabet and path
-depth and uses the runner's parallel solver workers. Explicit `--alphabet`,
-`--max-len`, and `--solver-workers` values still take precedence.
+depth and raises the default parallel solver-worker limit from four to eight.
+Explicit `--alphabet`, `--max-len`, and `--solver-workers` values still take
+precedence. `--no-freshness-check` is intended only for scratch generation into
+temporary output paths; it removes the reproducibility gate from the run.
 
-Use a small worker count on memory-constrained machines. Some ordered `Range`
-obligations are CPU-heavy, and excessive parallelism can turn contention into a
-misleading wall-clock timeout.
+Use one solver worker unless the machine has substantial spare memory. The
+focused puzzle source/optimizer row measured 61,854,736 KiB peak Z3 RSS, while
+its graph rows measured about 7.7 GiB and its three exact non-vacuity witnesses
+about 3.9 GiB each. Some ordered `Range` obligations are also CPU-heavy, and
+excessive parallelism can turn contention into a misleading wall-clock timeout.
 
 ### Proof Status
 
-The checked-in [`docs/proofs/PROOF_REPORT.md`](docs/proofs/PROOF_REPORT.md)
-status is `PASS_WITH_PROOF_DEBT`: Vampire, Z3, and egglog all executed
-successfully, while bounded operational obligations remain explicitly recorded
-as proof debt.
-
-The operational manifest contains:
-
-- 582 mapped rows;
-- 149 proved-unbounded rows;
-- 433 proved-bounded rows;
-- 0 axiom-elsewhere rows;
-- 0 unproved rows.
-
-The 433 bounded rows remain proof debt. Zero unproved rows is not presented as
-a complete unbounded proof.
+[`docs/proofs/PROOF_REPORT.md`](docs/proofs/PROOF_REPORT.md) is the sole
+authoritative generated status and count summary. This README deliberately does
+not copy its status or manifest totals, because partial/tool-skipped and full
+runs have different outcomes. The pipeline enforces that source-of-truth rule.
+Bounded rows remain proof debt even when the operational manifest has no
+unmapped rows.
 
 Generated obligations connect the path-set semantics to eager tries, virtual
 zippers, optimized source programs, and operation graphs. Open-program checks
-quantify over arbitrary inputs; cornerstone certificates cover Aunt queries,
+quantify over arbitrary inputs; cornerstone parity and symbolic evidence cover Aunt queries,
 semi-naive Datalog, pure Game of Life, the sliding puzzle, temperature queries,
-and pure MORKL n-queens.
+pure MORKL n-queens, and SCC mutual reachability. The two largest bounded
+symbolic obligations—semi-naive Datalog and the 2x2 sliding puzzle—are generated
+as ephemeral full-open SMT files and are mandatory manifest entries. The puzzle
+corpus also includes three exact-output bounded witnesses covering all four move
+directions, so backend equivalence cannot pass over an empty translated step.
 
 ## Fuzzing
 

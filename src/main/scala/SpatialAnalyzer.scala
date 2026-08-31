@@ -22,6 +22,15 @@ object SpatialTypeAnalysis:
       constrain(space, analyze(space, assumptions, routines, Set.empty), assumptions)
     }
 
+  /** Spatial result with every Z3 fallback/timeout encountered by its scalar
+    * and path-length reduced products. */
+  def outputReported(
+    space: Space,
+    assumptions: SpatialAssumptions = SpatialAssumptions(),
+    routines: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty,
+  ): Z3AnalysisReport[SpatialType] =
+    Z3Diagnostics.capture(output(space, assumptions, routines))
+
   /** Analyze once while retaining every intermediate result together with the
     * lexical bindings under which it was computed. Repeated observations are
     * intentional for loop/fixpoint nodes. */
@@ -183,7 +192,45 @@ object SpatialTypeAnalysis:
         SpatialType.fromStrata(patterns.map(pattern => SpatialStratum(value.length, optional, Some(pattern))),
           sizeOverride = Some(ResultSizeEstimate.exact(SizeExpr.One)), lengthOverride = Some(value.length))
       case _ => SpatialType.fromStrata(Vector(SpatialStratum(value.length, ResultSizeEstimate.exact(SizeExpr.One))))
-    result.copy(cost = SpatialCostEstimate.bounded(SizeExpr.One, SizeExpr.One, SizeExpr.One, SizeExpr.One))
+    withTrieConstructionCost(
+      result,
+      SpatialCostEstimate.bounded(SizeExpr.One, SizeExpr.One, SizeExpr.One, SizeExpr.One),
+      graphDispatch = true,
+    )
+
+  /** Literal and singleton zipper/trie evaluation constructs an immutable
+    * trie before any outer lazy consumer can constrain it. The number of
+    * allocated nodes is bounded by one root plus the unshared length of every
+    * path; singleton insertion can attain that bound exactly. Keep the
+    * reference interval unchanged, but expose construction counters for every
+    * trie-backed executor. */
+  private def withTrieConstructionCost(
+    result: SpatialType,
+    base: SpatialCostEstimate,
+    graphDispatch: Boolean,
+  ): SpatialType =
+    val nodes = SpatialCostMeasure(result).nodesUpper
+    def native(current: SpatialCostInterval, dispatch: Boolean): SpatialCostInterval =
+      val visits = if dispatch then SizeExpr.One else SizeExpr.Zero
+      current.copy(
+        workLower = SizeExpr.Zero,
+        workUpper = SizeExpr.maximum(current.workUpper, SizeExpr.add(nodes, visits)),
+        allocationLower = SizeExpr.Zero,
+        allocationUpper = SizeExpr.maximum(current.allocationUpper, nodes),
+        componentsUpper = current.componentsUpper.copy(
+          nodeVisits = SizeExpr.maximum(current.componentsUpper.nodeVisits, visits),
+          // Singleton insertion performs a Patricia update and bulk literal
+          // construction may change implementation; the node bound covers
+          // either representation without relying on today’s zero/one count.
+          patriciaVisits = SizeExpr.maximum(current.componentsUpper.patriciaVisits, nodes),
+          allocations = SizeExpr.maximum(current.componentsUpper.allocations, nodes),
+        ),
+      )
+    val backend = base.backend
+      .updated(SpatialBackend.Trie, native(base.forBackend(SpatialBackend.Trie), dispatch = false))
+      .updated(SpatialBackend.Zipper, native(base.forBackend(SpatialBackend.Zipper), dispatch = false))
+      .updated(SpatialBackend.Graph, native(base.forBackend(SpatialBackend.Graph), graphDispatch))
+    result.copy(cost = base.copy(backend = backend))
 
   private def unionCount(left: ResultSizeEstimate, right: ResultSizeEstimate): ResultSizeEstimate =
     ResultSizeEstimate(SizeExpr.add(left.upper, right.upper), SizeExpr.maximum(left.lower, right.lower))
@@ -260,36 +307,77 @@ object SpatialTypeAnalysis:
       SizeExpr.add(left.size.lower, right.size.lower), result.size.lower,
       operationKind = SpatialCostOperation.Union)
 
-  /** A zipper union is a virtual view. When its only consumer is an
-    * intersection, traversal is bounded by the demanded operand's frontier;
-    * the reference/trie/graph costs deliberately retain their eager bounds. */
-  private def capZipperUnionForDemand(unionType: SpatialType, demand: SpatialType): SpatialType =
-    val cost = unionType.cost
-    val original = cost.forBackend(SpatialBackend.Zipper)
-    val demandNodes = SpatialCostMeasure(demand).nodesUpper
-    val cap = SizeExpr.multiply(SizeExpr.const(2), demandNodes)
-    val bounded = original.copy(
-      workUpper = SizeExpr.minimum(original.workUpper, cap),
-      allocationUpper = SizeExpr.minimum(original.allocationUpper, demandNodes),
-      componentsUpper = original.componentsUpper.copy(
-        nodeVisits = SizeExpr.minimum(original.componentsUpper.nodeVisits, cap),
-        allocations = SizeExpr.minimum(original.componentsUpper.allocations, demandNodes),
-      ),
-    )
-    unionType.copy(cost = cost.copy(backend = cost.backend.updated(SpatialBackend.Zipper, bounded)))
+  private case class ZipperDemandPlan(factor: BigInt, virtual: Boolean)
 
-  private def capZipperIntersectionForDemand(value: SpatialType, demand: SpatialType): SpatialType =
+  /** Count the virtual membership probes needed for one forced trie node.
+    * `None` deliberately rejects expressions whose construction, `hasChild`,
+    * or emptiness test can inspect resident data outside the consumer frontier.
+    * In particular, stored intersections take the native eager merge and the
+    * other set operators may scan a whole descendant subtree merely to answer
+    * `hasChild`. The proved fragment is deliberately just flat or nested union
+    * over resident mentions/empty leaves: even a fixed Wrap around such a union
+    * can repeatedly re-observe the resident union while descending a long
+    * demanded prefix. This is not a generic syntactic virtuality test. */
+  private def zipperDemandPlan(expression: Space): Option[ZipperDemandPlan] =
+    def leaf(value: Space): Option[ZipperDemandPlan] = value match
+      case Space.Empty | Space.Mention(_) => Some(ZipperDemandPlan(1, virtual = false))
+      case _ => None
+    def union(left: Space, right: Space): Option[ZipperDemandPlan] =
+      for
+        l <- zipperDemandPlan(left)
+        r <- zipperDemandPlan(right)
+      yield ZipperDemandPlan(l.factor + r.factor + 1, virtual = true)
+    expression match
+      case value @ (Space.Empty | Space.Mention(_)) => leaf(value)
+      // Singleton eagerly allocates its complete path trie before an outer
+      // consumer is known. Its construction cost cannot be frontier-capped.
+      case Space.Singleton(_) => None
+      case Space.Union(left, right) => union(left, right)
+      // Intersection can eagerly merge stored tries. Subtraction, restriction,
+      // raffination and prefix closure answer `hasChild` via recursive emptiness
+      // tests. Composition accumulates split candidates, and Wrap can repeat
+      // resident-union observations along a demanded prefix. None has a proved
+      // constant-per-frontier-node bound here.
+      case _ => None
+
+  /** Cap only the Zipper backend of a resident virtual expression. Lower
+    * bounds are clamped with the same cap, preserving interval ordering. */
+  private def capZipperForDemand(value: SpatialType, demand: SpatialType, factor: BigInt): SpatialType =
     val cost = value.cost
     val original = cost.forBackend(SpatialBackend.Zipper)
     val demandNodes = SpatialCostMeasure(demand).nodesUpper
-    // One demand traversal plus a membership descent into each virtual-union branch.
-    val cap = SizeExpr.multiply(SizeExpr.const(3), demandNodes)
+    val cap = SizeExpr.multiply(SizeExpr.const(factor), demandNodes)
     val bounded = original.copy(
+      // A consumer frontier proves only an upper bound on forced work. It
+      // cannot justify retaining a local eager lower bound.
+      workLower = SizeExpr.Zero,
       workUpper = SizeExpr.minimum(original.workUpper, cap),
-      allocationUpper = SizeExpr.minimum(original.allocationUpper, demandNodes),
+      allocationLower = SizeExpr.Zero,
+      allocationUpper = SizeExpr.minimum(original.allocationUpper, cap),
       componentsUpper = original.componentsUpper.copy(
         nodeVisits = SizeExpr.minimum(original.componentsUpper.nodeVisits, cap),
-        allocations = SizeExpr.minimum(original.componentsUpper.allocations, demandNodes),
+        patriciaVisits = SizeExpr.minimum(original.componentsUpper.patriciaVisits, cap),
+        pathComparisons = SizeExpr.minimum(original.componentsUpper.pathComparisons, cap),
+        allocations = SizeExpr.minimum(original.componentsUpper.allocations, cap),
+      ),
+    )
+    value.copy(cost = cost.copy(backend = cost.backend.updated(SpatialBackend.Zipper, bounded)))
+
+  private def capZipperIntersectionForDemand(value: SpatialType, demand: SpatialType, factor: BigInt): SpatialType =
+    val cost = value.cost
+    val original = cost.forBackend(SpatialBackend.Zipper)
+    val demandNodes = SpatialCostMeasure(demand).nodesUpper
+    val cap = SizeExpr.multiply(SizeExpr.const(factor + 1), demandNodes)
+    val bounded = original.copy(
+      workLower = SizeExpr.Zero,
+      workUpper = SizeExpr.minimum(original.workUpper, cap),
+      allocationLower = SizeExpr.Zero,
+      allocationUpper = SizeExpr.minimum(original.allocationUpper, cap),
+      componentsUpper = original.componentsUpper.copy(
+        nodeVisits = SizeExpr.minimum(original.componentsUpper.nodeVisits, cap),
+        patriciaVisits = SizeExpr.minimum(original.componentsUpper.patriciaVisits, cap),
+        pathComparisons = SizeExpr.minimum(original.componentsUpper.pathComparisons, cap),
+        allocations = SizeExpr.minimum(original.componentsUpper.allocations, cap),
       ),
     )
     value.copy(cost = cost.copy(backend = cost.backend.updated(SpatialBackend.Zipper, bounded)))
@@ -400,7 +488,13 @@ object SpatialTypeAnalysis:
       fact <- assumptions.prefixCoverage
       if fact.prefix == ref && fact.space == mention
     yield fact
-    val strata = left.strata.flatMap { l =>
+    if prefixes.shape.epsilon == SpatialPresence.Must then
+      return charge(left.copy(cost = SpatialCostEstimate.zero), left, prefixes)(
+        SizeExpr.add(left.size.upper, prefixes.size.upper),
+        left.size.upper,
+        operationKind = SpatialCostOperation.Restriction,
+      )
+    val compatibleStrata = left.strata.flatMap { l =>
       val compatible = prefixes.strata.filter { p =>
         val lengthPossible = (l.length.upper, p.length.lower) match
           case (PathLengthExpr.Const(leftUpper), PathLengthExpr.Const(prefixLower)) => leftUpper >= prefixLower
@@ -410,23 +504,44 @@ object SpatialTypeAnalysis:
           case _ => false)
       }
       if compatible.isEmpty then Vector.empty
-      else
+      else Vector(l -> compatible)
+    }
+    val strata = compatibleStrata.map { (l, compatible) =>
         val retainedGuard = SizeExpr.maximum(compatible.map { p =>
           (l.pattern, p.pattern) match
             case (Some(value), Some(prefix)) if value.definitelyHasPrefix(prefix) =>
               SizeExpr.positive(p.cardinality.lower)
             case _ => SizeExpr.Zero
         }*)
-        val dependentCoverage = l.exactLength.exists(length => coverage.exists(_.covers(length)))
-        val lower =
+        val soleStratumCoverage = l.exactLength.flatMap { length =>
+          Option.when(compatibleStrata.count(_._1.exactLength.contains(length)) == 1) {
+            SizeExpr.maximum(coverage.iterator.filter(_.covers(length)).map(_.minimumMatches).toVector*)
+          }
+        }.getOrElse(SizeExpr.Zero)
+        val lower = SizeExpr.maximum(
           if retainedGuard != SizeExpr.Zero then SizeExpr.multiply(l.cardinality.lower, retainedGuard)
-          else if dependentCoverage then SizeExpr.positive(l.cardinality.lower)
-          else SizeExpr.Zero
-        Vector(l.copy(cardinality = ResultSizeEstimate(l.cardinality.upper, lower)))
+          else SizeExpr.Zero,
+          soleStratumCoverage,
+        )
+        l.copy(cardinality = ResultSizeEstimate(l.cardinality.upper, lower))
     }
     val raw = SpatialType.fromStrata(strata)
+    // A coverage fact is one aggregate witness for the selected relation, not
+    // a separate witness for every compatible spatial stratum. Assigning it
+    // to each stratum can multiply one selected path across disjoint patterns.
+    // Multiple selected prefixes at one length may overlap, so their safe
+    // combination is maximum. Distinct exact path lengths are disjoint and may
+    // be added. When a covered length has exactly one stratum, the witness is
+    // also attached there to retain the useful per-length projection; with two
+    // or more patterns it remains aggregate-only. Pattern-specific retained
+    // guards above remain attached because those are independent proofs.
+    val coverageLower = SizeExpr.add(compatibleStrata.flatMap(_._1.exactLength).distinct.map { length =>
+      SizeExpr.maximum(coverage.iterator.filter(_.covers(length)).map(_.minimumMatches).toVector*)
+    }*)
     charge(SpatialType.reduce(raw.copy(size = ResultSizeEstimate(
-      SizeExpr.minimum(raw.size.upper, left.size.upper), raw.size.lower))), left, prefixes)(
+      SizeExpr.minimum(raw.size.upper, left.size.upper),
+      SizeExpr.maximum(raw.size.lower, coverageLower),
+    ))), left, prefixes)(
       SizeExpr.multiply(left.size.upper, prefixes.size.upper),
       operationKind = SpatialCostOperation.Restriction)
 
@@ -639,6 +754,40 @@ object SpatialTypeAnalysis:
     }
     Option.when(bounds.forall(_.nonEmpty))(SizeExpr.add(bounds.flatten*))
 
+  /** Bound a dependent relation lookup without enumerating either operand.
+    * Iterator heads select relation fibers; the selected fibers are capped by
+    * the relation's inferred maximum degree. A prefix-coverage annotation also
+    * proves a non-empty (or quantitatively covered) result fiber. */
+  private def dependentFiberBound(
+    source: SpatialType,
+    symbol: PathRef,
+    body: Space,
+    assumptions: SpatialAssumptions,
+  ): Option[ResultSizeEstimate] = body match
+    case Space.Unwrap(Space.Mention(relation), Path.Deref(prefix)) if prefix == symbol =>
+      assumptions.spaces.get(relation).map { relationType =>
+        val groups = source.strata.map(stratum =>
+          iterationGroups(stratum, definitelyHeaded(stratum.length)))
+        val selectedKeys = ResultSizeEstimate(
+          SizeExpr.add(groups.map(_.upper)*),
+          SizeExpr.maximum(groups.map(_.lower)*),
+        )
+        val degree = relationType.fiberDegree(prefixLength = 1)
+        val upper = SizeExpr.minimum(
+          relationType.size.upper,
+          SizeExpr.multiply(selectedKeys.upper, degree.maximum.upper),
+        )
+        val witnesses = assumptions.prefixCoverage.iterator
+          .filter(fact => fact.prefix == symbol && fact.space == relation)
+          .map(fact => SizeExpr.maximum(fact.minimumMatches, degree.minimum.lower))
+          .toVector
+        val lower =
+          if witnesses.isEmpty then SizeExpr.Zero
+          else SizeExpr.multiply(SizeExpr.positive(selectedKeys.lower), SizeExpr.maximum(witnesses*))
+        ResultSizeEstimate(upper, lower)
+      }
+    case _ => None
+
   private def conditional(condition: SpatialType, ifZero: SpatialType, ifNonZero: SpatialType): SpatialType =
     val exactCondition = Option.when(condition.size.exact)(condition.size.upper)
     exactCondition match
@@ -790,10 +939,15 @@ object SpatialTypeAnalysis:
           ResultSpaceSize.estimate(space, assumptions.sizeAssumptions)
         ))).copy(cost = Option.when(active(name))(SpatialRecursion.marker(name)).getOrElse(SpatialCostEstimate.zero))
       case Space.Singleton(value) => singleton(path(value, assumptions, routines, active))
-      case Space.Literal(value) => SpatialType.exact(value, assumptions.config.patternLimit).copy(
-        cost = SpatialCostEstimate.bounded(
-          SizeExpr.const(value.paths.size), SizeExpr.const(value.paths.size),
-          SizeExpr.const(value.paths.size), SizeExpr.const(value.paths.size)))
+      case Space.Literal(value) =>
+        val literal = SpatialType.exact(value, assumptions.config.patternLimit)
+        withTrieConstructionCost(
+          literal,
+          SpatialCostEstimate.bounded(
+            SizeExpr.const(value.paths.size), SizeExpr.const(value.paths.size),
+            SizeExpr.const(value.paths.size), SizeExpr.const(value.paths.size)),
+          graphDispatch = false,
+        )
       case Space.Union(left, right) =>
         right match
           case candidate if matchIfEmpty(candidate).exists(_._1 == left) =>
@@ -809,16 +963,20 @@ object SpatialTypeAnalysis:
         else
           val leftType = rec(left)
           val rightType = rec(right)
-          val demandedLeft = left match
-            case Space.Union(_, _) => capZipperUnionForDemand(leftType, rightType)
+          val leftDemand = zipperDemandPlan(left).filter(_.virtual)
+          val rightDemand = zipperDemandPlan(right).filter(_.virtual)
+          // If both sides are virtual there is no independent frontier to
+          // bound either one; retain the compositional upper bound.
+          val demandedLeft = (leftDemand, rightDemand) match
+            case (Some(plan), None) => capZipperForDemand(leftType, rightType, plan.factor)
             case _ => leftType
-          val demandedRight = right match
-            case Space.Union(_, _) => capZipperUnionForDemand(rightType, leftType)
+          val demandedRight = (leftDemand, rightDemand) match
+            case (None, Some(plan)) => capZipperForDemand(rightType, leftType, plan.factor)
             case _ => rightType
           val combined = intersection(demandedLeft, demandedRight)
-          (left, right) match
-            case (Space.Union(_, _), _) => capZipperIntersectionForDemand(combined, rightType)
-            case (_, Space.Union(_, _)) => capZipperIntersectionForDemand(combined, leftType)
+          (leftDemand, rightDemand) match
+            case (Some(plan), None) => capZipperIntersectionForDemand(combined, rightType, plan.factor)
+            case (None, Some(plan)) => capZipperIntersectionForDemand(combined, leftType, plan.factor)
             case _ => combined
       case Space.Subtraction(left, right) =>
         if left == right then SpatialType.empty
@@ -868,10 +1026,16 @@ object SpatialTypeAnalysis:
                 )))
             }
             val general = SpatialType.fromStrata(capStrata(branches, assumptions.config.patternLimit))
-            val typed = pointwiseIterationUpper(source, symbol, rest, body, assumptions, routines, active) match
+            val pointwise = pointwiseIterationUpper(source, symbol, rest, body, assumptions, routines, active) match
               case Some(upper) => SpatialType.reduce(general.copy(size = ResultSizeEstimate(
                 SizeExpr.minimum(general.size.upper, upper), general.size.lower)))
               case None => general
+            val typed = dependentFiberBound(source, symbol, body, assumptions) match
+              case Some(bound) => SpatialType.reduce(pointwise.copy(size = ResultSizeEstimate(
+                SizeExpr.minimum(pointwise.size.upper, bound.upper),
+                SizeExpr.maximum(pointwise.size.lower, bound.lower),
+              )))
+              case None => pointwise
             val groups = source.shape.headCount
             val scaledBranches = SpatialCostEstimate.sequential(branchCosts.toSeq.map { (count, cost) =>
               SpatialCostEstimate.scale(cost, count.lower, count.upper)

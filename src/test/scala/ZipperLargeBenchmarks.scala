@@ -122,6 +122,18 @@ object ZipperLargeBenchmarks:
       runs = if n >= 80 then 1 else 2
     )
 
+  private def sccCase: ProgramCase =
+    val (sc, tc, zc) = context()
+    ProgramCase(
+      "SCC mutual reachability",
+      s"${SccCornerstone.edges.paths.size} directed edges, ${SccCornerstone.expected.paths.size} mutually reachable pairs",
+      SccCornerstone.body,
+      sc,
+      tc,
+      zc,
+      runs = 3,
+    )
+
   private def cases(): Vector[ProgramCase] =
     Vector(
       productExactIntersectionCase(2000),
@@ -132,6 +144,7 @@ object ZipperLargeBenchmarks:
       productRestrictionCase(30000),
       auntSinglePersonCase(generations = 8, width = 80),
       auntSinglePersonCase(generations = 10, width = 160),
+      sccCase,
       datalogCase(40),
       datalogCase(80)
     )
@@ -149,6 +162,7 @@ object ZipperLargeBenchmarks:
     val note =
       if c.name.startsWith("product") then "large intermediate product should not be materialized by zipper traversal"
       else if c.name.startsWith("aunt") then "large query-shaped dataset with small queried person set"
+      else if c.name.startsWith("SCC") then "state-dependent tail projection uses the lazy exact synchronous fixpoint fallback"
       else zipperAttempt.failed.toOption
         .map(error => s"evalZ unsupported: ${Option(error.getMessage).getOrElse(error.getClass.getSimpleName)}")
         .getOrElse("recursive union-saturating routine lowered to zipper-local execution")
@@ -170,7 +184,7 @@ object ZipperLargeBenchmarks:
       "|---|---:|---:|---:|---:|---:|---|",
       body,
       "",
-      "A ratio above `1.00 x` means the zipper evaluator is faster. Recursive datalog is included as a large generated control case; top-level union-saturating self recursion is rejected as unsupported instead of falling back to the concrete trie evaluator, so unsupported rows are reported explicitly rather than timed as zipper execution."
+      "A ratio above `1.00 x` means the zipper evaluator is faster. Recursive Datalog is included as a large generated control case and is timed through direct `evalZ` lowering; its state-negative delta subtraction selects the lazy exact synchronous fixpoint fallback, while structurally positive, productive recursive steps use prefix-demand cells. An unsupported cell is reserved for a genuine lowering failure rather than a concrete-trie fallback."
     ).mkString("\n")
 
 @main def zipperLargeBenchmarkReport(): Unit =

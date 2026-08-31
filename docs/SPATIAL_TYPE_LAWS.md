@@ -1,11 +1,14 @@
 # Spatial abstract-interpretation laws
 
 This document records two related layers. The generated FOL obligations model
-the semantic set-interval lattice `[must,may]`. New bridge obligations formalize
-constructor induction, the post-fixpoint induction step, optimizer/evaluator preservation, and guarded
-backend selection. They still do **not** constitute a machine extraction or a
-line-by-line proof of the Scala interpreter. Executable audits are regression
-evidence, not a substitute for that final implementation-refinement theorem.
+the semantic set-interval lattice `[must,may]`. Unbounded bridge obligations
+formalize constructor induction, the post-fixpoint induction step,
+optimizer/evaluator preservation, and guarded backend selection. A separate
+generated bounded theorem maps every three-element set interval into live
+production `SpatialType`, records the actual production operations through a
+fail-closed decoder, and asks Z3 for a mismatch with independent bit-vector
+interval semantics. Neither layer constitutes machine extraction or a
+line-by-line proof of the full Scala interpreter.
 
 ## Information carried by the implementation
 
@@ -22,19 +25,20 @@ The analysis currently uses all of the following information.
 | Global path length | Minimum/maximum length projected from every nonempty stratum. |
 | Exact constant | A finite path set represented path-for-path while below the pattern cap. It is the constant abstract subdomain. |
 | Emptiness and positivity | Zero upper means definitely empty; positive lower means definitely nonempty. These facts guard iteration and encoded control flow. |
-| Prefix dependency | `SpatialPrefixCoverage` records that a path prefixes a selected source stratum. It is required for sound positive restriction lower bounds. Length compatibility alone only proves a possible match. |
+| Prefix dependency | `SpatialPrefixCoverage` records that a path selects at least `minimumMatches` members of a source fiber at specified lengths. Restriction treats this as an aggregate per-length witness (maximum across overlapping patterns/prefixes, additive only across disjoint lengths), while dependent lookup uses it as a fiber witness. Length compatibility alone only proves a possible match. |
 | Conditional guard | Mutually exclusive empty/nonempty branches retain `ifZero` instead of being independently added. |
 | Scalar reduction | Z3-backed total-size and path-length bounds reduce the spatial product from annotated atom envelopes only; opaque atoms are never measured by evaluation. Reduction may tighten but may not change concretization. |
+| Solver degradation | `estimateReported`/`outputReported` return structured timeout, unknown, nonzero-exit, and I/O diagnostics with the compositional fallback. Timeouts are reported when they fire; a missing Z3 executable is a hard configuration error. |
 | Group-sensitive iteration | Constant heads contribute at most one nonempty group; affine heads are capped by their declared domain; unknown heads by source size. A constant-headed tail is the whole matching stratum. |
-| Pointwise iterator chain | A canonical nested iterator chain consuming one complete source path has upper `source size * leaf-per-path upper`, avoiding independent regrouping products. |
+| Pointwise iterator chain | A canonical nested iterator chain consuming one complete source path has upper `source size * leaf-per-path upper`, avoiding independent regrouping products. The scalar transfer propagates the same cap through nested maps and fixed-path wrappers, and an injective reconstruction arm preserves the headed-source lower bound. |
 | Total source caps | Selectors cannot exceed their source; composition cannot exceed the product of operand totals. These caps reduce stratum-derived totals. |
 | Semantic type annotation | `SpatialRoutineAnnotations.resultLaws` contributes a proved must/may cardinality envelope. It is an analysis input and is intersected with, never substituted for, constructor analysis. |
 | Finite relational count | `FiniteIntConstraintProblem` counts assignments within an explicit node budget and falls back to no refinement when exhausted. |
-| Fiber degree | Exact constants are counted directly. The bounded head shape supplies prefix counts and per-level label bounds; flat constant/affine/unknown patterns provide an independent projection. Key-specific dependent correlation beyond the bounded shape remains future work. |
+| Fiber degree | Exact constants are counted directly. Symbolic key lower bounds use suffix capacity; min/max fiber bounds combine key intervals, total edges, and maximum suffix capacity. A direct `relation(head)` iterator consumes these bounds and quantitative coverage without assuming selected suffix fibers are disjoint. Arbitrary key-specific correlation remains future work. |
 | Bounded representation | Above the pattern limit, patterns are summarized into length strata. Summarization enlarges concretization; it never truncates alternatives. |
 | Inconsistent state | `SpatialType.bottom` represents contradictory evidence and absorbs meet and deterministic transfer. |
 | Fixpoint invariant | Ascending iteration plus checked widening returns only a post-fixpoint; failure to establish one returns top in every spatial component. |
-| Analysis cost | Symbolic lower/upper work/allocation/round intervals are propagated by one model per executor. Iteration and fixpoint are charged; recurrence and dominant-order projections remain symbolic. |
+| Analysis cost | Symbolic lower/upper work/allocation/round intervals are propagated by one model per executor. Iteration and fixpoint are charged; decreasing recursion closes to executable `additive * geomSeries(branching,rounds)`, with exact constant evaluation and a dominant-order projection. |
 | Decorated tree | Every occurrence has a positional child-index identity; repeated lexical observations are retained and joined for optimizer consumers. |
 
 ## Semantic interval lattice
@@ -89,7 +93,9 @@ The implementation is a finite projection of this model. Its intended semantic i
 
 Componentwise refinement is monotone in the product order. `SpatialType.reduce`
 clamps strata by totals, projects strata back to total/length components,
-detects constant contradictions, and iterates to an idempotent result. The FOL
+detects constant contradictions (including required disjoint strata and a
+positive scalar lower bound with no possible stratum), and iterates to an
+idempotent result. The FOL
 obligations abstract non-shape components behind `qgamma`; they specify the
 target property rather than verify this Scala reduction.
 
@@ -116,7 +122,10 @@ The concrete semantic laws currently used at cornerstone boundaries are:
 | directed transitive closure of `E` distinct edges | direct edges retained; outputs are reachable ordered endpoint pairs | `E <= result <= E^2` |
 | finite universe `U` | every output is a member of `U` | `upper <= |U|` |
 | connected finite component | every nonempty legal seed saturates the named component | exact zero for empty seed, otherwise component capacity |
+| width-parameterized sliding-puzzle reachability | legal moves preserve permutation parity and the annotated seed lies in the connected component | exact zero for empty seed, otherwise `(width²)!/2` (one for width 1) |
+| SCC mutual reachability | every output pair lies in directed closure in both directions; acyclic graphs may contribute none | `0 <= result <= E²` |
 | finite constraint solutions | finite variable domains and relational constraints are part of the input annotation | exact abstract constraint count |
+| parameterized n-queens | production all-different and diagonal constraints for board size `n` | exact constraint count within the node budget |
 
 These are explicit boundary annotations. Exact consequences are intersected
 with structural intervals and produce bottom on contradiction. There is no raw exact-cardinality law,
@@ -169,16 +178,35 @@ finite witness and an expected-`sat` bounded Z3 obligation. Current negative
 entries include right-union distribution of subtraction and commutativity of
 restriction; failed conjectures therefore remain visible in the proof story.
 
-`SpatialTypeLatticeTest` independently enumerates the 28 semantic interval
-values over a three-element universe. It also exercises the production
-bottom/join/meet/order/widening API, but the enumeration is an oracle for the
-semantic model, not a representation-isomorphism proof.
+`FiniteSpatialTypeBridge` owns the canonical bottom-plus-28-value embedding
+boundary over a three-element universe: exact singleton strata use `[1,1]` for
+must members and `[0,1]` for may-only members, while decoding rejects every
+noncanonical shape, bound, duplicate, scalar, length, or cost observation.
+`SpatialTypeLatticeTest` shares that production boundary with an independent
+set oracle and exhaustively checks `reduce`, `lessOrEqual`,
+`joinAlternatives`, and `meet` for all values and all 784 ordered pairs. A
+direct inconsistent scalar/strata case also guards reduction.
+
+The core proof generator independently invokes those four live production
+methods, fail-closed decodes their 2,380 observations, and emits
+`spatial_type_finite_code_bridge.smt2`. Its SMT layer defines normalization,
+order, join, and meet directly over three-bit must/may masks and asserts the
+disjunction of every possible production/semantic mismatch; `unsat` is the
+bounded refinement theorem. The companion
+`bad_spatial_type_finite_code_bridge_flipped_output_generated_negative_control.smt2`
+flips exactly `lessOrEqual(bottom,bottom)` and must be `sat`, proving that the
+query detects a corrupted production table. This code-connected theorem
+exposed and now guards required-stratum/disjoint-pattern and empty-strata
+contradictions. Its scope is the complete 28-value quotient, not a general JVM
+representation-isomorphism proof.
 
 Executable semantic checks complement FOL where cardinality arithmetic is not
-encoded: all 512 three-node directed graphs satisfy `E <= |TC(E)| <= E^2`; all
-512 subsets of a 3x3 Life field satisfy the nine-image law; and the finite
-constraint component matches n-queens counts through size six. These checks run
-after abstract interpretation and have no data path back into its annotations.
+encoded: all 512 three-node directed graphs satisfy `E <= |TC(E)| <= E^2` and
+the SCC mutual-reachability `E²` cap; an explicit nonempty acyclic graph proves
+the SCC lower bound must permit zero; all 512 subsets of a 3x3 Life field
+satisfy the nine-image law; and the production finite-constraint component
+matches n-queens counts through size six. These checks run after abstract
+interpretation and have no data path back into its annotations.
 
 ## Remaining implementation-refinement obligations
 
@@ -190,4 +218,6 @@ The complete lattice makes the following future obligations well-formed rather t
 4. Best-correctness for intersection, product, restriction, raffination, closures, and positive iteration.
 5. A Galois insertion for the finite pattern/stratum representation, including a proof that cap-based summarization is an upper closure operator.
 6. Concrete cardinality/length reduction coherence, replacing generic `qgamma` with arithmetic theories and proving every reduction step preserves gamma.
-7. Dependent fiber-degree and prefix-coverage components, so graph min/max/average degree claims participate in the same product order and fixpoint induction.
+7. Generalize the current quantitative prefix coverage, symbolic fiber bounds,
+   and direct dependent-lookup transfer to key-correlated degree maps that
+   participate in the same product order and fixpoint induction.
