@@ -283,6 +283,29 @@ object SpatialTypeAnalysis:
           Vector(SpatialStratum(groupType.pathLength, groupType.size))
       exactCollapsed ++ rangedCollapsed
 
+  /** Intersect a spatial result with a proved aggregate upper bound without
+    * retaining an exponentially unfolded structural projection. Each stratum
+    * is a subset of the whole result, so the aggregate cap is also a sound
+    * cap for every stratum. We retain the ordinary reduced-product minimum
+    * while it is compact; once only the structural side exceeds the budget,
+    * replacing it by the proved cap is a safe (slightly less precise)
+    * normalization that prevents later iterations from re-embedding the
+    * oversized expression. */
+  private def capAggregateUpper(value: SpatialType, provedUpper: SizeExpr): SpatialType =
+    val structuralUpper = value.size.upper
+    val compactStructural = structuralUpper.nodeCount(257) <= 256
+    val compactProof = provedUpper.nodeCount(257) <= 256
+    val discardOversizedStructural = !compactStructural && compactProof
+    val upper =
+      if discardOversizedStructural then provedUpper
+      else SizeExpr.minimum(structuralUpper, provedUpper)
+    val strata =
+      if discardOversizedStructural then value.strata.map { stratum =>
+        stratum.copy(cardinality = ResultSizeEstimate(provedUpper, stratum.cardinality.lower))
+      }
+      else value.strata
+    SpatialType.reduce(value.copy(strata = strata, size = ResultSizeEstimate(upper, value.size.lower)))
+
   private def union(left: SpatialType, right: SpatialType): SpatialType =
     val result =
       if left.isBottom || right.isBottom then SpatialType.bottom
@@ -930,8 +953,32 @@ object SpatialTypeAnalysis:
           spaces = assumptions.spaces ++ routine.mentions.zip(spaceValues),
           paths = assumptions.paths ++ routine.refs.zip(pathValues)
         )
+        val body =
+          if Supercompiler.wellFoundedPartitionRecursion(routine, routines) then
+            Supercompiler.lowerFixpointCalls(routine.body, routines)
+          else routine.body
         SpatialRecursion.close(name, routine, spaceValues,
-          analyze(routine.body, nested, routines, active + name))
+          analyze(body, nested, routines, active + name))
+      case Space.Call(name, _, mentions)
+          if routines.isDefinedAt(name) && active(name) &&
+            Supercompiler.wellFoundedPartitionRecursion(routines(name), routines) =>
+        val routine = routines(name)
+        val nodeIndex = routine.body match
+          case Space.Iteration(Space.Range(Space.Mention(nodes), 0, 1), _, _, _) =>
+            routine.mentions.indexOf(nodes)
+          case _ => -1
+        if nodeIndex < 0 || nodeIndex >= mentions.length then SpatialType.top
+        else
+          val nodes = rec(mentions(nodeIndex))
+          val pairLength = PathLengthEstimate(
+            PathLengthExpr.add(nodes.pathLength.lower, nodes.pathLength.lower),
+            PathLengthExpr.add(nodes.pathLength.upper, nodes.pathLength.upper),
+          )
+          SpatialType.fromStrata(Vector(SpatialStratum(
+            pairLength,
+            ResultSizeEstimate(nodes.size.upper, SizeExpr.Zero),
+          )), sizeOverride = Some(ResultSizeEstimate(nodes.size.upper, SizeExpr.Zero)))
+            .copy(cost = SpatialRecursion.marker(name))
       case Space.Call(name, _, _) =>
         SpatialType.fromStrata(Vector(SpatialStratum(
           ResultPathLength.estimate(space, assumptions.lengthAssumptions, assumptions.pathLengthAssumptions,
@@ -1027,14 +1074,14 @@ object SpatialTypeAnalysis:
             }
             val general = SpatialType.fromStrata(capStrata(branches, assumptions.config.patternLimit))
             val pointwise = pointwiseIterationUpper(source, symbol, rest, body, assumptions, routines, active) match
-              case Some(upper) => SpatialType.reduce(general.copy(size = ResultSizeEstimate(
-                SizeExpr.minimum(general.size.upper, upper), general.size.lower)))
+              case Some(upper) => capAggregateUpper(general, upper)
               case None => general
             val typed = dependentFiberBound(source, symbol, body, assumptions) match
-              case Some(bound) => SpatialType.reduce(pointwise.copy(size = ResultSizeEstimate(
-                SizeExpr.minimum(pointwise.size.upper, bound.upper),
-                SizeExpr.maximum(pointwise.size.lower, bound.lower),
-              )))
+              case Some(bound) =>
+                val capped = capAggregateUpper(pointwise, bound.upper)
+                SpatialType.reduce(capped.copy(size = capped.size.copy(
+                  lower = SizeExpr.maximum(capped.size.lower, bound.lower),
+                )))
               case None => pointwise
             val groups = source.shape.headCount
             val scaledBranches = SpatialCostEstimate.sequential(branchCosts.toSeq.map { (count, cost) =>
@@ -1073,11 +1120,18 @@ object SpatialTypeAnalysis:
       case Space.TailsClosure(src) => closure(rec(src), prefixes = false, suffixes = true, includeEpsilon = true)
       case Space.Range(src, start, end) =>
         val source = rec(src)
+        val capacity = RangeBounds.cardinalityUpperBound(start, end).map(SizeExpr.const)
         val total =
           if source.size.exact then ResultSizeEstimate.exact(SizeExpr.range(source.size.upper, start, end))
-          else ResultSizeEstimate(source.size.upper, SizeExpr.Zero)
+          else ResultSizeEstimate(
+            capacity.fold(source.size.upper)(SizeExpr.minimum(source.size.upper, _)),
+            SizeExpr.Zero,
+          )
         charge(SpatialType.fromStrata(
-          source.strata.map(value => value.copy(cardinality = ResultSizeEstimate(value.cardinality.upper, SizeExpr.Zero))),
+          source.strata.map { value =>
+            val upper = capacity.fold(value.cardinality.upper)(SizeExpr.minimum(value.cardinality.upper, _))
+            value.copy(cardinality = ResultSizeEstimate(upper, SizeExpr.Zero))
+          },
           sizeOverride = Some(total)
         ), source)(source.size.upper, total.upper, operationKind = SpatialCostOperation.Range)
       case Space.GroundedPS(_, _) | Space.GroundedSS(_, _) =>

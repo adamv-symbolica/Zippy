@@ -600,10 +600,11 @@ enum SpatialBoundLaw:
   /** Reachability in the parity component of a width-by-width sliding puzzle.
     * Capacity is derived from the board parameter in production code. */
   case SlidingPuzzleReachability(seed: SpaceMention, width: Int)
-  /** Mutual reachability is contained in directed transitive closure. Unlike
-    * closure itself it need not contain any input edge (an acyclic graph is a
-    * non-empty counterexample), so its general lower bound is zero. */
-  case MutualReachability(input: SpaceMention)
+  /** The seedless divide-and-conquer SCC routine emits one representative to
+    * every other member of each non-singleton component. Derived nodes are
+    * edge endpoints, so E input edges expose at most 2E nodes; the general
+    * lower bound is zero. */
+  case RepresentativeScc(inputEdges: SpaceMention)
   /** A symbolic upper envelope supplied with its semantic type annotation. */
   case ProvedUpperBound(value: SizeExpr)
   /** Exact solution count derived from annotated finite domains and
@@ -658,9 +659,9 @@ object SpatialBoundLaw:
               val exact = SizeExpr.ifZero(seedSize.upper, SizeExpr.Zero, capacity)
               ResultSizeEstimate.exact(exact)
             else ResultSizeEstimate(capacity, SizeExpr.Zero)
-          case SpatialBoundLaw.MutualReachability(source) =>
+          case SpatialBoundLaw.RepresentativeScc(source) =>
             val edgeSize = input(source, inputs)
-            ResultSizeEstimate(SizeExpr.multiply(edgeSize.upper, edgeSize.upper), SizeExpr.Zero)
+            ResultSizeEstimate(SizeExpr.multiply(SizeExpr.const(2), edgeSize.upper), SizeExpr.Zero)
           case SpatialBoundLaw.ProvedUpperBound(value) =>
             ResultSizeEstimate(value, SizeExpr.Zero)
           case SpatialBoundLaw.FiniteConstraintSolutions(problem, nodeBudget) =>
@@ -669,8 +670,14 @@ object SpatialBoundLaw:
           case SpatialBoundLaw.NQueensSolutions(size, nodeBudget) =>
             FiniteIntConstraintProblem.nQueens(size).countWithin(nodeBudget)
               .fold(ResultSizeEstimate.unknown)(count => ResultSizeEstimate.exact(SizeExpr.const(count)))
+        val preferCompactSemanticEnvelope = law match
+          case SpatialBoundLaw.RepresentativeScc(_) => true
+          case _ => false
+        val discardOversizedStructural = preferCompactSemanticEnvelope ||
+          (current.size.upper.nodeCount(65) > 64 && asserted.upper.nodeCount(65) <= 64)
         val next = ResultSizeEstimate(
-          SizeExpr.minimum(current.size.upper, asserted.upper),
+          if discardOversizedStructural then asserted.upper
+          else SizeExpr.minimum(current.size.upper, asserted.upper),
           SizeExpr.maximum(current.size.lower, asserted.lower),
         )
         if asserted.exact then
@@ -680,7 +687,16 @@ object SpatialBoundLaw:
           if exact.exists(value => currentLower.exists(_ > value) || currentUpper.exists(_ < value)) then
             SpatialType.bottom
           else SpatialType.reduce(current.copy(size = asserted))
-        else SpatialType.reduce(current.copy(size = next))
+        else
+          val compacted =
+            if discardOversizedStructural then current.copy(
+              strata = current.strata.map(stratum => stratum.copy(
+                cardinality = ResultSizeEstimate(asserted.upper, stratum.cardinality.lower)
+              )),
+              size = next,
+            )
+            else current.copy(size = next)
+          SpatialType.reduce(compacted)
     }
 
 enum FiniteIntConstraint:

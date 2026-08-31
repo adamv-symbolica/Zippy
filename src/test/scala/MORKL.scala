@@ -339,13 +339,22 @@ class Imperative extends FunSuite:
   test("scc cornerstone executes on every backend") {
     val body = SccCornerstone.body
     val expected = SccCornerstone.expected
-    assertEquals(eval(body), expected)
-    assertEquals(evalTrie(body).toSpaceValue, expected)
-    assertEquals(evalZ(body).toSpaceValue, expected)
-    val compiled = Supercompiler.compile(Routine(RoutinePtr("scc_cornerstone_exec"), Vector.empty, Vector.empty, body))
+    val routines = SccCornerstone.rc
+    assertEquals(eval(body)(using PathContext.emptyMap, SpaceContextMap(Map.empty), routines), expected)
+    assertEquals(evalTrie(body)(using PathContext.emptyMap, TrieSpaceContext.emptyMap, routines).toSpaceValue, expected)
+    assertEquals(evalZ(body)(using PathContext.emptyMap, ZipperSpaceContext.emptyMap, routines).toSpaceValue, expected)
+    val compiled = Supercompiler.compile(
+      Routine(RoutinePtr("scc_cornerstone_exec"), Vector.empty, Vector.empty, body),
+      ctx = routines,
+    )
     val graph = compiled.graph.getOrElse(fail("SCC compilation produced no operation graph"))
+    val calleeGraphs = SccCornerstone.defs.map { routine =>
+      routine.name.s -> Supercompiler.compile(routine, ctx = routines).graph.getOrElse(
+        fail(s"SCC callee ${routine.name.s} compilation produced no operation graph")
+      )
+    }.toMap
     val stack = collection.mutable.Stack(new Array[List[Int] | TrieSpace | Null](graph.nodes.length))
-    execT(graph, stack)
+    execT(graph, stack, calleeGraphs.lift.unlift)
     assertEquals(stack.top.last.asInstanceOf[TrieSpace].toSpaceValue, expected)
   }
 
@@ -555,12 +564,9 @@ class Routines extends FunSuite:
     ).toSet
     assertEquals(components, Set(Set("s", "t", "u", "v", "w"), Set("x", "y", "z")))
 
-    val zipperFailure = intercept[UnsupportedOperationException] {
-      evalZ(call)(using pc = PathContext.emptyMap,
-        sc = ZipperSpaceContext.fromReference(scc_context), rc = routines)
-    }
-    assert(zipperFailure.getMessage.contains("outside the union-saturating fixpoint fragment"),
-      zipperFailure.getMessage)
+    val zipperActual = evalZ(call)(using pc = PathContext.emptyMap,
+      sc = ZipperSpaceContext.fromReference(scc_context), rc = routines).toSpaceValue
+    assertEquals(zipperActual, actual)
   }
 
   test("naive-oeis") {

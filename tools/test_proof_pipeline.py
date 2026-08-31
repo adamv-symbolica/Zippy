@@ -1,7 +1,12 @@
 import unittest
 from pathlib import Path
 
-from tools.proof_pipeline import Artifact, report_status, vampire_command
+from tools.proof_pipeline import (
+    Artifact,
+    report_status,
+    termination_solver_artifacts,
+    vampire_command,
+)
 
 
 class ProofPipelineStatusTest(unittest.TestCase):
@@ -37,6 +42,44 @@ class VampireStrategyTest(unittest.TestCase):
         self.assertEqual(mode, "plain")
         self.assertNotIn("--mode", command)
         self.assertEqual(command[-1], "focused.p")
+
+    def test_artifact_note_enables_integer_induction(self) -> None:
+        artifact = Artifact(
+            "vampire",
+            "inductive",
+            "Theorem",
+            Path("inductive.p"),
+            "Curated invariant; VAMPIRE-INDUCTION=INT.",
+        )
+        mode, command = vampire_command("vampire", artifact, 60)
+        self.assertEqual(mode, "portfolio")
+        self.assertEqual(command[1:5], ["--mode", "portfolio", "--induction", "int"])
+        self.assertEqual(command[-1], "inductive.p")
+
+    def test_recursive_scc_termination_artifacts_are_registered(self) -> None:
+        vampire, _, _, _ = termination_solver_artifacts(Path("/repo"))
+        by_name = {artifact.name: artifact for artifact in vampire}
+        self.assertEqual(
+            {
+                "termination:reachable_decrease",
+                "termination:reachable_value",
+                "termination:scc_decrease",
+            },
+            {
+                name
+                for name in by_name
+                if name in {
+                    "termination:reachable_decrease",
+                    "termination:reachable_value",
+                    "termination:scc_decrease",
+                }
+            },
+        )
+        self.assertIn("vampire-induction=int", by_name["termination:reachable_value"].note)
+        self.assertEqual(
+            by_name["termination:scc_decrease"].artifact,
+            Path("/repo/terminating/scc_decrease.p"),
+        )
 
 
 if __name__ == "__main__":

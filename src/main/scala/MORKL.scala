@@ -237,6 +237,23 @@ enum Space:
     case Space.Range(z, start, end) => s"Range(${z.show}, $start, $end)"
 
 object RangeBounds:
+  /** A source-cardinality-independent upper bound for a normalized range,
+    * when one exists.  Open prefixes such as `(1, 0)` and drop-last ranges
+    * such as `(0, -1)` can grow with the source and therefore return `None`.
+    * The arithmetic is performed as `BigInt` so even `Int.MinValue` bounds
+    * cannot overflow while computing a suffix/window width.
+    */
+  def cardinalityUpperBound(start: Int, end: Int): Option[BigInt] =
+    val startValue = BigInt(start)
+    val endValue = BigInt(end)
+    if start == 0 && end > 0 then Some(endValue)
+    else if start > 0 && end > 0 then Some((endValue - startValue).max(BigInt(0)))
+    else if start < 0 && end == 0 then Some(-startValue)
+    else if start < 0 && end < 0 then Some((endValue - startValue).max(BigInt(0)))
+    else if start < 0 && end > 0 then
+      Some((-startValue).min(endValue - 1).max(BigInt(0)))
+    else None
+
   def normalize(size: Int, start: Int, end: Int): (Int, Int) =
     def lower(bound: Int): Int =
       if bound == 0 then 0
@@ -2668,6 +2685,94 @@ case class SupercompiledRoutine(routine: Routine, report: SupercompileReport, gr
     eval(original.body)(using pc, sc, rc) == eval(routine.body)(using pc, sc, rc)
 
 object Supercompiler:
+  /** A conservative structural certificate for the paper's seedless SCC
+    * recursion. The outer Range chooses one pivot from `nodes`; masked
+    * reachability keeps both discovered sets inside `nodes`; the three calls
+    * then receive `pred \\ desc`, `desc \\ pred`, and
+    * `(nodes \\ pred) \\ desc`. Every non-empty recursive argument is
+    * therefore a strict subset of the caller's node set. */
+  def wellFoundedPartitionRecursion(
+    routine: Routine,
+    ctx: PartialFunction[RoutinePtr, Routine],
+  ): Boolean =
+    def unionLeaves(x: Space): Vector[Space] = x match
+      case Space.Union(a, b) => unionLeaves(a) ++ unionLeaves(b)
+      case other => Vector(other)
+
+    def maskedReachability(rp: RoutinePtr): Boolean =
+      if !ctx.isDefinedAt(rp) then false
+      else ctx(rp) match
+        case Routine(`rp`, Vector(), Vector(edges, mask, state), body) =>
+          val leaves = unionLeaves(body)
+          leaves.length == 2 && leaves.contains(Space.Mention(state)) && leaves.exists {
+            case Space.Call(`rp`, Vector(), Vector(
+                  Space.Mention(callEdges),
+                  Space.Mention(callMask),
+                  next,
+                )) if callEdges == edges && callMask == mask =>
+              next match
+                case Space.Union(Space.Mention(current), Space.Intersection(_, Space.Mention(limit))) =>
+                  current == state && limit == mask
+                case Space.Union(Space.Mention(current), Space.Intersection(Space.Mention(limit), _)) =>
+                  current == state && limit == mask
+                case Space.Intersection(Space.Union(Space.Mention(current), _), Space.Mention(limit)) =>
+                  current == state && limit == mask
+                case Space.Intersection(Space.Mention(limit), Space.Union(Space.Mention(current), _)) =>
+                  current == state && limit == mask
+                case _ => false
+            case _ => false
+          }
+        case _ => false
+
+    routine match
+      case Routine(name, Vector(), params,
+            Space.Iteration(Space.Range(Space.Mention(nodes), 0, 1), pivot, _, templates)) =>
+        val nodeIndex = params.indexOf(nodes)
+        if nodeIndex < 0 then false
+        else
+          val leaves = unionLeaves(templates)
+          val selfCalls = leaves.collect {
+            case Space.Call(`name`, Vector(), args) if args.length == params.length => args
+          }
+          if selfCalls.length != 3 || leaves.length != 4 then false
+          else
+            val invariants = selfCalls.forall { args =>
+              params.indices.forall(i => i == nodeIndex || args(i) == Space.Mention(params(i)))
+            }
+            val partitions = selfCalls.map(_(nodeIndex))
+            val candidate = partitions.collectFirst {
+              case first @ Space.Subtraction(pred, desc)
+                  if partitions.contains(Space.Subtraction(desc, pred)) &&
+                    partitions.contains(Space.Subtraction(Space.Subtraction(Space.Mention(nodes), pred), desc)) =>
+                pred -> desc
+            }
+            val reachability = candidate.exists { (pred, desc) =>
+              def reachShape(x: Space): Option[RoutinePtr] = x match
+                case Space.Call(reach, Vector(), Vector(
+                      Space.Mention(edgeParam),
+                      Space.Mention(nodeParam),
+                      Space.Singleton(Path.Deref(selected)),
+                    )) if params.contains(edgeParam) && edgeParam != nodes &&
+                        nodeParam == nodes && selected == pivot => Some(reach)
+                case _ => None
+              (reachShape(pred), reachShape(desc)) match
+                case (Some(a), Some(b)) => a == b && maskedReachability(a)
+                case _ => false
+            }
+            val emitted = candidate.exists { (pred, desc) =>
+              leaves.exists {
+                case Space.Wrap(
+                      Space.Subtraction(Space.Intersection(a, b), Space.Singleton(Path.Deref(member))),
+                      Path.Deref(representative),
+                    ) =>
+                  member == pivot && representative == pivot &&
+                    ((a == pred && b == desc) || (a == desc && b == pred))
+                case _ => false
+              }
+            }
+            invariants && reachability && emitted
+      case _ => false
+
   val defaultSourcePasses: Vector[(String, Space => Space)] = Vector(
     "algebraic-identities" -> Lower.AlgebraicIdentities,
     "constant-paths" -> Lower.Concat_Path,
@@ -3026,6 +3131,44 @@ object Supercompiler:
         case Space.Range(src, start, end) => Space.Range(recs(src, shadowed), start, end)
       recs(s, shadowed = false)
 
+    def replaceMentions(s: Space, replacements: Map[SpaceMention, Space]): Space =
+      def recp(p: Path, shadowed: Set[SpaceMention]): Path = p match
+        case Path.Deref(_) | Path.Constant(_) => p
+        case Path.Concat(l, r) => Path.Concat(recp(l, shadowed), recp(r, shadowed))
+        case Path.GroundedPP(p, f) => Path.GroundedPP(recp(p, shadowed), f)
+        case Path.GroundedSP(s, f) => Path.GroundedSP(recs(s, shadowed), f)
+      def recs(x: Space, shadowed: Set[SpaceMention]): Space = x match
+        case Space.Mention(sm) if !shadowed(sm) => replacements.getOrElse(sm, x)
+        case Space.Empty | Space.Mention(_) | Space.Literal(_) => x
+        case Space.Call(rp, refs, mentions) =>
+          Space.Call(rp, refs.map(recp(_, shadowed)), mentions.map(recs(_, shadowed)))
+        case Space.Singleton(p) => Space.Singleton(recp(p, shadowed))
+        case Space.Union(a, b) => Space.Union(recs(a, shadowed), recs(b, shadowed))
+        case Space.Intersection(a, b) => Space.Intersection(recs(a, shadowed), recs(b, shadowed))
+        case Space.Subtraction(a, b) => Space.Subtraction(recs(a, shadowed), recs(b, shadowed))
+        case Space.Restriction(a, b) => Space.Restriction(recs(a, shadowed), recs(b, shadowed))
+        case Space.Raffination(a, b) => Space.Raffination(recs(a, shadowed), recs(b, shadowed))
+        case Space.Composition(a, b) => Space.Composition(recs(a, shadowed), recs(b, shadowed))
+        case Space.Iteration(src, symbol, rest, templates) =>
+          Space.Iteration(recs(src, shadowed), symbol, rest, recs(templates, shadowed + rest))
+        case Space.Fold(src, initial, acc, symbol, rest, templates, update) =>
+          val nested = shadowed + rest
+          Space.Fold(recs(src, shadowed), recp(initial, shadowed), acc, symbol, rest,
+            recs(templates, nested), recp(update, nested))
+        case Space.Fixpoint(initial, bound, step) =>
+          Space.Fixpoint(recs(initial, shadowed), bound, recs(step, shadowed + bound))
+        case Space.Wrap(src, p) => Space.Wrap(recs(src, shadowed), recp(p, shadowed))
+        case Space.Unwrap(src, p) => Space.Unwrap(recs(src, shadowed), recp(p, shadowed))
+        case Space.TailsUnion(src) => Space.TailsUnion(recs(src, shadowed))
+        case Space.TailsIntersection(src) => Space.TailsIntersection(recs(src, shadowed))
+        case Space.PrefixClosure(src) => Space.PrefixClosure(recs(src, shadowed))
+        case Space.SuffixClosure(src) => Space.SuffixClosure(recs(src, shadowed))
+        case Space.TailsClosure(src) => Space.TailsClosure(recs(src, shadowed))
+        case Space.GroundedPS(p, f) => Space.GroundedPS(recp(p, shadowed), f)
+        case Space.GroundedSS(src, f) => Space.GroundedSS(recs(src, shadowed), f)
+        case Space.Range(src, start, end) => Space.Range(recs(src, shadowed), start, end)
+      recs(s, Set.empty)
+
     def mentionsIn(component: Iterable[Routine]): Set[String] =
       val out = Set.newBuilder[String]
       def recp(p: Path): Unit = p match
@@ -3117,6 +3260,48 @@ object Supercompiler:
         case Routine(`rp`, Vector(), Vector(variable), Space.Union(Space.Mention(lhs), Space.Call(`rp`, Vector(), Vector(step)))) if lhs == variable =>
           Space.Fixpoint(recs(arg), variable, recs(step))
       }
+
+    /** Lower a recursive routine with invariant parameters and one
+      * union-growing state parameter. For example:
+      *
+      *   reachable(edges, mask, reach) =
+      *     reach \/ reachable(edges, mask, next(reach))
+      *
+      * becomes a native Fixpoint over only `reach`; the other actual
+      * arguments are substituted into the step once. */
+    def parameterizedFixpointFor(rp: RoutinePtr,
+                                 refs: Vector[Path],
+                                 args: Vector[Space]): Option[Space] =
+      Option.when(refs.isEmpty && ctx.isDefinedAt(rp))(ctx(rp)).flatMap {
+        case Routine(`rp`, Vector(), variables, body) if variables.length == args.length =>
+          val leaves = unionLeaves(body)
+          val bases = leaves.collect { case Space.Mention(sm) if variables.contains(sm) => sm }
+          val calls = leaves.collect { case call @ Space.Call(`rp`, Vector(), callArgs) => call -> callArgs }
+          if leaves.length != 2 || bases.length != 1 || calls.length != 1 then None
+          else
+            val state = bases.head
+            val stateIndex = variables.indexOf(state)
+            val nextArgs = calls.head._2
+            val invariant = variables.indices.forall { i =>
+              i == stateIndex || nextArgs.lift(i).contains(Space.Mention(variables(i)))
+            }
+            val nextState = nextArgs.lift(stateIndex)
+            val recursiveInStep = nextState.exists(calledRoutines(_)(rp))
+            if nextArgs.length != variables.length || !invariant || nextState.isEmpty || recursiveInStep then None
+            else
+              val mentioned = args.iterator.flatMap { arg =>
+                collect[String, Unit](arg)(spre = {
+                  case Space.Mention(sm) => sm.s
+                })._1.iterator.map(_._2)
+              }.toSet ++ variables.iterator.map(_.s)
+              val bound = freshMention(s"__${rp.s}_state", mentioned)
+              val replacements = variables.indices.iterator.map { i =>
+                variables(i) -> (if i == stateIndex then Space.Mention(bound) else recs(args(i)))
+              }.toMap
+              val step = recs(replaceMentions(nextState.get, replacements))
+              Some(Space.Fixpoint(recs(args(stateIndex)), bound, step))
+        case _ => None
+      }
     def mutualFixpointFor(rp: RoutinePtr, arg: Space): Option[Space] =
       componentFor(rp).flatMap { (defs, component) =>
         if component.size <= 1 then None
@@ -3143,7 +3328,9 @@ object Supercompiler:
       case Space.Empty | Space.Mention(_) | Space.Literal(_) => x
       case Space.Call(rp, refs, Vector(arg)) if refs.isEmpty =>
         fixpointFor(rp, arg).getOrElse(Space.Call(rp, refs.map(recp), Vector(recs(arg))))
-      case Space.Call(rp, refs, mentions) => Space.Call(rp, refs.map(recp), mentions.map(recs))
+      case Space.Call(rp, refs, mentions) =>
+        parameterizedFixpointFor(rp, refs, mentions)
+          .getOrElse(Space.Call(rp, refs.map(recp), mentions.map(recs)))
       case Space.Singleton(p) => Space.Singleton(recp(p))
       case Space.Union(x, y) => Space.Union(recs(x), recs(y))
       case Space.Intersection(x, y) => Space.Intersection(recs(x), recs(y))

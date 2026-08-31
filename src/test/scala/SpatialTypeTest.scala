@@ -370,6 +370,40 @@ class SpatialTypeTest extends FunSuite:
     assertEquals(result.strata.flatMap(_.pattern).map(_.show).toSet.size, 8)
   }
 
+  test("finite Range windows clamp spatial strata and Game-of-Life rank witnesses") {
+    val source = SpaceMention("spatial_range_source")
+    val count = SizeExpr.symbol("spatialRangeN")
+    val sourceType = SpatialType.fromStrata(Vector(
+      SpatialStratum(
+        PathLengthEstimate.exact(PathLengthExpr.One),
+        ResultSizeEstimate(count, SizeExpr.Zero),
+        Some(SpatialPattern(Vector(SpatialItem.Unknown("short")))),
+      ),
+      SpatialStratum(
+        PathLengthEstimate.exact(PathLengthExpr.const(2)),
+        ResultSizeEstimate(count, SizeExpr.Zero),
+        Some(SpatialPattern(Vector(SpatialItem.Unknown("left"), SpatialItem.Unknown("right")))),
+      ),
+    ), sizeOverride = Some(ResultSizeEstimate(count, SizeExpr.Zero)))
+    val assumptions = SpatialAssumptions(spaces = Map(source -> sourceType))
+    val ranged = SpatialTypeAnalysis.output(Space.Range(Space.Mention(source), 2, 3), assumptions)
+    val unitCap = SizeExpr.minimum(count, SizeExpr.One)
+
+    assertEquals(ranged.size.lower, SizeExpr.Zero)
+    assert(SizeExpr.provablyNoGreater(ranged.size.upper, unitCap), ranged.size.show)
+    assert(SizeExpr.provablyNoGreater(ranged.size.upper, SizeExpr.One), ranged.size.show)
+    assert(ranged.strata.nonEmpty)
+    assert(ranged.strata.forall(stratum =>
+      SizeExpr.provablyNoGreater(stratum.cardinality.upper, SizeExpr.One)), ranged.size.show)
+
+    val exactlyThree = SpatialTypeAnalysis.output(
+      LifeExample.exactly(Space.Mention(source), 3),
+      assumptions,
+    )
+    assert(SizeExpr.provablyNoGreater(exactlyThree.size.upper, SizeExpr.One), exactlyThree.size.show)
+    assert(exactlyThree.size.upper.nodeCount(129) <= 128, exactlyThree.size.show)
+  }
+
   test("spatial types propagate through five Game-of-Life steps without result feedback") {
     val field = SpaceValue("Cell.0.1", "Cell.1.2", "Cell.2.0", "Cell.2.1", "Cell.2.2")
     val fieldMention = SpaceMention("initial_glider")

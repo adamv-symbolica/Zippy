@@ -69,7 +69,7 @@ space argument types, prefix coverage, and `SpatialBoundLaw` result-type laws.
 Those laws are input annotations, not evaluator callbacks or facts learned from
 an output. They intersect the structural cardinality with facts such as
 subset-of-image multiplicity, source containment, directed-closure bounds,
-mutual-reachability bounds, a finite universe, or a connected finite component.
+divide-and-conquer SCC representative bounds, a finite universe, or a connected finite component.
 Production laws derive sliding-puzzle component capacity from board width and
 n-queens constraints from board size. The generic exact-count law accepts an
 annotated `FiniteIntConstraintProblem`; there is deliberately no raw
@@ -83,8 +83,8 @@ finite-domain assignments subject to all-different, disequality, and absolute-
 difference constraints. `FiniteIntConstraintProblem.nQueens(n)` constructs the
 production constraint problem, and `NQueensSolutions(n)` uses it without
 executing the MORKL generator. `SlidingPuzzleReachability(seed,width)` similarly
-uses the production factorial/parity capacity, while `MutualReachability(edges)`
-gives the sound `[0,E²]` SCC envelope. Counting has a deterministic node budget;
+uses the production factorial/parity capacity, while `RepresentativeScc(edges)`
+gives the sound `[0,2E]` representative/member envelope. Counting has a deterministic node budget;
 budget exhaustion contributes no refinement. See
 [CORNERSTONE_ABSTRACT_INTERPRETATIONS.md](CORNERSTONE_ABSTRACT_INTERPRETATIONS.md)
 for the contracts and all seven cornerstone results. The checked

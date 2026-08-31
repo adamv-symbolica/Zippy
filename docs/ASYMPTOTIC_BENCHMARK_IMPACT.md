@@ -130,7 +130,7 @@ quickly, so it must not be read as an across-the-board optimized-runtime win.
 ## Historical pre-SCC cornerstone runtime comparison
 
 This table is the complete old/new comparison for the program set measured in
-the 2026-08-08 trie-layer sweep. Both snapshots predate the direct SCC
+the 2026-08-08 trie-layer sweep. Both snapshots predate any SCC
 cornerstone, so this is a frozen historical comparison rather than a current
 inventory of cornerstone programs. The current generated
 [trie](TRIE_BENCHMARKS.md) and

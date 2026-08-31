@@ -141,7 +141,12 @@ enum SizeExpr:
         for b <- upper(branching); r <- upper(rounds)
         yield SizeExpr.geometricSeriesValue(b, r)
       case SizeExpr.RangeCardinality(inner, start, end) =>
-        inner.annotatedValue.map(SizeExpr.rangeCardinality(_, start, end)).orElse(upper(inner))
+        inner.annotatedValue.map(SizeExpr.rangeCardinality(_, start, end)).orElse {
+          val sourceUpper = upper(inner)
+          RangeBounds.cardinalityUpperBound(start, end) match
+            case Some(capacity) => Some(sourceUpper.fold(capacity)(_.min(capacity)))
+            case None => sourceUpper
+        }
       case SizeExpr.IfZero(condition, ifZero, ifNonZero) =>
         condition.annotatedValue match
           case Some(n) => upper(if n == 0 then ifZero else ifNonZero)
@@ -472,6 +477,8 @@ object SizeExpr:
       case (SizeExpr.Positive(value), other) if value == other => true
       case (SizeExpr.Positive(_), SizeExpr.Const(b)) => b >= 1
       case (SizeExpr.PositiveDifference(SizeExpr.Const(one), _), SizeExpr.Const(b)) if one == 1 => b >= 1
+      case (SizeExpr.RangeCardinality(_, start, end), SizeExpr.Const(bound)) =>
+        RangeBounds.cardinalityUpperBound(start, end).exists(_ <= bound)
       case (SizeExpr.IfZero(lc, lz, ln), SizeExpr.IfZero(rc, rz, rn)) if lc == rc =>
         noGreater(lz, rz) && noGreater(ln, rn)
       case (l @ SizeExpr.Add(_), r @ SizeExpr.Add(_)) if additiveSubset(l, r) => true
@@ -1222,7 +1229,10 @@ object ResultSpaceSize:
         val source = rec(src)
         if exactZero(source) then ResultSizeEstimate.empty
         else if source.exact then ResultSizeEstimate.exact(SizeExpr.range(source.upper, start, end))
-        else ResultSizeEstimate(source.upper, SizeExpr.Zero)
+        else
+          val upper = RangeBounds.cardinalityUpperBound(start, end)
+            .fold(source.upper)(capacity => SizeExpr.minimum(source.upper, SizeExpr.const(capacity)))
+          ResultSizeEstimate(upper, SizeExpr.Zero)
       case Space.Call(_, _, _) | Space.GroundedPS(_, _) | Space.GroundedSS(_, _) =>
         opaque(space, boundSpaces, boundPaths)
 

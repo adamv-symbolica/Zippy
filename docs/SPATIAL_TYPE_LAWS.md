@@ -123,7 +123,7 @@ The concrete semantic laws currently used at cornerstone boundaries are:
 | finite universe `U` | every output is a member of `U` | `upper <= |U|` |
 | connected finite component | every nonempty legal seed saturates the named component | exact zero for empty seed, otherwise component capacity |
 | width-parameterized sliding-puzzle reachability | legal moves preserve permutation parity and the annotated seed lies in the connected component | exact zero for empty seed, otherwise `(width²)!/2` (one for width 1) |
-| SCC mutual reachability | every output pair lies in directed closure in both directions; acyclic graphs may contribute none | `0 <= result <= E²` |
+| divide-and-conquer SCC representatives | each non-singleton component emits one representative/member pair for every non-representative node; all nodes are edge endpoints | `0 <= result <= 2E` |
 | finite constraint solutions | finite variable domains and relational constraints are part of the input annotation | exact abstract constraint count |
 | parameterized n-queens | production all-different and diagonal constraints for board size `n` | exact constraint count within the node budget |
 
@@ -149,7 +149,7 @@ For valid input intervals `A=[L₁,U₁]` and `B=[L₂,U₂]`, the following are
 | wrap/unwrap by fixed prefix | Apply the operation to both bounds |
 | tails union, prefix closure, suffix closure, tails closure | Apply the monotone operation to both bounds |
 | tails intersection | `[∅, tailsUnion(U)]`; adding a head can shrink a universal tails meet |
-| ordered range | `[∅,U]` generally; full sentinel is identity and a statically empty range is exact empty |
+| ordered range | `[∅,U]` generally; finite rank windows/suffixes are additionally capped by their source-independent width, full sentinel is identity, and a statically empty range is exact empty |
 
 The product, restriction, and closure formulas rely on concrete monotonicity. Raffination and subtraction are monotone in the left operand and antitone in the right operand.
 
@@ -202,8 +202,7 @@ representation-isomorphism proof.
 
 Executable semantic checks complement FOL where cardinality arithmetic is not
 encoded: all 512 three-node directed graphs satisfy `E <= |TC(E)| <= E^2` and
-the SCC mutual-reachability `E²` cap; an explicit nonempty acyclic graph proves
-the SCC lower bound must permit zero; all 512 subsets of a 3x3 Life field
+the divide-and-conquer SCC representative output stays within `2E`; all 512 subsets of a 3x3 Life field
 satisfy the nine-image law; and the production finite-constraint component
 matches n-queens counts through size six. These checks run after abstract
 interpretation and have no data path back into its annotations.

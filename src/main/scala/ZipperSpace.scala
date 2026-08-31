@@ -155,6 +155,27 @@ object SpaceZipper:
     * unrelated future zipper implementation as a concrete trie. */
   private[morkl] sealed trait DeferredFixpointFocus extends SpaceZipper
 
+  /** A call boundary for structurally certified, well-founded recursion.
+    * Construction records the recursive arguments without expanding the
+    * callee; the body is unfolded only when a consumer observes the result.
+    * `knownEmpty` deliberately remains conservative so union construction
+    * cannot force an unbounded recursive expansion. */
+  private final class DeferredRoutineCall(thunk: () => SpaceZipper) extends SpaceZipper:
+    private lazy val expanded = thunk()
+    override def knownEmpty: Boolean = false
+    override def terminal: Boolean = expanded.terminal
+    override def child(item: Int): SpaceZipper = expanded.child(item)
+    override def childKeys: IterableOnce[Int] = expanded.childKeys
+    override def childKeySize: Int = expanded.childKeySize
+    override def childKeySizeHint: Option[Int] = expanded.childKeySizeHint
+    override def childrenIterator: Iterator[(Int, SpaceZipper)] = expanded.childrenIterator
+    override def isEmpty: Boolean = expanded.isEmpty
+    override lazy val pathCount: Int = expanded.pathCount
+    override def materialize: TrieSpace = expanded.materialize
+
+  private[morkl] def deferredRoutineCall(thunk: () => SpaceZipper): SpaceZipper =
+    new DeferredRoutineCall(thunk)
+
   def union(a: SpaceZipper, b: SpaceZipper): SpaceZipper =
     if sameValue(a, b) then a
     else if a.knownEmpty then b
@@ -215,6 +236,10 @@ object SpaceZipper:
     * The first observation performs the same synchronous Kleene rounds as the
     * reference evaluator; construction itself never starts a round. */
   def synchronousFixpoint(src: SpaceZipper)(step: SpaceZipper => SpaceZipper): SpaceZipper =
+    new SynchronousFixpointEngine(src, current => step(traversal(current)).materialize).root
+  /** Exact synchronous fallback whose whole round is already expressed in
+    * native TrieSpace algebra. It remains lazy until the first observation. */
+  def synchronousFixpointNative(src: SpaceZipper)(step: TrieSpace => TrieSpace): SpaceZipper =
     new SynchronousFixpointEngine(src, step).root
   def whenHeaded(src: SpaceZipper, value: => SpaceZipper): SpaceZipper =
     if src.knownEmpty then empty else memo(HeadedGuard(src, () => value))
@@ -368,6 +393,19 @@ object SpaceZipper:
       ExecutorCostMeter.round()
       val stepped = step(traversal(current)).materialize
       val next = current.union(stepped)
+      changed = next != current
+      current = next
+    traversal(current)
+
+  /** Whole-round native boundary for fixpoints whose semantics already force
+    * complete synchronous materialization. No cursor selectivity remains to
+    * justify rebuilding a virtual IterationChild tree in each round. */
+  private def kleeneUnionNative(initial: SpaceZipper)(step: TrieSpace => TrieSpace): SpaceZipper =
+    var current = initial.materialize
+    var changed = true
+    while changed do
+      ExecutorCostMeter.round()
+      val next = current.union(step(current))
       changed = next != current
       current = next
     traversal(current)
@@ -673,6 +711,8 @@ object SpaceZipper:
       if prefix.isEmpty then src.childKeySize else 1
     override def childKeySizeHint: Option[Int] =
       if prefix.isEmpty then src.childKeySizeHint else Some(1)
+    override lazy val materialize: TrieSpace =
+      src.materialize.wrapItems(prefix)
 
   case class NonEmpty(src: SpaceZipper) extends SpaceZipper:
     override def knownEmpty: Boolean = src.knownEmpty
@@ -941,6 +981,10 @@ object SpaceZipper:
       direct.map(_.childrenIterator).getOrElse(specializedChildren.fold(genericChildren.iterator)(_.iterator))
     override lazy val pathCount: Int =
       direct.map(_.pathCount).getOrElse((if terminal then 1 else 0) + childrenIterator.map(_._2.pathCount).sum)
+    override lazy val materialize: TrieSpace =
+      direct.map(_.materialize).getOrElse(
+        TrieSpace.joinAll(branchKeys.iterator.map(head => branchFor(head).materialize))
+      )
 
   case class IterationChild(heads: Vector[Int], focusForHead: Int => SpaceZipper) extends SpaceZipper:
     private val focusCache = mutable.HashMap.empty[Int, SpaceZipper]
@@ -974,6 +1018,8 @@ object SpaceZipper:
       childrenVector.iterator
     override lazy val pathCount: Int =
       (if terminal then 1 else 0) + childrenVector.iterator.map(_._2.pathCount).sum
+    override lazy val materialize: TrieSpace =
+      TrieSpace.joinAll(heads.iterator.map(head => focus(head).materialize))
 
   /** Shared solver for the cyclic trie equations induced by
     *
@@ -1103,9 +1149,9 @@ object SpaceZipper:
     * prefix-only monotone cell cannot reconstruct after the fact. */
   private final class SynchronousFixpointEngine(
     src: SpaceZipper,
-    step: SpaceZipper => SpaceZipper,
+    step: TrieSpace => TrieSpace,
   ):
-    private lazy val lowered = kleeneUnion(src)(step)
+    private lazy val lowered = kleeneUnionNative(src)(step)
     val root: SpaceZipper = focus(Vector.empty)
     def focus(path: Vector[Int]): SpaceZipper = new SynchronousFixpointFocus(this, path)
     def at(path: Vector[Int]): SpaceZipper =
@@ -1543,9 +1589,10 @@ def transpileZ(s: Space)(using
       if lowered != call then recs(lowered)
       else
         val refvs = refs.map(recp)
-        val Routine(_, refns, mentionns, body) = rc(rp)
+        val routine @ Routine(_, refns, mentionns, body) = rc(rp)
         val mentionZippers = mentions.map(recs)
-        if topLevelSelfUnion(body, rp) || containsRoutineCall(body, rp) then
+        val recursive = topLevelSelfUnion(body, rp) || containsRoutineCall(body, rp)
+        if recursive && !Supercompiler.wellFoundedPartitionRecursion(routine, rc) then
           throw UnsupportedOperationException(
             s"zipper transpile cannot safely lower recursive routine call ${rp.s}; " +
               "the routine is outside the union-saturating fixpoint fragment"
@@ -1553,7 +1600,8 @@ def transpileZ(s: Space)(using
         else
           val pctx = IntPathContextMap(Map.from(refns zip refvs))
           val sctx = ZipperSpaceContextMap(Map.from(mentionns zip mentionZippers))
-          recs(body)(using pctx, sctx)
+          if recursive then SpaceZipper.deferredRoutineCall(() => recs(body)(using pctx, sctx))
+          else recs(body)(using pctx, sctx)
     case Space.Mention(sm) => zsc.resolve(sm)
     case Space.Singleton(p) => SpaceZipper.singleton(recp(p))
     case Space.Literal(sv) => SpaceZipper.literal(sv)
@@ -1774,7 +1822,20 @@ def transpileZ(s: Space)(using
               if demandFixpointPositive(step, variable) then
                 SpaceZipper.fixpoint(initialZ)(lowerStep)
               else
-                SpaceZipper.synchronousFixpoint(initialZ)(lowerStep)
+                (ipc, zsc) match
+                  case (IntPathContextMap(paths), ZipperSpaceContextMap(spaces)) =>
+                    val nativePaths = PathContextMap(paths.view.mapValues(TrieSpace.decode).toMap)
+                    lazy val nativeSpaces = TrieSpaceContextMap(
+                      spaces.view.mapValues(_.materialize).toMap
+                    )
+                    SpaceZipper.synchronousFixpointNative(initialZ) { state =>
+                      evalTrie(step)(using
+                        nativePaths,
+                        nativeSpaces.grown(Map(variable -> state)),
+                        rc,
+                      )
+                    }
+                  case _ => SpaceZipper.synchronousFixpoint(initialZ)(lowerStep)
     case Space.GroundedPS(p, f) => SpaceZipper.literal(f(TrieSpace.decode(recp(p))))
     case Space.GroundedSS(src, f) => SpaceZipper.literal(f(recs(src).toSpaceValue))
     case Space.Range(x, start, end) => SpaceZipper.range(recs(x), start, end)

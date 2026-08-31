@@ -551,9 +551,9 @@ object OpenProgramProofArtifacts:
       ),
       OpenProgramCase(
         "scc-full-program",
-        Routine(RoutinePtr("scc_full_program"), Vector.empty, Vector(SpaceMention("edges")),
-          SccCornerstone.expression(S"edges")),
-        note = "Direct SCC mutual-reachability program over arbitrary edge data.",
+        SccCornerstone.sccRoutine,
+        defs = SccCornerstone.defs,
+        note = "Paper seedless divide-and-conquer SCC routine over arbitrary forward/backward edge relations and node sets; masked reachability is lowered to Fixpoint while the three shrinking recursive partitions remain explicit.",
       ),
     )
 

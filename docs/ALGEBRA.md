@@ -889,14 +889,14 @@ The SCC routine chooses a pivot `v`, computes the forward and backward reachable
 
 ```scala
 val seedless_scc_routine = routine("seedless_scc", Vector(), Vector("fwd", "bwd", "nodes"),
-  Limit(1, S"nodes").iter("v", "_", {
+  Range(S"nodes", 0, 1).iter("v", "_", {
     val forward: Space = R"reachable"(Vector(), Vector(S"fwd", S"nodes", Singleton(P"v")))
     val backward: Space = R"reachable"(Vector(), Vector(S"bwd", S"nodes", Singleton(P"v")))
 
     (P"v" x ((forward /\ backward) \ Singleton(P"v"))) \/
-      R"scc"(Vector(), Vector(S"fwd", S"bwd", forward \ backward)) \/
-      R"scc"(Vector(), Vector(S"fwd", S"bwd", backward \ forward)) \/
-      R"scc"(Vector(), Vector(S"fwd", S"bwd", (S"nodes" \ forward) \ backward))
+      R"seedless_scc"(Vector(), Vector(S"fwd", S"bwd", forward \ backward)) \/
+      R"seedless_scc"(Vector(), Vector(S"fwd", S"bwd", backward \ forward)) \/
+      R"seedless_scc"(Vector(), Vector(S"fwd", S"bwd", (S"nodes" \ forward) \ backward))
   })
 )
 ```

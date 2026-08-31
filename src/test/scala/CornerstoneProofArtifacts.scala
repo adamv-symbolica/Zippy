@@ -94,7 +94,8 @@ object CornerstoneProofArtifacts:
     val scc = CornerstoneProofCase(
       "scc",
       SccCornerstone.body,
-      note = "Mutual reachability pairs from a direct transitive-closure SCC program.",
+      defs = SccCornerstone.defs,
+      note = "Representative/member pairs from the paper's seedless divide-and-conquer SCC program.",
     )
 
     Vector(aunt, datalog, gol, puzzle, temperature, nqueens, scc)
@@ -181,7 +182,10 @@ object CornerstoneProofArtifacts:
       else if visited(name) then false
       else callGraph.getOrElse(name, Set.empty).exists(cyclic(_, visiting + name, visited + name))
     val recursive = compiled.keysIterator.filter(cyclic(_, Set.empty, Set.empty)).toVector.sorted
-    require(recursive.isEmpty, s"recursive Call not lowered: ${recursive.mkString(", ")}")
+    val unsafe = recursive.filterNot(name =>
+      Supercompiler.wellFoundedPartitionRecursion(byName(name), defs.lift.unlift)
+    )
+    require(unsafe.isEmpty, s"recursive Call not lowered or certified well-founded: ${unsafe.mkString(", ")}")
     compiled.toMap.lift.unlift
 
   private def graphCalls(g: RecursiveOpGraph): Set[String] =

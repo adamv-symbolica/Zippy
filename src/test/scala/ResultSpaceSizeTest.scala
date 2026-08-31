@@ -85,6 +85,52 @@ class ResultSpaceSizeTest extends FunSuite:
     assertEquals(quotient.annotatedBound(Z3BoundDirection.Upper), Some(BigInt(1)))
   }
 
+  test("finite Range windows cap symbolic cardinality without evaluating their source") {
+    val finiteCases = Vector(
+      (0, 3, BigInt(3)),
+      (2, 3, BigInt(1)),
+      (-3, 0, BigInt(3)),
+      (-4, -1, BigInt(3)),
+      (-4, 3, BigInt(2)),
+      (Int.MinValue, 0, BigInt(Int.MaxValue) + 1),
+    )
+    finiteCases.foreach { (start, end, expected) =>
+      assertEquals(RangeBounds.cardinalityUpperBound(start, end), Some(expected))
+    }
+    assertEquals(RangeBounds.cardinalityUpperBound(0, 0), None)
+    assertEquals(RangeBounds.cardinalityUpperBound(1, 0), None)
+    assertEquals(RangeBounds.cardinalityUpperBound(0, -1), None)
+    assertEquals(RangeBounds.cardinalityUpperBound(1, -1), None)
+
+    for
+      start <- -4 to 4
+      end <- -4 to 4
+      capacity <- RangeBounds.cardinalityUpperBound(start, end)
+      sourceSize <- 0 to 32
+    do
+      val (lower, upper) = RangeBounds.normalize(sourceSize, start, end)
+      assert(BigInt(upper - lower) <= capacity,
+        s"Range($start,$end) selected ${upper - lower} of $sourceSize paths above cap $capacity")
+
+    val source = SpaceMention("finite_range_source")
+    val count = SizeExpr.symbol("finiteRangeN")
+    val estimate = ResultSpaceSize.estimateBaseline(
+      Space.Range(Space.Mention(source), 2, 3),
+      Map(source -> ResultSizeEstimate(count, SizeExpr.Zero)),
+    )
+    assertEquals(estimate, ResultSizeEstimate(SizeExpr.minimum(count, SizeExpr.One), SizeExpr.Zero))
+
+    // An exact symbolic source keeps the threshold-sensitive expression:
+    // Range(S,2,3) is still empty at |S|=1, despite having upper cap one.
+    val exact = ResultSpaceSize.estimateBaseline(
+      Space.Range(Space.Mention(source), 2, 3),
+      Map(source -> ResultSizeEstimate.exact(count)),
+    )
+    assertEquals(exact, ResultSizeEstimate.exact(SizeExpr.range(count, 2, 3)))
+    assertEquals(exact.upper.annotatedBound(Z3BoundDirection.Upper), Some(BigInt(1)))
+    assert(SizeExpr.provablyNoGreater(exact.upper, SizeExpr.One))
+  }
+
   private val emptyPathContext = PathContextMap(Map.empty)
   private val emptyRoutines = PartialFunction.empty[RoutinePtr, Routine]
 

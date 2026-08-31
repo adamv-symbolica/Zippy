@@ -147,9 +147,9 @@ object CornerstoneAbstractInterpretations:
       SccCornerstone.expression(Space.Mention(sccEdgesMention))),
     SpatialRoutineAnnotations(
       spaces = Map(sccEdgesMention -> pattern(SizeExpr.symbol("sccEdges"), u("source"), u("target"))),
-      resultLaws = Vector(SpatialBoundLaw.MutualReachability(sccEdgesMention)),
+      resultLaws = Vector(SpatialBoundLaw.RepresentativeScc(sccEdgesMention)),
     ),
-    PartialFunction.empty,
+    SccCornerstone.rc,
   )
 
   lazy val all: Vector[(String, SpatialType)] = Vector(
@@ -159,7 +159,7 @@ object CornerstoneAbstractInterpretations:
     "eight-puzzle-all-states" -> puzzle,
     "temperature" -> temperature,
     "nqueens" -> nqueens,
-    "scc-mutual-reachability" -> scc,
+    "scc-representative-pairs" -> scc,
   )
 
 object CornerstoneSpatialReport:
@@ -266,7 +266,11 @@ class CornerstoneSpatialTypeTest extends FunSuite:
     assertEquals(aunt.size.lower, SizeExpr.Zero)
     assert(aunt.size.upper.show.contains("childEdges"))
     assertEquals(life.strata.flatMap(_.pattern).map(_.show).toSet.size, 8)
-    assert(life.size.upper.show.contains("liveCells"))
+    val lifeCap = SizeExpr.multiply(SizeExpr.symbol("liveCells"), SizeExpr.const(9))
+    assertEquals(life.size.upper, lifeCap)
+    assert(life.size.upper.nodeCount(32) <= 8, life.size.show)
+    assert(life.strata.forall(stratum =>
+      SizeExpr.provablyNoGreater(stratum.cardinality.upper, lifeCap)), life.show)
     assert(datalog.size.lower.show.contains("edges"))
     assert(datalog.size.upper.show.contains("edges"))
     assertEquals(puzzle.size, ResultSizeEstimate.exact(SizeExpr.const(181440)))
@@ -283,11 +287,13 @@ class CornerstoneSpatialTypeTest extends FunSuite:
     )
   }
 
-  test("SCC cornerstone retains pair shape and the E-squared certificate") {
+  test("SCC cornerstone retains pair shape and the representative certificate") {
     import CornerstoneAbstractInterpretations.scc
     assertEquals(scc.pathLength, PathLengthEstimate.exact(PathLengthExpr.const(2)))
     assertEquals(scc.size.lower, SizeExpr.Zero)
-    assert(scc.size.upper.show.contains("sccEdges"), scc.size.show)
+    val cap = SizeExpr.multiply(SizeExpr.const(2), SizeExpr.symbol("sccEdges"))
+    assert(SizeExpr.provablyNoGreater(scc.size.upper, cap), scc.size.show)
+    assert(scc.size.upper.nodeCount(64) <= 32, scc.size.show)
   }
 
   test("directed closure cardinality contract is exhaustive on all three-node graphs") {
@@ -300,17 +306,23 @@ class CornerstoneSpatialTypeTest extends FunSuite:
         s"closure exceeded E^2 for mask $mask: E=${edges.size}, closure=${closure.size}")
   }
 
-  test("SCC mutual-reachability envelope is exhaustive on all three-node graphs") {
+  test("divide-and-conquer SCC representative envelope is exhaustive on all three-node graphs") {
     val possible = (for left <- 0 until 3; right <- 0 until 3 yield left -> right).toVector
     for mask <- 0 until (1 << possible.size) do
       val edges = possible.indices.collect { case index if (mask & (1 << index)) != 0 => possible(index) }.toSet
       val closure = transitiveClosure(edges)
-      val mutual = closure.intersect(closure.map(_.swap))
-      assert(mutual.size <= edges.size * edges.size,
-        s"mutual reachability exceeded E^2 for mask $mask: E=${edges.size}, mutual=${mutual.size}")
-    val acyclic = Set(0 -> 1, 1 -> 2)
-    val closure = transitiveClosure(acyclic)
-    assertEquals(closure.intersect(closure.map(_.swap)), Set.empty)
+      val nodes = edges.flatMap((from, to) => Set(from, to))
+      val components = nodes.groupBy { node =>
+        nodes.filter(other => other == node || (closure(node -> other) && closure(other -> node)))
+      }.values.toSet
+      val representatives = components.iterator.filter(_.size > 1).flatMap { component =>
+        val representative = component.min
+        component.iterator.filterNot(_ == representative).map(representative -> _)
+      }.toSet
+      assert(representatives.size <= 2 * edges.size,
+        s"representative SCC output exceeded 2E for mask $mask: E=${edges.size}, output=${representatives.size}")
+      assert(representatives.forall((representative, member) =>
+        closure(representative -> member) && closure(member -> representative)))
   }
 
   test("Game of Life output is contained in the nine-cell image of every live cell") {

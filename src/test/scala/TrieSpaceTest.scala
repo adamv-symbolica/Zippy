@@ -1425,6 +1425,58 @@ class TrieSpaceTest extends FunSuite:
     assertEquals(first.toSpaceValue, SpaceValue("a.1", "b.2", "c.3"))
   }
 
+  test("zipper iteration materializes each branch without rebuilding its virtual cursor tree") {
+    val width = 128
+    val sourceHeads = Vector.tabulate(width)(i => TrieSpace.intern(Syntax.parse(s"source_$i")).head)
+    val sourceTail = TrieSpace.intern(Syntax.parse("tail")).head
+    val resultPrefix = TrieSpace.intern(Syntax.parse("result")).head
+    val outputPrefix = TrieSpace.intern(Syntax.parse("out")).head
+    val outputLeaf = TrieSpace.intern(Syntax.parse("leaf")).head
+    val source = SpaceZipper.traversal(
+      TrieSpace.fromEncodedPaths(sourceHeads.map(head => head :: sourceTail :: Nil))
+    )
+
+    var cursorObservations = 0
+    var branchMaterializations = 0
+    def countedBranch(value: TrieSpace): SpaceZipper = new SpaceZipper:
+      override def terminal: Boolean =
+        cursorObservations += 1
+        value.terminal
+      override def child(item: Int): SpaceZipper =
+        cursorObservations += 1
+        countedBranch(value.children.getOrElse(item, TrieSpace.empty))
+      override def childKeys: IterableOnce[Int] =
+        cursorObservations += 1
+        value.children.keysIterator
+      override def materialize: TrieSpace =
+        branchMaterializations += 1
+        value
+
+    val iteration = SpaceZipper.Iteration(
+      source,
+      (head, _tail) => countedBranch(TrieSpace.empty.insertItems(outputPrefix :: head :: outputLeaf :: Nil))
+    )
+    val expected = TrieSpace.joinAll(
+      sourceHeads.iterator.map(head => TrieSpace.empty.insertItems(outputPrefix :: head :: outputLeaf :: Nil))
+    )
+
+    assertEquals(SpaceZipper.wrap(iteration, resultPrefix :: Nil).materialize, expected.wrapItems(resultPrefix :: Nil))
+    assertEquals(branchMaterializations, width)
+    assertEquals(cursorObservations, 0,
+      "final materialization should use native trie union instead of rescanning every branch at every output prefix")
+
+    cursorObservations = 0
+    branchMaterializations = 0
+    val focusedIteration = SpaceZipper.Iteration(
+      source,
+      (head, _tail) => countedBranch(TrieSpace.empty.insertItems(outputPrefix :: head :: outputLeaf :: Nil))
+    ).child(outputPrefix)
+    assertEquals(focusedIteration.materialize, expected.unwrapItems(outputPrefix :: Nil))
+    assertEquals(branchMaterializations, width)
+    assertEquals(cursorObservations, width,
+      "a focused iteration should inspect each branch once, not rebuild its cursor tree below the focus")
+  }
+
   test("zipper iteration keeps canonical and general iteration virtual") {
     val source = SpaceValue("a.1", "b.2", "c.3")
     val h = PathRef("h").known(1)
@@ -1598,15 +1650,35 @@ class TrieSpaceTest extends FunSuite:
       eval(call)(using PathContext.emptyMap, SpaceContextMap(Map.empty), routines))
   }
 
-  test("general SCC fixpoint stays construction-lazy and agrees after full traversal") {
-    val (zipper, construction) = ExecutorCostMeter.measure(transpileZ(SccCornerstone.body))
+  test("synchronous evalZ rounds execute in native trie algebra and scale with the closure") {
+    def measured(size: Int): (TrieSpace, ExecutorCostCounts) =
+      val edges = Space.Literal(SpaceValue((0 until size).map { index =>
+        Syntax.parse(s"edge.n$index.n${index + 1}")
+      }.toSet))
+      val routine = DatalogExample.semiNaiveTransitive
+      val call = routine.name(DatalogExample.semiNaiveInitial(edges))("complete.path")
+      ExecutorCostMeter.measure(evalZ(call)(using rc = mod(routine)))
+
+    val (small, smallCost) = measured(20)
+    val (large, largeCost) = measured(40)
+    assertEquals(small.pathCount, 210)
+    assertEquals(large.pathCount, 820)
+    assert(largeCost.nodeVisits <= smallCost.nodeVisits * 6,
+      s"native synchronous work regressed beyond closure growth: small=$smallCost large=$largeCost")
+    assert(largeCost.allocations <= smallCost.allocations * 5,
+      s"native synchronous allocation regressed beyond closure growth: small=$smallCost large=$largeCost")
+  }
+
+  test("divide-and-conquer SCC stays construction-lazy and agrees after full traversal") {
+    val (zipper, construction) = ExecutorCostMeter.measure(
+      transpileZ(SccCornerstone.body)(using PathContext.emptyMap, ZipperSpaceContext.emptyMap, SccCornerstone.rc)
+    )
     val a = TrieSpace.intern(Syntax.parse("a")).head
     val b = TrieSpace.intern(Syntax.parse("b")).head
     val (reachable, focusedCost) = ExecutorCostMeter.measure(zipper.child(a).child(b).terminal)
 
     assertEquals(construction.rounds, 0L, s"fixpoint construction performed eager rounds: $construction")
-    assert(reachable, s"a.b should be discovered by the SCC closure; cost=$focusedCost")
-    assert(focusedCost.rounds > 0L, s"the first consumer should trigger saturation: $focusedCost")
+    assert(reachable, s"a.b should be emitted by the SCC representative partition; cost=$focusedCost")
     assertEquals(zipper.toSpaceValue, SccCornerstone.expected)
   }
 

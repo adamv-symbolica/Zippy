@@ -40,7 +40,7 @@ reduced result is their intersection, never a substitution.
 | Full 8-puzzle closure | fixpoint retains the nine-item board schema | legal nonempty seed saturates `9!/2` component | exactly `181440` | exact length 9 |
 | Temperature restriction | `[0,W]`, source schema | none | `[0,W]` | exact length 4 |
 | 4-queens generator | generator structure derives four-coordinate paths | finite-domain CSP has 2 solutions | exactly `2` | exact length 4 |
-| SCC mutual reachability | closure/intersection retains the two-item edge schema | mutual reachability is contained in directed closure; `upper ≤ E²` | `[0,E²]` | exact length 2 |
+| Divide-and-conquer SCC | pivot/member emission retains a two-item pair schema | every emitted member is an edge endpoint; `upper ≤ 2E` | `[0,2E]` | exact length 2 |
 
 ## Aunt query
 
@@ -149,18 +149,19 @@ analysis retains the structurally derived exact path length four and has
 The same generic constraint domain derives `1,0,0,2,10,4` for board sizes one
 through six directly from annotated finite domains and constraints.
 
-## SCC mutual reachability
+## Divide-and-conquer SCC
 
-The SCC cornerstone computes pairs that are reachable in both the graph and
-its transpose. For `E` distinct input edges, mutual reachability is a subset of
-the directed transitive closure and therefore contains at most `E²` ordered
-pairs. Its sound general lower bound is zero: a non-empty acyclic graph can have
-no pair that is mutually reachable. The analysis retains the exact pair schema
-and path length two without evaluating a concrete graph.
+The SCC cornerstone is the paper's seedless pivot algorithm. It computes masked
+forward and backward reachability, emits one pivot/member pair for every other
+node in the pivot's non-singleton component, then recurses over `pred \\ desc`,
+`desc \\ pred`, and `(nodes \\ pred) \\ desc`. For `E` input edges there are at
+most `2E` endpoint nodes, so the representative output is bounded by `2E`; its
+general lower bound is zero. The analysis retains the exact pair schema and
+path length two without evaluating a concrete graph.
 
-The report uses the production `MutualReachability` law, shared with normal
-routine analysis. An exhaustive three-node graph test checks the `E²` envelope
-and the acyclic zero-lower counterexample independently.
+The report uses the production `RepresentativeScc` law, shared with normal
+routine analysis. An exhaustive three-node graph test independently constructs
+the component representatives and checks the `2E` envelope.
 
 ## Remaining precision boundary
 
@@ -170,6 +171,6 @@ affine alternatives. The domain now has quantitative prefix coverage, symbolic
 key/fiber min/max arithmetic, and a dependent `relation(head)` lookup transfer.
 The remaining precision boundary is broader key-correlated degree maps and
 automatic inference of coverage/graph contracts from arbitrary routine syntax.
-Puzzle component capacity, n-queens solution counts, and SCC mutual
-reachability are parameterized production laws, but they remain explicit
+Puzzle component capacity, n-queens solution counts, and SCC representative
+output are parameterized production laws, but they remain explicit
 semantic annotations rather than discoveries made by executing a routine.

@@ -134,7 +134,8 @@ Generated obligations connect the path-set semantics to eager tries, virtual
 zippers, optimized source programs, and operation graphs. Open-program checks
 quantify over arbitrary inputs; cornerstone parity and symbolic evidence cover Aunt queries,
 semi-naive Datalog, pure Game of Life, the sliding puzzle, temperature queries,
-pure MORKL n-queens, and SCC mutual reachability. The two largest bounded
+pure MORKL n-queens, and the paper's seedless divide-and-conquer SCC routine.
+The two largest bounded
 symbolic obligations—semi-naive Datalog and the 2x2 sliding puzzle—are generated
 as ephemeral full-open SMT files and are mandatory manifest entries. The puzzle
 corpus also includes three exact-output bounded witnesses covering all four move

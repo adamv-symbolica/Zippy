@@ -28,9 +28,12 @@ object ZipperLargeBenchmarks:
   private def ms[A](runs: Int)(f: => A): (A, Double) =
     var last: A = f
     for _ <- 0 until 1 do last = f
-    val start = System.nanoTime()
-    for _ <- 0 until runs.max(1) do last = f
-    last -> ((System.nanoTime() - start).toDouble / 1_000_000.0 / runs.max(1))
+    val samples = Vector.tabulate(runs.max(1)) { _ =>
+      val start = System.nanoTime()
+      last = f
+      (System.nanoTime() - start).toDouble / 1_000_000.0
+    }.sorted
+    last -> samples(samples.length / 2)
 
   private def context(values: (String, SpaceValue)*): (SpaceContextMap, TrieSpaceContextMap, ZipperSpaceContextMap) =
     val ref = SpaceContextMap(values.map((k, v) => SpaceMention(k) -> v).toMap)
@@ -46,6 +49,19 @@ object ZipperLargeBenchmarks:
       Seq(Syntax.parse(s"edge.n$i.n${i + 1}")) ++
         Option.when(i + 2 <= n)(Syntax.parse(s"edge.n$i.n${i + 2}"))
     }.toSet)
+
+  private def twoHopCase(n: Int): ProgramCase =
+    val graph = chainGraph(n)
+    val (sc, tc, zc) = context("g" -> graph)
+    ProgramCase(
+      "nonrecursive graph two-hop",
+      s"$n nodes, ${graph.paths.size} edge facts",
+      "TwoHop" x MQT(S"g"("edge"), List("$x.$y", "$y.$z"), "$x.$z"),
+      sc,
+      tc,
+      zc,
+      runs = 5,
+    )
 
   private def syntheticFamily(generations: Int, width: Int): (SpaceValue, SpaceValue) =
     val facts = Set.newBuilder[PathValue]
@@ -125,17 +141,21 @@ object ZipperLargeBenchmarks:
   private def sccCase: ProgramCase =
     val (sc, tc, zc) = context()
     ProgramCase(
-      "SCC mutual reachability",
-      s"${SccCornerstone.edges.paths.size} directed edges, ${SccCornerstone.expected.paths.size} mutually reachable pairs",
+      "SCC divide-and-conquer",
+      s"${SccCornerstone.edges.paths.size} directed edges, ${SccCornerstone.expected.paths.size} representative/member pairs",
       SccCornerstone.body,
       sc,
       tc,
       zc,
+      rc = SccCornerstone.rc,
       runs = 3,
     )
 
   private def cases(): Vector[ProgramCase] =
     Vector(
+      twoHopCase(180),
+      twoHopCase(360),
+      twoHopCase(720),
       productExactIntersectionCase(2000),
       productExactIntersectionCase(10000),
       productExactIntersectionCase(30000),
@@ -160,12 +180,13 @@ object ZipperLargeBenchmarks:
       ms(c.runs)(evalZ(c.expr)(using summon[PathContext], c.zc, c.rc).pathCount)._2
     )
     val note =
-      if c.name.startsWith("product") then "large intermediate product should not be materialized by zipper traversal"
+      if c.name.startsWith("nonrecursive") then "generic iteration materializes branch tries natively at the final boundary"
+      else if c.name.startsWith("product") then "large intermediate product should not be materialized by zipper traversal"
       else if c.name.startsWith("aunt") then "large query-shaped dataset with small queried person set"
-      else if c.name.startsWith("SCC") then "state-dependent tail projection uses the lazy exact synchronous fixpoint fallback"
+      else if c.name.startsWith("SCC") then "paper pivot/partition recursion with masked reachability lowered to a native fixpoint"
       else zipperAttempt.failed.toOption
         .map(error => s"evalZ unsupported: ${Option(error.getMessage).getOrElse(error.getClass.getSimpleName)}")
-        .getOrElse("recursive union-saturating routine lowered to zipper-local execution")
+        .getOrElse("recursive union-saturating routine lowered to lazy native-trie synchronous rounds")
     Row(c.name, c.size, trie.pathCount, trieMs, zipperMs, zipperMs.map(trieMs / _), note)
 
   def markdown(): String =
@@ -178,13 +199,13 @@ object ZipperLargeBenchmarks:
     Vector(
       "# Large Zipper Benchmarks",
       "",
-      "These rows are intentionally larger and more asymptotic than the mixed publication table. They compare direct `evalTrie` against direct `evalZ` after checking both produce the same `TrieSpace` result. The product rows are the key zipper stress tests: the source expression denotes an `n x n` product, but the consumer asks for one prefix or one exact path, so a zipper traversal should avoid materializing the full intermediate product.",
+      "These rows are intentionally larger and more asymptotic than the mixed publication table. They compare direct `evalTrie` against direct `evalZ` after checking both produce the same `TrieSpace` result. Times are medians after two warmup evaluations. The nonrecursive two-hop rows expose generic-iteration scaling; the product rows stress selective traversal, where the source expression denotes an `n x n` product but the consumer asks for one prefix or one exact path.",
       "",
       "| benchmark | size | result paths | evalTrie ms | evalZ ms | evalTrie / evalZ | note |",
       "|---|---:|---:|---:|---:|---:|---|",
       body,
       "",
-      "A ratio above `1.00 x` means the zipper evaluator is faster. Recursive Datalog is included as a large generated control case and is timed through direct `evalZ` lowering; its state-negative delta subtraction selects the lazy exact synchronous fixpoint fallback, while structurally positive, productive recursive steps use prefix-demand cells. An unsupported cell is reserved for a genuine lowering failure rather than a concrete-trie fallback."
+      "A ratio above `1.00 x` means the zipper evaluator is faster. Recursive Datalog is included as a large generated control case and is timed through direct `evalZ` lowering; its state-negative delta subtraction selects lazy exact synchronous rounds executed directly in native trie algebra, while structurally positive, productive recursive steps use prefix-demand cells. An unsupported cell is reserved for a genuine lowering failure."
     ).mkString("\n")
 
 @main def zipperLargeBenchmarkReport(): Unit =

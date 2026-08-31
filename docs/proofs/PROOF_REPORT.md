@@ -4,8 +4,8 @@ Status: PASS_WITH_PROOF_DEBT
 
 ## Provenance
 
-- Generated: `2026-08-31T09:40:42Z`
-- Git: `cf615fb21731040583a5bf3d681a79d9ba436501` (`dirty` working tree)
+- Generated: `2026-08-31T16:56:27Z`
+- Git: `d1eb11cd19d29a87774249b8b5cf1a2221e9db0c` (`dirty` working tree)
 - Python: `3.12.3`
 - Scala CLI: `Scala CLI version: 1.16.0`
 - Z3: `Z3 version 5.0.0 - 64 bit`
@@ -22,7 +22,7 @@ Status: PASS_WITH_PROOF_DEBT
 - The runner emits `proofs/operational_rule_manifest.tsv` by scanning every operational `(rewrite ...)` and `(rule ...)` in `zipper-descend.egg`, mapping semantic rows to proof artifacts where known, mapping path normalizers, memo/cache wrappers, and scheduler-observability helpers to explicit FOL contracts where available, keeping any remaining relational frontier/key scheduling helpers as `axiom-elsewhere`, and marking missing semantic coverage as `UNPROVED`.
 - This Python script runs external solvers/checkers against the Scala-generated artifacts and curated termination artifacts.
 - Operational proof debt in this report: `433` proved-bounded rows, `0` axiom-elsewhere rows, and `0` UNPROVED rows. A zero-UNPROVED report is not the same as a fully unbounded proof.
-- Vampire runs first-order obligations in portfolio mode by default. Generated manifest rows may opt a deliberately decomposed obligation into the plain saturation loop with `vampire-strategy=plain`; this avoids a Vampire 5.0.1 portfolio-child proof-handoff crash without weakening or skipping the theorem. These obligations connect zipper membership, eager trie membership, and path-set membership. Iteration is represented as a general head/rest binder with arbitrary template-expression DAGs; body-union distribution, guarded invariant motion, and wrap/product/intersection/diff/restriction hoists have unbounded FOL obligations in addition to bounded counterexample checks.
+- Vampire runs first-order obligations in portfolio mode by default. Artifact metadata may opt a deliberately decomposed obligation into the plain saturation loop with `vampire-strategy=plain`, or enable integer induction with `vampire-induction=int`; the latter is required by the curated reachable-value invariant. The plain strategy avoids a Vampire 5.0.1 portfolio-child proof-handoff crash without weakening or skipping the theorem. These obligations connect zipper membership, eager trie membership, and path-set membership. Iteration is represented as a general head/rest binder with arbitrary template-expression DAGs; body-union distribution, guarded invariant motion, and wrap/product/intersection/diff/restriction hoists have unbounded FOL obligations in addition to bounded counterexample checks.
 - TailsIntersection has an arbitrary-cardinality closed-frontier refinement theorem. The generated `tails-intersection-frontier.egg` artifact executes the corresponding demand-built key-list fold over a nested virtual union with a repeated head, demonstrating that same-head children merge before the all-head meet.
 - Core unit path-set algebra now has unbounded FOL obligations for union/intersection idempotence and associativity, diff self/union-right, child intersection/diff, restriction/raffination partition/disjointness, path concat epsilon normalization, memo/cache identity, and ordered Range child-border soundness/pruning facts. Operational rows that still cite bounded fixture-specific laws remain `proved-bounded` by weakest-tier accounting.
 - Bounded universe: alphabet `a,b`, max path length `3`, `15` paths.
@@ -30,8 +30,8 @@ Status: PASS_WITH_PROOF_DEBT
 - Product/concatenation derivative laws are guarded by the principle `no concatenation escapes the bounded universe`: `child_product_*` uses a generated `ProductClosed(X,Y)` assumption that forbids exactly those X/Y path pairs whose concatenation would fall outside the bounded universe. Both `a` and `b` child representatives are checked, and the unguarded mutation must be `sat`.
 - Closed cornerstone parity is an executable Scala gate. Counterexample-sensitive solver evidence comes from symbolic open-program SMT and structural full-program FOL obligations, rather than duplicating a precomputed closed output on both sides.
 - Open-program SMT certificates compare expanded source, source optimization, raw graph round-trip, and optimized graph round-trip for all symbolic inputs in each generated bounded universe.
-- Structural full-program FOL files emit generated MORKL program DAGs for Aunt, semi-naive Datalog, GOL, temperature, 2x2 and 4x4 sliding puzzle, the complete 24-state 2x2 step, 4-queens, and direct SCC mutual reachability. They check DAG well-formedness and contract consistency under per-constructor axioms equating each backend's membership predicate with source membership; they are not independent implementation-equivalence proofs. `Iter` is modeled with an explicit path/space binding environment and `Range` with source membership plus ordered rank/bounds selection. The recursive divide-and-conquer SCC routine has executable reference/trie parity coverage, not an unbounded structural proof.
-- `terminating/` carries hand-staged termination and least-fixpoint artifacts: Vampire-checkable least-fixpoint uniqueness and finite-growth decrease lemmas, Z3-checkable no-infinite-descent induction steps, egglog sketches, and Datalog/transitive termination/equivalence obligations. These artifacts are executed by the corresponding gate unless that gate is skipped.
+- Structural full-program FOL files emit generated MORKL program DAGs for Aunt, semi-naive Datalog, GOL, temperature, 2x2 and 4x4 sliding puzzle, the complete 24-state 2x2 step, 4-queens, and the paper's seedless divide-and-conquer SCC routine. The SCC DAG retains pivot `Range`, representative emission, and all three shrinking recursive partitions, while masked reachability lowers to `Fixpoint`; its separate curated theorems prove reachability invariants and branch decrease. Structural files check DAG well-formedness and contract consistency under per-constructor axioms equating each backend's membership predicate with source membership; they are not independent implementation-equivalence proofs. `Iter` is modeled with an explicit path/space binding environment and `Range` with source membership plus ordered rank/bounds selection.
+- `terminating/` carries hand-staged termination and least-fixpoint artifacts: Vampire-checkable least-fixpoint uniqueness, finite-growth decrease, masked-reachability value/decrease, and divide-and-conquer SCC three-branch decrease theorems; Z3-checkable no-infinite-descent induction steps; egglog sketches; and Datalog/transitive termination/equivalence obligations. These artifacts are executed by the corresponding gate unless that gate is skipped.
 - Bounded open-program SMT obligations use symbolic input spaces/templates to search independently for backend counterexamples. Full-program structural FOL obligations instead compose explicitly axiomatized backend/source contracts.
 - Negative controls are intentionally false laws; they must return `sat`.
 - Vampire: available as `vampire`
@@ -53,7 +53,7 @@ Status: PASS_WITH_PROOF_DEBT
 | `generated artifact manifest ownership` | `no-orphans+no-missing` | `ok` | PASS |
 | `concrete closure rewrite invariant` | `no-concrete-closure-rewrites` | `ok` | PASS |
 | `frontier algebra rule invariant` | `required-tail-frontier-and-state-rules` | `ok` | PASS |
-| `termination proof artifact invariant` | `solver-runnable least-fixpoint+finite-growth+descent` | `ok` | PASS |
+| `termination proof artifact invariant` | `solver-runnable least-fixpoint+finite-growth+recursive-scc-descent` | `ok` | PASS |
 | `operational rule manifest generation` | `exit-0` | `exit-0` | PASS |
 | `operational manifest closure and proof-debt accounting` | `0-UNPROVED with proof-debt surfaced` | `0-UNPROVED; 433-proof-debt` | PASS |
 | `required operational family coverage` | `iter+fixpoint+range+context` | `ok` | PASS |
@@ -342,6 +342,9 @@ Status: PASS_WITH_PROOF_DEBT
 | `scc-full-program:structural_backend_equivalence` | `Theorem` | `Theorem` | PASS | `proofs/open/vampire/scc_full_program_structural_backend_equivalence.p` |
 | `termination:least_fixpoint_unique` | `Theorem` | `Theorem` | PASS | `terminating/least_fixpoint_unique.p` |
 | `termination:bounded_growth_decrease` | `Theorem` | `Theorem` | PASS | `terminating/bounded_growth_decrease.p` |
+| `termination:reachable_decrease` | `Theorem` | `Theorem` | PASS | `terminating/reachable_decrease.p` |
+| `termination:reachable_value` | `Theorem` | `Theorem` | PASS | `terminating/reachable_value.p` |
+| `termination:scc_decrease` | `Theorem` | `Theorem` | PASS | `terminating/scc_decrease.p` |
 | `termination:transitive_equiv` | `Theorem` | `Theorem` | PASS | `terminating/transitive_equiv.p` |
 | `termination:datalog_a_terminates` | `Theorem` | `Theorem` | PASS | `terminating/datalog_a_terminates.p` |
 | `termination:datalog_b_naive_terminates` | `Theorem` | `Theorem` | PASS | `terminating/datalog_b_naive_terminates.p` |

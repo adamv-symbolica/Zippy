@@ -141,9 +141,11 @@ Current scope:
   membership contract with source membership. This does not independently
   establish implementation equivalence. `Iter` uses an explicit path/space binding
   environment; `Range` uses source membership plus ordered rank/count/bounds
-  selection. The SCC structural artifact covers the direct mutual-reachability
-  DAG schema; the recursive divide-and-conquer SCC routine has executable
-  reference/trie parity coverage but no unbounded independent certificate.
+  selection. The SCC structural artifact retains the paper routine's pivot
+  `Range`, representative emission, and three shrinking recursive partitions;
+  masked reachability lowers to `Fixpoint`. Curated Vampire theorems prove the
+  reachability value/decrease invariants and all three SCC branch decreases,
+  alongside executable reference/trie/zipper/graph parity coverage.
 - Arbitrary-data backend checks: bounded open-program SMT searches for
   counterexamples over symbolic input spaces, while the structural FOL files
   compose axiomatized contracts. The generated egg certificate
