@@ -29,6 +29,14 @@ object PathItem:
 
 case class PathRef(s: String):
   val lengthHint = -1
+  /** Optional upper bound; unlike lengthHint this need not be exact. */
+  def maximumLengthHint: Int = lengthHint
+  def bounded(maximum: Int): PathRef =
+    require(maximum >= 0 && (lengthHint < 0 || lengthHint <= maximum))
+    if maximumLengthHint == maximum then this
+    else new PathRef(s):
+      override val lengthHint = PathRef.this.lengthHint
+      override def maximumLengthHint: Int = maximum
   def known(length: Int): PathRef =
     if lengthHint == length then this else new PathRef(s) { override val lengthHint = length }
 
