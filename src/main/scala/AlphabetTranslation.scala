@@ -111,7 +111,8 @@ object AlphabetTranslation:
           val name = RoutinePtr(fresh("scan"))
           // Install before descending: the unbounded zero-terminated scanner is recursive.
           names(key) = name
-          val nextPrefix = concat(pv(acc), pv(head))
+          val prefixRef = if code.maxWidth.isDefined then acc.known(depth) else acc
+          val nextPrefix = concat(pv(prefixRef), pv(head))
           def callNext(nextState: Int): E =
             if code.maxWidth.exists(depth + 1 >= _) then Empty()
             else Call(scanner(nextState, depth + 1), Vector(nextPrefix) ++ cp.map(pv), Vector(sv(tail)) ++ cs.map(sv))
@@ -122,7 +123,7 @@ object AlphabetTranslation:
             case CodeBoundary.Fibonacci =>
               if state == 1 then choose(isDigit(pv(head), 1), done, callNext(0))
               else choose(isDigit(pv(head), 1), callNext(1), callNext(0))
-          output(name) = AlphabetRoutine(name, Vector(acc) ++ cp, Vector(space) ++ cs, Iteration(sv(space), head, tail, step))
+          output(name) = AlphabetRoutine(name, Vector(prefixRef) ++ cp, Vector(space) ++ cs, Iteration(sv(space), head, tail, step))
           name
         })
       Call(scanner(0, 0), Vector(constant(d.empty)) ++ cp.map(pv), Vector(src) ++ cs.map(sv))
@@ -196,7 +197,8 @@ object AlphabetTranslation:
 
     def translatedRef(r: PathRef): PathRef =
       val out = PathRef(r.s)
-      code.boundary match
+      if r.lengthHint == 0 then out.known(0)
+      else code.boundary match
         case CodeBoundary.Fixed(width) if r.lengthHint >= 0 && BigInt(r.lengthHint) * width <= Int.MaxValue => out.known(r.lengthHint * width)
         case _ => code.encodedUpperLength(r.maximumLengthHint).filter(_ => r.maximumLengthHint >= 0).fold(out)(out.bounded)
 

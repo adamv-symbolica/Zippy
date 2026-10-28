@@ -160,6 +160,9 @@ class FiniteAlphabetTest extends FunSuite:
       assertEquals(bits.eval().map(AlphabetEncodings.bytesToBits.decode), original.eval())
       val symbols = AlphabetTranslation(original, AlphabetEncodings.bytesToSymbols)
       assertEquals(symbols.eval().map(AlphabetEncodings.bytesToSymbols.decode), original.eval())
+      val real = SymbolAlphabet.toSpace(symbols.expression)
+      val functions = symbols.routines.view.mapValues(SymbolAlphabet.toRoutine).toMap
+      assertEquals(eval(real)(using PathContext.emptyMap, SpaceContextMap(Map.empty), functions).paths, symbols.eval())
     }
     for b <- 0 to 255 do
       val path = BytePath(b, 0, 255)
@@ -198,7 +201,7 @@ class FiniteAlphabetTest extends FunSuite:
     assertEquals(fibRef.lengthHint, -1)
     assertEquals(fibRef.maximumLengthHint, fib.maxWidth.get * 3)
     val scan = AlphabetTranslation.symbols(Space.Iteration(literal, h, r, Space.Singleton(Path.Deref(h))), fib)
-    assert(scan.routines.values.filter(_.name.s.contains("scan")).forall(_.refs.head.maximumLengthHint == fib.maxWidth.get))
+    assert(scan.routines.values.filter(_.name.s.contains("scan")).forall(f => f.refs.head.lengthHint >= 0 && f.refs.head.maximumLengthHint < fib.maxWidth.get))
     val ref2 = ref.bounded(5)
     assertEquals(ref2, ref)
     assertEquals(ref2.lengthHint, 3)
@@ -312,4 +315,56 @@ class FiniteAlphabetTest extends FunSuite:
         val bits = AlphabetTranslation.symbols(s, fib)
         val bytes = AlphabetTranslation(bits, AlphabetEncodings.bitsToBytes)
         assertEquals(bytes.eval().map(AlphabetEncodings.bitsToBytes.decode).map(fib.decode), eval(s).paths)
+  }
+
+  test("head cardinality analyses know the finite alphabet even for open spaces") {
+    val bits = AlphabetAnalysis.resultSize(BitSpace.Head(BitSpace.Mention(SpaceMention("open"))), BitPaths)
+    val bytes = AlphabetAnalysis.resultSize(ByteSpace.Head(ByteSpace.Mention(SpaceMention("open"))), BytePaths)
+    assertEquals(bits.upper.annotatedBound(Z3BoundDirection.Upper), Some(BigInt(2)))
+    assertEquals(bytes.upper.annotatedBound(Z3BoundDirection.Upper), Some(BigInt(256)))
+  }
+
+  test("mutual recursion and nested folds retain all transitive captures") {
+    val a = RoutinePtr("mutualA"); val b = RoutinePtr("mutualB")
+    val input = SpaceMention("mutualInput"); val prefix = PathRef("mutualPrefix")
+    def routine(name: RoutinePtr, next: RoutinePtr): Routine = Routine(name, Vector(prefix), Vector(input),
+      Space.Union(Space.Singleton(Path.Deref(prefix)), Space.Iteration(Space.Mention(input), h, r,
+        Space.Call(next, Vector(Path.Concat(Path.Deref(prefix), Path.Deref(h))), Vector(Space.Mention(r))))))
+    val call = Space.Call(a, Vector(Path.Constant(p("b"))), Vector(literal))
+    val defs = Vector(routine(a, b), routine(b, a))
+    check(call, fib, defs); check(call, fixed, defs); check(call, strings, defs)
+    val nested = Space.Fold(literal, Path.Constant(p()), acc, h, r,
+      Space.Fold(Space.Mention(r), Path.Deref(acc), PathRef("innerAcc"), PathRef("innerHead"), SpaceMention("innerRest"),
+        Space.Singleton(Path.Concat(Path.Deref(h), Path.Deref(PathRef("innerAcc")))), Path.Concat(Path.Deref(PathRef("innerAcc")), Path.Deref(PathRef("innerHead")))),
+      Path.Concat(Path.Deref(acc), Path.Deref(h)))
+    check(nested, fib); check(nested, fixed); check(nested, strings)
+  }
+
+  test("wildcard free-variable capture and annotations agree with ignored-binder evaluation") {
+    val wild = SpaceMention("_")
+    val expr = Space.Iteration(literal, h, r, Space.Fixpoint(Space.Empty, wild, Space.Mention(wild)))
+    val translated = AlphabetTranslation.symbols(expr, fib)
+    assertEquals(translated.eval(spaces = Map(wild -> Set(fib.encode(p("z"))))).map(fib.decode), Set(p("z")))
+    val source = Space.Iteration(literal, PathRef("_"), r, Space.Singleton(Path.Deref(PathRef("_").known(2))))
+    val tagged = ReferenceHints.tag(source)
+    val body = tagged.asInstanceOf[Space.Iteration].templates.asInstanceOf[Space.Singleton].p.asInstanceOf[Path.Deref]
+    assertEquals(body.pr.lengthHint, 2)
+  }
+
+  test("all UTF-16 code units round-trip and preserve order in terminated string encoding") {
+    val all = (0 to 65535).iterator.map(i => i.toChar.toString).mkString
+    assertEquals(strings.decode(strings.encode(p(all))), p(all))
+    val random = new Random(2718)
+    for _ <- 0 until 500 do
+      val a = Vector.fill(random.nextInt(6))(random.nextInt(65536).toChar).mkString
+      val b = Vector.fill(random.nextInt(6))(random.nextInt(65536).toChar).mkString
+      assertEquals(Integer.signum(BytePaths.compare(strings.encode(p(a)), strings.encode(p(b)))), Integer.signum(a.compareTo(b)))
+  }
+
+  test("coincident Fold accumulator and head names retain the head binding") {
+    val expr = Space.Fold(literal, Path.Constant(p()), h, h, r,
+      Space.Singleton(Path.Deref(h)), Path.Deref(h))
+    val tagged = ReferenceHints.tag(expr).asInstanceOf[Space.Fold]
+    assertEquals(tagged.templates.asInstanceOf[Space.Singleton].p.asInstanceOf[Path.Deref].pr.lengthHint, 1)
+    check(expr, fib); check(expr, fixed); check(expr, strings)
   }

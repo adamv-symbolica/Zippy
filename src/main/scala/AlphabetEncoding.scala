@@ -19,7 +19,9 @@ trait AlphabetEncoding[S, T]:
   /** Finite codebook, in SOURCE order, for order-sensitive lowering. */
   def orderedAtoms: Vector[S] = Vector.empty
   final def encodedUpperLength(symbolCount: Int): Option[Int] =
-    maxWidth.flatMap(w => Option.when(BigInt(w) * symbolCount <= Int.MaxValue)(w * symbolCount))
+    if symbolCount < 0 then None
+    else if symbolCount == 0 then Some(0)
+    else maxWidth.flatMap(w => Option.when(BigInt(w) * symbolCount <= Int.MaxValue)(w * symbolCount))
 
 object FibonacciCode:
   /** Zeckendorf digits, least weight first, followed by the second terminal 1. */

@@ -12,7 +12,7 @@ private[morkl] object AlphabetSyntax:
     case AlphabetPath.GroundedSP(s, _) => free(s)
   def free[P](s: AlphabetSpace[P]): Free =
     import AlphabetSpace.*
-    def without(f: Free, ps: Set[PathRef], ss: Set[SpaceMention]): Free = (f._1 -- ps, f._2 -- ss)
+    def without(f: Free, ps: Set[PathRef], ss: Set[SpaceMention]): Free = (f._1 -- ps.filter(_.s != "_"), f._2 -- ss.filter(_.s != "_"))
     s match
       case Empty() | Literal(_) => none
       case Mention(r) => (Set.empty, Set(r))

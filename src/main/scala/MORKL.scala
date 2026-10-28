@@ -417,8 +417,8 @@ object ReferenceHints:
         val restSize = Option.when(rest.sizeHint >= 0)(rest.sizeHint).orElse(uniformTailGroupSize(taggedSource))
         val taggedRest = hinted(rest, restSize)
         val bodyEnvironment = HintEnvironment(
-          environment.pathHints.updated(symbol, 1),
-          restSize.fold(environment.spaceHints)(environment.spaceHints.updated(rest, _))
+          if symbol.s == "_" then environment.pathHints else environment.pathHints.updated(symbol, 1),
+          if rest.s == "_" then environment.spaceHints else restSize.fold(environment.spaceHints)(environment.spaceHints.updated(rest, _))
         )
         Space.Iteration(
           taggedSource,
@@ -430,8 +430,9 @@ object ReferenceHints:
         val taggedSource = recs(src, environment)
         val taggedInitial = recp(initial, environment)
         val initialLength = pathLength(taggedInitial)
+        val initialAccHints = environment.pathHints ++ initialLength.filter(_ => acc.s != "_").map(acc -> _)
         val updateProbeEnvironment = HintEnvironment(
-          environment.pathHints.updated(symbol, 1) ++ initialLength.map(acc -> _),
+          if symbol.s == "_" then initialAccHints else initialAccHints.updated(symbol, 1),
           environment.spaceHints
         )
         val taggedUpdate0 = recp(update, updateProbeEnvironment)
@@ -443,9 +444,10 @@ object ReferenceHints:
         val taggedSymbol = symbol.known(1)
         val restSize = Option.when(rest.sizeHint >= 0)(rest.sizeHint).orElse(uniformTailGroupSize(taggedSource))
         val taggedRest = hinted(rest, restSize)
+        val accumulatorHints = environment.pathHints ++ accumulatorLength.filter(_ => acc.s != "_").map(acc -> _)
         val bodyEnvironment = HintEnvironment(
-          environment.pathHints.updated(symbol, 1) ++ accumulatorLength.map(acc -> _),
-          restSize.fold(environment.spaceHints)(environment.spaceHints.updated(rest, _))
+          if symbol.s == "_" then accumulatorHints else accumulatorHints.updated(symbol, 1),
+          if rest.s == "_" then environment.spaceHints else restSize.fold(environment.spaceHints)(environment.spaceHints.updated(rest, _))
         )
         Space.Fold(
           taggedSource,
@@ -468,7 +470,7 @@ object ReferenceHints:
           taggedVariable,
           recs(step, HintEnvironment(
             environment.pathHints,
-            variableSize.fold(environment.spaceHints)(environment.spaceHints.updated(variable, _))
+            if variable.s == "_" then environment.spaceHints else variableSize.fold(environment.spaceHints)(environment.spaceHints.updated(variable, _))
           ))
         )
       case Space.Wrap(src, prefix) => Space.Wrap(recs(src, environment), recp(prefix, environment))

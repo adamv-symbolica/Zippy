@@ -15,4 +15,8 @@ object AlphabetAnalysis:
     ResultPathLength.estimateBaseline(symbolView(s, d))
 
   def resultSize[P](s: AlphabetSpace[P], d: FiniteDomain[P]): ResultSizeEstimate =
-    ResultSpaceSize.estimate(symbolView(s, d))
+    val estimate = ResultSpaceSize.estimate(symbolView(s, d))
+    s match
+      case AlphabetSpace.Iteration(_, h, _, AlphabetSpace.Singleton(AlphabetPath.Deref(ref))) if h == ref && h.s != "_" =>
+        estimate.copy(upper = SizeExpr.minimum(estimate.upper, SizeExpr.const(d.arity)))
+      case _ => estimate

@@ -45,6 +45,11 @@ class AlphabetExamplesTest extends FunSuite:
 
   test("sliding puzzle runs all four pure 2x2 move functions") {
     val routines = SlidingPuzzleExample.routines(2)
-    val initial = Space.Literal(SpaceValue(SlidingPuzzleExample.pathState(2, Vector(0, 1, 2, 3))))
-    check(SlidingPuzzleExample.step(2, initial), routines.toVector)
+    val initial = Space.Literal(SpaceValue((0 until 4).map { blank =>
+      val state = Vector(0, 1, 2, 3).updated(0, blank).updated(blank, 0)
+      SlidingPuzzleExample.pathState(2, state)
+    }.toSet))
+    check(SlidingPuzzleExample.step(2, initial), routines)
+    val start = Space.Literal(SlidingPuzzleExample.solved(2))
+    check(SlidingPuzzleExample.reachable(2, start), routines)
   }

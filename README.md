@@ -16,6 +16,8 @@ only the repository guide.
 The project contains working implementations of:
 
 - the direct `Set[PathValue]` reference semantics;
+- bit and byte languages, native set reference backends, and boundary-aware translations
+  between symbols, bits, and bytes ([guide](docs/FINITE_ALPHABETS.md));
 - an interned `IntMap` trie runtime;
 - a virtual zipper evaluator with focus/context movement;
 - recursive operation-graph lowering and direct trie execution;
@@ -33,6 +35,8 @@ See [Proof Status](#proof-status) and [`fallbacks.md`](docs/fallbacks.md).
 | Path | Purpose |
 | --- | --- |
 | `src/main/scala/MORKL.scala` | language syntax, reference evaluator, operation graphs, optimization, and `execT` |
+| `src/main/scala/FiniteAlphabet.scala` | bit/byte syntax and BigInt/byte-array reference execution |
+| `src/main/scala/AlphabetTranslation.scala` | boundary-aware lowering for the seven alphabet encodings |
 | `src/main/scala/TrieSpace.scala` | interned trie representation and native algebra |
 | `src/main/scala/ZipperSpace.scala` | virtual zipper operators, traversal, context, and `execZ` |
 | `src/main/scala/Supercompiler.scala` | positive supercompiler and residualization |

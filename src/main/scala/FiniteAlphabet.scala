@@ -23,6 +23,16 @@ trait FiniteDomain[P] extends PathDomain[P]:
 object BitPaths extends FiniteDomain[BigInt]:
   val arity = 2
   val empty: BigInt = 1
+  override def fromDigits(ds: Iterable[Int]): BigInt =
+    val bits = new java.lang.StringBuilder("1")
+    ds.foreach { digit =>
+      require(digit == 0 || digit == 1, s"not a bit: $digit")
+      bits.append(if digit == 0 then '0' else '1')
+    }
+    BigInt(bits.toString, 2)
+  override def digits(p: BigInt): Vector[Int] =
+    valid(p)
+    p.toString(2).iterator.drop(1).map(_ - '0').toVector
   private def valid(p: BigInt): Unit = require(p > 0, "bit paths need a leading-one sentinel")
   def length(p: BigInt): Int = { valid(p); p.bitLength - 1 }
   def single(digit: Int): BigInt =
@@ -63,6 +73,11 @@ object BytePath:
 object BytePaths extends FiniteDomain[BytePath]:
   val arity = 256
   val empty = BytePath()
+  override def fromDigits(ds: Iterable[Int]): BytePath = BytePath(ds.iterator.map { digit =>
+    require(digit >= 0 && digit < 256, s"not a byte: $digit")
+    digit.toByte
+  }.toArray)
+  override def digits(p: BytePath): Vector[Int] = p.unsigned
   def length(p: BytePath): Int = p.length
   def single(digit: Int): BytePath = BytePath(digit)
   def digit(p: BytePath): Int =
@@ -212,4 +227,3 @@ object AlphabetSpace:
   def Head[P](src: AlphabetSpace[P]): AlphabetSpace[P] =
     val h = PathRef("#head").known(1)
     Iteration(src, h, SpaceMention("_"), Singleton(AlphabetPath.Deref(h)))
-
