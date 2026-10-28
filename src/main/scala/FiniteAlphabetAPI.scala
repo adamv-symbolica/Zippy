@@ -30,7 +30,7 @@ object BitSpace:
   def eval(src: BitSpace, paths: Map[PathRef, BigInt] = Map.empty, spaces: Map[SpaceMention, Set[BigInt]] = Map.empty, routines: Map[RoutinePtr, AlphabetRoutine[BigInt]] = Map.empty): Set[BigInt] =
     AlphabetEvaluator.eval(src, BitPaths, paths, spaces, routines)
   def headMask(paths: Set[BigInt]): BigInt =
-    paths.iterator.filter(BitPaths.length(_) > 0).foldLeft(BigInt(0))((mask, p) => mask.setBit(BitPaths.digit(BitPaths.take(p, 1))))
+    BitPaths.headMask(paths)
 
 object ByteSpace:
   val Empty: ByteSpace = AlphabetSpace.Empty()
@@ -62,7 +62,7 @@ object ByteSpace:
   def eval(src: ByteSpace, paths: Map[PathRef, BytePath] = Map.empty, spaces: Map[SpaceMention, Set[BytePath]] = Map.empty, routines: Map[RoutinePtr, AlphabetRoutine[BytePath]] = Map.empty): Set[BytePath] =
     AlphabetEvaluator.eval(src, BytePaths, paths, spaces, routines)
   def headMask(paths: Set[BytePath]): BigInt =
-    paths.iterator.filter(BytePaths.length(_) > 0).foldLeft(BigInt(0))((mask, p) => mask.setBit(BytePaths.digit(BytePaths.take(p, 1))))
+    BytePaths.headMask(paths)
 
 object BitPath:
   def Deref(ref: PathRef): AlphabetPath[BigInt] = AlphabetPath.Deref(ref)

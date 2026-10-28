@@ -16,8 +16,6 @@ trait AlphabetEncoding[S, T]:
   def decode(path: T): S
   /** True only when unsigned target lexicographic order agrees with source. */
   def preservesOrder: Boolean
-  /** Finite codebook, in SOURCE order, for order-sensitive lowering. */
-  def orderedAtoms: Vector[S] = Vector.empty
   final def encodedUpperLength(symbolCount: Int): Option[Int] =
     if symbolCount < 0 then None
     else if symbolCount == 0 then Some(0)
@@ -50,7 +48,8 @@ object FibonacciCode:
 
 object AlphabetEncodings:
   /** The interner is snapshotted. All input symbols must have been interned.
-    * This makes the finite maximum code length and order table honest bounds. */
+    * Snapshot IDs are assigned in source order to lexicographically sorted
+    * codewords. Fibonacci's numeric order is not its lexicographic order. */
   def internedBits(interner: PathItemInterner): AlphabetEncoding[PathValue, BigInt] =
     interned(interner, BitPaths, CodeBoundary.Fibonacci, id => FibonacciCode.encode(BigInt(id) + 1), ds => {
       val id = FibonacciCode.decode(ds) - 1
@@ -68,7 +67,11 @@ object AlphabetEncodings:
 
   private def interned[T](interner: PathItemInterner, d: FiniteDomain[T], b: CodeBoundary, enc: Int => Vector[Int], dec: Vector[Int] => Int): AlphabetEncoding[PathValue, T] =
     val items = Vector.tabulate(interner.size)(interner.decodeItem)
-    val ids = items.zipWithIndex.toMap
+    val codes = items.indices.map(i => d.fromDigits(enc(i))).toVector
+    val codeIds = items.indices.toVector.sortWith((a, b) => d.compare(codes(a), codes(b)) < 0)
+    val orderedItems = items.sortBy(_.show)
+    val ids = (orderedItems zip codeIds).toMap
+    val decoded = (codeIds zip orderedItems).toMap
     new AlphabetEncoding[PathValue, T]:
       val source = SymbolPaths
       val target = d
@@ -76,8 +79,7 @@ object AlphabetEncodings:
       val maxWidth = Some(items.indices.map(enc(_).size).maxOption.getOrElse(b match
         case CodeBoundary.Fixed(n) => n
         case _ => 2))
-      val preservesOrder = false
-      override val orderedAtoms = items.sortBy(_.show).map(i => PathValue(List(i)))
+      val preservesOrder = true
       def encode(path: PathValue): T = target.fromDigits(path.items.flatMap(i => enc(ids.getOrElse(i, throw IllegalArgumentException(s"symbol not in interner snapshot: ${i.show}")))))
       def decode(path: T): PathValue =
         val out = List.newBuilder[PathItem]
@@ -91,7 +93,7 @@ object AlphabetEncodings:
           if done then
             val id = dec(pending)
             require(id >= 0 && id < items.size, s"unknown interned id $id")
-            out += items(id)
+            out += decoded(id)
             pending = Vector.empty
         }
         require(pending.isEmpty, "incomplete encoded symbol")
