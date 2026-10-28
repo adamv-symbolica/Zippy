@@ -144,7 +144,17 @@ object AlphabetEvaluator:
         case Call(r, ps, ss) =>
           val f = routines(r)
           require(ps.size == f.refs.size && ss.size == f.mentions.size, s"arity mismatch: ${r.s}")
-          run(f.body, (f.refs zip ps.map(path)).toMap, (f.mentions zip ss.map(rec)).toMap)
+          val pValues = ps.map(path)
+          val sValues = ss.map(rec)
+          val nextPC = (f.refs zip pValues).toMap
+          val nextSC = (f.mentions zip sValues).toMap
+          // Same stable self-union convention as the symbol reference evaluator.
+          val body = f.body match
+            case Union(left, Call(`r`, `ps`, `ss`)) if
+                (ps zip pValues).forall((p, v) => run(Singleton(p), nextPC, nextSC) == Set(v)) &&
+                (ss zip sValues).forall((s, v) => run(s, nextPC, nextSC) == v) => left
+            case other => other
+          run(body, nextPC, nextSC)
         case Mention(r) => sc(r)
         case Singleton(p) => Set(path(p))
         case Literal(ps) => ps.foreach(d.length); ps
@@ -153,7 +163,12 @@ object AlphabetEvaluator:
         case Subtraction(a, b) => rec(a) diff rec(b)
         case Restriction(a, b) => val prefixes = rec(b); rec(a).filter(p => prefixes.exists(d.startsWith(p, _)))
         case Raffination(a, b) => val prefixes = rec(b); rec(a).filterNot(p => prefixes.exists(d.startsWith(p, _)))
-        case Composition(a, b) => val bs = rec(b); rec(a).flatMap(x => bs.map(d.concat(x, _)))
+        case Composition(a, b) =>
+          val as = rec(a)
+          if as.isEmpty then Set.empty
+          else
+            val bs = rec(b)
+            as.flatMap(x => bs.map(d.concat(x, _)))
         case Wrap(src, p) => val prefix = path(p); rec(src).map(d.concat(prefix, _))
         case Unwrap(src, p) => val prefix = path(p); rec(src).filter(d.startsWith(_, prefix)).map(d.drop(_, d.length(prefix)))
         case TailsUnion(src) => rec(src).filter(d.length(_) > 0).map(d.drop(_, 1))

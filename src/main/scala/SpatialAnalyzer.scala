@@ -168,7 +168,7 @@ object SpatialTypeAnalysis:
   ): SpatialPathType = value match
     case Path.Deref(ref) => assumptions.paths.getOrElse(ref,
       if ref.lengthHint >= 0 then SpatialPathType.length(ref.lengthHint, ref.s)
-      else SpatialPathType(PathLengthEstimate.exact(PathLengthExpr.PathLengthOf(value)), Vector.empty))
+      else SpatialPathType(ResultPathLength.estimateBaseline(Space.Singleton(value)), Vector.empty))
     case Path.Constant(constant) => SpatialPathType.constant(constant)
     case Path.Concat(left, right) =>
       val l = path(left, assumptions, routines, active)

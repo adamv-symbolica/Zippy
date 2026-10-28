@@ -8,7 +8,7 @@ object AlphabetTranslation:
   def apply[S, T](program: AlphabetProgram[S], encoding: AlphabetEncoding[S, T]): AlphabetProgram[T] =
     new Compiler(program, encoding).compile()
   def symbols[T](expression: Space, encoding: AlphabetEncoding[PathValue, T], routines: Vector[Routine] = Vector.empty): AlphabetProgram[T] =
-    apply(AlphabetProgram(SymbolAlphabet.fromSpace(expression), routines.map(r => r.name -> SymbolAlphabet.fromRoutine(r)).toMap, SymbolPaths), encoding)
+    apply(AlphabetProgram(SymbolAlphabet.fromSpace(ReferenceHints.tag(expression)), routines.map(r => r.name -> SymbolAlphabet.fromRoutine(ReferenceHints.tag(r))).toMap, SymbolPaths), encoding)
 
   private class Compiler[S, T](input: AlphabetProgram[S], code: AlphabetEncoding[S, T]):
     import AlphabetSpace.*
@@ -19,17 +19,21 @@ object AlphabetTranslation:
     val used = mutable.HashSet.empty[String]
     var serial = 0
     def reserve(s: AlphabetSpace[S]): Unit =
-      AlphabetSyntax.map[S, S](s)(p => { p match
-        case AlphabetPath.Deref(r) => used += r.s
-        case _ => ()
-      ; None }, s => { s match
-        case Mention(r) => used += r.s
-        case Call(r, _, _) => used += r.s
-        case Iteration(_, h, r, _) => used ++= Seq(h.s, r.s)
-        case Fold(_, _, a, h, r, _, _) => used ++= Seq(a.s, h.s, r.s)
-        case Fixpoint(_, v, _) => used += v.s
-        case _ => ()
-      ; None }, identity, identity)
+      AlphabetSyntax.map[S, S](s)(p => {
+        p match
+          case AlphabetPath.Deref(r) => used += r.s
+          case _ => ()
+        None
+      }, s => {
+        s match
+          case Mention(r) => used += r.s
+          case Call(r, _, _) => used += r.s
+          case Iteration(_, h, r, _) => used ++= Seq(h.s, r.s)
+          case Fold(_, _, a, h, r, _, _) => used ++= Seq(a.s, h.s, r.s)
+          case Fixpoint(_, v, _) => used += v.s
+          case _ => ()
+        None
+      }, identity, identity)
     reserve(input.expression)
     input.routines.values.foreach { r => used += r.name.s; used ++= r.refs.map(_.s); used ++= r.mentions.map(_.s); reserve(r.body) }
     def fresh(label: String): String =
@@ -49,31 +53,49 @@ object AlphabetTranslation:
     def choose(test: E, yes: E, no: E): E = Union(guard(test, yes), Composition(Subtraction(epsilon, truth(test)), no))
     def isDigit(p: P, digit: Int): E = Intersection(Singleton(p), Singleton(constant(d.single(digit))))
 
-    /** Function abstraction plus closure conversion, including self calls. */
-    def function(label: String, ps: Vector[PathRef], ss: Vector[SpaceMention])(build: (Vector[P], Vector[E]) => E): (Vector[P], Vector[E]) => E =
-      val name = RoutinePtr(fresh(label))
-      val self: (Vector[P], Vector[E]) => E = (p, s) => Call(name, p, s)
-      val body = build(ps.map(pv), ss.map(sv)) match
-        case b => b
-      finishFunction(name, ps, ss, body)
+    /** Function abstraction. Closure conversion runs over the completed graph. */
     def recursive(label: String, ps: Vector[PathRef], ss: Vector[SpaceMention])(build: ((Vector[P], Vector[E]) => E) => E): (Vector[P], Vector[E]) => E =
       val name = RoutinePtr(fresh(label))
       finishFunction(name, ps, ss, build((p, s) => Call(name, p, s)))
     def finishFunction(name: RoutinePtr, ps: Vector[PathRef], ss: Vector[SpaceMention], body: E): (Vector[P], Vector[E]) => E =
-      val free = AlphabetSyntax.free(body)
-      val cp = (free._1 -- ps).toVector.sortBy(_.s)
-      val cs = (free._2 -- ss).toVector.sortBy(_.s)
-      val closed = AlphabetSyntax.map[T, T](body)(_ => None, {
-        case Call(`name`, p, s) => Some(Call(name, p ++ cp.map(pv), s ++ cs.map(sv)))
-        case _ => None
-      }, identity, identity)
-      output(name) = AlphabetRoutine(name, ps ++ cp, ss ++ cs, closed)
-      (p, s) => Call(name, p ++ cp.map(pv), s ++ cs.map(sv))
+      output(name) = AlphabetRoutine(name, ps, ss, body)
+      (p, s) => Call(name, p, s)
+
+    /** Close the complete mutually recursive function graph to a fixed point.
+      * Doing this after construction also captures variables used only by a
+      * nested helper's call back into its enclosing recursive function. */
+    def close(expression: E): AlphabetProgram[T] =
+      var captures = output.keysIterator.map(_ -> (Set.empty[PathRef], Set.empty[SpaceMention])).toMap
+      def rewrite(s: E): E =
+        def p(x: P): P = rewrite(Singleton(x)) match
+          case Singleton(v) => v
+          case _ => throw IllegalStateException("path sort")
+        AlphabetSyntax.map[T, T](s)(_ => None, {
+          case Call(r, ps, ss) =>
+            val c = captures.getOrElse(r, (Set.empty[PathRef], Set.empty[SpaceMention]))
+            Some(Call(r, ps.map(p) ++ c._1.toVector.sortBy(_.s).map(pv), ss.map(rewrite) ++ c._2.toVector.sortBy(_.s).map(sv)))
+          case _ => None
+        }, identity, identity)
+      var changed = true
+      while changed do
+        val next = output.iterator.map { (name, routine) =>
+          val free = AlphabetSyntax.free(rewrite(routine.body))
+          name -> (free._1 -- routine.refs, free._2 -- routine.mentions)
+        }.toMap
+        changed = next != captures
+        captures = next
+      val closed = output.iterator.map { (name, routine) =>
+        val c = captures(name)
+        name -> routine.copy(refs = routine.refs ++ c._1.toVector.sortBy(_.s), mentions = routine.mentions ++ c._2.toVector.sortBy(_.s), body = rewrite(routine.body))
+      }.toMap
+      AlphabetProgram(rewrite(expression), closed, d)
 
     /** Decode one source edge using only primitive target Iteration and calls.
       * A finite maxWidth produces acyclic, depth-specialized scanner functions.
       * Unbounded strings produce an ordinary recursive scanner. */
-    def iterate(src: E, symbol: PathRef, rest: SpaceMention, body: E): E =
+    def iterate(src: E, originalSymbol: PathRef, originalRest: SpaceMention, body: E): E =
+      val symbol = if originalSymbol.s == "_" then pr("ignoredSymbol") else originalSymbol
+      val rest = if originalRest.s == "_" then sm("ignoredRest") else originalRest
       val cont = finishFunction(RoutinePtr(fresh("body")), Vector(symbol), Vector(rest), body)
       val captures = AlphabetSyntax.free(body)
       val cp = (captures._1 - symbol).toVector.sortBy(_.s)
@@ -121,13 +143,13 @@ object AlphabetTranslation:
         def rank(i: Int): T = d.fromDigits((0 until width).reverse.map(k => ((BigInt(i) / BigInt(d.arity).pow(k)) % d.arity).toInt))
         val pairs = atoms.zipWithIndex.map((a, i) => code.encode(a) -> rank(i))
         def recode(value: E, forward: Boolean): E =
-          val s = sm("recode"); val h = pr("recodeHead"); val t = sm("recodeTail")
+          val s = sm("recode")
           val helper = recursive("recode", Vector.empty, Vector(s)) { self =>
             val groups = pairs.foldLeft(Empty(): E) { case (out, (original, key)) =>
               val from = if forward then original else key
               val to = if forward then key else original
               val tails = Unwrap(sv(s), constant(from))
-              Union(out, Wrap(self(Vector.empty, Vector(tails)), constant(to)))
+              Union(out, guard(tails, Wrap(self(Vector.empty, Vector(tails)), constant(to))))
             }
             Union(Intersection(sv(s), epsilon), groups)
           }
@@ -136,10 +158,12 @@ object AlphabetTranslation:
 
     def firstHead(src: E): E = orderedRange(head(src), 0, 1)
 
-    def fold(src: E, init: P, acc: PathRef, h: PathRef, rest: SpaceMention, body: E, update: P): E =
+    def fold(src: E, init: P, originalAcc: PathRef, originalHead: PathRef, originalRest: SpaceMention, body: E, update: P): E =
+      val acc = if originalAcc.s == "_" then pr("ignoredAccumulator") else originalAcc
+      val h = if originalHead.s == "_" then pr("ignoredHead") else originalHead
+      val rest = if originalRest.s == "_" then sm("ignoredRest") else originalRest
       val s = sm("foldSource")
       val loop = recursive("fold", Vector(acc), Vector(s)) { self =>
-        val tails = Unwrap(sv(s), pv(h))
         val continuation = finishFunction(RoutinePtr(fresh("foldBody")), Vector(h), Vector(rest),
           Union(body, self(Vector(update), Vector(Subtraction(sv(s), Wrap(sv(rest), pv(h)))))))
         val selected = pr("selected"); val ignored = sm("ignored")
@@ -150,21 +174,12 @@ object AlphabetTranslation:
     def tailsIntersection(src: E): E =
       val s = sm("intersectionSource"); val h = pr("intersectionHead"); val t = sm("intersectionTail")
       val loop = recursive("tailsIntersection", Vector.empty, Vector(s)) { self =>
-        val remaining = Subtraction(sv(s), Wrap(sv(t), pv(h)))
+        val r = sm("originalGroup")
+        val remaining = Subtraction(sv(s), Wrap(sv(r), pv(h)))
         val more = Subtraction(remaining, epsilon)
-        iterate(firstHead(sv(s)), h, t, {
-          // firstHead contains singleton heads; recover the original subtree.
-          val tails = Unwrap(sv(s), pv(h))
-          val r = sm("group")
-          val body = choose(more, Intersection(sv(r), self(Vector.empty, Vector(remaining))), sv(r))
-          val f = finishFunction(RoutinePtr(fresh("intersectionGroup")), Vector.empty, Vector(r), body)
-          // remaining must use the original subtree, not firstHead's epsilon tail.
-          val fixed = AlphabetSyntax.map[T, T](f(Vector.empty, Vector(tails)))(_ => None, {
-            case Mention(`t`) => Some(tails)
-            case _ => None
-          }, identity, identity)
-          fixed
-        })
+        val group = finishFunction(RoutinePtr(fresh("intersectionGroup")), Vector.empty, Vector(r),
+          choose(more, Intersection(sv(r), self(Vector.empty, Vector(remaining))), sv(r)))
+        iterate(firstHead(sv(s)), h, t, group(Vector.empty, Vector(Unwrap(sv(s), pv(h)))))
       }
       loop(Vector.empty, Vector(src))
 
@@ -214,4 +229,4 @@ object AlphabetTranslation:
       input.routines.values.foreach { r =>
         output(r.name) = AlphabetRoutine(r.name, r.refs.map(translatedRef), r.mentions, translate(r.body))
       }
-      AlphabetProgram(expression, output.toMap, d)
+      close(expression)
