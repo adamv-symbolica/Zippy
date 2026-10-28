@@ -51,6 +51,7 @@ GATE_SUITES = [
     "morkl.EquivPipelineTest",       # D2 (verify mode: every committed pipeline artifact matches)
     "morkl.MutationGates",           # E1
     "morkl.Puzzle15Check",           # D3 (verify mode: the committed puzzle15 artifacts match)
+    "morkl.AlphabetLanguagesCheck",  # Zippy_bits / Zippy_bytes and the seven alphabet translations (docs/ALPHABETS.md)
 ]
 
 # ---------------------------------------------------------------------------------------------

@@ -58,6 +58,8 @@ object FreeVars:
     case ZPath.Concat(l, r) => join(path(l), path(r))
     case ZPath.GroundedPP(q, _) => path(q)
     case ZPath.GroundedSP(s, _) => space(s)
+  /** `_` is an IGNORED binder (the evaluator does not bind it), so it never hides an outer `_` */
+  private def bound(n: String): Set[String] = if n == "_" then Set() else Set(n)
   private def join(a: (Set[String], Set[String]), b: (Set[String], Set[String])) = (a._1 ++ b._1, a._2 ++ b._2)
   def space[A](s: ZSpace[A]): (Set[String], Set[String]) = s match
     case ZSpace.Empty() | ZSpace.Literal(_) => (Set(), Set())
@@ -70,11 +72,11 @@ object FreeVars:
     case ZSpace.Restriction(x, y) => join(space(x), space(y))
     case ZSpace.Raffination(x, y) => join(space(x), space(y))
     case ZSpace.Composition(x, y) => join(space(x), space(y))
-    case ZSpace.Iteration(src, h, r, t) => val (tr, tm) = space(t); join(space(src), (tr - h.s, tm - r.s))
-    case ZSpace.Fixpoint(i, r, b) => val (br, bm) = space(b); join(space(i), (br, bm - r.s))
+    case ZSpace.Iteration(src, h, r, t) => val (tr, tm) = space(t); join(space(src), (tr -- bound(h.s), tm -- bound(r.s)))
+    case ZSpace.Fixpoint(i, r, b) => val (br, bm) = space(b); join(space(i), (br, bm -- bound(r.s)))
     case ZSpace.Fold(src, init, acc, h, r, t, u) =>
       val (tr, tm) = join(space(t), path(u))
-      join(join(space(src), path(init)), (tr - h.s - acc.s, tm - r.s))
+      join(join(space(src), path(init)), (tr -- bound(h.s) -- bound(acc.s), tm -- bound(r.s)))
     case ZSpace.Wrap(x, p) => join(space(x), path(p))
     case ZSpace.Unwrap(x, p) => join(space(x), path(p))
     case ZSpace.TailsUnion(x) => space(x)
@@ -115,7 +117,7 @@ object BitRepr extends PathRepr[Boolean, BigInt]:
     val pa = a >> (la - m); val pb = b >> (lb - m)
     if pa != pb then pa.compare(pb) else Integer.compare(la, lb)
 
-final class ByteStr(private val a: Array[Byte]):
+final class ByteStr private (private val a: Array[Byte]):
   def bytes: Array[Byte] = a.clone()
   def length: Int = a.length
   def apply(i: Int): Byte = a(i)
