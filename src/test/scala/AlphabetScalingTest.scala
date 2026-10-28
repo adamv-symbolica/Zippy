@@ -73,7 +73,7 @@ class AlphabetScalingTest extends FunSuite:
 
   test("scanner guards remain lazy in the eager compiled symbol executor") {
     val interner = snapshot(25)
-    val input = Space.Literal(SpaceValue(Set(p("s00000", "t"), p("s00007", "t"), p("s00024"), p())))
+    val input = Space.Literal(SpaceValue(Set(p("s00000", "t"), p("s00007", "t"), p("s00024"), p("t", "t"), p())))
     val expressions = Vector(
       Space.Iteration(input, h, t, Space.Singleton(Path.Deref(h))),
       Space.TailsIntersection(input),
@@ -148,7 +148,7 @@ class AlphabetScalingTest extends FunSuite:
       values.sortWith((a, b) => java.util.Arrays.compareUnsigned(a.toArray, b.toArray) < 0).slice(1, paths.size - 1).toSet
     }
     val (native, nativeBytes) = measure("native") {
-      ByteSpace.eval(ByteSpace.Range(ByteSpace.Literal(paths), 1, -1))
+      ByteSpace.eval(ByteSpace.Range(ByteSpace.Literal(paths), 2, -1))
     }
     assertEquals(native, copying)
     if bean.isDefined then assert(nativeBytes < copiedBytes / 2, s"native=$nativeBytes copying=$copiedBytes")

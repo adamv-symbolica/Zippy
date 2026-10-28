@@ -174,6 +174,12 @@ object AlphabetEvaluator:
         if !it.hasNext then done(out.result())
         else tailcall(f(it.next())).flatMap { value => out += value; tailcall(next()) }
       tailcall(next())
+    def forall[A](values: Iterable[A])(f: A => TailRec[Boolean]): TailRec[Boolean] =
+      val it = values.iterator
+      def next(): TailRec[Boolean] =
+        if !it.hasNext then done(true)
+        else tailcall(f(it.next())).flatMap(ok => if ok then tailcall(next()) else done(false))
+      tailcall(next())
     def groups(values: Set[P]): Vector[(P, Set[P])] = d match
       case finite: FiniteDomain[P] @unchecked =>
         val children = new Array[collection.mutable.Set[P]](finite.arity)
@@ -219,10 +225,10 @@ object AlphabetEvaluator:
             // Same stable self-union convention as the symbol evaluator.
             f.body match
               case Union(left, Call(`r`, `ps`, `ss`)) =>
-                sequence(ps)(p => run(Singleton(p), nextPC, nextSC)).flatMap { probedPaths =>
-                  sequence(ss)(s => run(s, nextPC, nextSC)).flatMap { probedSpaces =>
-                    val stable = probedPaths == pValues.map(Set(_)) && probedSpaces == sValues
-                    run(if stable then left else f.body, nextPC, nextSC)
+                forall(ps zip pValues)((p, v) => run(Singleton(p), nextPC, nextSC).map(_ == Set(v))).flatMap { stablePaths =>
+                  if !stablePaths then run(f.body, nextPC, nextSC)
+                  else forall(ss zip sValues)((s, v) => run(s, nextPC, nextSC).map(_ == v)).flatMap { stableSpaces =>
+                    run(if stableSpaces then left else f.body, nextPC, nextSC)
                   }
                 }
               case body => run(body, nextPC, nextSC)
@@ -230,11 +236,11 @@ object AlphabetEvaluator:
         case Mention(r) => done(sc(r))
         case Singleton(p) => path(p).map(Set(_))
         case Literal(ps) => ps.foreach(d.length); done(ps)
-        case Union(a, b) => binary(a, b)(_ union _)
+        case Union(a, b) => binary(a, b)((x, y) => if x.size >= y.size then x union y else y union x)
         case Intersection(a, b) => binary(a, b)(_ intersect _)
         case Subtraction(a, b) => binary(a, b)(_ diff _)
-        case Restriction(a, b) => binary(a, b)((values, prefixes) => values.filter(p => prefixes.exists(d.startsWith(p, _))))
-        case Raffination(a, b) => binary(a, b)((values, prefixes) => values.filterNot(p => prefixes.exists(d.startsWith(p, _))))
+        case Restriction(a, b) => rec(b).flatMap(prefixes => rec(a).map(_.filter(p => prefixes.exists(d.startsWith(p, _)))))
+        case Raffination(a, b) => rec(b).flatMap(prefixes => rec(a).map(_.filterNot(p => prefixes.exists(d.startsWith(p, _)))))
         case Composition(a, b) => rec(a).flatMap { as =>
           if as.isEmpty then done(Set.empty)
           else rec(b).map(bs => as.flatMap(x => bs.map(d.concat(x, _))))
@@ -281,6 +287,7 @@ object AlphabetEvaluator:
         case Range(src, start, end) => rec(src).map { paths =>
           val (lo, hi) = RangeBounds.normalize(paths.size, start, end)
           if lo >= hi then Set.empty
+          else if lo == 0 && hi == paths.size then paths
           else if lo == 0 && hi == 1 then Set(paths.reduce((a, b) => if d.compare(a, b) <= 0 then a else b))
           else if lo == paths.size - 1 then Set(paths.reduce((a, b) => if d.compare(a, b) >= 0 then a else b))
           else paths.toVector.sortWith(d.compare(_, _) < 0).slice(lo, hi).toSet
