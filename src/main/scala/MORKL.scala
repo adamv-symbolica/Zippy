@@ -27,10 +27,17 @@ object PathItem:
     def isVariable: Boolean = variableNameOf(item).isDefined
     def variableName: Option[String] = variableNameOf(item)
 
+/** Name-based identity; exact and upper length hints are compile-time annotations. */
 case class PathRef(s: String):
   val lengthHint = -1
+  val maxLengthHint = -1
   def known(length: Int): PathRef =
-    if lengthHint == length then this else new PathRef(s) { override val lengthHint = length }
+    if lengthHint == length && maxLengthHint == length then this
+    else new PathRef(s) { override val lengthHint = length; override val maxLengthHint = length }
+  def bounded(maxLength: Int): PathRef =
+    require(maxLength >= 0)
+    if maxLengthHint == maxLength then this
+    else new PathRef(s) { override val maxLengthHint = maxLength }
 
 enum Path:
   case Deref(pr: PathRef)
@@ -552,17 +559,22 @@ case class Routine(name: RoutinePtr, refs: Vector[PathRef], mentions: Vector[Spa
 //    })(body), List(Lower.IterateSingleton_Deref, Lower.LiteralSpaceOps, Lower.SingletonConst_Literal, Lower.ConcatSingleton_Iter, Lower.IterUnion_Indep, Lower.Wrap_Iter, Lower.Iter_Ident, Lower.Concat_Path, Lower.IterateLiteral_Union, Lower.UnwrapConcat_Unwraps, Lower.SingletonComposition_Wrap, Lower.SingletonSpaceOp_PathOp, Lower.SingletonRestriction_Unwrap)))
 
 def eval(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceContext = SpaceContextMap(Map.empty), rc: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty): SpaceValue =
+  if RadixTranslationAudit.enabled then
+    RadixTranslationAudit.evaluate(s, pc, sc, rc) { (pc, sc) => evalReference(s)(using pc, sc, rc) }
+  else evalReference(s)
+
+private def evalReference(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceContext = SpaceContextMap(Map.empty), rc: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty): SpaceValue =
   import PathItemOrder.given
 
   val staticSpaceMemo = java.util.IdentityHashMap[Space, java.lang.Boolean]()
   val staticValueMemo = java.util.IdentityHashMap[Space, Set[PathValue]]()
 
   def recp(x: Path): List[PathItem] = x match
-    case Path.Deref(pr) => pc.resolve(pr).items
+    case Path.Deref(pr) => RadixTranslationAudit.path(pc.resolve(pr)).items
     case Path.Constant(pi) => pi.items
     case Path.Concat(l, r) => recp(l) ++ recp(r)
-    case Path.GroundedPP(p, f) => f(PathValue(recp(p))).items
-    case Path.GroundedSP(s, f) => f(SpaceValue(recs(s))).items
+    case Path.GroundedPP(p, f) => RadixTranslationAudit.path(f(PathValue(recp(p)))).items
+    case Path.GroundedSP(s, f) => RadixTranslationAudit.path(f(SpaceValue(recs(s)))).items
 
   def staticPath(p: Path): Boolean = p match
     case Path.Deref(_) => false
@@ -627,7 +639,7 @@ def eval(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceC
         case _ => eval(body)(using pctx, sctx, rc).paths
 //      println(s"called ${rp.s}(${pctx.m.map((pr, pv) => pr.s ++ ":" ++ pv.show).mkString(", ")}; ${sctx.m.map((pr, pv) => pr.s ++ ":" ++ pv.show).mkString(", ")}) = ${SpaceValue(res).show}")
       res
-    case Space.Mention(p) => sc.resolve(p).paths
+    case Space.Mention(p) => RadixTranslationAudit.space(sc.resolve(p)).paths
     case Space.Singleton(p) => Set(PathValue(recp(p)))
     case Space.Literal(SpaceValue(ps)) => ps
     case Space.Union(x, y) => recs(x) union recs(y)
@@ -726,8 +738,8 @@ def eval(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceC
         current = next
       current.paths
     case Space.Raffination(x_e, y_e) => recs(Space.Subtraction(x_e, Space.Restriction(x_e, y_e)))
-    case Space.GroundedPS(p, f) => f(PathValue(recp(p))).paths
-    case Space.GroundedSS(s, f) => f(SpaceValue(recs(s))).paths
+    case Space.GroundedPS(p, f) => RadixTranslationAudit.space(f(PathValue(recp(p)))).paths
+    case Space.GroundedSS(s, f) => RadixTranslationAudit.space(f(SpaceValue(recs(s)))).paths
     case Space.Range(x, start, end) =>
       val values = recs(x)
       val (lo, hi) = RangeBounds.normalize(values.size, start, end)
@@ -737,6 +749,7 @@ def eval(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceC
   val result = SpaceValue(recs(s))
   ResultSpaceSizeAudit.observe(s, result)(using pc, sc, rc)
   result
+
 
 enum GraphNodeConstantRole:
   case Semantic, BinderName

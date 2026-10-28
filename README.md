@@ -16,6 +16,7 @@ only the repository guide.
 The project contains working implementations of:
 
 - the direct `Set[PathValue]` reference semantics;
+- matching bit and byte languages, reference backends, and all seven encoding translations (see [Bit and Byte Zippy](docs/RADIX_LANGUAGES.md));
 - an interned `IntMap` trie runtime;
 - a virtual zipper evaluator with focus/context movement;
 - recursive operation-graph lowering and direct trie execution;
@@ -33,6 +34,9 @@ See [Proof Status](#proof-status) and [`fallbacks.md`](docs/fallbacks.md).
 | Path | Purpose |
 | --- | --- |
 | `src/main/scala/MORKL.scala` | language syntax, reference evaluator, operation graphs, optimization, and `execT` |
+| `src/main/scala/RadixLanguage.scala` | bit/byte syntax, reference evaluators, and byte zipper model |
+| `src/main/scala/RadixTranslations.scala` | symbol/bit/byte translation entry points |
+| `src/main/scala/EncodingCompiler.scala` | boundary-aware lowering using existing operations and routines |
 | `src/main/scala/TrieSpace.scala` | interned trie representation and native algebra |
 | `src/main/scala/ZipperSpace.scala` | virtual zipper operators, traversal, context, and `execZ` |
 | `src/main/scala/Supercompiler.scala` | positive supercompiler and residualization |

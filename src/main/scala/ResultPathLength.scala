@@ -262,6 +262,7 @@ object ResultPathLength:
     case Path.Deref(ref) =>
       pathAssumptions.getOrElse(ref,
         if ref.lengthHint >= 0 then PathLengthEstimate.exact(PathLengthExpr.const(ref.lengthHint))
+        else if ref.maxLengthHint >= 0 then PathLengthEstimate(PathLengthExpr.Zero, PathLengthExpr.const(ref.maxLengthHint))
         else PathLengthEstimate.exact(PathLengthExpr.PathLengthOf(value)))
     case Path.Constant(PathValue(items)) => PathLengthEstimate.exact(PathLengthExpr.const(items.length))
     case Path.Concat(left, right) =>
