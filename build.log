@@ -18193,3 +18193,62 @@ PASS authoritative corrected normal proof profile: `python3 tools/proof_pipeline
 DOC regenerated cornerstone spatial/parity, open SCC FOL, trie/zipper benchmark, and authoritative proof reports; current prose consistently identifies the seedless divide-and-conquer SCC and the compact 9*liveCells bound.
 DOC restored resolution.md as required by plan.md: all 22 items now map to current sources, artifacts, tests, honest proof boundaries, and the superseding SCC/GoL/evalZ corrections; 41 local links resolve and no placeholder remains.
 PASS final correction audit: proof-pipeline Python tests 8/8, documentation/source-of-truth invariant, generated-report freshness from the authoritative proof run, stale SCC-bound/reference searches, and `git diff --check` all passed; no workspace __pycache__ directory exists.
+
+
+2026-10-28 finite alphabet scaling and eager execution revision
+Read feedback.md and learnings.md; retained shared AST and native BigInt/owned-array values.
+Snapshot interned codes now preserve source order (lexicographically assigned Fibonacci codes; four-byte source-order IDs).
+Range emits no alphabet-sized recoding graph. Single-edge injections preserve syntax.
+TailsIntersection aggregates native digit groups with an incomplete-codeword witness, removed using ordinary Subtraction.
+Scanner branches are guarded by native Iteration, so eager execution cannot evaluate the unselected body.
+Native Head/grouping use finite masks; byte comparison reads owned arrays without cloning.
+Reference evaluation is trampolined; native union retains the larger immutable set; singleton Range uses min/max selection.
+Command: env _JAVA_OPTIONS='-Xmx4g' scala-cli test src/main/scala src/test/scala --test-only 'morkl.*Alphabet*Test' --server=false --scala 3.8.1 --source 3.3 --dependency org.scalameta::munit:1.2.1 --dependency org.scala-lang.modules::scala-collection-contrib:0.3.0
+Result: 32 tests passed, default JVM stack (no -Xss override).
+Includes eager compiled symbol execution after injection, callback laziness through eager trie execution, 4000-edge recursion, 100000-path unsigned byte Range, immutable hashed keys, and bounded intersection traversal counts.
+alphabet-scale bits  intersection n=  25 nodes= 412 evalMs=0.574
+alphabet-scale bits  range        n=  25 nodes=   2 evalMs=0.054
+alphabet-scale bits  fold         n=  25 nodes= 446 evalMs=1.175
+alphabet-scale bytes intersection n=  25 nodes=  53 evalMs=0.123
+alphabet-scale bytes range        n=  25 nodes=   2 evalMs=0.019
+alphabet-scale bytes fold         n=  25 nodes=  67 evalMs=0.470
+alphabet-scale bits  intersection n= 200 nodes= 632 evalMs=3.302
+alphabet-scale bits  range        n= 200 nodes=   2 evalMs=0.169
+alphabet-scale bits  fold         n= 200 nodes= 678 evalMs=32.564
+alphabet-scale bytes intersection n= 200 nodes=  53 evalMs=0.502
+alphabet-scale bytes range        n= 200 nodes=   2 evalMs=0.124
+alphabet-scale bytes fold         n= 200 nodes=  67 evalMs=8.199
+alphabet-scale bits  intersection n=2000 nodes= 907 evalMs=32.763
+alphabet-scale bits  range        n=2000 nodes=   2 evalMs=1.348
+alphabet-scale bits  fold         n=2000 nodes= 968 evalMs=4205.753
+alphabet-scale bytes intersection n=2000 nodes=  53 evalMs=6.470
+alphabet-scale bytes range        n=2000 nodes=   2 evalMs=1.257
+alphabet-scale bytes fold         n=2000 nodes=  67 evalMs=1296.309
+alphabet-byte-range copying  paths=100000 ms=95.718 allocatedBytes=158455032
+alphabet-byte-range native   paths=100000 ms=72.482 allocatedBytes=13024464
+Remaining reference cost: translated folds scan remaining paths per source head, so runtime can still be quadratic; graph size is bounded by code width.
+
+Full repository suite: env _JAVA_OPTIONS="-Xmx6g -Xss64m" scala-cli test src/main/scala src/test/scala --server=false --scala 3.8.1 --source 3.3 --dependency org.scalameta::munit:1.2.1 --dependency org.scala-lang.modules::scala-collection-contrib:0.3.0
+Exit 0: 324 passed, 3 ignored, 36 suites. Generated egg artifacts remained byte-identical.
+Final targeted check after preserving prefix-operand evaluation order and strengthening the eager-intersection fixture: 32 passed, exit 0, default JVM stack.
+Final targeted measurements (includes reference decoding):
+alphabet-scale bits  intersection n=  25 nodes= 412 evalMs=0.869
+alphabet-scale bits  range        n=  25 nodes=   2 evalMs=0.066
+alphabet-scale bits  fold         n=  25 nodes= 446 evalMs=2.293
+alphabet-scale bytes intersection n=  25 nodes=  53 evalMs=0.201
+alphabet-scale bytes range        n=  25 nodes=   2 evalMs=0.020
+alphabet-scale bytes fold         n=  25 nodes=  67 evalMs=0.946
+alphabet-scale bits  intersection n= 200 nodes= 632 evalMs=5.959
+alphabet-scale bits  range        n= 200 nodes=   2 evalMs=0.250
+alphabet-scale bits  fold         n= 200 nodes= 678 evalMs=58.985
+alphabet-scale bytes intersection n= 200 nodes=  53 evalMs=0.774
+alphabet-scale bytes range        n= 200 nodes=   2 evalMs=0.151
+alphabet-scale bytes fold         n= 200 nodes=  67 evalMs=8.310
+alphabet-scale bits  intersection n=2000 nodes= 907 evalMs=26.223
+alphabet-scale bits  range        n=2000 nodes=   2 evalMs=1.212
+alphabet-scale bits  fold         n=2000 nodes= 968 evalMs=4467.462
+alphabet-scale bytes intersection n=2000 nodes=  53 evalMs=6.046
+alphabet-scale bytes range        n=2000 nodes=   2 evalMs=1.085
+alphabet-scale bytes fold         n=2000 nodes=  67 evalMs=1680.380
+alphabet-byte-range copying  paths=100000 ms=130.527 allocatedBytes=158455032
+alphabet-byte-range native   paths=100000 ms=61.434 allocatedBytes=13024464
