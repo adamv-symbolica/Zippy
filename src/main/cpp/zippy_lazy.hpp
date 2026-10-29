@@ -367,7 +367,7 @@ class RangeMachine final : public Machine {
     if(order) std::sort(arcs.begin(),arcs.end(),[&](const Arc& a,const Arc& b){return order->at(a.ilabel)<order->at(b.ilabel);});
     for(auto arc:arcs) {
       const auto& length=counts->get(arc.nextstate);
-      if(finish>offset&&begin<offset+length) {
+      if(length!=0&&finish>offset&&begin<offset+length) {
         Count first=begin>offset?Count(begin-offset):Count(0),last=length<finish-offset?length:Count(finish-offset);
         arc.nextstate=intern({arc.nextstate,std::move(first),std::move(last)});states[s].arcs.push_back(arc);
       }

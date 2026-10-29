@@ -120,6 +120,8 @@ class OpenFstGraphCompilerTest extends FunSuite:
           S.Fold(S.Mention(input),P.ZERO,a,h,t,S.Singleton(P.Concat(P.Deref(a),P.Deref(h))),P.Concat(P.Deref(a),P.Deref(h))),
           S.Fixpoint(S.Mention(input),fix,S.TailsUnion(S.Mention(fix))),
           S.TailsIntersection(S.Mention(input)),
+          S.Head(S.Range(S.Intersection(S.Mention(input),source.literal(source.paths.empty,
+            source.paths.fromDigits(Vector(0,0)),source.paths.fromDigits(Vector(1)))),0,2)),
           S.Composition(S.Mention(input),S.Mention(input)))
         val programs = expression.map(s => OpenFstBackend.compileDigits(source)(s,Map.empty))
         val native = OpenFstBackend.Session(programs)

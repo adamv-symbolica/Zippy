@@ -80,6 +80,9 @@ int main() {
   check("dead branches do not become heads",head_space(dead),{});
   if(!equal(dead,Space())||!branches(context,dead).empty()) throw std::runtime_error("unproductive delayed states observed as paths");
   checks+=5;
+  auto with_dead_branch=intersect(literal({Path{1},Path{2,4},Path{3}}),literal({Path{1},Path{2,5},Path{3}}));
+  auto window=range(context,with_dead_branch,0,2);
+  check("range excludes zero-cardinality residuals from Head",head_space(window),Model{Path{1},Path{3}});++checks;
   Model original;for(int n=0;n<256;++n) original.insert(Path{1+n/16,1+n%16,17});
   auto persistent=native(original),edited=persistent;
   for(const auto& p:original) edited=raffine(edited,singleton(Path(p.begin(),p.end()-1)));
