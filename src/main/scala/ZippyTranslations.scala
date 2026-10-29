@@ -19,8 +19,8 @@ object ZippyTranslations:
     subs(entry)(spre = { case s @ Space.Literal(_) => registerLiteral(s) })
     routines.values.foreach(r => subs(r.body)(spre = { case s @ Space.Literal(_) => registerLiteral(s) }))
     val code = make(interner)
-    val program = code.compile(SymbolWordLanguage.space(ReferenceHints.tag(entry)),
-      routines.view.mapValues(r => SymbolWordLanguage.routine(ReferenceHints.tag(r))).toMap, unrollBounded)
+    val program = code.compile(SymbolWordLanguage.space(entry),
+      routines.view.mapValues(r => SymbolWordLanguage.routine(r)).toMap, unrollBounded)
     code -> program
 
   def symbolsToBits(entry: Space, interner: PathItemInterner = new PathItemInterner,

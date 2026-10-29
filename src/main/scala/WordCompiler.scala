@@ -194,27 +194,34 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
             val digit = pr("digit").known(1); val rest = sm("digits")
             Iteration(s, digit, rest, descend(mention(rest), WordPath.Concat(prefix, deref(digit)), depth + 1))
         descend(src, constant(target.empty), 0)
+      case WordCodeShape.Terminated(b) if unrollBounded && limit.exists(_ <= 32) =>
+        def descend(input: WordSpace[B], prefix: WordPath[B], depth: Int): WordSpace[B] =
+          if depth >= limit.get then Empty()
+          else
+            val digit = pr("digit").known(1); val rest = sm("digits")
+            val nextPrefix = WordPath.Concat(prefix, deref(digit))
+            val head = Singleton(deref(digit))
+            val terminal = Singleton(constant(target.fromDigits(Vector(b))))
+            Iteration(input, digit, rest, Union(
+              guard(Intersection(head, terminal), finish(nextPrefix, mention(rest))),
+              guard(Subtraction(head, terminal), descend(mention(rest), nextPrefix, depth + 1))))
+        descend(src, constant(target.empty), 0)
       case shape =>
         val prefix = code.maxCodeLength.fold(pr("prefix")) { max => pr("prefix").bounded(max) }
         val remaining = sm("remaining")
-        val cache = mutable.Map.empty[(Boolean, Int), RoutinePtr]
-        def scanner(previousOne: Boolean, depth: Int): RoutinePtr =
-          val key = previousOne -> (if unrollBounded && limit.nonEmpty then depth else -1)
-          cache.getOrElseUpdate(key, {
+        val cache = mutable.Map.empty[Boolean, RoutinePtr]
+        def scanner(previousOne: Boolean): RoutinePtr =
+          cache.getOrElseUpdate(previousOne, {
             val name = rp("scan")
-            // Install the key before constructing mutually recursive bodies.
-            cache(key) = name
+            cache(previousOne) = name
             val digit = pr("digit").known(1); val rest = sm("digits")
             val nextPrefix = WordPath.Concat(deref(prefix), deref(digit))
             def next(state: Boolean): WordSpace[B] =
-              if unrollBounded && limit.exists(depth + 1 >= _) then Empty()
-              else Call(scanner(state, depth + 1), nextPrefix +: cps.map(deref), mention(rest) +: css.map(mention))
+              Call(scanner(state), nextPrefix +: cps.map(deref), mention(rest) +: css.map(mention))
             def isDigit(n: Int): WordSpace[B] = Intersection(Singleton(deref(digit)), Singleton(constant(target.fromDigits(Vector(n)))))
-            val zero = isDigit(0)
-            val one = isDigit(1)
             val branch = shape match
               case WordCodeShape.Fibonacci =>
-                Union(guard(zero, next(false)), guard(one, if previousOne then finish(nextPrefix, mention(rest)) else next(true)))
+                Union(guard(isDigit(0), next(false)), guard(isDigit(1), if previousOne then finish(nextPrefix, mention(rest)) else next(true)))
               case WordCodeShape.Terminated(b) =>
                 val terminal = isDigit(b)
                 Union(guard(terminal, finish(nextPrefix, mention(rest))),
@@ -224,7 +231,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
               Iteration(mention(remaining), digit, rest, branch))
             name
           })
-        Call(scanner(false, 0), constant(target.empty) +: cps.map(deref), src +: css.map(mention))
+        Call(scanner(false), constant(target.empty) +: cps.map(deref), src +: css.map(mention))
 
   private def tails(src: WordSpace[B]): WordSpace[B] =
     if encoding.shape == WordCodeShape.Fixed(1) then return TailsUnion(src)
@@ -266,10 +273,17 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
   private def recoder(from: WordEncoding[A, B], to: WordEncoding[A, B]): RoutinePtr =
     val name = rp("recode"); val input = sm("recode_input")
     val h = pr("head"); val t = sm("tail")
-    val mapped = union(encoding.orderedDigits.map { d =>
-      guard(Intersection(Singleton(deref(h)), Singleton(constant(target.fromDigits(from.code(d))))),
-        Singleton(constant(target.fromDigits(to.code(d)))))
-    })
+    // Balanced membership dispatch avoids scanning the entire alphabet for
+    // every head, even for custom symbol injections with reversed ordering.
+    def lookup(digits: Vector[Int]): WordSpace[B] =
+      if digits.isEmpty then Empty()
+      else if digits.size == 1 then Singleton(constant(target.fromDigits(to.code(digits.head))))
+      else
+        val (left, right) = digits.splitAt(digits.size / 2)
+        val accepted = Literal(WordSpaceValue(left.map(d => target.fromDigits(from.code(d))).toSet))
+        val head = Singleton(deref(h))
+        Union(guard(Intersection(head, accepted), lookup(left)), guard(Subtraction(head, accepted), lookup(right)))
+    val mapped = lookup(encoding.orderedDigits)
     val step = iterate(mention(input), h, t,
       Composition(mapped, Call(name, Vector.empty, Vector(mention(t)))), from)
     definitions(name) = WordRoutine(name, Vector.empty, Vector(input), Union(Intersection(mention(input), epsilon), step))

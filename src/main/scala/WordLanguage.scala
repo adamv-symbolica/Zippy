@@ -168,9 +168,15 @@ object WordEvaluator:
         if !iterator.hasNext then done(out.result())
         else f(iterator.next()).flatMap { y => out += y; tailcall(loop()) }
       tailcall(loop())
+    def checked(ref: PathRef, value: P): P =
+      if validateHints then
+        val length = ops.length(value)
+        require(ref.lengthHint < 0 || ref.lengthHint == length, s"${ref.s} exact hint ${ref.lengthHint}, actual $length")
+        require(ref.maxLengthHint < 0 || length <= ref.maxLengthHint, s"${ref.s} upper hint ${ref.maxLengthHint}, actual $length")
+      value
     def path(p: WordPath[P], pc: PC, sc: SC): TailRec[P] = tailcall {
       p match
-        case WordPath.Deref(r) => done(pc(r))
+        case WordPath.Deref(r) => done(checked(r, pc(r)))
         case WordPath.Constant(p) => done(p)
         case WordPath.Concat(l, r) => for a <- path(l, pc, sc); b <- path(r, pc, sc) yield ops.concat(a, b)
         case WordPath.GroundedPP(p, f) => path(p, pc, sc).map(f)
@@ -195,11 +201,7 @@ object WordEvaluator:
             pathValues <- traverse(ps)(path(_, pc, sc))
             spaceValues <- traverse(ss)(rec)
             result <-
-              if validateHints then routine.refs.zip(pathValues).foreach { (ref, value) =>
-                val length = ops.length(value)
-                require(ref.lengthHint < 0 || ref.lengthHint == length, s"${r.s}: ${ref.s} exact hint ${ref.lengthHint}, actual $length")
-                require(ref.maxLengthHint < 0 || length <= ref.maxLengthHint, s"${r.s}: ${ref.s} upper hint ${ref.maxLengthHint}, actual $length")
-              }
+              if validateHints then routine.refs.zip(pathValues).foreach((ref, value) => checked(ref, value))
               val nextPC = routine.refs.zip(pathValues).toMap
               val nextSC = routine.mentions.zip(spaceValues.map(WordSpaceValue(_))).toMap
               routine.body match

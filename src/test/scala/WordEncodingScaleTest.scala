@@ -66,7 +66,8 @@ class WordEncodingScaleTest extends FunSuite:
   }
 
   test("nested tails intersection evaluates its arbitrary input once at every depth") {
-    val raw = SpaceValue(Set(PathValue(List.fill(7)(PathItem("a"))), PathValue(List.fill(7)(PathItem("b")))))
+    val raw = SpaceValue((0 until 128).map(i => PathValue(List.tabulate(7)(bit =>
+      PathItem(if ((i >>> bit) & 1) == 0 then "a" else "b")))).toSet)
     val interner = new PathItemInterner; raw.paths.foreach(interner.encode)
     val code = WordEncodings.internedSymbolsToBits(interner)
     for depth <- 1 to 6 do
@@ -74,7 +75,8 @@ class WordEncodingScaleTest extends FunSuite:
       val input = Space.GroundedSS(Space.Literal(raw), v => { evaluations += 1; v })
       val expr = (0 until depth).foldLeft(input: Space)((s, _) => Space.TailsIntersection(s))
       val program = code.compile(SymbolWordLanguage.space(expr))
-      timed(s"TailsIntersection/depth=$depth")(program.eval(validateHints = true)(using BitWords))
+      val result = timed(s"TailsIntersection/depth=$depth")(program.eval(validateHints = true)(using BitWords))
+      assertEquals(result.paths.size, 1 << (7 - depth))
       assertEquals(evaluations, 1, s"input duplication at depth $depth")
       // Also run a pure literal path so callback instrumentation cannot hide a fast path.
       execute(code, (0 until depth).foldLeft(Space.Literal(raw): Space)((s, _) => Space.TailsIntersection(s)), raw)
@@ -121,4 +123,29 @@ class WordEncodingScaleTest extends FunSuite:
       val bitsA = left.map(_ & 1); val bitsB = right.map(_ & 1)
       assertEquals(BitWords.compare(BitWords.fromDigits(bitsA), BitWords.fromDigits(bitsB)).sign,
         Ordering.Iterable[Int].compare(bitsA, bitsB).sign)
+  }
+
+  test("annotation checking rejects false exact and upper bounds") {
+    val exact = PathRef("contract_exact").known(1)
+    val upper = PathRef("contract_upper").bounded(2)
+    intercept[IllegalArgumentException] {
+      WordProgram(BitSpace.Singleton(BitPath.Deref(exact)), Map.empty).eval(paths = Map(exact -> BitWords.empty), validateHints = true)(using BitWords)
+    }
+    intercept[IllegalArgumentException] {
+      WordProgram(BitSpace.Singleton(BitPath.Deref(upper)), Map.empty).eval(paths = Map(upper -> BitWords.fromDigits(Vector(0, 0, 0))), validateHints = true)(using BitWords)
+    }
+  }
+
+  test("ignored iteration and fold binders do not falsify an outer path contract") {
+    val ignored = PathRef("_").known(2)
+    val outer = PathValue(List(PathItem("a"), PathItem("b")))
+    val input = Space.Literal(SpaceValue(Set(PathValue(List(PathItem("a"))), PathValue(List(PathItem("b"))))))
+    val expressions = Vector(
+      Space.Iteration(input, PathRef("_"), SpaceMention("_"), Space.Singleton(Path.Deref(ignored))),
+      Space.Fold(input, Path.ZERO, PathRef("_"), PathRef("_"), SpaceMention("_"), Space.Singleton(Path.Deref(ignored)), Path.Deref(ignored)))
+    expressions.foreach { expr =>
+      val (code, program) = ZippyTranslations.symbolsToBits(expr)
+      val actual = program.eval(paths = Map(ignored -> code.encode(outer)), validateHints = true)(using BitWords)
+      assertEquals(code.decodeSpace(actual).paths, Set(outer))
+    }
   }

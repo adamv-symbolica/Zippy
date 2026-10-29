@@ -87,9 +87,6 @@ object WordEncodings:
     val ops = new SymbolWords(interner)
     val ordered = (0 until interner.size).toVector.sortBy(i => interner.decodeItem(i).show)
     ops -> ordered
-  private def checkedCode(allowed: Set[Int], f: Int => Vector[Int]): Int => Vector[Int] = id =>
-    require(allowed(id), s"symbol $id is outside the declared encoding alphabet")
-    f(id)
 
   /** The interner is a compilation alphabet. Register open input symbols before
     * constructing an encoding, as well as symbols occurring in the program.
@@ -104,16 +101,21 @@ object WordEncodings:
     val codes = order.zip(words).toMap
     val inverse = words.zip(order).map((word, id) => FibonacciCode.decode(word) -> id).toMap
     val max = words.map(_.size).maxOption.getOrElse(2)
-    WordEncoding(ops, BitWords, codes.apply, word => inverse(FibonacciCode.decode(word)),
+    WordEncoding(ops, BitWords, id => codes.getOrElse(id, throw IllegalArgumentException(s"symbol $id is outside the declared encoding alphabet")),
+      word => inverse.getOrElse(FibonacciCode.decode(word), throw IllegalArgumentException("Fibonacci word is outside the declared encoding alphabet")),
       WordCodeShape.Fibonacci, Some(max), order, true)
 
   def internedSymbolsToBytes(interner: PathItemInterner): WordEncoding[PathValue, BytePathValue] =
     val (ops, order) = symbols(interner)
     val ranks = order.zipWithIndex.toMap
     WordEncoding(ops, ByteWords, id =>
-      val rank = ranks(id)
+      val rank = ranks.getOrElse(id, throw IllegalArgumentException(s"symbol $id is outside the declared encoding alphabet"))
       Vector.tabulate(4)(i => (rank >>> (24 - i * 8)) & 255),
-      ds => { require(ds.size == 4 && ds.head < 128); order(ds.foldLeft(0)((n, b) => (n << 8) | b)) },
+      ds =>
+        require(ds.size == 4 && ds.head < 128)
+        val rank = ds.foldLeft(0)((n, b) => (n << 8) | b)
+        require(rank < order.size, "intern rank is outside the declared encoding alphabet")
+        order(rank),
       WordCodeShape.Fixed(4), Some(4), order, true)
 
   def stringSymbolsToBytes(interner: PathItemInterner, maxSymbolBytes: Option[Int] = None): WordEncoding[PathValue, BytePathValue] =
