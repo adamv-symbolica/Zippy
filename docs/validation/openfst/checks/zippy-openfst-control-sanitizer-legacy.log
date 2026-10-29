@@ -1,0 +1,21 @@
+[ 25%] Building CXX object CMakeFiles/zippy_openfst.dir/zippy_openfst.cpp.o
+[ 50%] Linking CXX shared library libzippy_openfst.so
+[ 50%] Built target zippy_openfst
+[ 75%] Building CXX object CMakeFiles/zippy_openfst_test.dir/openfst_runtime_test.cpp.o
+[100%] Linking CXX executable zippy_openfst_test
+[100%] Built target zippy_openfst_test
+8800 independent native checks passed
+[ 25%] Building CXX object CMakeFiles/zippy_openfst.dir/zippy_openfst.cpp.o
+[ 50%] Linking CXX shared library libzippy_openfst.so
+[ 50%] Built target zippy_openfst
+[ 75%] Building CXX object CMakeFiles/zippy_openfst_test.dir/openfst_runtime_test.cpp.o
+[100%] Linking CXX executable zippy_openfst_test
+[100%] Built target zippy_openfst_test
+Internal ctest changing into directory: /home/ubuntu/openfst-selection-validation/legacy
+Test project /home/ubuntu/openfst-selection-validation/legacy
+    Start 1: zippy_openfst_runtime
+1/1 Test #1: zippy_openfst_runtime ............   Passed    0.07 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.07 sec

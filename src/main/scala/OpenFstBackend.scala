@@ -361,7 +361,15 @@ object OpenFstBackend:
 
   def build(source: String): FilePath =
     val library = runtimeLibrary
-    val key = hash(source + library.toString + System.getProperty("morkl.openfst.ldflags", "") + System.getProperty("morkl.openfst.optimize","-O2"))
+    val baseOptimization=System.getProperty("morkl.openfst.optimize","-O2")
+    def identity(optimization: String): String = hash(source+library.toString+System.getProperty("morkl.openfst.ldflags","")+optimization)
+    val preferred=cache.resolve(identity(baseOptimization))
+    val large=Option(System.getProperty("morkl.openfst.largeOptimize"))
+    // Keep already-optimized artifacts. Cold, expanded glue can otherwise
+    // spend tens of minutes optimizing STL plumbing; all graph kernels remain
+    // in the separately compiled Release runtime.
+    val optimization=if source.length>2000000 && (large.nonEmpty || !Files.exists(preferred)) then large.getOrElse("-O0") else baseOptimization
+    val key=identity(optimization)
     val executable = cache.resolve(key)
     // Distinct batches compile in parallel; identical sources share a lock.
     key.intern().synchronized { locked(cache.resolve(s"$key.lock")) {
@@ -369,7 +377,7 @@ object OpenFstBackend:
         val cpp = cache.resolve(s"$key.cpp")
         Files.writeString(cpp,source)
         val temporary = cache.resolve(s"$key.building")
-        command(Vector(System.getProperty("morkl.openfst.cxx","c++"),"-std=c++17",System.getProperty("morkl.openfst.optimize","-O2"),"-pthread","-I"+root.resolve("src/main/cpp")) ++
+        command(Vector(System.getProperty("morkl.openfst.cxx","c++"),"-std=c++17",optimization,"-pthread","-I"+root.resolve("src/main/cpp")) ++
           (if source.length>2000000 then Vector("-fno-inline") else Vector.empty) ++
           flags("morkl.openfst.cxxflags", "") ++ Vector(cpp.toString,library.toString,"-Wl,-rpath,"+library.getParent) ++
           flags("morkl.openfst.ldflags", "") ++ Vector("-o",temporary.toString),cache.resolve(s"$key.build.log"))

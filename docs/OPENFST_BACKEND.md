@@ -83,8 +83,11 @@ initializer expressions. Function boundaries are retained to keep compilation
 of deeply expanded translations bounded. Only routines reachable after native
 operation selection are emitted, including recursive dependencies; eliminated
 scanner helpers do not inflate C++ compilation. Generated translation units
-above two million characters cap STL inlining with `-fno-inline`; the OpenFst
-runtime retains full Release optimization.
+above two million characters cap STL inlining with `-fno-inline`. Already
+optimized artifacts are reused; cold large units default to `-O0` to avoid
+spending tens of minutes optimizing generated STL plumbing. Set
+`morkl.openfst.largeOptimize` to choose another level. The OpenFst graph runtime
+retains full Release optimization.
 
 Ordered codebook decision trees are recognized directly from the existing AST.
 A conservative grammar check and abstract scanner execution prove when head
@@ -155,7 +158,7 @@ an upstream CMake package is absent. Do not mix headers and libraries from
 different OpenFst versions.
 
 JVM properties: `morkl.openfst.root`, `.cache`, `.prefix`, `.cxx`, `.cxxflags`,
-`.ldflags`, `.compileSeconds`, and `.optimize` configure the project root, cache, dependency prefix,
+`.ldflags`, `.compileSeconds`, `.largeOptimize`, and `.optimize` configure the project root, cache, dependency prefix,
 compiler, extra flags, compiler timeout (default 1,800 seconds), and
 generated-code optimization level (default `-O2`). Very large expanded programs
 can still produce substantial source and compilation costs; benchmark CSVs
@@ -215,6 +218,6 @@ For throughput on a large node, `--shards 6 --workers 6`
 splits each native family into independent JVMs and merges the checked rows
 without duplication. `--only algebra` limits this to the algebra matrix.
 
-The runners preserve JSON summaries, per-case audit ledgers, and raw benchmark
-CSVs in the selected output directories. Final h4d results are collected after
-all native compilation and execution jobs finish.
+See [validation results](OPENFST_TEST_REPORT.md) and
+[benchmark measurements](OPENFST_BENCHMARKS.md) for the complete h4d run,
+raw CSVs, scope, and timing methodology.

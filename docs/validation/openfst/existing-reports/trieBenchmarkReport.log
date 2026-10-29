@@ -1,0 +1,132 @@
+Warning: setting /home/ubuntu/Zippy-final6/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS:  -Xmx192g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy-final6
+[33m[33m-- [E121] Pattern Match Warning: /home/ubuntu/Zippy-final6/src/main/scala/MORKL.scala:1663:9 [0m[0m
+[33m1663 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 155 feature warnings; re-run with -feature for details
+there were 4 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.6"
+     munit 1.2.1 -> org.scalameta::munit:1.3.6
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS:  -Xmx192g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy-final6
+[bench-setup] aunt fixtures
+[bench-setup] graph fixtures
+[bench-setup] datalog residual
+[bench-setup] life compile
+[bench-setup] temperature fixtures
+[bench-setup] temperature committed load
+[bench-setup] temperature committed trie
+[bench-setup] temperature committed query
+[bench-setup] temperature synthetic data
+[bench-setup] temperature synthetic trie
+[bench-setup] temperature synthetic query
+[bench-setup] puzzle fixtures
+[bench-setup] n-queens fixture
+[bench] aunt / reference
+[bench] aunt / process-sc static family
+[bench] aunt synthetic / reference 60 people
+[bench] aunt royal92 / reference royal92_simple.metta fallback
+[bench] aunt synthetic / process-sc static family 24 people
+[bench] graph two-hop / reference 90-chain
+[bench] graph mutual / reference 90-chain
+[bench] scc / paper divide-and-conquer
+[bench] datalog semi-naive / reference 24-chain
+[bench] datalog semi-naive / process-sc 24-chain
+[bench] life / reference random 24x24
+[bench] life / compile-pass random 24x24
+[bench] life / compile-pass random 24x24 initial literal
+[bench] temperature / NOAA committed slice
+[bench] temperature / synthetic 32x64
+[bench] sliding puzzle / 2x2 pure source full frontier step
+[bench] sliding puzzle / 2x2 pure compile-pass full frontier step
+[bench] sliding puzzle / 3x3 pure source depth-8 step
+[bench] sliding puzzle / 3x3 pure compile-pass depth-8 step
+[bench] sliding puzzle / 4x4 pure source depth-5 step
+[bench] n-queens / MORKL 8x8 source
+[bench] n-queens / MORKL 8x8 compile-pass
+# Trie Runtime Benchmarks
+
+Measured with `TrieBenchmarks` on this worktree. Runtime times are average milliseconds per evaluation after two warmup runs. The first table excludes compilation/supercompilation and graph construction; rows labelled `process-sc` or `compile-pass` time the residual/compiled runtime. Runtime speedup cells and compile/run ratios are deliberately omitted for graphs that have been completely residualized to a one-node literal; use the compile+run column in the second table for those rows. The second table reports setup supercompilation time, graph compilation time, total compile time, compile/run ratio for non-residual graph execution, compile+`ROG execT` time, timed compile-stage totals, constant-folding eval time, and optimization-pass totals under explicit compile budgets. Graph optimization includes loop-invariant subgraph hoisting, push-out, and sharing. `ROG exec` is the legacy `RecursiveOpGraph` executor over `SpaceValue`; `evalZ` is the declarative zipper traversal evaluator that composes logical trie cursors and materializes only at the result boundary; `ROG execT` is the interned trie executor over `TrieSpace` and `List[Int]` path slots. Graph rows use fully optimized graphs: helper functions are inlined/expanded/lowered where possible, surviving `Call`s dispatch to optimized callee graphs, and graph-note cells list retained calls found in both the top graph and optimized callees. Recursive cycles are unsupported unless structurally certified as the paper SCC routine's strict three-way node partition.
+
+## Runtime
+
+| benchmark | variant | result paths | eval Set ms | ROG exec ms | evalTrie ms | evalZ ms | ROG execT ms | evalTrie / eval | evalZ / eval | evalZ / evalTrie | ROG exec / eval | ROG execT / eval | ROG execT / evalTrie | graph nodes | graph note |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| aunt | reference | 3 | 0.108 | 0.190 | 0.439 | 0.683 | 0.310 | 0.25 x | 0.16 x | 0.64 x | 0.57 x | 0.35 x | 1.42 x | 21 |  |
+| aunt | process-sc static family | 3 | 0.075 | 0.175 | 0.238 | 0.547 | 0.161 | 0.32 x | 0.14 x | 0.43 x | 0.43 x | 0.46 x | 1.47 x | 20 |  |
+| aunt synthetic | reference 60 people | 36 | 2.849 | 1.411 | 0.864 | 2.323 | 1.147 | 3.30 x | 1.23 x | 0.37 x | 2.02 x | 2.48 x | 0.75 x | 21 |  |
+| aunt royal92 | reference royal92_simple.metta fallback | 3 | 0.055 | 0.058 | 0.073 | 0.103 | 0.102 | 0.75 x | 0.53 x | 0.71 x | 0.94 x | 0.54 x | 0.71 x | 21 |  |
+| aunt synthetic | process-sc static family 24 people | 12 | 0.126 | 0.323 | 1.151 | 1.208 | 0.244 | 0.11 x | 0.10 x | 0.95 x | 0.39 x | 0.52 x | 4.71 x | 20 |  |
+| graph two-hop | reference 90-chain | 264 | 3.732 | 1.314 | 1.052 | 1.553 | 0.855 | 3.55 x | 2.40 x | 0.68 x | 2.84 x | 4.36 x | 1.23 x | 15 |  |
+| graph mutual | reference 90-chain | 0 | 3.238 | 1.169 | 0.551 | 0.741 | 0.274 | 5.87 x | 4.37 x | 0.74 x | 2.77 x | 11.82 x | 2.01 x | 15 |  |
+| scc | paper divide-and-conquer | 2 | 0.645 | 0.826 | 0.668 | 3.339 | 0.598 | 0.97 x | 0.19 x | 0.20 x | 0.78 x | 1.08 x | 1.12 x | 54 | exec fallback Call dispatch to optimized callee graph(s): reachable, seedless_scc |
+| datalog semi-naive | reference 24-chain | 300 | 363.306 | 0.002 | 5.724 | 11.276 | 0.001 | 63.47 x | 32.22 x | 0.51 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| datalog semi-naive | process-sc 24-chain | 300 | 294.418 | 18.890 | 10.562 | 8.138 | 2.793 | 27.87 x | 36.18 x | 1.30 x | 15.59 x | 105.42 x | 3.78 x | 6 | exec fallback Call dispatch to optimized callee graph(s): step1328718765_sc1 |
+| life | reference random 24x24 | 125 | 32.005 | 19.364 | 396.060 | 528.014 | 6.502 | 0.08 x | 0.06 x | 0.75 x | 1.65 x | 4.92 x | 60.91 x | 2,667 | exec fallback Call dispatch to optimized callee graph(s): neigh |
+| life | compile-pass random 24x24 | 125 | 28.956 | 0.002 | 242.417 | 308.077 | 0.001 | 0.12 x | 0.09 x | 0.79 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| life | compile-pass random 24x24 initial literal | 125 | 0.001 | 0.001 | 0.042 | 0.045 | 0.001 | 0.02 x | 0.02 x | 0.94 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| temperature | NOAA committed slice | 12 | 0.006 | 0.003 | 0.011 | 0.025 | 0.010 | 0.54 x | 0.23 x | 0.43 x | 1.78 x | 0.59 x | 1.09 x | 3 |  |
+| temperature | synthetic 32x64 | 448 | 1.128 | 1.125 | 0.016 | 0.046 | 0.011 | 71.72 x | 24.26 x | 0.34 x | 1.00 x | 100.13 x | 1.40 x | 3 |  |
+| sliding puzzle | 2x2 pure source full frontier step | 12 | 6.303 | 0.001 | 4.848 | 7.853 | 0.001 | 1.30 x | 0.80 x | 0.62 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| sliding puzzle | 2x2 pure compile-pass full frontier step | 12 | 0.001 | 0.001 | 0.007 | 0.007 | 0.001 | 0.12 x | 0.12 x | 1.00 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| sliding puzzle | 3x3 pure source depth-8 step | 420 | 440.023 | 0.002 | 745.508 | n/a | 0.001 | 0.59 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ source search tree exceeds the benchmark heap; use evalTrie/graph rows |
+| sliding puzzle | 3x3 pure compile-pass depth-8 step | 420 | 0.001 | 0.001 | 0.397 | 0.390 | 0.001 | 0.00 x | 0.00 x | 1.02 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+| sliding puzzle | 4x4 pure source depth-5 step | 202 | 604.890 | 0.028 | 1355.264 | n/a | 0.007 | 0.45 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ source search tree exceeds the benchmark heap; use evalTrie/graph rows |
+| n-queens | MORKL 8x8 source | 92 | 573.259 | 0.003 | 1881.980 | n/a | 0.001 | 0.30 x | n/a | n/a | n/a | n/a | n/a | 1 | compiled away; use compile+run; direct evalZ is currently omitted for the high-level source search tree; use compile-pass/graph rows |
+| n-queens | MORKL 8x8 compile-pass | 92 | 0.001 | 0.001 | 0.121 | 0.119 | 0.001 | 0.01 x | 0.01 x | 1.01 x | n/a | n/a | n/a | 1 | compiled away; use compile+run |
+
+## Compilation And Optimization
+
+| benchmark | variant | prep compile ms | graph compile ms | total compile ms | compile/run | compile+ROG execT ms | lower+inline ms | source pass ms | const-fold eval ms | const-fold evalTrie ms | const-fold evalZ ms | const-fold execT ms | const-fold eval calls | const-fold evalTrie calls | const-fold evalZ calls | const-fold execT calls | graph transpile ms | graph optimize ms | source pass attempts | graph pass steps | budget ms sum | note |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| aunt | reference | n/a | 4.822 | 4.822 | 15.55 x | 5.132 | 0.101 | 0.748 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.175 | 1.765 | 38 | 6 | 30000 | graph compile + optimized callees |
+| aunt | process-sc static family | 49.000 | 1.600 | 50.600 | 313.64 x | 50.761 | 0.097 | 0.377 | 0.003 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.061 | 0.674 | 19 | 6 | 60000 | process SC setup; graph compile + optimized callees |
+| aunt synthetic | reference 60 people | n/a | 2.080 | 2.080 | 1.81 x | 3.227 | 0.041 | 0.511 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.113 | 1.034 | 38 | 6 | 30000 | graph compile + optimized callees |
+| aunt royal92 | reference royal92_simple.metta fallback | n/a | 2.260 | 2.260 | 22.22 x | 2.361 | 0.041 | 0.414 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.336 | 1.052 | 38 | 6 | 30000 | graph compile + optimized callees |
+| aunt synthetic | process-sc static family 24 people | 7.975 | 1.881 | 9.856 | 40.33 x | 10.100 | 0.057 | 0.501 | 0.003 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.126 | 0.895 | 19 | 6 | 60000 | process SC setup; graph compile + optimized callees |
+| graph two-hop | reference 90-chain | n/a | 1.942 | 1.942 | 2.27 x | 2.797 | 0.022 | 0.262 | 0.048 | 0.000 | 0.000 | 0.000 | 2 | 0 | 0 | 0 | 0.046 | 1.190 | 57 | 9 | 30000 | graph compile + optimized callees |
+| graph mutual | reference 90-chain | n/a | 1.665 | 1.665 | 6.08 x | 1.939 | 0.022 | 0.117 | 0.000 | 0.000 | 0.000 | 0.000 | 0 | 0 | 0 | 0 | 0.040 | 1.057 | 38 | 9 | 30000 | graph compile + optimized callees |
+| scc | paper divide-and-conquer | n/a | 19.240 | 19.240 | 32.15 x | 19.839 | 0.502 | 10.476 | 0.583 | 0.000 | 0.000 | 0.000 | 146 | 0 | 0 | 0 | 0.892 | 3.748 | 133 | 12 | 90000 | graph compile + optimized callees |
+| datalog semi-naive | reference 24-chain | n/a | 11.681 | 11.681 | n/a | 11.683 | 0.073 | 10.648 | 0.273 | 9.152 | 0.000 | 0.000 | 9 | 1 | 0 | 0 | 0.006 | 0.166 | 38 | 3 | 30000 | graph compile + optimized callees |
+| datalog semi-naive | process-sc 24-chain | 66.772 | 8.253 | 75.025 | 26.86 x | 77.818 | 0.083 | 1.232 | 0.011 | 0.000 | 0.000 | 0.000 | 10 | 0 | 0 | 0 | 0.278 | 5.359 | 38 | 12 | 90000 | process SC setup; graph compile + optimized callees |
+| life | reference random 24x24 | n/a | 3517.848 | 3517.848 | 541.04 x | 3524.350 | 0.361 | 3194.640 | 0.420 | 0.000 | 0.000 | 0.000 | 1384 | 0 | 0 | 0 | 2.344 | 317.189 | 114 | 12 | 60000 | graph compile + optimized callees |
+| life | compile-pass random 24x24 | 82.949 | 20.125 | 103.074 | n/a | 103.075 | 1.937 | 51.512 | 19.948 | 0.000 | 0.000 | 0.000 | 114 | 0 | 0 | 0 | 1.624 | 34.827 | 95 | 12 | 60000 | compile-pass setup; graph compile + optimized callees |
+| life | compile-pass random 24x24 initial literal | 94.583 | 0.328 | 94.912 | n/a | 94.913 | 0.342 | 92.504 | 85.953 | 0.000 | 0.000 | 0.000 | 73 | 0 | 0 | 0 | 0.015 | 0.456 | 57 | 6 | 60000 | compile-pass setup with initial grid literal; graph compile + optimized callees |
+| temperature | NOAA committed slice | n/a | 0.282 | 0.282 | 29.10 x | 0.292 | 0.019 | 0.051 | 0.006 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.004 | 0.059 | 38 | 3 | 30000 | graph compile + optimized callees |
+| temperature | synthetic 32x64 | n/a | 0.171 | 0.171 | 15.15 x | 0.182 | 0.008 | 0.039 | 0.007 | 0.000 | 0.000 | 0.000 | 5 | 0 | 0 | 0 | 0.004 | 0.041 | 38 | 3 | 30000 | graph compile + optimized callees |
+| sliding puzzle | 2x2 pure source full frontier step | n/a | 3.029 | 3.029 | n/a | 3.030 | 0.115 | 2.065 | 1.274 | 0.000 | 0.000 | 0.000 | 65 | 0 | 0 | 0 | 0.002 | 0.080 | 38 | 3 | 30000 | graph compile + optimized callees |
+| sliding puzzle | 2x2 pure compile-pass full frontier step | 10.074 | 0.281 | 10.355 | n/a | 10.356 | 0.267 | 9.347 | 4.106 | 0.000 | 0.000 | 0.000 | 66 | 0 | 0 | 0 | 0.004 | 0.085 | 57 | 3 | 60000 | compile-pass setup; graph compile + optimized callees |
+| sliding puzzle | 3x3 pure source depth-8 step | n/a | 43.114 | 43.114 | n/a | 43.116 | 0.114 | 41.603 | 38.883 | 0.000 | 0.000 | 0.000 | 176 | 0 | 0 | 0 | 0.003 | 0.089 | 38 | 3 | 30000 | graph compile + optimized callees |
+| sliding puzzle | 3x3 pure compile-pass depth-8 step | 109.211 | 0.346 | 109.558 | n/a | 109.559 | 0.683 | 107.532 | 93.028 | 0.000 | 0.000 | 0.000 | 177 | 0 | 0 | 0 | 0.002 | 0.102 | 57 | 3 | 60000 | compile-pass setup; graph compile + optimized callees |
+| sliding puzzle | 4x4 pure source depth-5 step | n/a | 73.933 | 73.933 | n/a | 73.940 | 0.386 | 70.462 | 56.715 | 0.000 | 0.000 | 0.000 | 341 | 0 | 0 | 0 | 0.004 | 0.212 | 38 | 3 | 30000 | graph compile + optimized callees |
+| n-queens | MORKL 8x8 source | n/a | 405.657 | 405.657 | n/a | 405.658 | 0.181 | 404.048 | 399.310 | 0.000 | 0.000 | 0.000 | 130 | 0 | 0 | 0 | 0.004 | 0.146 | 38 | 3 | 30000 | graph compile + optimized callees |
+| n-queens | MORKL 8x8 compile-pass | 527.446 | 0.370 | 527.815 | n/a | 527.816 | 0.654 | 526.057 | 514.805 | 0.000 | 0.000 | 0.000 | 131 | 0 | 0 | 0 | 0.024 | 0.089 | 57 | 3 | 60000 | compile-pass setup; graph compile + optimized callees |
+
+| benchmark | variant | result | ms | note |
+|---|---:|---:|---:|---|
+| n-queens bit reference | n=8 | 92 | 0.011 | independent reference, not MORKL eval |
+| n-queens bit reference | n=9 | 352 | 0.041 | independent reference, not MORKL eval |
+| n-queens bit reference | n=10 | 724 | 0.257 | independent reference, not MORKL eval |
+| n-queens bit reference | n=11 | 2680 | 0.976 | independent reference, not MORKL eval |
+| n-queens bit reference | n=12 | 14200 | 5.220 | independent reference, not MORKL eval |
+
+## Interpretation
+
+The trie evaluator remains strongest on native path algebra with shared prefixes, joins, restriction, unwrap, and first-symbol iteration. The direct `execT` backend compounds that advantage when the graph is lowered to native ops and optimized callee graphs because it avoids rebuilding old `PathValue` and `SpaceValue` intermediates.
+
+`evalZ` is included as a correctness-backed zipper traversal runtime. Generic iteration now joins materialized branch tries directly at the final boundary, keeping nonrecursive scaling near `evalTrie`; union-saturating recursion is lowered and measured directly. Structurally positive, productive steps use prefix-demand cells, while state-negative semi-naive Datalog uses lazy exact synchronous rounds executed directly in native trie algebra. The SCC row executes the paper's well-founded pivot/partition recursion with masked reachability lowered to a fixpoint. The separate `ZIPPER_LARGE_BENCHMARKS.md` report contains larger nonrecursive scaling and product-selector rows. Direct source n-queens remains omitted for `evalZ` with an explicit note because that high-level search tree still needs a dedicated recursive zipper strategy.
+
+The pure Game-of-Life source is now intentionally a lowering benchmark: direct `evalTrie` still interprets the high-level relation program, while the graph backend lowers `Range`, `Unwrap`, joins, and literal coordinate relations into direct operations; use the `ROG execT` and compile+`ROG execT` columns for the lowered result.
+
+Graph timings are intentionally conservative about semantics. Raw routine calls are not timed as raw helper graphs; helper routines are inlined/expanded and lowered before graph execution when possible, and surviving calls use optimized callee graphs. Fixpoint lowering handles both single-state and invariant-parameter union-saturating shapes. Recursive residual cycles remain unsupported unless the structural checker certifies the paper SCC routine's three strict node partitions; that certified cycle dispatches through optimized callee graphs.
+
+Compilation is now explicitly bounded by wall-clock budgets as well as structural caps. Source normalization records every pass attempt, graph optimization records `hoist_loop_invariant_subgraphs`, `push_out`, and `optimize_sharing` per round, constant folding records eval/evalTrie/evalZ/execT time and call counts, and the compilation table separates setup SC time, lowering/inlining time, source-pass time, graph-build time, graph-optimization time, compile/run ratio, and compile+run time so runtime speedups are not mistaken for free compilation.
+
+`budget ms sum` is the sum of the independent compile invocation budgets used for a row, including optimized callee-graph compiles when present; it is not elapsed time and not a single shared deadline across all rows.
+
+Rows marked `compiled away; use compile+run` have been fully residualized to a one-node literal by the compile pipeline before execution. Their executor timings are still shown as an implementation sanity check, but their graph speedup factors are intentionally reported as `n/a`; the meaningful number is the compile+`ROG execT` total in the compilation table.
+
+The independent bit-recursive n-queens rows are scaling references, not MORKL runtime rows. They record the known targets through 12x12 while the pure MORKL path-algebra program is executed exactly at 8x8 and compiled/residualized for graph execution.

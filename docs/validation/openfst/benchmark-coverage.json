@@ -1,0 +1,18 @@
+{
+  "nativeRows": 498,
+  "logicalWorkloads": 166,
+  "microRows": 132,
+  "exactRows": 489,
+  "cardinalityRows": 9,
+  "families": {
+    "programs": 22,
+    "large": 14,
+    "algebra": 66,
+    "iter-range-tail": 3,
+    "algebra-scaling": 16,
+    "construction": 12,
+    "independent-product": 8,
+    "cost-counter": 21,
+    "cost-correlation": 4
+  }
+}

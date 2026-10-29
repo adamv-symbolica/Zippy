@@ -1,0 +1,8 @@
+6f924343ca94a34bd0639d588c8ea9f6a9d28815c95280d39968d0c5842d0642  /home/ubuntu/openfst-selection-validation/src/main/cpp/openfst_runtime_test.cpp
+[ 25%] Building CXX object CMakeFiles/zippy_openfst.dir/zippy_openfst.cpp.o
+[ 50%] Linking CXX shared library libzippy_openfst.so
+[ 50%] Built target zippy_openfst
+[ 75%] Building CXX object CMakeFiles/zippy_openfst_test.dir/openfst_runtime_test.cpp.o
+[100%] Linking CXX executable zippy_openfst_test
+[100%] Built target zippy_openfst_test
+8800 independent native checks passed

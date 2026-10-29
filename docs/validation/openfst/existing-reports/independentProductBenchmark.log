@@ -1,0 +1,19 @@
+Warning: setting /home/ubuntu/Zippy-final6/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS:  -Xmx192g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy-final6
+[33m[33m-- [E121] Pattern Match Warning: /home/ubuntu/Zippy-final6/src/main/scala/MORKL.scala:1663:9 [0m[0m
+[33m1663 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 155 feature warnings; re-run with -feature for details
+there were 4 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.6"
+     munit 1.2.1 -> org.scalameta::munit:1.3.6
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS:  -Xmx192g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy-final6
+heads,paths,original_ms,optimized_ms,compiled_execT_ms,original/optimized
+32,64,1.7414,0.1357,0.4255,12.83
+64,128,2.4810,0.1780,0.4254,13.94
+128,256,8.4161,0.1251,0.4455,67.29
+256,512,15.8389,0.3160,0.6896,50.13

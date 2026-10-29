@@ -15,7 +15,7 @@ def main():
     parser.add_argument('--workers', type=int, default=32)
     parser.add_argument('--batch', type=int, default=64)
     parser.add_argument('--heap', default='256g')
-    parser.add_argument('--optimize', choices=['-O0', '-O1', '-O2', '-O3'], default='-O2', help='Generated C++ optimization level')
+    parser.add_argument('--optimize', choices=['-O0', '-O1', '-O2', '-O3'], default='-O2', help='Baseline C++ optimization level; cold large units use the documented adaptive policy')
     parser.add_argument('--seconds', type=int, default=14400)
     parser.add_argument('--scala-cli', default='scala-cli')
     parser.add_argument('--test-only')
@@ -50,7 +50,7 @@ def main():
             for d in ('symbols', 'bits-fibonacci', 'bytes-strings', 'bytes-interned',
                       'bits-bytes', 'bytes-bits', 'bits-symbols', 'bytes-symbols'))
     text = re.sub(r'\x1b\[[0-9;]*m', '', (output / 'tests.log').read_text(errors='replace'))
-    report = dict(testExitCode=result.returncode, generatedOptimization=args.optimize, passedTests=sum(line.startswith('  + ') for line in text.splitlines()),
+    report = dict(testExitCode=result.returncode, generatedOptimization=args.optimize, largeGeneratedOptimization='-O0 for cold units above 2M characters; reuse optimized cache when available', passedTests=sum(line.startswith('  + ') for line in text.splitlines()),
                   fullSuite=args.test_only is None, audit=audit, success=bool(valid))
     (output / 'result.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report, indent=2))

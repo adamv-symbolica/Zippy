@@ -1,0 +1,50 @@
+{
+  "testExitCode": 0,
+  "passedTests": 313,
+  "fullSuite": true,
+  "audit": {
+    "observations": 192771,
+    "cases": 30869,
+    "completed": 30869,
+    "checks": 216083,
+    "failures": 0,
+    "sourceErrors": 0,
+    "finished": true,
+    "passed": {
+      "symbols-bits": 30869,
+      "strings-bytes": 30869,
+      "interned-bytes": 30869,
+      "bits-bytes": 30869,
+      "bytes-bits": 30869,
+      "bits-symbols": 30869,
+      "bytes-symbols": 30869
+    },
+    "callers": {
+      "morkl.AuntQuery": 10,
+      "morkl.Datalog": 2,
+      "morkl.Fuzzy": 5,
+      "morkl.GeneratedArtifactDeterminismTest": 1,
+      "morkl.Grounded": 7,
+      "morkl.Imperative": 50,
+      "morkl.MORKL2Space": 19,
+      "morkl.MatchingProcessTest": 1,
+      "morkl.Permutations": 2,
+      "morkl.Poly": 2,
+      "morkl.RadixLanguageTest": 528,
+      "morkl.ReferenceExamplesTest": 39,
+      "morkl.ResultPathLengthTest": 29,
+      "morkl.ResultSpaceSizeTest": 3567,
+      "morkl.Routines": 72,
+      "morkl.SpacialType": 12,
+      "morkl.SpatialCostCorrelationTest": 4,
+      "morkl.SpatialCostCounterTest": 3,
+      "morkl.SpatialTypeTest": 21,
+      "morkl.SupercompilerProcessTest": 58,
+      "morkl.SupercompilerPublicationExamples": 208,
+      "morkl.TrieSpaceTest": 11667,
+      "morkl.Unification": 23,
+      "morkl.ZipperFuzzerTest": 14539
+    }
+  },
+  "success": true
+}

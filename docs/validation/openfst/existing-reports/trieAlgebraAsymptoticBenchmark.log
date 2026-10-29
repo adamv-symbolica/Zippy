@@ -1,0 +1,31 @@
+Warning: setting /home/ubuntu/Zippy-final6/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS:  -Xmx192g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy-final6
+[33m[33m-- [E121] Pattern Match Warning: /home/ubuntu/Zippy-final6/src/main/scala/MORKL.scala:1663:9 [0m[0m
+[33m1663 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 155 feature warnings; re-run with -feature for details
+there were 4 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.6"
+     munit 1.2.1 -> org.scalameta::munit:1.3.6
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS:  -Xmx192g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy-final6
+operation,size,ns_per_operation
+union-subset,1024,9532.7
+intersection-subset,1024,5225.3
+restriction-quarter,1024,43321.3
+subtraction-disjoint,1024,46.8
+union-subset,4096,62100.5
+intersection-subset,4096,63991.5
+restriction-quarter,4096,290807.3
+subtraction-disjoint,4096,54.5
+union-subset,16384,256012.1
+intersection-subset,16384,264670.2
+restriction-quarter,16384,809214.4
+subtraction-disjoint,16384,50.9
+union-subset,65536,445053.9
+intersection-subset,65536,466339.5
+restriction-quarter,65536,4723298.8
+subtraction-disjoint,65536,58.2

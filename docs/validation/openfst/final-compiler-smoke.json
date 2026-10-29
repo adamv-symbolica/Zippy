@@ -1,0 +1,27 @@
+{
+  "testExitCode": 0,
+  "generatedOptimization": "-O2",
+  "passedTests": 8,
+  "fullSuite": false,
+  "audit": {
+    "cases": 138,
+    "symbolCases": 9,
+    "digitObservations": 66,
+    "checks": 138,
+    "failures": 0,
+    "finished": true,
+    "passed": {
+      "bits-bytes": 9,
+      "bits-direct": 31,
+      "bits-fibonacci": 9,
+      "bits-symbols": 9,
+      "bytes-bits": 9,
+      "bytes-direct": 35,
+      "bytes-interned": 9,
+      "bytes-strings": 9,
+      "bytes-symbols": 9,
+      "symbols": 9
+    }
+  },
+  "success": true
+}

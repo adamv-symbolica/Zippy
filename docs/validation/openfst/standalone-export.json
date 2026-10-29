@@ -1,0 +1,12 @@
+{
+  "success": true,
+  "standalone": true,
+  "paths": [
+    [
+      "other"
+    ],
+    [
+      "tail"
+    ]
+  ]
+}

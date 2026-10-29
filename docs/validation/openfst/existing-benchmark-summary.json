@@ -1,0 +1,91 @@
+{
+  "success": true,
+  "completed": 14,
+  "total": 14,
+  "runs": [
+    {
+      "kind": "existing",
+      "name": "trieBenchmarkReport",
+      "exitCode": 0,
+      "seconds": 65.316
+    },
+    {
+      "kind": "existing",
+      "name": "constantFoldExecutorReport",
+      "exitCode": 0,
+      "seconds": 34.166
+    },
+    {
+      "kind": "existing",
+      "name": "zipperAlgebraBenchmarkReport",
+      "exitCode": 0,
+      "seconds": 32.718
+    },
+    {
+      "kind": "existing",
+      "name": "zipperIterRangeTailMicroReport",
+      "exitCode": 0,
+      "seconds": 17.09
+    },
+    {
+      "kind": "existing",
+      "name": "zipperLargeBenchmarkReport",
+      "exitCode": 0,
+      "seconds": 17.991
+    },
+    {
+      "kind": "existing",
+      "name": "independentProductBenchmark",
+      "exitCode": 0,
+      "seconds": 16.037
+    },
+    {
+      "kind": "existing",
+      "name": "trieConstructionAsymptoticBenchmark",
+      "exitCode": 0,
+      "seconds": 15.791
+    },
+    {
+      "kind": "existing",
+      "name": "trieIncrementalUnionAsymptoticBenchmark",
+      "exitCode": 0,
+      "seconds": 16.889
+    },
+    {
+      "kind": "existing",
+      "name": "trieAlgebraAsymptoticBenchmark",
+      "exitCode": 0,
+      "seconds": 17.391
+    },
+    {
+      "kind": "existing",
+      "name": "trieAlgebraDistributionReport",
+      "exitCode": 0,
+      "seconds": 21.356
+    },
+    {
+      "kind": "existing",
+      "name": "spatialCostCounterReport",
+      "exitCode": 0,
+      "seconds": 16.945
+    },
+    {
+      "kind": "existing",
+      "name": "spatialCostCorrelationReport",
+      "exitCode": 0,
+      "seconds": 18.647
+    },
+    {
+      "kind": "existing",
+      "name": "spatialTypeScalingAudit",
+      "exitCode": 0,
+      "seconds": 16.291
+    },
+    {
+      "kind": "existing",
+      "name": "cornerstoneSpatialTypeReport",
+      "exitCode": 0,
+      "seconds": 27.668
+    }
+  ]
+}

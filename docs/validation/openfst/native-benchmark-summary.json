@@ -1,0 +1,349 @@
+{
+  "success": true,
+  "completed": 55,
+  "total": 55,
+  "workers": 16,
+  "runs": [
+    {
+      "kind": "native",
+      "name": "large--shard-3-of-6",
+      "exitCode": 0,
+      "seconds": 1.418
+    },
+    {
+      "kind": "native",
+      "name": "programs--shard-0-of-6",
+      "exitCode": 0,
+      "seconds": 2.421
+    },
+    {
+      "kind": "native",
+      "name": "large--shard-4-of-6",
+      "exitCode": 0,
+      "seconds": 2.619
+    },
+    {
+      "kind": "native",
+      "name": "programs--shard-3-of-6",
+      "exitCode": 0,
+      "seconds": 6.479
+    },
+    {
+      "kind": "native",
+      "name": "iter-range-tail--shard-0-of-6",
+      "exitCode": 0,
+      "seconds": 4.524
+    },
+    {
+      "kind": "native",
+      "name": "large--shard-2-of-6",
+      "exitCode": 0,
+      "seconds": 10.584
+    },
+    {
+      "kind": "native",
+      "name": "large--shard-5-of-6",
+      "exitCode": 0,
+      "seconds": 10.882
+    },
+    {
+      "kind": "native",
+      "name": "iter-range-tail--shard-3-of-6",
+      "exitCode": 0,
+      "seconds": 0.314
+    },
+    {
+      "kind": "native",
+      "name": "iter-range-tail--shard-4-of-6",
+      "exitCode": 0,
+      "seconds": 0.264
+    },
+    {
+      "kind": "native",
+      "name": "iter-range-tail--shard-5-of-6",
+      "exitCode": 0,
+      "seconds": 0.265
+    },
+    {
+      "kind": "native",
+      "name": "iter-range-tail--shard-1-of-6",
+      "exitCode": 0,
+      "seconds": 5.374
+    },
+    {
+      "kind": "native",
+      "name": "iter-range-tail--shard-2-of-6",
+      "exitCode": 0,
+      "seconds": 6.027
+    },
+    {
+      "kind": "native",
+      "name": "programs--shard-2-of-6",
+      "exitCode": 0,
+      "seconds": 18.652
+    },
+    {
+      "kind": "native",
+      "name": "algebra-scaling--shard-1-of-6",
+      "exitCode": 0,
+      "seconds": 8.179
+    },
+    {
+      "kind": "native",
+      "name": "algebra-scaling--shard-0-of-6",
+      "exitCode": 0,
+      "seconds": 9.229
+    },
+    {
+      "kind": "native",
+      "name": "algebra-scaling--shard-2-of-6",
+      "exitCode": 0,
+      "seconds": 8.933
+    },
+    {
+      "kind": "native",
+      "name": "algebra-scaling--shard-4-of-6",
+      "exitCode": 0,
+      "seconds": 2.869
+    },
+    {
+      "kind": "native",
+      "name": "construction--shard-2-of-6",
+      "exitCode": 0,
+      "seconds": 1.516
+    },
+    {
+      "kind": "native",
+      "name": "algebra-scaling--shard-5-of-6",
+      "exitCode": 0,
+      "seconds": 3.822
+    },
+    {
+      "kind": "native",
+      "name": "construction--shard-1-of-6",
+      "exitCode": 0,
+      "seconds": 2.669
+    },
+    {
+      "kind": "native",
+      "name": "large--shard-0-of-6",
+      "exitCode": 0,
+      "seconds": 24.559
+    },
+    {
+      "kind": "native",
+      "name": "construction--shard-3-of-6",
+      "exitCode": 0,
+      "seconds": 3.62
+    },
+    {
+      "kind": "native",
+      "name": "algebra-scaling--shard-3-of-6",
+      "exitCode": 0,
+      "seconds": 13.991
+    },
+    {
+      "kind": "native",
+      "name": "construction--shard-0-of-6",
+      "exitCode": 0,
+      "seconds": 6.926
+    },
+    {
+      "kind": "native",
+      "name": "independent-product--shard-2-of-6",
+      "exitCode": 0,
+      "seconds": 1.768
+    },
+    {
+      "kind": "native",
+      "name": "construction--shard-4-of-6",
+      "exitCode": 0,
+      "seconds": 9.88
+    },
+    {
+      "kind": "native",
+      "name": "programs--shard-4-of-6",
+      "exitCode": 0,
+      "seconds": 34.674
+    },
+    {
+      "kind": "native",
+      "name": "independent-product--shard-4-of-6",
+      "exitCode": 0,
+      "seconds": 6.024
+    },
+    {
+      "kind": "native",
+      "name": "cost-counter--shard-0-of-6",
+      "exitCode": 0,
+      "seconds": 1.066
+    },
+    {
+      "kind": "native",
+      "name": "cost-counter--shard-1-of-6",
+      "exitCode": 0,
+      "seconds": 1.216
+    },
+    {
+      "kind": "native",
+      "name": "independent-product--shard-3-of-6",
+      "exitCode": 0,
+      "seconds": 9.432
+    },
+    {
+      "kind": "native",
+      "name": "cost-counter--shard-3-of-6",
+      "exitCode": 0,
+      "seconds": 0.866
+    },
+    {
+      "kind": "native",
+      "name": "independent-product--shard-0-of-6",
+      "exitCode": 0,
+      "seconds": 12.633
+    },
+    {
+      "kind": "native",
+      "name": "cost-counter--shard-2-of-6",
+      "exitCode": 0,
+      "seconds": 1.517
+    },
+    {
+      "kind": "native",
+      "name": "cost-correlation--shard-0-of-6",
+      "exitCode": 0,
+      "seconds": 0.465
+    },
+    {
+      "kind": "native",
+      "name": "cost-counter--shard-4-of-6",
+      "exitCode": 0,
+      "seconds": 1.016
+    },
+    {
+      "kind": "native",
+      "name": "cost-correlation--shard-1-of-6",
+      "exitCode": 0,
+      "seconds": 0.565
+    },
+    {
+      "kind": "native",
+      "name": "cost-counter--shard-5-of-6",
+      "exitCode": 0,
+      "seconds": 0.916
+    },
+    {
+      "kind": "native",
+      "name": "cost-correlation--shard-4-of-6",
+      "exitCode": 0,
+      "seconds": 0.164
+    },
+    {
+      "kind": "native",
+      "name": "cost-correlation--shard-5-of-6",
+      "exitCode": 0,
+      "seconds": 0.164
+    },
+    {
+      "kind": "native",
+      "name": "cost-correlation--shard-2-of-6",
+      "exitCode": 0,
+      "seconds": 0.766
+    },
+    {
+      "kind": "native",
+      "name": "cost-correlation--shard-3-of-6",
+      "exitCode": 0,
+      "seconds": 1.618
+    },
+    {
+      "kind": "native",
+      "name": "independent-product--shard-5-of-6",
+      "exitCode": 0,
+      "seconds": 10.53
+    },
+    {
+      "kind": "native",
+      "name": "independent-product--shard-1-of-6",
+      "exitCode": 0,
+      "seconds": 19.446
+    },
+    {
+      "kind": "native",
+      "name": "construction--shard-5-of-6",
+      "exitCode": 0,
+      "seconds": 25.201
+    },
+    {
+      "kind": "native-micro",
+      "name": "acceptor-algebra",
+      "exitCode": 0,
+      "seconds": 36.714
+    },
+    {
+      "kind": "native",
+      "name": "programs--shard-5-of-6",
+      "exitCode": 0,
+      "seconds": 93.031
+    },
+    {
+      "kind": "native",
+      "name": "programs--shard-1-of-6",
+      "exitCode": 0,
+      "seconds": 139.507
+    },
+    {
+      "kind": "native",
+      "name": "large--shard-1-of-6",
+      "exitCode": 0,
+      "seconds": 190.543
+    },
+    {
+      "kind": "native",
+      "name": "algebra--shard-4-of-6",
+      "exitCode": 0,
+      "seconds": 316.906
+    },
+    {
+      "kind": "native",
+      "name": "algebra--shard-2-of-6",
+      "exitCode": 0,
+      "seconds": 334.746
+    },
+    {
+      "kind": "native",
+      "name": "algebra--shard-5-of-6",
+      "exitCode": 0,
+      "seconds": 385.527
+    },
+    {
+      "kind": "native",
+      "name": "algebra--shard-0-of-6",
+      "exitCode": 0,
+      "seconds": 424.512
+    },
+    {
+      "kind": "native",
+      "name": "algebra--shard-1-of-6",
+      "exitCode": 0,
+      "seconds": 431.94
+    },
+    {
+      "kind": "native",
+      "name": "algebra--shard-3-of-6",
+      "exitCode": 0,
+      "seconds": 607.112
+    }
+  ],
+  "familyWorkloads": {
+    "algebra": 66,
+    "algebra-scaling": 16,
+    "construction": 12,
+    "cost-correlation": 4,
+    "cost-counter": 21,
+    "independent-product": 8,
+    "iter-range-tail": 3,
+    "large": 14,
+    "programs": 22
+  }
+}

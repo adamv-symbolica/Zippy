@@ -157,6 +157,9 @@ object OpenFstAudit:
     val pool = Executors.newFixedThreadPool(workers,new ThreadFactory:
       def newThread(r: Runnable): Thread = {val t = Thread(r,"openfst-audit");t.setDaemon(true);t}
     )
+    val executions = Executors.newFixedThreadPool(workers,new ThreadFactory:
+      def newThread(r: Runnable): Thread = {val t=Thread(r,"openfst-native-check");t.setDaemon(true);t}
+    )
     println(s"OpenFst audit: ${snapshot.size} cases ($symbolCases symbolic frames), $workers workers, batches of $batch")
     snapshot.zipWithIndex.grouped(batch).foreach { group => pool.submit(new Runnable:
       def run(): Unit =
@@ -178,37 +181,43 @@ object OpenFstAudit:
           pending :+= item;bytes+=size
         }
         if pending.nonEmpty then chunks+=pending
-        chunks.foreach { chunk =>
-          var session = Option.empty[OpenFstBackend.Session]
-          try
-            if chunk.nonEmpty then
-              session = Some(OpenFstBackend.Session(chunk.map(_._3.program).toVector))
-              chunk.zipWithIndex.foreach { case ((c,id,value),index) =>
-                record(s"{\"case\":$id,\"dialect\":${quote(c.dialect)},\"status\":\"start\"}")
-                val start = System.nanoTime()
-                try
-                  value.run(session.get,index)
-                  counts.computeIfAbsent(c.dialect,_ => AtomicLong(0)).incrementAndGet()
-                  record(s"{\"case\":$id,\"dialect\":${quote(c.dialect)},\"caller\":${quote(c.caller)},\"status\":\"pass\",\"micros\":${(System.nanoTime()-start)/1000}}")
-                catch case e: Throwable =>
-                  failures.incrementAndGet()
-                  record(s"{\"case\":$id,\"dialect\":${quote(c.dialect)},\"caller\":${quote(c.caller)},\"status\":\"fail\",\"error\":${quote(e.toString)}}")
-                finally
-                  val n = checks.incrementAndGet()
-                  if n % 1000 == 0 || n == snapshot.size then println(s"OpenFst audit: $n/${snapshot.size}, ${failures.get()} failures")
-              }
-          catch case e: Throwable =>
-            failures.addAndGet(chunk.size)
-            checks.addAndGet(chunk.size)
-            record(s"{\"status\":\"batch-failure\",\"cases\":${chunk.map(_._2).mkString("[",",","]")},\"error\":${quote(e.toString)}}")
-          finally
-            session.foreach(_.close())
-        }
+        chunks.foreach { chunk => executions.submit(new Runnable:
+          def run(): Unit =
+            busy.set(true)
+            var session = Option.empty[OpenFstBackend.Session]
+            try
+              if chunk.nonEmpty then
+                session = Some(OpenFstBackend.Session(chunk.map(_._3.program).toVector))
+                chunk.zipWithIndex.foreach { case ((c,id,value),index) =>
+                  record(s"{\"case\":$id,\"dialect\":${quote(c.dialect)},\"status\":\"start\"}")
+                  val start = System.nanoTime()
+                  try
+                    value.run(session.get,index)
+                    counts.computeIfAbsent(c.dialect,_ => AtomicLong(0)).incrementAndGet()
+                    record(s"{\"case\":$id,\"dialect\":${quote(c.dialect)},\"caller\":${quote(c.caller)},\"status\":\"pass\",\"micros\":${(System.nanoTime()-start)/1000}}")
+                  catch case e: Throwable =>
+                    failures.incrementAndGet()
+                    record(s"{\"case\":$id,\"dialect\":${quote(c.dialect)},\"caller\":${quote(c.caller)},\"status\":\"fail\",\"error\":${quote(e.toString)}}")
+                  finally
+                    val n = checks.incrementAndGet()
+                    if n % 1000 == 0 || n == snapshot.size then println(s"OpenFst audit: $n/${snapshot.size}, ${failures.get()} failures")
+                }
+            catch case e: Throwable =>
+              failures.addAndGet(chunk.size)
+              checks.addAndGet(chunk.size)
+              record(s"{\"status\":\"batch-failure\",\"cases\":${chunk.map(_._2).mkString("[",",","]")},\"error\":${quote(e.toString)}}")
+            finally
+              session.foreach(_.close());busy.remove()
+        ) }
         busy.remove()
     ) }
     pool.shutdown()
-    val finished = pool.awaitTermination(java.lang.Long.getLong("morkl.openfstAudit.seconds",14400L),TimeUnit.SECONDS)
-    if !finished then {failures.incrementAndGet();pool.shutdownNow()}
+    val seconds=java.lang.Long.getLong("morkl.openfstAudit.seconds",14400L).longValue()
+    val prepared=pool.awaitTermination(seconds,TimeUnit.SECONDS)
+    if !prepared then pool.shutdownNow()
+    executions.shutdown()
+    val finished=prepared && executions.awaitTermination(seconds,TimeUnit.SECONDS)
+    if !finished then {failures.incrementAndGet();executions.shutdownNow()}
     val passed = counts.asScala.toVector.sortBy(_._1).map((k,v) => quote(k)+":"+v.get()).mkString(",")
     val summary = s"{\"cases\":${snapshot.size},\"symbolCases\":$symbolCases,\"digitObservations\":${observations.get()},\"checks\":${checks.get()},\"failures\":${failures.get()},\"finished\":$finished,\"passed\":{$passed}}"
     Files.writeString(output.resolve("summary.json"),summary+"\n");writer.close();println("OpenFst audit: "+summary)

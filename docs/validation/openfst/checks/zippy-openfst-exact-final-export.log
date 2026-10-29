@@ -1,0 +1,7 @@
+[ 25%] Building CXX object CMakeFiles/zippy_openfst.dir/zippy_openfst.cpp.o
+[ 50%] Linking CXX shared library libzippy_openfst.so
+[ 50%] Built target zippy_openfst
+[ 75%] Building CXX object CMakeFiles/zippy_program.dir/home/ubuntu/openfst-export/program.cpp.o
+[100%] Linking CXX executable zippy_program
+[100%] Built target zippy_program
+O 2 1 2 1 4

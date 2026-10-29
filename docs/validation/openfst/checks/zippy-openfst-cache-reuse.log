@@ -1,0 +1,34 @@
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+[
+  {
+    "root": "/home/ubuntu/Zippy-fast",
+    "library": "/home/ubuntu/Zippy-fast/target/openfst/runtime-6e49f4bb3af6dea2f6da39d3d632c8a10742eee56b81c5c2bbe4c133b1c1461d/libzippy_openfst.so",
+    "reused": 10433,
+    "headerSHA256": "36b8d60aed26eba29f0bc82c4e7615186e43e4069fb2fec9bea441bbdabe8fff"
+  },
+  {
+    "root": "/home/ubuntu/Zippy-final-pruned-bench",
+    "library": "/home/ubuntu/Zippy-final-pruned-bench/target/openfst/runtime-6e49f4bb3af6dea2f6da39d3d632c8a10742eee56b81c5c2bbe4c133b1c1461d/libzippy_openfst.so",
+    "reused": 189,
+    "headerSHA256": "36b8d60aed26eba29f0bc82c4e7615186e43e4069fb2fec9bea441bbdabe8fff"
+  }
+]

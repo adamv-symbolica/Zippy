@@ -1,0 +1,10 @@
+family,name,dialect,paths,states,arcs,compile_ms,native_ms,reference_trie_ms,samples,checked
+iter-range-tail,heads=192/fanout=16,bits,2880,298,499,3404.230,46.062083,35.988,5,exact
+iter-range-tail,heads=192/fanout=16,bytes,2880,7,495,939.112,7.613431,35.988,5,exact
+iter-range-tail,heads=192/fanout=16,symbols,2880,2,2880,39.431,3.769589,35.988,5,exact
+iter-range-tail,heads=32/fanout=12,bits,352,93,156,2724.157,3.025021,19.802,5,exact
+iter-range-tail,heads=32/fanout=12,bytes,352,6,356,943.590,0.694915,19.802,5,exact
+iter-range-tail,heads=32/fanout=12,symbols,352,2,352,41.943,0.341858,19.802,5,exact
+iter-range-tail,heads=96/fanout=16,bits,1440,169,290,3238.040,16.453641,28.688,5,exact
+iter-range-tail,heads=96/fanout=16,bytes,1440,7,489,930.346,2.839155,28.688,5,exact
+iter-range-tail,heads=96/fanout=16,symbols,1440,2,1440,41.331,1.796244,28.688,5,exact
