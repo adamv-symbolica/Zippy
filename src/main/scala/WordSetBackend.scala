@@ -11,9 +11,15 @@ class WordSetBackend[P](val ops: WordOps[P]):
     case _ => TreeSet.from(values)(using ops.ordering)
   def empty: Set[P] = from(Vector.empty)
   def union(a: Set[P], b: Set[P]): Set[P] = if a.size < b.size then from(b ++ a) else from(a ++ b)
-  def intersect(a: Set[P], b: Set[P]): Set[P] = from(a intersect b)
-  def subtract(a: Set[P], b: Set[P]): Set[P] = from(a diff b)
+  def intersect(a: Set[P], b: Set[P]): Set[P] =
+    if a.size == 1 then if b(a.head) then a else empty
+    else from(a intersect b)
+  def subtract(a: Set[P], b: Set[P]): Set[P] =
+    if a.size == 1 then if b(a.head) then empty else a
+    else from(a diff b)
   def groups(values: Set[P]): Vector[(P, Set[P])] =
+    if values.isEmpty then return Vector.empty
+    if values.size == 1 then return ops.split(values.head).toVector.map((h, t) => h -> from(Vector(t)))
     val out = scala.collection.mutable.HashMap.empty[P, scala.collection.mutable.Set[P]]
     values.iterator.flatMap(ops.split).foreach((h, t) => out.getOrElseUpdate(h, scala.collection.mutable.Set.empty) += t)
     out.iterator.map((h, t) => h -> from(t)).toVector

@@ -144,7 +144,7 @@ class WordEncodingScaleTest extends FunSuite:
       Space.Iteration(input, PathRef("_"), SpaceMention("_"), Space.Singleton(Path.Deref(ignored))),
       Space.Fold(input, Path.ZERO, PathRef("_"), PathRef("_"), SpaceMention("_"), Space.Singleton(Path.Deref(ignored)), Path.Deref(ignored)))
     expressions.foreach { expr =>
-      val (code, program) = ZippyTranslations.symbolsToBits(expr)
+      val (code, program) = ZippyTranslations.sortedDictionaryToBits(expr)
       val actual = program.eval(paths = Map(ignored -> code.encode(outer)), validateHints = true)(using BitWords)
       assertEquals(code.decodeSpace(actual).paths, Set(outer))
     }

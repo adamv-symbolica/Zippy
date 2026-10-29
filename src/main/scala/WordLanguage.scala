@@ -39,18 +39,32 @@ object BitWords extends WordOps[BigInt]:
     p.bitLength - 1
   override def concat(p: BigInt, q: BigInt): BigInt =
     val n = length(q)
-    (p << n) | q.clearBit(n)
+    if length(p) + n <= 62 then BigInt((p.toLong << n) | (q.toLong & ((1L << n) - 1)))
+    else (p << n) | q.clearBit(n)
   override def compare(p: BigInt, q: BigInt): Int =
     val a = length(p); val b = length(q); val common = a.min(b)
-    val c = (p >> (a - common)).compare(q >> (b - common))
+    val c = if a <= 62 && b <= 62 then java.lang.Long.compare(p.toLong >>> (a - common), q.toLong >>> (b - common))
+      else if a == b then p.compare(q)
+      else if a > b then (p >> (a - b)).compare(q)
+      else p.compare(q >> (b - a))
     if c != 0 then c else a.compare(b)
   override def startsWith(p: BigInt, q: BigInt): Boolean =
     val d = length(p) - length(q)
-    d >= 0 && (p >> d) == q
-  override def take(p: BigInt, n: Int): BigInt = p >> (length(p) - n.max(0).min(length(p)))
+    d >= 0 && (if p.bitLength <= 63 then (p.toLong >>> d) == q.toLong else (p >> d) == q)
+  override def take(p: BigInt, n: Int): BigInt =
+    val shift = length(p) - n.max(0).min(length(p))
+    if p.bitLength <= 63 then BigInt(p.toLong >>> shift) else p >> shift
   override def drop(p: BigInt, n: Int): BigInt =
     val remaining = length(p) - n.max(0).min(length(p))
-    (p & ((BigInt(1) << remaining) - 1)).setBit(remaining)
+    if p.bitLength <= 63 then BigInt((p.toLong & ((1L << remaining) - 1)) | (1L << remaining))
+    else (p & ((BigInt(1) << remaining) - 1)).setBit(remaining)
+  override def split(p: BigInt): Option[(BigInt, BigInt)] =
+    val n = length(p) - 1
+    if n < 0 then None
+    else if p.bitLength <= 63 then
+      val bits = p.toLong
+      Some(BigInt(if (bits & (1L << n)) == 0 then 2 else 3) -> BigInt((bits & ((1L << n) - 1)) | (1L << n)))
+    else Some(take(p, 1) -> drop(p, 1))
 
 /** Array-backed immutable value. The backing array is never exposed, including
   * through case-class copy/product APIs or ArraySeq.unsafeArray.
@@ -185,16 +199,21 @@ object WordEvaluator:
         require(ref.lengthHint < 0 || ref.lengthHint == length, s"${ref.s} exact hint ${ref.lengthHint}, actual $length")
         require(ref.maxLengthHint < 0 || length <= ref.maxLengthHint, s"${ref.s} upper hint ${ref.maxLengthHint}, actual $length")
       value
-    def path(p: WordPath[P], pc: PC, sc: SC): TailRec[P] = tailcall {
-      p match
-        case WordPath.Deref(r) => done(checked(r, pc(r)))
-        case WordPath.Constant(p) => done(p)
-        case WordPath.Concat(l, r) => for a <- path(l, pc, sc); b <- path(r, pc, sc) yield ops.concat(a, b)
-        case WordPath.GroundedPP(p, f) => path(p, pc, sc).map(f)
-        case WordPath.GroundedSP(s, f) => run(s, pc, sc).map(x => f(WordSpaceValue(x)))
-    }
-    def run(s: WordSpace[P], pc: PC, sc: SC): TailRec[Set[P]] = tailcall {
+    def path(p: WordPath[P], pc: PC, sc: SC): TailRec[P] = p match
+      case WordPath.Deref(r) => done(checked(r, pc(r)))
+      case WordPath.Constant(p) => done(p)
+      case WordPath.Concat(l, r) => tailcall { for a <- path(l, pc, sc); b <- path(r, pc, sc) yield ops.concat(a, b) }
+      case WordPath.GroundedPP(p, f) => tailcall(path(p, pc, sc).map(f))
+      case WordPath.GroundedSP(s, f) => tailcall(run(s, pc, sc).map(x => f(WordSpaceValue(x))))
+    def run(s: WordSpace[P], pc: PC, sc: SC): TailRec[Set[P]] =
       stats.foreach(x => x.nodes += 1)
+      s match
+        case Empty() => done(store.empty)
+        case Mention(m) => done(sc(m).paths)
+        case Literal(v) => done(stored(v.paths))
+        case Singleton(p) => path(p, pc, sc).map(p => store.from(Vector(p)))
+        case _ => execute(s, pc, sc)
+    def execute(s: WordSpace[P], pc: PC, sc: SC): TailRec[Set[P]] = tailcall {
       def rec(s: WordSpace[P]): TailRec[Set[P]] = run(s, pc, sc)
       def binary(x: WordSpace[P], y: WordSpace[P])(f: (Set[P], Set[P]) => Set[P]): TailRec[Set[P]] =
         for a <- rec(x); b <- rec(y) yield f(a, b)
@@ -236,7 +255,12 @@ object WordEvaluator:
         case Unwrap(s, p) => for prefix <- path(p, pc, sc); values <- rec(s)
           yield store.unwrap(values, prefix)
         case Iteration(s, h, t, body) => rec(s).flatMap { values =>
-          traverse(store.groups(values))((head, tail) => run(body, bindPath(pc, h, head), bindSpace(sc, t, tail))).map(_.foldLeft(store.empty)(store.union))
+          val groups = store.groups(values)
+          if groups.isEmpty then done(store.empty)
+          else if groups.size == 1 then
+            val (head, tail) = groups.head
+            run(body, bindPath(pc, h, head), bindSpace(sc, t, tail))
+          else traverse(groups)((head, tail) => run(body, bindPath(pc, h, head), bindSpace(sc, t, tail))).map(_.foldLeft(store.empty)(store.union))
         }
         case Fold(s, initial, acc, h, t, body, update) =>
           for

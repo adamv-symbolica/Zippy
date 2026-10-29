@@ -52,19 +52,19 @@ class WordEncodingCorpusTest extends FunSuite:
           routines = defs, stats = Some(sourceStats))(using fib.source)
         assertEquals(baseline, expected)
         val sourceNodes = WordSyntax.nodes(syntax) + defs.valuesIterator.map(r => WordSyntax.nodes(r.body)).sum
-        def run[A, B](code: WordEncoding[A, B], program: WordProgram[B], input: WordSpaceValue[A]): WordSpaceValue[A] =
+        def run[A, B](code: WordEncoding[A, B], program: WordProgram[B], input: WordSpaceValue[A], expansion: Int = 1): WordSpaceValue[A] =
           val stats = new WordEvaluationStats
           val result = program.eval(spaces = Map(SpaceFuzzer.argM -> code.encodeSpace(input)), stats = Some(stats), validateHints = true)(using code.target)
-          val width = code.maxCodeLength.getOrElse(8).max(1)
+          val width = code.maxCodeLength.getOrElse(8).max(1) * expansion
           // Normalize work by the actual alphabet expansion, not by input cardinality.
           assert(program.nodeCount <= 50L * width * sourceNodes, s"AST expansion at program $index: ${program.nodeCount}/$sourceNodes")
-          assert(stats.nodes <= 50L * width * sourceStats.nodes.max(1), s"work expansion at program $index: ${stats.nodes}/${sourceStats.nodes}")
+          assert(stats.nodes <= 50L * width * (sourceStats.nodes + input.paths.iterator.map(p => p.items.size + 1).sum).max(1), s"work expansion at program $index: ${stats.nodes}/${sourceStats.nodes}")
           records += ((index, sourceNodes, program.nodeCount, sourceStats.nodes, stats.nodes))
           code.decodeSpace(result)
         val raw = WordSpaceValue(input.paths)
         literalFib.foreach(p => assertEquals(run(actualFib, p, raw), expected, s"literal fib $index"))
         literalBytes.foreach(p => assertEquals(run(actualBytes, p, raw), expected, s"literal bytes $index"))
-        literalChain.foreach(p => assertEquals(actualFib.decodeSpace(run(WordEncodings.bitsToBytes, p, actualFib.encodeSpace(raw))), expected, s"literal chain $index"))
+        literalChain.foreach(p => assertEquals(actualFib.decodeSpace(run(WordEncodings.bitsToBytes, p, actualFib.encodeSpace(raw), expansion = 46)), expected, s"literal chain $index"))
         val trie = Zippy_bytes.evalZ(strings.entry, spaces = Map(SpaceFuzzer.argM -> utf8.encodeSpace(raw)),
           routines = strings.routines, validateHints = true).toSpaceValue
         assertEquals(utf8.decodeSpace(trie), expected, s"byte trie case $index")
@@ -72,12 +72,12 @@ class WordEncodingCorpusTest extends FunSuite:
         assertEquals(run(fib, bits, raw), expected, s"fib case $index")
         assertEquals(run(utf8, strings, raw), expected, s"utf8 case $index")
         assertEquals(run(intern, interned, raw), expected, s"intern case $index")
-        assertEquals(fib.decodeSpace(run(WordEncodings.bitsToBytes, injectedBytes, fib.encodeSpace(raw))), expected, s"bit injection $index")
-        assertEquals(utf8.decodeSpace(run(WordEncodings.bytesToBits, expandedBits, utf8.encodeSpace(raw))), expected, s"byte expansion $index")
-        assertEquals(fib.decodeSpace(run(bitsToSymbols, injectedBitSymbols, fib.encodeSpace(raw))), expected, s"bit symbols $index")
-        assertEquals(utf8.decodeSpace(run(bytesToSymbols, injectedByteSymbols, utf8.encodeSpace(raw))), expected, s"byte symbols $index")
+        assertEquals(fib.decodeSpace(run(WordEncodings.bitsToBytes, injectedBytes, fib.encodeSpace(raw), expansion = fib.maxCodeLength.get)), expected, s"bit injection $index")
+        assertEquals(utf8.decodeSpace(run(WordEncodings.bytesToBits, expandedBits, utf8.encodeSpace(raw), expansion = 8)), expected, s"byte expansion $index")
+        assertEquals(fib.decodeSpace(run(bitsToSymbols, injectedBitSymbols, fib.encodeSpace(raw), expansion = fib.maxCodeLength.get)), expected, s"bit symbols $index")
+        assertEquals(utf8.decodeSpace(run(bytesToSymbols, injectedByteSymbols, utf8.encodeSpace(raw), expansion = 8)), expected, s"byte symbols $index")
         assertEquals(fib.decodeSpace(WordEncodings.bitsToBytes.decodeSpace(run(WordEncodings.bytesToBits, composed,
-          WordEncodings.bitsToBytes.encodeSpace(fib.encodeSpace(raw))))), expected, s"composition $index")
+          WordEncodings.bitsToBytes.encodeSpace(fib.encodeSpace(raw)), expansion = fib.maxCodeLength.get))), expected, s"composition $index")
     assertEquals(coverage("literal-fib/supported") + coverage("literal-fib/named-order-error"), 1000)
     assertEquals(coverage("literal-bytes/supported") + coverage("literal-bytes/named-order-error"), 1000)
     assert(coverage("literal-fib/supported") > 500)

@@ -119,7 +119,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
   private def constant(p: B): WordPath[B] = WordPath.Constant(p)
   private def deref(p: PathRef): WordPath[B] = WordPath.Deref(p)
   private def mention(p: SpaceMention): WordSpace[B] = Mention(p)
-  private def epsilon: WordSpace[B] = Singleton(constant(target.empty))
+  private def epsilon: WordSpace[B] = Literal(WordSpaceValue(Set(target.empty)))
   private def union(xs: Iterable[WordSpace[B]]): WordSpace[B] =
     val values = xs.toVector
     def balanced(lo: Int, hi: Int): WordSpace[B] =
@@ -185,7 +185,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
         else
           val digit = pr("trie_digit").known(1); val rest = sm("trie_rest")
           val branches = candidates.groupBy(_(depth)).toVector.sortBy(_._1).map { (b, group) =>
-            val test = Intersection(Singleton(deref(digit)), Singleton(constant(target.fromDigits(Vector(b)))))
+            val test = Intersection(Singleton(deref(digit)), Literal(WordSpaceValue(Set(target.fromDigits(Vector(b))))))
             guard(test, descend(mention(rest), group, depth + 1))
           }
           Iteration(input, digit, rest, union(branches))
@@ -206,7 +206,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
             val digit = pr("digit").known(1); val rest = sm("digits")
             val nextPrefix = WordPath.Concat(prefix, deref(digit))
             val head = Singleton(deref(digit))
-            val terminal = Singleton(constant(target.fromDigits(Vector(b))))
+            val terminal = Literal(WordSpaceValue(Set(target.fromDigits(Vector(b)))))
             Iteration(input, digit, rest, Union(
               guard(Intersection(head, terminal), finish(nextPrefix, mention(rest))),
               guard(Subtraction(head, terminal), descend(mention(rest), nextPrefix, depth + 1))))
@@ -227,7 +227,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
             def next(state: Boolean): WordSpace[B] =
               if bounded && depth + 1 >= limit.get then Empty()
               else Call(scanner(state, depth + 1), nextPrefix +: cps.map(deref), mention(rest) +: css.map(mention))
-            def isDigit(n: Int): WordSpace[B] = Intersection(Singleton(deref(digit)), Singleton(constant(target.fromDigits(Vector(n)))))
+            def isDigit(n: Int): WordSpace[B] = Intersection(Singleton(deref(digit)), Literal(WordSpaceValue(Set(target.fromDigits(Vector(n))))))
             val branch = shape match
               case WordCodeShape.Fibonacci =>
                 Union(guard(isDigit(0), next(false)), guard(isDigit(1), if previousOne then finish(nextPrefix, mention(rest)) else next(true)))
@@ -304,6 +304,28 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
     if encoding.preservesOrder then Range(src, start, end)
     else Call(fromOrder, Vector.empty, Vector(Range(Call(toOrder, Vector.empty, Vector(src)), start, end)))
 
+  /** Fold has already extracted complete heads. A closed dictionary can bind
+    * one by balanced whole-word membership, without rescanning every digit.
+    * The source and user continuation are each evaluated/stored once.
+    */
+  private def bindHead(src: WordSpace[B], h: PathRef, t: SpaceMention, body: WordSpace[B]): WordSpace[B] =
+    if encoding.orderedDigits.isEmpty || encoding.shape != WordCodeShape.Fibonacci then return iterate(src, h, t, body)
+    val free = WordSyntax.free(body).without(h).withoutSpace(t)
+    val cps = free.paths.values.toVector.sortBy(_.s); val css = free.spaces.values.toVector.sortBy(_.s)
+    val leaf = rp("head_body"); val input = sm("selected_head"); val entry = rp("bind_head")
+    definitions(leaf) = WordRoutine(leaf, h +: cps, t +: css, body)
+    def lookup(ds: Vector[Int]): WordSpace[B] =
+      if ds.size == 1 then
+        Call(leaf, constant(target.fromDigits(encoding.code(ds.head))) +: cps.map(deref), epsilon +: css.map(mention))
+      else
+        val (left, right) = ds.splitAt(ds.size / 2)
+        val accepted = Literal(WordSpaceValue(left.map(d => target.fromDigits(encoding.code(d))).toSet))
+        Union(guard(Intersection(mention(input), accepted), lookup(left)),
+          guard(Subtraction(mention(input), accepted), lookup(right)))
+    definitions(entry) = WordRoutine(entry, cps, input +: css,
+      guard(mention(input), lookup(encoding.orderedDigits)))
+    Call(entry, cps.map(deref), src +: css.map(mention))
+
   private def fold(src: WordSpace[B], initial: WordPath[B], acc: PathRef, h: PathRef,
                    t: SpaceMention, body: WordSpace[B], update: WordPath[B]): WordSpace[B] =
     encoding.unsupportedOrdering.foreach(name => throw UnsupportedEncodedOrdering(name, "Fold"))
@@ -325,7 +347,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
     val next = Call(step, Vector(deref(acc), deref(selected)) ++ cps.map(deref),
       Vector(mention(input), mention(heads), Unwrap(mention(input), deref(selected))) ++ css.map(mention))
     definitions(loop) = WordRoutine(loop, acc +: cps, Vector(input, heads) ++ css,
-      iterate(orderedRange(mention(heads), 0, 1), selected, ignored, next))
+      bindHead(orderedRange(mention(heads), 0, 1), selected, ignored, next))
     val prepare = rp("fold_prepare"); val head = pr("head"); val tail = sm("tail")
     val allHeads = iterate(mention(input), head, tail, Singleton(deref(head)))
     definitions(prepare) = WordRoutine(prepare, acc +: cps, input +: css,
