@@ -10,16 +10,16 @@ Fixture family: `programs`. Result: **125 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| eval Set | 32.005 |  |
-| ROG exec | 19.364 |  |
-| evalTrie | 396.060 |  |
-| evalZ | 528.014 |  |
-| ROG execT | 6.502 |  |
-| Zippy_bits reference | 739.068802 | BigInt path sets; 5 sample(s), exact check; separate h4d run |
-| Zippy_bytes reference | 817.456609 | byte-array path sets; 5 sample(s), exact check; separate h4d run |
-| C++ OpenFst symbols | 19.719900 | symbol labels; standalone |
-| C++ OpenFst bits | 303.109874 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 134.032068 | four-byte big-endian intern IDs; standalone |
+| eval Set | 27.786 |  |
+| ROG exec | 14.247 |  |
+| evalTrie | 464.934 |  |
+| evalZ | 493.081 |  |
+| ROG execT | 4.208 |  |
+| Zippy_bits reference | 832.823195 | BigInt path sets; 5 sample(s), exact check; separate h4d run |
+| Zippy_bytes reference | 907.779510 | byte-array path sets; 5 sample(s), exact check; separate h4d run |
+| C++ OpenFst symbols | 6.593130 | symbol labels; standalone; optimized graph |
+| C++ OpenFst bits | 211.307802 | Fibonacci-coded intern IDs; standalone; optimized graph |
+| C++ OpenFst bytes | 76.152429 | four-byte big-endian intern IDs; standalone; optimized graph |
 
 Original benchmark note: exec fallback Call dispatch to optimized callee graph(s): neigh.
 
@@ -28,25 +28,25 @@ Scala compilation costs from the same report (milliseconds):
 | Stage | ms |
 | --- | --- |
 | prep compile | n/a |
-| graph compile | 3517.848 |
-| total compile | 3517.848 |
-| compile+ROG execT | 3524.350 |
-| source pass | 3194.640 |
-| lower+inline | 0.361 |
-| graph optimize | 317.189 |
-| graph transpile | 2.344 |
-| const-fold eval | 0.420 |
+| graph compile | 3158.375 |
+| total compile | 3158.375 |
+| compile+ROG execT | 3162.583 |
+| source pass | 3113.990 |
+| lower+inline | 1.035 |
+| graph optimize | 34.598 |
+| graph transpile | 3.877 |
+| const-fold eval | 0.496 |
 | const-fold evalTrie | 0.000 |
 | const-fold evalZ | 0.000 |
 | const-fold execT | 0.000 |
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/programs/11-life-reference-random-24x24/symbols.cpp) | 3.768 | 26 | 149 | 5 | exact |
-| [bits.cpp](../../output/cornerstone-review/programs/11-life-reference-random-24x24/bits.cpp) | 27149.574 | 167 | 259 | 5 | exact |
-| [bytes.cpp](../../output/cornerstone-review/programs/11-life-reference-random-24x24/bytes.cpp) | 1972.629 | 101 | 224 | 5 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/programs/11-life-reference-random-24x24/symbols.cpp) · [graph](../../output/cornerstone-review/programs/11-life-reference-random-24x24/symbols.graph.txt) | 3462.488 | 2197 | 180909 | 26919.277 | 150 | 149 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/programs/11-life-reference-random-24x24/bits.cpp) · [graph](../../output/cornerstone-review/programs/11-life-reference-random-24x24/bits.graph.txt) | 905.666 | 12806 | 917128 | 27805.220 | 648 | 647 | 5 | exact |
+| [bytes.cpp](../../output/cornerstone-review/programs/11-life-reference-random-24x24/bytes.cpp) · [graph](../../output/cornerstone-review/programs/11-life-reference-random-24x24/bytes.graph.txt) | 579.213 | 565 | 58869 | 1813.757 | 225 | 224 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.
 
@@ -56,16 +56,16 @@ Fixture family: `programs`. Result: **125 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| eval Set | 28.956 |  |
+| eval Set | 23.910 |  |
 | ROG exec | 0.002 | precomputed literal |
-| evalTrie | 242.417 |  |
-| evalZ | 308.077 |  |
+| evalTrie | 401.333 |  |
+| evalZ | 461.052 |  |
 | ROG execT | 0.001 | precomputed literal |
-| Zippy_bits reference | 671.115748 | BigInt path sets; 5 sample(s), exact check; separate h4d run |
-| Zippy_bytes reference | 809.104921 | byte-array path sets; 5 sample(s), exact check; separate h4d run |
-| C++ OpenFst symbols | 12.308442 | symbol labels; standalone |
-| C++ OpenFst bits | 219.954171 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 111.651758 | four-byte big-endian intern IDs; standalone |
+| Zippy_bits reference | 701.709135 | BigInt path sets; 5 sample(s), exact check; separate h4d run |
+| Zippy_bytes reference | 804.940862 | byte-array path sets; 5 sample(s), exact check; separate h4d run |
+| C++ OpenFst symbols | 0.000006 | symbol labels; standalone; precomputed literal |
+| C++ OpenFst bits | 169.401873 | Fibonacci-coded intern IDs; standalone; optimized graph |
+| C++ OpenFst bytes | 77.802984 | four-byte big-endian intern IDs; standalone; optimized graph |
 
 Original benchmark note: compiled away; use compile+run.
 
@@ -73,26 +73,26 @@ Scala compilation costs from the same report (milliseconds):
 
 | Stage | ms |
 | --- | --- |
-| prep compile | 82.949 |
-| graph compile | 20.125 |
-| total compile | 103.074 |
-| compile+ROG execT | 103.075 |
-| source pass | 51.512 |
-| lower+inline | 1.937 |
-| graph optimize | 34.827 |
-| graph transpile | 1.624 |
-| const-fold eval | 19.948 |
+| prep compile | 138.133 |
+| graph compile | 18.754 |
+| total compile | 156.888 |
+| compile+ROG execT | 156.888 |
+| source pass | 75.366 |
+| lower+inline | 6.882 |
+| graph optimize | 47.469 |
+| graph transpile | 2.542 |
+| const-fold eval | 18.076 |
 | const-fold evalTrie | 0.000 |
 | const-fold evalZ | 0.000 |
 | const-fold execT | 0.000 |
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/programs/12-life-compile-pass-random-24x24/symbols.cpp) | 2.493 | 26 | 149 | 5 | exact |
-| [bits.cpp](../../output/cornerstone-review/programs/12-life-compile-pass-random-24x24/bits.cpp) | 23066.735 | 167 | 259 | 5 | exact |
-| [bytes.cpp](../../output/cornerstone-review/programs/12-life-compile-pass-random-24x24/bytes.cpp) | 1897.020 | 101 | 224 | 5 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/programs/12-life-compile-pass-random-24x24/symbols.cpp) · [graph](../../output/cornerstone-review/programs/12-life-compile-pass-random-24x24/symbols.graph.txt) | 21.111 | 1 | 2103 | 372.229 | 26 | 149 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/programs/12-life-compile-pass-random-24x24/bits.cpp) · [graph](../../output/cornerstone-review/programs/12-life-compile-pass-random-24x24/bits.graph.txt) | 758.858 | 11051 | 779200 | 17397.916 | 648 | 647 | 5 | exact |
+| [bytes.cpp](../../output/cornerstone-review/programs/12-life-compile-pass-random-24x24/bytes.cpp) · [graph](../../output/cornerstone-review/programs/12-life-compile-pass-random-24x24/bytes.graph.txt) | 311.654 | 567 | 56119 | 1813.704 | 225 | 224 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.
 
@@ -102,16 +102,16 @@ Fixture family: `programs`. Result: **125 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| eval Set | 0.001 |  |
+| eval Set | 0.000 |  |
 | ROG exec | 0.001 | precomputed literal |
-| evalTrie | 0.042 |  |
-| evalZ | 0.045 |  |
+| evalTrie | 0.052 |  |
+| evalZ | 0.053 |  |
 | ROG execT | 0.001 | precomputed literal |
-| Zippy_bits reference | 0.003706 | BigInt path sets; 5 sample(s), exact check; separate h4d run |
-| Zippy_bytes reference | 0.003666 | byte-array path sets; 5 sample(s), exact check; separate h4d run |
-| C++ OpenFst symbols | 0.000005 | symbol labels; standalone |
-| C++ OpenFst bits | 0.000005 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 0.000005 | four-byte big-endian intern IDs; standalone |
+| Zippy_bits reference | 0.004297 | BigInt path sets; 5 sample(s), exact check; separate h4d run |
+| Zippy_bytes reference | 0.004877 | byte-array path sets; 5 sample(s), exact check; separate h4d run |
+| C++ OpenFst symbols | 0.000006 | symbol labels; standalone; precomputed literal |
+| C++ OpenFst bits | 0.000006 | Fibonacci-coded intern IDs; standalone; precomputed literal |
+| C++ OpenFst bytes | 0.000006 | four-byte big-endian intern IDs; standalone; precomputed literal |
 
 Original benchmark note: compiled away; use compile+run.
 
@@ -119,26 +119,26 @@ Scala compilation costs from the same report (milliseconds):
 
 | Stage | ms |
 | --- | --- |
-| prep compile | 94.583 |
-| graph compile | 0.328 |
-| total compile | 94.912 |
-| compile+ROG execT | 94.913 |
-| source pass | 92.504 |
-| lower+inline | 0.342 |
-| graph optimize | 0.456 |
-| graph transpile | 0.015 |
-| const-fold eval | 85.953 |
+| prep compile | 89.963 |
+| graph compile | 0.482 |
+| total compile | 90.445 |
+| compile+ROG execT | 90.446 |
+| source pass | 85.805 |
+| lower+inline | 1.817 |
+| graph optimize | 0.642 |
+| graph transpile | 0.023 |
+| const-fold eval | 77.913 |
 | const-fold evalTrie | 0.000 |
 | const-fold evalZ | 0.000 |
 | const-fold execT | 0.000 |
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/programs/13-life-compile-pass-random-24x24-initial-literal/symbols.cpp) | 1.747 | 26 | 149 | 5 | exact |
-| [bits.cpp](../../output/cornerstone-review/programs/13-life-compile-pass-random-24x24-initial-literal/bits.cpp) | 1.700 | 163 | 249 | 5 | exact |
-| [bytes.cpp](../../output/cornerstone-review/programs/13-life-compile-pass-random-24x24-initial-literal/bytes.cpp) | 1.419 | 101 | 224 | 5 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/programs/13-life-compile-pass-random-24x24-initial-literal/symbols.cpp) · [graph](../../output/cornerstone-review/programs/13-life-compile-pass-random-24x24-initial-literal/symbols.graph.txt) | 2.686 | 1 | 2103 | 4.980 | 26 | 149 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/programs/13-life-compile-pass-random-24x24-initial-literal/bits.cpp) · [graph](../../output/cornerstone-review/programs/13-life-compile-pass-random-24x24-initial-literal/bits.graph.txt) | 3.527 | 1 | 4744 | 505.229 | 163 | 249 | 5 | exact |
+| [bytes.cpp](../../output/cornerstone-review/programs/13-life-compile-pass-random-24x24-initial-literal/bytes.cpp) · [graph](../../output/cornerstone-review/programs/13-life-compile-pass-random-24x24-initial-literal/bytes.graph.txt) | 3.611 | 1 | 4218 | 421.515 | 101 | 224 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.
 
@@ -148,8 +148,8 @@ This separate compile-time experiment selects Reference, Trie, Zipper, ExecT, or
 
 | benchmark | backend | compile ms | const-fold total ms | eval ms | evalTrie ms | evalZ ms | execT ms |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| life compile-pass random 24x24 initial literal | Reference | 25.779 | 22.578 | 22.578 | 0.000 | 0.000 | 0.000 |
-| life compile-pass random 24x24 initial literal | Trie | 292.580 | 289.469 | 0.000 | 289.469 | 0.000 | 0.000 |
-| life compile-pass random 24x24 initial literal | Zipper | 270.581 | 267.674 | 0.000 | 0.000 | 267.674 | 0.000 |
-| life compile-pass random 24x24 initial literal | ExecT | 16.298 | 13.756 | 0.000 | 0.000 | 0.000 | 13.756 |
-| life compile-pass random 24x24 initial literal | Hybrid | 11.961 | 9.169 | 1.912 | 0.000 | 0.000 | 7.257 |
+| life compile-pass random 24x24 initial literal | Reference | 21.697 | 18.621 | 18.621 | 0.000 | 0.000 | 0.000 |
+| life compile-pass random 24x24 initial literal | Trie | 284.844 | 281.865 | 0.000 | 281.865 | 0.000 | 0.000 |
+| life compile-pass random 24x24 initial literal | Zipper | 287.962 | 285.029 | 0.000 | 0.000 | 285.029 | 0.000 |
+| life compile-pass random 24x24 initial literal | ExecT | 19.415 | 16.574 | 0.000 | 0.000 | 0.000 | 16.574 |
+| life compile-pass random 24x24 initial literal | Hybrid | 16.696 | 12.899 | 2.515 | 0.000 | 0.000 | 10.384 |

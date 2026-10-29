@@ -1,0 +1,22 @@
+{
+  "created_at": "2026-10-29T14:27:39.327316Z",
+  "data_volume_gib": null,
+  "error": null,
+  "expires_at": "2026-10-29T20:27:39.327316Z",
+  "id": "nd-01m640yc8f53rsenp8ctd9sa51",
+  "name": "zippy-graph-lazy",
+  "os": "ubuntu",
+  "owner": "adam.vandervorst@symbolica.ai",
+  "profile": "cpu-h4d-xlarge",
+  "ready_at": "2026-10-29T14:28:42.285100Z",
+  "region": "asia-southeast1",
+  "starts_at": null,
+  "status": "terminating",
+  "storage": "none",
+  "tailscale": {
+    "hostname": "nd-01m640yc8f53rsenp8ctd9sa51",
+    "ipv4": "100.125.148.85",
+    "ssh_user": "ubuntu"
+  },
+  "terminated_at": null
+}

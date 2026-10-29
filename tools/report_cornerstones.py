@@ -88,7 +88,7 @@ def md_table(headers, rows):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--evidence", type=Path, default=Path("docs/validation/openfst"))
+    parser.add_argument("--evidence", type=Path, default=Path("docs/validation/openfst-graph"))
     parser.add_argument("--bundle", type=Path, default=Path("output/cornerstone-review"))
     parser.add_argument("--output", type=Path, default=Path("docs/cornerstone-benchmarks"))
     args = parser.parse_args()
@@ -105,6 +105,20 @@ def main():
         assert (bundle / artifact["source"]).with_suffix(".input.txt").is_file()
 
     runtime, compilation, independent_queens = tables(evidence / "existing-reports/trieBenchmarkReport.log")
+    zipper_summary_path = evidence / "cornerstone-zipper/summary.json"
+    zipper_attempts = {}
+    if zipper_summary_path.exists():
+        zipper_summary = json.loads(zipper_summary_path.read_text())
+        assert zipper_summary["attempted"] == 3
+        for attempt in zipper_summary["runs"]:
+            original = runtime[attempt["index"]]
+            assert original["evalZ ms"] == "n/a"
+            key = original["benchmark"], original["variant"]
+            zipper_attempts[key] = attempt
+            if attempt["status"] == "measured":
+                assert int(attempt["paths"]) == int(original["result paths"].replace(",", ""))
+                assert attempt["checked"] == "exact"
+                original["evalZ ms"] = f'{float(attempt["evalZ_ms"]):.6f}'
     large, = tables(evidence / "existing-reports/zipperLargeBenchmarkReport.log")
     folds, = tables(evidence / "existing-reports/constantFoldExecutorReport.log")
     assert len(runtime) == len(compilation) == 22 and len(large) == 14 and len(folds) == 20
@@ -133,20 +147,26 @@ def main():
             literal = family == "programs" and "compiled away" in row["graph note"]
             entry["literal"] = literal
             entry["compilation"] = comp.get((name, variant))
+            entry["zipperAttempt"] = zipper_attempts.get((name, variant))
             cases.append(entry)
             for evaluator in EVALUATORS if family == "programs" else ("evalTrie", "evalZ"):
                 value = row[f"{evaluator} ms"]
                 note = row.get("graph note", row.get("note", ""))
                 if literal and evaluator.startswith("ROG"):
                     note = "precomputed literal; " + note
+                attempt = entry["zipperAttempt"] if evaluator == "evalZ" else None
+                if attempt:
+                    note = (f"additional h4d source attempt: {attempt['status']}; "
+                            f"{zipper_summary['heap']} heap, {zipper_summary['timeoutSeconds']} s limit; "
+                            "exact check and four untimed evaluations before one timed evaluation")
                 joined.append(dict(family=family, example=entry["group"], name=name, variant=variant,
                                    evaluator=evaluator, runtime_ms="" if value == "n/a" else value,
-                                   availability="omitted" if value == "n/a" else "measured", result_paths=paths,
+                                   availability=(attempt["status"] if attempt else "omitted") if value == "n/a" else "measured", result_paths=paths,
                                    compile_session_ms=comp[name, variant]["total compile ms"] if evaluator.startswith("ROG") else "",
                                    compile_scope="prep + graph compilation" if evaluator.startswith("ROG") else "",
                                    graph_precomputed_literal=literal if evaluator.startswith("ROG") else False,
                                    source="", callbacks="", notes=note,
-                                   evidence=f"existing-reports/{'trieBenchmarkReport' if family == 'programs' else 'zipperLargeBenchmarkReport'}.log"))
+                                   evidence="cornerstone-zipper/summary.json" if attempt else f"existing-reports/{'trieBenchmarkReport' if family == 'programs' else 'zipperLargeBenchmarkReport'}.log"))
             if family == "programs":
                 entry["radix"] = {d: radix[f"{name}/{variant}", d] for d in ("bits", "bytes")}
                 for d, reference in entry["radix"].items():
@@ -164,12 +184,17 @@ def main():
                                    evaluator=f"C++ OpenFst {d}", runtime_ms=n["native_ms"], availability="measured",
                                    result_paths=paths, compile_session_ms=n["compile_ms"],
                                    compile_scope="native session setup, may hit compilation cache",
-                                   graph_precomputed_literal=False, source=a["source"], callbacks=a["callbackCount"],
-                                   notes=a["encoding"], evidence=f"{family}.csv"))
+                                   graph_precomputed_literal=n.get("precomputed", "false").lower() == "true", source=a["source"], callbacks=a["callbackCount"],
+                                   notes=a["encoding"], graph_compile_ms=n.get("graph_compile_ms", ""), graph_nodes=n.get("graph_nodes", ""), generated_bytes=n.get("generated_bytes", ""), evidence=f"{family}.csv"))
+    for row in joined:
+        for column in ("graph_compile_ms", "graph_nodes", "generated_bytes"):
+            row.setdefault(column, "")
     assert len(joined) == 290 and len(cases) == 36
     assert len(native) == len(artifacts) == sum(len(c["native"]) for c in cases)
     # Ensure the reviewed compiler and case factories match the validated revision.
     environment = json.loads((evidence / "environment.json").read_text())
+    native_audit_path = evidence / "native-tests.json"
+    native_audit = json.loads(native_audit_path.read_text()) if native_audit_path.exists() else None
     root = Path(__file__).resolve().parent.parent
     for filename, digest in environment["sourceSHA256"].items():
         assert hashlib.sha256((root / filename).read_bytes()).hexdigest() == digest, filename
@@ -179,7 +204,7 @@ def main():
         def link(path):
             return Path(os.path.relpath(path, output)).as_posix()
         def source_link(case, d):
-            return f"[{d}.cpp]({link(bundle / case['artifacts'][d]['source'])})"
+            return f"[{d}.cpp]({link(bundle / case['artifacts'][d]['source'])}) · [graph]({link((bundle / case['artifacts'][d]['source']).with_suffix('.graph.txt'))})"
         grouped = defaultdict(list)
         for case in cases:
             grouped[case["group"]].append(case)
@@ -198,6 +223,10 @@ def main():
                     note = "precomputed literal" if case["literal"] and engine.startswith("ROG") else ""
                     if r[f"{engine} ms"] == "n/a":
                         note = "omitted by original benchmark (see note below)"
+                    if engine == "evalZ" and case["zipperAttempt"]:
+                        a = case["zipperAttempt"]
+                        note = (f"additional source run: {a['status']}; {zipper_summary['heap']} heap, "
+                                f"{zipper_summary['timeoutSeconds']} s limit; exact check on success")
                     times.append((engine, r[f"{engine} ms"], note))
                 if family == "programs":
                     for d in ("bits", "bytes"):
@@ -208,7 +237,7 @@ def main():
                 for d in DIALECTS:
                     a = case["artifacts"][d]
                     callback = f"; {a['callbackCount']} host callback(s)" if a["callbackCount"] else "; standalone"
-                    times.append((f"C++ OpenFst {d}", case["native"][d]["native_ms"], a["encoding"] + callback))
+                    times.append((f"C++ OpenFst {d}", case["native"][d]["native_ms"], a["encoding"] + callback + ("; precomputed literal" if case["native"][d].get("precomputed") == "true" else "; optimized graph")))
                 text.append(md_table(("Evaluator / transpilation", "Runtime ms", "Execution"), times))
                 note = r.get("graph note", r.get("note", ""))
                 if note:
@@ -221,8 +250,8 @@ def main():
                                "const-fold eval ms", "const-fold evalTrie ms", "const-fold evalZ ms", "const-fold execT ms")
                     text.append(md_table(("Stage", "ms"), [(k.removesuffix(" ms"), c[k]) for k in metrics]))
                 text.append("Native compilation/session costs and resulting acceptor sizes:\n")
-                text.append(md_table(("Dialect / source", "Session setup ms¹", "States", "Arcs", "Samples", "Correctness"),
-                                     [(source_link(case, d), *(case["native"][d][k] for k in ("compile_ms", "states", "arcs", "samples", "checked"))) for d in DIALECTS]))
+                text.append(md_table(("Dialect / source", "Source + graph compile ms", "Live nodes", "Source bytes", "Session setup ms¹", "States", "Arcs", "Samples", "Correctness"),
+                                     [(source_link(case, d), *(case["native"][d].get(k, "") for k in ("graph_compile_ms", "graph_nodes", "generated_bytes", "compile_ms", "states", "arcs", "samples", "checked"))) for d in DIALECTS]))
                 text.append("¹ May include a compilation cache hit; this is not a cold compilation comparison.\n")
             focused = [f for f in folds if (g == "life" and f["benchmark"].startswith("life")) or
                        (g == "sliding-puzzle" and f["benchmark"].startswith("sliding puzzle")) or
@@ -238,14 +267,24 @@ def main():
                 cols = ("benchmark", "variant", "result", "ms", "note")
                 text.append(md_table(cols, [[r[k] for k in cols] for r in independent_queens]))
             (output / f"{g}.md").write_text("\n".join(text))
+        audit_note = ""
+        if native_audit and not native_audit["success"]:
+            audit = native_audit["audit"]
+            passed = sum(audit["passed"].values())
+            audit_note = (f"General native differential validation is **incomplete**: {passed:,} comparisons passed, "
+                          "one generated unit reached the compiler timeout, and 64 comparisons remained unfinished "
+                          f"at the deadline. See the [audit summary]({link(raw_evidence / 'native-tests.json')}). "
+                          "The 108 cornerstone benchmark results below were all checked exactly.\n")
         intro = f"""# Cornerstone benchmarks, example by example
 
 Recorded on **2026-10-29**, Symba **h4d xlarge**, 192 CPUs (AMD EPYC 9B45).
-These tables combine the retained evaluator/C++ matrix with a new run of the two digit-set reference interpreters.
+These tables combine the optimized-graph/lazy-automaton evaluator and C++ matrix with the two digit-set reference interpreters.
 There are **22 cornerstone variants**, **14 supplementary large cases**, and **108 C++ dialect measurements**.
-The primary variants include all five original Scala evaluator columns (three `evalZ` omissions are explicitly retained), plus **44 additional bit/byte set-reference measurements**.
+The primary variants include all five original Scala evaluator columns, plus **44 additional bit/byte set-reference measurements**. The three source `evalZ` cases omitted by the normal report have separate attempts when the additional evidence is present; each row states its result or limit.
 The supplementary large suite originally measures `evalTrie` and `evalZ` only.
 All 108 native results were checked exactly against the trie result.
+
+{audit_note}
 
 {md_table(("Example", "Primary variants", "Large variants", "C++ rows"), overview)}
 
@@ -255,13 +294,13 @@ All 108 native results were checked exactly against the trie result.
 
 - Scala primary runtime values are averages after two warmups. The supplementary large Scala values are medians after two warmups. Native values are medians of five adaptive batches (one sample for invocations over one second), with an untimed setup invocation.
 - The bit/byte set references were measured in an additional h4d run on the same date: two warmups, median of five individual evaluations (one timed evaluation if the first exceeds one second), with four isolated JVM workers, 128 GiB heap limits, and eight active processors per JVM. Translation, input encoding, and exact-result decoding/checking are outside the timed interval. These are a separate run with a different load profile, not a controlled speedup comparison with the retained matrix.
-- Native times exclude compilation, initial input acceptor construction, request/result IO, and result enumeration. Opaque host callbacks include their bridge IO and JVM work. Each source artifact records its callback count; standalone rows need no callback bridge.
-- `ROG exec` and `ROG execT` use the optimizing graph pipeline. Some entire programs become one-node literals, marked **precomputed literal**; the corresponding compilation cost is shown. Native C++ emits the selected source/residual expression directly. It does not implicitly apply that graph pipeline. Rows labelled `compile-pass` or `process-sc` already use residual expressions in all columns.
+- Native times include final lazy-automaton expansion and exact DAG cardinality analysis. They exclude compilation, initial input acceptor construction, request/result IO, and result enumeration. Opaque host callbacks include their bridge IO and JVM work. Each source artifact records its callback count; standalone rows need no callback bridge.
+- `ROG exec` and `ROG execT` use the optimizing graph pipeline. Some entire programs become one-node literals, marked **precomputed literal**; the corresponding compilation cost is shown. Native C++ now uses the optimized graph pipeline too, with its own precomputed-literal status explicitly marked. The source/graph compile time, live node count and generated source bytes appear alongside native session setup. Rows labelled `compile-pass` or `process-sc` already use residual expressions in all columns.
 - Native `compile_ms` is session setup and may hit a cache. It is shown separately and is not a uniformly cold compiler benchmark. The single cold `reference_trie_ms` correctness timing is deliberately excluded from these comparison tables.
 - The bit transpilation and reference use Fibonacci-coded intern IDs. The byte transpilation and reference use four-byte big-endian intern IDs. Zero-terminated strings and the other injection routes were correctness-tested separately; no per-cornerstone timing for those routes was recorded. The supplementary large suite retains its original evaluator coverage; the 44 additional reference timings cover the 22 cornerstone variants.
-- The retained evaluator/C++ matrix came from separate report processes on the original node, with 16 benchmark workers and the differential audit active. Those values are measurements under shared load, not isolated latency or a controlled speedup study. The additional reference run used a fresh h4d node with four workers. No cross-protocol speedup is inferred.
-- The royal92 case uses its explicitly labelled fallback; NOAA uses the committed data slice. `evalZ` is omitted for the 3x3 and 4x4 source puzzle searches and the source 8-queens search because of the original benchmark's memory limits.
-- Generated source and input fixtures were exported later from the validated compiler and case factories. Fresh internal routine names can differ from the node's cached source. Export hashes identify the exact review files; these are not claimed to be byte-for-byte copies of the now-terminated node's compiler cache.
+- The evaluator/C++ matrix came from separate report processes on the graph/lazy runtime h4d node, with 12 benchmark workers and the differential audit active. Those values are measurements under shared load, not isolated latency or a controlled speedup study. The digit-reference run used four workers; its environment and timestamps are retained. No cross-protocol speedup is inferred.
+- The royal92 case uses its explicitly labelled fallback; NOAA uses the committed data slice. The original report omits `evalZ` for the 3x3 and 4x4 source puzzles and source 8-queens search. Additional attempts use 192 GiB heap limits and a 600-second per-process limit, an exact correctness evaluation, three further untimed evaluations, then one timed evaluation. The original omission notes remain historical context; the evaluator table and CSV show the additional measurements or observed limits.
+- Generated source, optimized graph dumps and input fixtures were exported from the validated compiler and case factories. Fresh internal routine names can differ from the node's cached source. Export hashes identify the exact review files; these are not claimed to be byte-for-byte copies of the now-terminated node's compiler cache.
 
 Raw evidence: [primary Scala report]({link(raw_evidence / 'existing-reports/trieBenchmarkReport.log')}), [large Scala report]({link(raw_evidence / 'existing-reports/zipperLargeBenchmarkReport.log')}), [primary native CSV]({link(raw_evidence / 'programs.csv')}), [large native CSV]({link(raw_evidence / 'large.csv')}), [bit/byte reference CSV]({link(raw_evidence / 'cornerstone-radix/reference.csv')}), [additional run environment and results]({link(raw_evidence / 'cornerstone-radix/summary.json')}), [environment and validated source hashes]({link(raw_evidence / 'environment.json')}).
 
@@ -305,6 +344,9 @@ python3 tools/benchmark_cornerstone_radix.py --jar reference.jar \\
                  "exactRadixReferenceResults": len(radix),
                  "sourceBytes": sum(a["bytes"] for a in artifacts.values()),
                  "hostCallbackArtifacts": sum(a["callbackCount"] > 0 for a in artifacts.values())}
+        check.update(additionalZipperAttempts=len(zipper_attempts),
+                     additionalZipperMeasured=sum(a["status"] == "measured" for a in zipper_attempts.values()),
+                     unmeasuredEvaluatorRows=sum(r["availability"] != "measured" for r in joined))
         (output / "coverage.json").write_text(json.dumps(check, indent=2) + "\n")
     bundle_evidence = bundle / "evidence"
     for filename in ("existing-reports/trieBenchmarkReport.log", "existing-reports/zipperLargeBenchmarkReport.log",
@@ -313,6 +355,11 @@ python3 tools/benchmark_cornerstone_radix.py --jar reference.jar \\
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(evidence / filename, destination)
     shutil.copytree(evidence / "cornerstone-radix", bundle_evidence / "cornerstone-radix", dirs_exist_ok=True)
+    if zipper_summary_path.exists():
+        shutil.copytree(evidence / "cornerstone-zipper", bundle_evidence / "cornerstone-zipper", dirs_exist_ok=True)
+    for name in ("native-tests.json", "reference-translations.json", "benchmark-summary.json", "benchmark-coverage.json"):
+        if (evidence / name).exists():
+            shutil.copy2(evidence / name, bundle_evidence / name)
     emit(args.output.resolve(), evidence)
     emit(bundle / "benchmarks", bundle_evidence)
     print(json.dumps({"cases": len(cases), "cppSources": len(artifacts), "evaluatorRows": len(joined), "pages": len(GROUPS)}))

@@ -1,0 +1,45 @@
+family,name,dialect,paths,reference_ms,samples,checked
+programs,aunt/reference,bits,3,3.756084,5,exact
+programs,aunt/reference,bytes,3,3.620351,5,exact
+programs,aunt/process-sc static family,bits,3,5.452649,5,exact
+programs,aunt/process-sc static family,bytes,3,2.225939,5,exact
+programs,aunt synthetic/reference 60 people,bits,36,38.478928,5,exact
+programs,aunt synthetic/reference 60 people,bytes,36,48.952068,5,exact
+programs,aunt royal92/reference royal92_simple.metta fallback,bits,3,5.029495,5,exact
+programs,aunt royal92/reference royal92_simple.metta fallback,bytes,3,5.345388,5,exact
+programs,aunt synthetic/process-sc static family 24 people,bits,12,8.811247,5,exact
+programs,aunt synthetic/process-sc static family 24 people,bytes,12,6.123626,5,exact
+programs,graph two-hop/reference 90-chain,bits,264,59.887842,5,exact
+programs,graph two-hop/reference 90-chain,bytes,264,38.595763,5,exact
+programs,graph mutual/reference 90-chain,bits,0,21.072008,5,exact
+programs,graph mutual/reference 90-chain,bytes,0,33.729144,5,exact
+programs,scc/paper divide-and-conquer,bits,2,12.521682,5,exact
+programs,scc/paper divide-and-conquer,bytes,2,8.463665,5,exact
+programs,datalog semi-naive/reference 24-chain,bits,300,1306.802856,1,exact
+programs,datalog semi-naive/reference 24-chain,bytes,300,2714.498090,1,exact
+programs,datalog semi-naive/process-sc 24-chain,bits,300,532.859620,5,exact
+programs,datalog semi-naive/process-sc 24-chain,bytes,300,2516.128886,1,exact
+programs,life/reference random 24x24,bits,125,832.823195,5,exact
+programs,life/reference random 24x24,bytes,125,907.779510,5,exact
+programs,life/compile-pass random 24x24,bits,125,701.709135,5,exact
+programs,life/compile-pass random 24x24,bytes,125,804.940862,5,exact
+programs,life/compile-pass random 24x24 initial literal,bits,125,0.004297,5,exact
+programs,life/compile-pass random 24x24 initial literal,bytes,125,0.004877,5,exact
+programs,temperature/NOAA committed slice,bits,12,0.093220,5,exact
+programs,temperature/NOAA committed slice,bytes,12,0.476034,5,exact
+programs,temperature/synthetic 32x64,bits,448,5.292709,5,exact
+programs,temperature/synthetic 32x64,bytes,448,64.194192,5,exact
+programs,sliding puzzle/2x2 pure source full frontier step,bits,12,48.963295,5,exact
+programs,sliding puzzle/2x2 pure source full frontier step,bytes,12,32.874061,5,exact
+programs,sliding puzzle/2x2 pure compile-pass full frontier step,bits,12,0.002984,5,exact
+programs,sliding puzzle/2x2 pure compile-pass full frontier step,bytes,12,0.003555,5,exact
+programs,sliding puzzle/3x3 pure source depth-8 step,bits,420,7562.843162,1,exact
+programs,sliding puzzle/3x3 pure source depth-8 step,bytes,420,3525.220154,1,exact
+programs,sliding puzzle/3x3 pure compile-pass depth-8 step,bits,420,0.003295,5,exact
+programs,sliding puzzle/3x3 pure compile-pass depth-8 step,bytes,420,0.010345,5,exact
+programs,sliding puzzle/4x4 pure source depth-5 step,bits,202,13832.728186,1,exact
+programs,sliding puzzle/4x4 pure source depth-5 step,bytes,202,5347.273505,1,exact
+programs,n-queens/MORKL 8x8 source,bits,92,1882.132751,1,exact
+programs,n-queens/MORKL 8x8 source,bytes,92,5165.467386,1,exact
+programs,n-queens/MORKL 8x8 compile-pass,bits,92,0.004527,5,exact
+programs,n-queens/MORKL 8x8 compile-pass,bytes,92,0.012298,5,exact

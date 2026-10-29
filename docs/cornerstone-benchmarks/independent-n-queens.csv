@@ -1,6 +1,6 @@
 benchmark,variant,result,ms,note
-n-queens bit reference,n=8,92,0.011,"independent reference, not MORKL eval"
-n-queens bit reference,n=9,352,0.041,"independent reference, not MORKL eval"
-n-queens bit reference,n=10,724,0.257,"independent reference, not MORKL eval"
-n-queens bit reference,n=11,2680,0.976,"independent reference, not MORKL eval"
-n-queens bit reference,n=12,14200,5.220,"independent reference, not MORKL eval"
+n-queens bit reference,n=8,92,0.119,"independent reference, not MORKL eval"
+n-queens bit reference,n=9,352,0.054,"independent reference, not MORKL eval"
+n-queens bit reference,n=10,724,0.251,"independent reference, not MORKL eval"
+n-queens bit reference,n=11,2680,1.075,"independent reference, not MORKL eval"
+n-queens bit reference,n=12,14200,5.626,"independent reference, not MORKL eval"

@@ -3,10 +3,13 @@
   "largeVariants": 14,
   "cppSources": 108,
   "evaluatorRows": 290,
-  "omittedEvaluatorRows": 3,
+  "omittedEvaluatorRows": 0,
   "exactNativeResults": 108,
-  "sourceHashesVerified": 77,
+  "sourceHashesVerified": 81,
   "exactRadixReferenceResults": 44,
-  "sourceBytes": 53352997,
-  "hostCallbackArtifacts": 0
+  "sourceBytes": 34188777,
+  "hostCallbackArtifacts": 0,
+  "additionalZipperAttempts": 3,
+  "additionalZipperMeasured": 3,
+  "unmeasuredEvaluatorRows": 0
 }

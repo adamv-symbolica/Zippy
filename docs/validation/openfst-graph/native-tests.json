@@ -1,0 +1,28 @@
+{
+  "testExitCode": 0,
+  "generatedOptimization": "-O2",
+  "largeGeneratedOptimization": "-O0 for cold units above 2M characters; reuse optimized cache when available",
+  "passedTests": 329,
+  "fullSuite": true,
+  "audit": {
+    "cases": 248174,
+    "symbolCases": 30886,
+    "digitObservations": 1088,
+    "checks": 248110,
+    "failures": 2,
+    "finished": false,
+    "passed": {
+      "bits-bytes": 30878,
+      "bits-direct": 633,
+      "bits-fibonacci": 30878,
+      "bits-symbols": 30878,
+      "bytes-bits": 30878,
+      "bytes-direct": 453,
+      "bytes-interned": 30878,
+      "bytes-strings": 30878,
+      "bytes-symbols": 30878,
+      "symbols": 30877
+    }
+  },
+  "success": false
+}

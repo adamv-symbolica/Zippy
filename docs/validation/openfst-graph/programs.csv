@@ -1,0 +1,67 @@
+family,name,dialect,paths,states,arcs,compile_ms,native_ms,reference_trie_ms,samples,checked,graph_compile_ms,graph_nodes,generated_bytes,precomputed
+programs,aunt royal92/reference royal92_simple.metta fallback,bits,3,28,27,2143.751,0.087514,7.982,5,exact,202.761,1356,92307,false
+programs,aunt royal92/reference royal92_simple.metta fallback,bytes,3,23,22,807.198,0.037609,7.982,5,exact,8.070,48,5875,false
+programs,aunt royal92/reference royal92_simple.metta fallback,symbols,3,8,7,10951.438,0.013511,7.982,5,exact,17.921,20,1931,false
+programs,aunt synthetic/process-sc static family 24 people,bits,12,139,138,2468.878,1.070819,7.690,5,exact,110.715,1632,112824,false
+programs,aunt synthetic/process-sc static family 24 people,bytes,12,68,67,700.033,0.270311,7.690,5,exact,6.428,46,7230,false
+programs,aunt synthetic/process-sc static family 24 people,symbols,12,26,25,546.234,0.107909,7.690,5,exact,6.961,19,2745,false
+programs,aunt synthetic/reference 60 people,bits,36,465,464,3002.515,5.100275,16.757,5,exact,228.111,2136,144940,false
+programs,aunt synthetic/reference 60 people,bytes,36,188,187,856.018,0.806540,16.757,5,exact,8.230,48,5875,false
+programs,aunt synthetic/reference 60 people,symbols,36,74,73,11013.578,0.344329,16.757,5,exact,30.361,20,1931,false
+programs,aunt/process-sc static family,bits,3,27,26,1880.733,0.086400,7.037,5,exact,149.961,1134,77346,false
+programs,aunt/process-sc static family,bytes,3,23,22,748.640,0.038206,7.037,5,exact,8.143,46,5963,false
+programs,aunt/process-sc static family,symbols,3,8,7,11636.814,0.013327,7.037,5,exact,20.327,19,1934,false
+programs,aunt/reference,bits,3,28,27,2179.719,0.090156,7.655,5,exact,161.450,1356,92307,false
+programs,aunt/reference,bytes,3,23,22,803.057,0.039540,7.655,5,exact,7.815,48,5875,false
+programs,aunt/reference,symbols,3,8,7,11644.274,0.013213,7.655,5,exact,18.699,20,1931,false
+programs,datalog semi-naive/process-sc 24-chain,bits,300,1310,1309,5012.137,78.179179,35.158,5,exact,182.044,3504,246723,false
+programs,datalog semi-naive/process-sc 24-chain,bytes,300,400,399,2200.192,13.478277,35.158,5,exact,36.740,305,43646,false
+programs,datalog semi-naive/process-sc 24-chain,symbols,300,325,324,918.277,9.701953,35.158,5,exact,13.206,116,13395,false
+programs,datalog semi-naive/reference 24-chain,bits,300,1053,1242,8702.643,324.659940,42.285,5,exact,353.511,6956,482020,false
+programs,datalog semi-naive/reference 24-chain,bytes,300,377,399,2264.350,38.152569,42.285,5,exact,171.701,399,33494,false
+programs,datalog semi-naive/reference 24-chain,symbols,300,26,324,365.020,0.000006,42.285,5,exact,26.805,1,3200,true
+programs,graph mutual/reference 90-chain,bits,0,0,0,2709.660,1.681308,2.712,5,exact,79.999,1478,98864,false
+programs,graph mutual/reference 90-chain,bytes,0,0,0,678.301,0.085336,2.712,5,exact,5.759,45,5234,false
+programs,graph mutual/reference 90-chain,symbols,0,0,0,569.927,0.053381,2.712,5,exact,1.796,14,1849,false
+programs,graph two-hop/reference 90-chain,bits,264,2214,2476,4350.084,6.610836,8.066,5,exact,146.682,2492,169034,false
+programs,graph two-hop/reference 90-chain,bytes,264,628,627,714.147,1.017524,8.066,5,exact,6.635,57,6644,false
+programs,graph two-hop/reference 90-chain,symbols,264,355,354,1.905,0.494895,8.066,5,exact,2.147,14,1859,false
+programs,life/compile-pass random 24x24,bits,125,648,647,17397.916,169.401873,374.495,5,exact,758.858,11051,779200,false
+programs,life/compile-pass random 24x24,bytes,125,225,224,1813.704,77.802984,374.495,5,exact,311.654,567,56119,false
+programs,life/compile-pass random 24x24,symbols,125,26,149,372.229,0.000006,374.495,5,exact,21.111,1,2103,true
+programs,life/compile-pass random 24x24 initial literal,bits,125,163,249,505.229,0.000006,1.648,5,exact,3.527,1,4744,true
+programs,life/compile-pass random 24x24 initial literal,bytes,125,101,224,421.515,0.000006,1.648,5,exact,3.611,1,4218,true
+programs,life/compile-pass random 24x24 initial literal,symbols,125,26,149,4.980,0.000006,1.648,5,exact,2.686,1,2103,true
+programs,life/reference random 24x24,bits,125,648,647,27805.220,211.307802,565.217,5,exact,905.666,12806,917128,false
+programs,life/reference random 24x24,bytes,125,225,224,1813.757,76.152429,565.217,5,exact,579.213,565,58869,false
+programs,life/reference random 24x24,symbols,125,150,149,26919.277,6.593130,565.217,5,exact,3462.488,2197,180909,false
+programs,n-queens/MORKL 8x8 compile-pass,bits,92,1074,1164,671.364,0.000008,0.364,5,exact,1.763,1,7212,true
+programs,n-queens/MORKL 8x8 compile-pass,bytes,92,1149,1239,573.300,0.000007,0.364,5,exact,1.835,1,6844,true
+programs,n-queens/MORKL 8x8 compile-pass,symbols,92,288,378,2.245,0.000006,0.364,5,exact,0.792,1,2390,true
+programs,n-queens/MORKL 8x8 source,bits,92,2252,2251,61203.104,1257.704268,4517.236,1,exact,1432.674,24842,1749671,false
+programs,n-queens/MORKL 8x8 source,bytes,92,1928,1927,4537.914,950.600251,4517.236,5,exact,96.927,1076,112662,false
+programs,n-queens/MORKL 8x8 source,symbols,92,288,378,505.260,0.000007,4517.236,5,exact,720.876,1,2390,true
+programs,scc/paper divide-and-conquer,bits,2,14,13,7014.181,1.150000,21.151,5,exact,281.187,3324,232585,false
+programs,scc/paper divide-and-conquer,bytes,2,14,13,1444.846,0.520910,21.151,5,exact,39.783,351,34938,false
+programs,scc/paper divide-and-conquer,symbols,2,5,4,42.373,0.196565,21.151,5,exact,24.276,104,5043,false
+programs,sliding puzzle/2x2 pure compile-pass full frontier step,bits,12,40,46,399.137,0.000006,0.130,5,exact,1.211,1,1082,true
+programs,sliding puzzle/2x2 pure compile-pass full frontier step,bytes,12,49,55,531.274,0.000006,0.130,5,exact,1.287,1,1100,true
+programs,sliding puzzle/2x2 pure compile-pass full frontier step,symbols,12,13,19,382.392,0.000006,0.130,5,exact,0.528,1,859,true
+programs,sliding puzzle/2x2 pure source full frontier step,bits,12,144,143,31103.432,31.732589,41.900,5,exact,909.633,13879,977398,false
+programs,sliding puzzle/2x2 pure source full frontier step,bytes,12,128,127,2544.752,15.345618,41.900,5,exact,64.226,639,66085,false
+programs,sliding puzzle/2x2 pure source full frontier step,symbols,12,13,19,3.067,0.000006,41.900,5,exact,4.561,1,859,true
+programs,sliding puzzle/3x3 pure compile-pass depth-8 step,bits,420,1796,2082,480.770,0.000007,2.752,5,exact,20.326,1,39055,true
+programs,sliding puzzle/3x3 pure compile-pass depth-8 step,bytes,420,1673,1975,504.383,0.000009,2.752,5,exact,13.086,1,32564,true
+programs,sliding puzzle/3x3 pure compile-pass depth-8 step,symbols,420,419,721,3.002,0.000006,2.752,5,exact,2.210,1,9674,true
+programs,sliding puzzle/3x3 pure source depth-8 step,bits,420,11146,11145,25858.821,3223.566853,1108.053,1,exact,5384.332,73023,5195957,false
+programs,sliding puzzle/3x3 pure source depth-8 step,bytes,420,7904,7903,6681.973,762.885168,1108.053,5,exact,324.548,2363,250534,false
+programs,sliding puzzle/3x3 pure source depth-8 step,symbols,420,419,721,401.341,0.000006,1108.053,5,exact,68.637,1,9674,true
+programs,sliding puzzle/4x4 pure source depth-5 step,bits,202,13398,13397,84396.669,4195.090770,2439.526,1,exact,63867.932,257564,18305351,false
+programs,sliding puzzle/4x4 pure source depth-5 step,bytes,202,8486,8485,22110.821,866.665058,2439.526,5,exact,531.541,7097,737869,false
+programs,sliding puzzle/4x4 pure source depth-5 step,symbols,202,456,606,497.885,0.000006,2439.526,5,exact,94.548,1,9747,true
+programs,temperature/NOAA committed slice,bits,12,121,131,365.444,0.022673,1.255,5,exact,0.897,3,982,false
+programs,temperature/NOAA committed slice,bytes,12,193,203,389.677,0.042838,1.255,5,exact,1.088,3,1034,false
+programs,temperature/NOAA committed slice,symbols,12,49,59,448.385,0.008457,1.255,5,exact,1.140,3,885,false
+programs,temperature/synthetic 32x64,bits,448,665,782,533.770,0.199600,20.635,5,exact,3.614,3,2101,false
+programs,temperature/synthetic 32x64,bytes,448,1029,1146,534.105,0.318322,20.635,5,exact,1.456,3,2745,false
+programs,temperature/synthetic 32x64,symbols,448,258,375,494.191,0.066697,20.635,5,exact,1.012,3,1348,false

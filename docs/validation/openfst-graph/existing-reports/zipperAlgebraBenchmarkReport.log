@@ -1,0 +1,149 @@
+Picked up _JAVA_OPTIONS: -Dmorkl.openfst.prefix=/home/ubuntu/zippy-upstream -Dmorkl.openfst.cache=/home/ubuntu/Zippy-graph-final/target/openfst -Xmx128g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy-graph-final10
+[zipper-algebra] share=1% binary/union
+[zipper-algebra] share=1% binary/intersection
+[zipper-algebra] share=1% binary/subtraction
+[zipper-algebra] share=1% binary/restriction
+[zipper-algebra] share=1% binary/raffination
+[zipper-algebra] share=1% binary/composition
+[zipper-algebra] share=1% n-ary/three-way intersection
+[zipper-algebra] share=1% unary/wrap
+[zipper-algebra] share=1% unary/unwrap
+[zipper-algebra] share=1% unary/tails-union
+[zipper-algebra] share=1% unary/tails-intersection
+[zipper-algebra] share=1% unary/prefix-closure
+[zipper-algebra] share=1% unary/suffix-closure
+[zipper-algebra] share=1% unary/tails-closure
+[zipper-algebra] share=1% range/first(512)
+[zipper-algebra] share=1% range/last(512)
+[zipper-algebra] share=1% combination/union then exact intersection
+[zipper-algebra] share=1% combination/diff then restriction
+[zipper-algebra] share=1% combination/product exact intersection
+[zipper-algebra] share=1% combination/product prefix restriction
+[zipper-algebra] share=1% combination/tails of restricted union
+[zipper-algebra] share=1% combination/range of union
+[zipper-algebra] share=50% binary/union
+[zipper-algebra] share=50% binary/intersection
+[zipper-algebra] share=50% binary/subtraction
+[zipper-algebra] share=50% binary/restriction
+[zipper-algebra] share=50% binary/raffination
+[zipper-algebra] share=50% binary/composition
+[zipper-algebra] share=50% n-ary/three-way intersection
+[zipper-algebra] share=50% unary/wrap
+[zipper-algebra] share=50% unary/unwrap
+[zipper-algebra] share=50% unary/tails-union
+[zipper-algebra] share=50% unary/tails-intersection
+[zipper-algebra] share=50% unary/prefix-closure
+[zipper-algebra] share=50% unary/suffix-closure
+[zipper-algebra] share=50% unary/tails-closure
+[zipper-algebra] share=50% range/first(512)
+[zipper-algebra] share=50% range/last(512)
+[zipper-algebra] share=50% combination/union then exact intersection
+[zipper-algebra] share=50% combination/diff then restriction
+[zipper-algebra] share=50% combination/product exact intersection
+[zipper-algebra] share=50% combination/product prefix restriction
+[zipper-algebra] share=50% combination/tails of restricted union
+[zipper-algebra] share=50% combination/range of union
+[zipper-algebra] share=90% binary/union
+[zipper-algebra] share=90% binary/intersection
+[zipper-algebra] share=90% binary/subtraction
+[zipper-algebra] share=90% binary/restriction
+[zipper-algebra] share=90% binary/raffination
+[zipper-algebra] share=90% binary/composition
+[zipper-algebra] share=90% n-ary/three-way intersection
+[zipper-algebra] share=90% unary/wrap
+[zipper-algebra] share=90% unary/unwrap
+[zipper-algebra] share=90% unary/tails-union
+[zipper-algebra] share=90% unary/tails-intersection
+[zipper-algebra] share=90% unary/prefix-closure
+[zipper-algebra] share=90% unary/suffix-closure
+[zipper-algebra] share=90% unary/tails-closure
+[zipper-algebra] share=90% range/first(512)
+[zipper-algebra] share=90% range/last(512)
+[zipper-algebra] share=90% combination/union then exact intersection
+[zipper-algebra] share=90% combination/diff then restriction
+[zipper-algebra] share=90% combination/product exact intersection
+[zipper-algebra] share=90% combination/product prefix restriction
+[zipper-algebra] share=90% combination/tails of restricted union
+[zipper-algebra] share=90% combination/range of union
+# Zipper Algebra Sharing Benchmarks
+
+This report isolates direct zipper evaluation over physically large tries. Each scenario builds two full operands `a` and `b` with the same top-level keys, plus a sparse third operand `cOverlap` containing only the buckets that are physically shared by all three. For the requested sharing level, the corresponding child subtries are the same JVM objects in all overlapping operands; the rest of `a` and `b` have the same outer shape but distinct unique leaves. Each child subtrie also has a small common tail vocabulary so `tailsIntersection` and ordinary intersections have non-empty work to do outside the physically shared portion.
+
+Each operand has 1500 top-level buckets and 16 paths per bucket. Timings compare `evalTrie(expr).pathCount` to `evalZ(expr).pathCount` after an untimed correctness check and warmup. Each backend is adaptively batched by doubling from one invocation until a batch reaches 10 ms or 4,096 invocations, then the table reports the median per-invocation time from seven batches. This bounds total measurement work while preventing one noisy invocation from defining a row. Very large results are checked by path count plus border membership samples instead of decoding every path.
+
+| target shared nodes | shared top-level subtries | measured shared nodes / operand nodes | `a`/`b` paths | `a`/`b` trie nodes | sparse third paths | prefix paths |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1% | 15 / 1,500 | 1.00% | 24,000 | 31,501 | 240 | 96 |
+| 50% | 750 / 1,500 | 50.00% | 24,000 | 31,501 | 12,000 | 96 |
+| 90% | 1,350 / 1,500 | 90.00% | 24,000 | 31,501 | 21,600 | 96 |
+
+| share | group | operation | result paths | result trie nodes | evalTrie ms | evalZ ms | evalTrie / evalZ | note |
+|---:|---|---|---:|---:|---:|---:|---:|---|
+| 1% | binary | union | 41,820 | 53,776 | 3.910 | 3.570 | 1.10 x | merge two aligned huge tries |
+| 1% | binary | intersection | 6,180 | 9,226 | 2.315 | 2.507 | 0.92 x | walk only common child keys |
+| 1% | binary | subtraction | 17,820 | 23,761 | 2.254 | 1.209 | 1.86 x | left-guided traversal |
+| 1% | binary | restriction | 1,536 | 2,017 | 0.034 | 0.032 | 1.07 x | top-level prefix filter |
+| 1% | binary | raffination | 22,464 | 29,485 | 0.232 | 0.178 | 1.31 x | complement of the prefix filter |
+| 1% | binary | composition | 576,000,000 | 756,031,501 | 6.045 | 8.209 | 0.74 x | no selective consumer; full product is materialized |
+| 1% | n-ary | three-way intersection | 240 | 316 | 1.539 | 0.001 | 1474.69 x | evalZ flattens nested intersections and starts from the sparse overlap operand |
+| 1% | unary | wrap | 24,000 | 31,502 | 0.000 | 0.001 | 0.34 x | virtual prefix node |
+| 1% | unary | unwrap | 24,000 | 31,501 | 0.000 | 0.000 | 0.19 x | descend through virtual prefix |
+| 1% | unary | tails-union | 18,004 | 22,506 | 2.733 | 2.420 | 1.13 x | join every first-level tail |
+| 1% | unary | tails-intersection | 4 | 6 | 0.841 | 0.829 | 1.01 x | meet every first-level tail |
+| 1% | unary | prefix-closure | 31,500 | 31,501 | 4.751 | 5.273 | 0.90 x | all non-empty prefixes |
+| 1% | unary | suffix-closure | 48,008 | 60,010 | 12.452 | 12.480 | 1.00 x | all non-empty suffixes |
+| 1% | unary | tails-closure | 48,009 | 60,010 | 15.024 | 15.563 | 0.97 x | epsilon plus suffix closure |
+| 1% | range | first(512) | 512 | 673 | 0.008 | 0.010 | 0.86 x | ordered border slice |
+| 1% | range | last(512) | 512 | 673 | 0.018 | 0.011 | 1.64 x | ordered border slice |
+| 1% | combination | union then exact intersection | 1 | 4 | 2.845 | 0.004 | 697.48 x | selective consumer over a virtual union |
+| 1% | combination | diff then restriction | 1,140 | 1,521 | 1.229 | 0.103 | 11.88 x | left-guided diff under prefix filter |
+| 1% | combination | product exact intersection | 1 | 7 | 7.130 | 0.005 | 1354.21 x | selector should avoid the full product |
+| 1% | combination | product prefix restriction | 24,000 | 31,504 | 5.551 | 0.003 | 1698.51 x | one product row selected by prefix |
+| 1% | combination | tails of restricted union | 2,296 | 2,871 | 5.632 | 0.824 | 6.83 x | join tails after a logical prefix filter |
+| 1% | combination | range of union | 512 | 666 | 4.584 | 0.395 | 11.62 x | border slice over a virtual union |
+| 50% | binary | union | 33,000 | 42,751 | 0.820 | 0.724 | 1.13 x | merge two aligned huge tries |
+| 50% | binary | intersection | 15,000 | 20,251 | 0.379 | 0.604 | 0.63 x | walk only common child keys |
+| 50% | binary | subtraction | 9,000 | 12,001 | 0.335 | 0.338 | 0.99 x | left-guided traversal |
+| 50% | binary | restriction | 1,536 | 2,017 | 0.020 | 0.019 | 1.09 x | top-level prefix filter |
+| 50% | binary | raffination | 22,464 | 29,485 | 0.166 | 0.257 | 0.64 x | complement of the prefix filter |
+| 50% | binary | composition | 576,000,000 | 756,031,501 | 6.620 | 4.793 | 1.38 x | no selective consumer; full product is materialized |
+| 50% | n-ary | three-way intersection | 12,000 | 15,751 | 0.490 | 0.016 | 30.47 x | evalZ flattens nested intersections and starts from the sparse overlap operand |
+| 50% | unary | wrap | 24,000 | 31,502 | 0.000 | 0.000 | 0.22 x | virtual prefix node |
+| 50% | unary | unwrap | 24,000 | 31,501 | 0.000 | 0.000 | 1.11 x | descend through virtual prefix |
+| 50% | unary | tails-union | 18,004 | 22,506 | 3.502 | 2.950 | 1.19 x | join every first-level tail |
+| 50% | unary | tails-intersection | 4 | 6 | 0.378 | 0.377 | 1.00 x | meet every first-level tail |
+| 50% | unary | prefix-closure | 31,500 | 31,501 | 5.072 | 4.773 | 1.06 x | all non-empty prefixes |
+| 50% | unary | suffix-closure | 48,008 | 60,010 | 12.297 | 14.129 | 0.87 x | all non-empty suffixes |
+| 50% | unary | tails-closure | 48,009 | 60,010 | 14.056 | 13.816 | 1.02 x | epsilon plus suffix closure |
+| 50% | range | first(512) | 512 | 673 | 0.009 | 0.009 | 1.03 x | ordered border slice |
+| 50% | range | last(512) | 512 | 673 | 0.009 | 0.010 | 0.91 x | ordered border slice |
+| 50% | combination | union then exact intersection | 1 | 4 | 0.826 | 0.003 | 290.91 x | selective consumer over a virtual union |
+| 50% | combination | diff then restriction | 552 | 737 | 0.551 | 0.062 | 8.81 x | left-guided diff under prefix filter |
+| 50% | combination | product exact intersection | 1 | 7 | 5.368 | 0.005 | 1034.04 x | selector should avoid the full product |
+| 50% | combination | product prefix restriction | 24,000 | 31,504 | 5.165 | 0.001 | 4572.27 x | one product row selected by prefix |
+| 50% | combination | tails of restricted union | 1,708 | 2,136 | 0.993 | 0.248 | 4.00 x | join tails after a logical prefix filter |
+| 50% | combination | range of union | 512 | 673 | 0.927 | 0.274 | 3.38 x | border slice over a virtual union |
+| 90% | binary | union | 25,800 | 33,751 | 0.180 | 0.182 | 0.98 x | merge two aligned huge tries |
+| 90% | binary | intersection | 22,200 | 29,251 | 0.105 | 0.106 | 0.99 x | walk only common child keys |
+| 90% | binary | subtraction | 1,800 | 2,401 | 0.075 | 0.074 | 1.00 x | left-guided traversal |
+| 90% | binary | restriction | 1,536 | 2,017 | 0.019 | 0.020 | 0.98 x | top-level prefix filter |
+| 90% | binary | raffination | 22,464 | 29,485 | 0.169 | 0.155 | 1.09 x | complement of the prefix filter |
+| 90% | binary | composition | 576,000,000 | 756,031,501 | 5.325 | 4.879 | 1.09 x | no selective consumer; full product is materialized |
+| 90% | n-ary | three-way intersection | 21,600 | 28,351 | 0.117 | 0.030 | 3.86 x | evalZ flattens nested intersections and starts from the sparse overlap operand |
+| 90% | unary | wrap | 24,000 | 31,502 | 0.000 | 0.000 | 0.44 x | virtual prefix node |
+| 90% | unary | unwrap | 24,000 | 31,501 | 0.000 | 0.000 | 1.02 x | descend through virtual prefix |
+| 90% | unary | tails-union | 18,004 | 22,506 | 2.534 | 2.715 | 0.93 x | join every first-level tail |
+| 90% | unary | tails-intersection | 4 | 6 | 0.382 | 0.381 | 1.00 x | meet every first-level tail |
+| 90% | unary | prefix-closure | 31,500 | 31,501 | 5.281 | 5.101 | 1.04 x | all non-empty prefixes |
+| 90% | unary | suffix-closure | 48,008 | 60,010 | 14.329 | 14.798 | 0.97 x | all non-empty suffixes |
+| 90% | unary | tails-closure | 48,009 | 60,010 | 15.658 | 17.668 | 0.89 x | epsilon plus suffix closure |
+| 90% | range | first(512) | 512 | 673 | 0.008 | 0.009 | 0.96 x | ordered border slice |
+| 90% | range | last(512) | 512 | 673 | 0.009 | 0.011 | 0.85 x | ordered border slice |
+| 90% | combination | union then exact intersection | 1 | 4 | 0.271 | 0.003 | 87.13 x | selective consumer over a virtual union |
+| 90% | combination | diff then restriction | 72 | 97 | 0.121 | 0.023 | 5.37 x | left-guided diff under prefix filter |
+| 90% | combination | product exact intersection | 1 | 7 | 4.877 | 0.005 | 940.23 x | selector should avoid the full product |
+| 90% | combination | product prefix restriction | 24,000 | 31,504 | 4.906 | 0.001 | 4396.14 x | one product row selected by prefix |
+| 90% | combination | tails of restricted union | 1,228 | 1,536 | 0.484 | 0.165 | 2.93 x | join tails after a logical prefix filter |
+| 90% | combination | range of union | 512 | 673 | 0.240 | 0.249 | 0.97 x | border slice over a virtual union |
+
+Ratios above `1.00 x` mean the zipper evaluator is faster. Direct `composition` intentionally has no selective consumer, so it is a useful overhead baseline rather than the expected zipper win. Selective product rows exercise composition without forcing the full product before the final materialization boundary.

@@ -1,0 +1,2 @@
+family,name,dialect,paths,reference_ms,samples,checked
+programs,"sliding puzzle/3x3 pure compile-pass depth-8 step",bits,420,0.003295,5,exact

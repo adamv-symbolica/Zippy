@@ -1,105 +1,105 @@
-# OpenFst benchmark measurements — 2026-10-29
+# Optimized-graph / delayed OpenFst benchmarks — 2026-10-29
 
-All native benchmark jobs and the 14 existing benchmark/analysis report entry
-points finished successfully on the Symba h4d node. The exact machine-readable
-summaries, raw CSVs, environment, and existing report logs are committed in
-[validation/openfst](validation/openfst/).
+All **51 benchmark jobs passed** on the Symba h4d xlarge: 14 existing report
+entry points, four shards of each of nine native families, and the native
+acceptor microbenchmark. [Raw results and environment](validation/openfst-graph/)
+identify the validated sources and toolchain.
+
+The [per-example cornerstone tables](cornerstone-benchmarks/README.md) contain
+**290 measured evaluator rows**, with **no omitted runtime cells**: all five
+Scala evaluators, the two digit-set references, and three C++ dialects for the
+22 cornerstone variants. Fourteen supplementary large cases retain their two
+Scala evaluators and three C++ dialects. The three previously omitted source
+`evalZ` cases were measured and checked exactly in separate 192 GiB JVMs.
 
 ## Coverage
 
-The native logical matrix contains **166 workloads × 3 dialects = 498 rows**, plus **132 C++ acceptor microbenchmark rows**.
+**166 workloads × three dialects = 498 native rows**, plus
+**132 direct acceptor microbenchmark rows**. 489 native rows compare
+complete results with the trie evaluator; the remaining 9 exceed the
+250,000-path enumeration threshold and check exact arbitrary-precision cardinality.
+Every microbenchmark also checks cardinality.
 
-| Native family | Logical workloads | Rows |
+| Family | Logical workloads | Rows |
 |---|---:|---:|
-| programs | 22 | 66 |
-| large | 14 | 42 |
 | algebra | 66 | 198 |
-| iter-range-tail | 3 | 9 |
 | algebra-scaling | 16 | 48 |
 | construction | 12 | 36 |
-| independent-product | 8 | 24 |
-| cost-counter | 21 | 63 |
 | cost-correlation | 4 | 12 |
+| cost-counter | 21 | 63 |
+| independent-product | 8 | 24 |
+| iter-range-tail | 3 | 9 |
+| large | 14 | 42 |
+| programs | 22 | 66 |
 
-The algebra matrix uses the exact 1%, 50%, and 90% sharing scenarios from the
-existing suite. The iteration/range matrix uses (heads, fanout) = (32, 12),
-(96, 16), and (192, 16). Construction and incremental union span 256–32,768
-paths; algebra scaling reaches 65,536 paths. Independent products and large
-queries retain their original source programs and inputs. Native microbenchmarks
-also cover identity, root-disjoint, mixed-quarter, and interwoven key regimes.
 
-Correctness checks compare **489 rows exactly** with the trie evaluator. The other **9 rows** exceed the 250,000-path enumeration threshold and use exact cardinality checks. Every microbenchmark row checks its result cardinality.
+Algebra covers 1%, 50% and 90% sharing; scaling reaches 65,536 input paths.
+Construction and incremental union reach 32,768 paths. The largest result has
+576,000,000 paths, represented as an automaton rather than enumerated.
 
 ## Representative native measurements
 
-Milliseconds per invocation after warmup; columns use the same logical input.
-Compile time is recorded separately in the CSVs.
+Milliseconds per invocation, with compilation and setup recorded separately.
+These are measurements under shared load, not isolated speedup comparisons.
 
 | Workload | Symbols ms | Bits ms | Bytes ms |
 |---|---:|---:|---:|
-| algebra-scaling/union-subset/65536 | 1.548431 | 5.328252 | 1.018817 |
-| algebra-scaling/restriction-quarter/65536 | 0.555893 | 5.093330 | 0.571387 |
-| incremental-union/32768 | 365.272589 | 6531.302107 | 1795.232407 |
-| algebra/1%/unary/tails-intersection | 1.908452 | 46438.389753 | 12084.789704 |
-| algebra/1%/range/first(512) | 3.325171 | 49744.738154 | 3764.793848 |
+| algebra-scaling/union-subset/65536 | 27.756495 | 11.356695 | 7.961833 |
+| algebra-scaling/restriction-quarter/65536 | 0.541026 | 5.206389 | 0.528224 |
+| incremental-union/32768 | 0.630832 | 6374.502379 | 2694.426563 |
+| algebra/1%/unary/tails-intersection | 1.279345 | 76900.825146 | 11435.071608 |
+| algebra/1%/range/first(512) | 0.169918 | 30319.865225 | 5018.222599 |
 
-The largest checked result has **576,000,000 paths**. Its bits acceptor uses **122,741 states and 142,860 arcs**. The CSVs preserve every dialect's graph sizes and timing.
 
-Encoded recursive folds, ordered ranges, and tail intersections can cost substantially more than
-native symbolic operations. The backend therefore retains native head/tail
-projection, deterministic graph products, suffix sharing, arbitrary-precision
-range counts, and bounded Fibonacci/ordered prefix selection; the table records
-the remaining costs rather than implying uniform speedups.
+The native emitter uses optimized `RecursiveOpGraph` coordinates, typed locals
+and inline loops. Operators build delayed deterministic OpenFst machines.
+Persistent prefix edits retain suffix sharing; completed wrap/unwrap views and
+literal epsilon concatenations cancel. Native timing forces the final graph
+and exact DAG counts inside every invocation.
 
-## Measurement method and limits
+## Measurement details
 
-- C++ timing starts after input acceptors are built and one untimed setup invocation.
-  It excludes compilation, request/result protocol IO, and output enumeration.
-  The benchmark runner disables redundant internal warmups; exact rows use
-  their correctness invocation as setup, and cardinality-only rows explicitly
-  execute a discarded setup invocation before measurement. Inputs are
-  immutable, and every measured invocation executes the generated function.
-- If a workload uses an opaque grounded JVM function, its measured invocation
-  includes that host callback and its bridge IO. Such a row is not pure C++
-  throughput. Native C++ bindings can remove this boundary, as validated by the
-  standalone export test.
-- Logical rows use a median of five adaptive batches, targeting 10 ms per batch
-  with at most 4,096 repetitions. A first sample above one second uses one
-  sample; the `samples` column records this. C++ microbenchmarks use five samples
-  except expensive incremental unions, which use one.
-- The bit logical matrix uses Fibonacci-interned symbols; bytes use fixed
-  four-byte intern IDs. The full-suite audit separately verifies all seven
-  translation directions, including zero-terminated strings and injections.
-- The largest expanded puzzle program exceeded the initial 600-second compiler
-  cap. The final backend exposes `morkl.openfst.compileSeconds` (default 1,800),
-  and the complete program family was rerun successfully with that budget.
-  The final summary contains the complete successful matrix.
-- `compile_ms` measures session construction and can include a cache hit. It is
-  not a uniformly cold compiler benchmark. Emitted constants can make residual
-  programs nearly free after warmup; their compilation is not counted as native
-  execution.
-- `reference_trie_ms` is a single cold correctness evaluation, not a comparable
-  warmed benchmark. No speedup ratios are claimed from it. The original report
-  logs retain their own timing protocols.
-- The recorded matrix used 16 benchmark workers, with six independent shards
-  for every logical family, while the differential audit was active. The node has 192 CPUs, but these are throughput measurements under
-  shared load. For isolated latency, rerun with `--workers 1` on an idle node.
-- Existing fixture selection is retained, including the explicitly named
-  royal92 fallback when its optional external dataset is absent. The NOAA
-  workload uses the committed slice.
-- The historical `slowProgramScTimingRun` is a replay utility requiring an
-  uncommitted prior fuzzer CSV; that input is absent. It is not one of the
-  self-contained benchmark/report jobs above. The actual zipper fuzzer tests
-  are included in the complete Scala suite and native differential audit.
+- The node has 192 AMD EPYC 9B45 CPUs and approximately 1,488 GiB RAM. The matrix
+  uses 12 workers and four shards, with the differential audit active. Rerun
+  with one worker on an idle node for isolated latency.
+- Native timings include final lazy-automaton expansion and cardinality
+  analysis. They exclude compilation, input-acceptor construction, protocol IO
+  and output enumeration. Grounded host calls, when present, include their
+  bridge IO and host execution. All 108 cornerstone programs are standalone.
+- Logical rows use a median of five adaptive batches targeting 10 ms, capped at
+  4,096 repetitions. A first invocation above one second uses one sample.
+  Microbenchmarks use five samples, except incremental unions, which use one.
+- `graph_compile_ms` measures source lowering, normalization, graph optimization
+  and C++ emission. `graph_nodes`, `generated_bytes` and `precomputed` expose
+  what remains after optimization. 18 native rows are precomputed programs;
+  their execution times must be read together with compilation costs.
+- `compile_ms` is native session setup and may hit the compilation cache.
+  Normal code uses `-O2`; cold units over two million characters use `-O0` unless
+  overridden. The shared automaton runtime uses Release optimization.
+- Reported states/arcs describe the final productive automaton view, not peak
+  memory or all intermediate caches. Operators do not minimize or copy entire
+  graphs after each operation.
+- The logical bit matrix uses Fibonacci-coded intern IDs; bytes use four-byte
+  big-endian IDs. Direct microbenchmarks use fixed binary bit paths and fixed
+  byte paths. All seven translation routes, including terminated strings and
+  injections, are checked separately by the full audit.
+- The two set-reference dialects and three additional source `evalZ` rows use
+  separate JVM experiments; their exact protocols and raw values are linked
+  from the cornerstone tables. Source `evalZ` uses four untimed evaluations
+  including correctness, followed by one timed evaluation.
+- Historical eager-runtime measurements remain in
+  [validation/openfst](validation/openfst/). The graph pipeline, precomputation
+  and final-consumption protocol changed, so those runs are not controlled
+  before/after speedup measurements.
+- Fixture selection is unchanged: royal92 uses its labelled fallback and NOAA
+  uses the committed slice. The historical `slowProgramScTimingRun` requires an
+  absent prior fuzzer CSV; it is not a self-contained report entry point.
 
-## Reproduction
+## Reproduce
 
-```bash
+```sh
 python3 tools/benchmark_openfst.py --workers 1 --output /tmp/openfst-benchmarks
 ```
 
-The runner compiles one private Scala snapshot to an immutable JAR before
-launching benchmark processes. It runs all 14 existing reports, all nine native
-logical families, and the C++ acceptor microbenchmark. See
-[backend setup](OPENFST_BACKEND.md) for dependencies and configuration, and
-[validation details](OPENFST_TEST_REPORT.md) for toolchain versions and checks.
+See [backend setup](OPENFST_BACKEND.md), [validation](OPENFST_TEST_REPORT.md),
+and the [compiled source bundle](compiled-cornerstones/README.md).

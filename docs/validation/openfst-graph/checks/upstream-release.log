@@ -1,0 +1,5 @@
+[ 50%] Built target zippy_openfst
+[ 75%] Building CXX object CMakeFiles/zippy_openfst_test.dir/openfst_runtime_test.cpp.o
+[100%] Linking CXX executable zippy_openfst_test
+[100%] Built target zippy_openfst_test
+9408 independent native checks passed

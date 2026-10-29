@@ -10,21 +10,21 @@ Fixture family: `large`. Result: **1 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 0.513 |  |
-| evalZ | 0.153 |  |
-| C++ OpenFst symbols | 0.028729 | symbol labels; standalone |
-| C++ OpenFst bits | 0.008054 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 0.009388 | four-byte big-endian intern IDs; standalone |
+| evalTrie | 0.675 |  |
+| evalZ | 0.085 |  |
+| C++ OpenFst symbols | 0.288844 | symbol labels; standalone; optimized graph |
+| C++ OpenFst bits | 0.009332 | Fibonacci-coded intern IDs; standalone; optimized graph |
+| C++ OpenFst bytes | 0.025204 | four-byte big-endian intern IDs; standalone; optimized graph |
 
 Original benchmark note: large intermediate product should not be materialized by zipper traversal.
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/symbols.cpp) | 41.311 | 3 | 2 | 5 | exact |
-| [bits.cpp](../../output/cornerstone-review/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bits.cpp) | 2.600 | 23 | 22 | 5 | exact |
-| [bytes.cpp](../../output/cornerstone-review/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bytes.cpp) | 2.437 | 9 | 8 | 5 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/symbols.cpp) · [graph](../../output/cornerstone-review/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/symbols.graph.txt) | 60.819 | 5 | 885 | 9768.322 | 3 | 2 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bits.cpp) · [graph](../../output/cornerstone-review/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bits.graph.txt) | 2.532 | 5 | 886 | 406.700 | 23 | 22 | 5 | exact |
+| [bytes.cpp](../../output/cornerstone-review/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bytes.cpp) · [graph](../../output/cornerstone-review/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bytes.graph.txt) | 2.659 | 5 | 886 | 2.250 | 9 | 8 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.
 
@@ -34,21 +34,21 @@ Fixture family: `large`. Result: **1 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 2.114 |  |
-| evalZ | 0.256 |  |
-| C++ OpenFst symbols | 0.137992 | symbol labels; standalone |
-| C++ OpenFst bits | 0.018792 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 0.008572 | four-byte big-endian intern IDs; standalone |
+| evalTrie | 2.797 |  |
+| evalZ | 0.091 |  |
+| C++ OpenFst symbols | 1.540355 | symbol labels; standalone; optimized graph |
+| C++ OpenFst bits | 0.019634 | Fibonacci-coded intern IDs; standalone; optimized graph |
+| C++ OpenFst bytes | 0.048867 | four-byte big-endian intern IDs; standalone; optimized graph |
 
 Original benchmark note: large intermediate product should not be materialized by zipper traversal.
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/symbols.cpp) | 43.652 | 3 | 2 | 5 | exact |
-| [bits.cpp](../../output/cornerstone-review/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bits.cpp) | 2.322 | 41 | 40 | 5 | exact |
-| [bytes.cpp](../../output/cornerstone-review/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bytes.cpp) | 2.621 | 9 | 8 | 5 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/symbols.cpp) · [graph](../../output/cornerstone-review/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/symbols.graph.txt) | 2.643 | 5 | 885 | 1.749 | 3 | 2 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bits.cpp) · [graph](../../output/cornerstone-review/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bits.graph.txt) | 1.283 | 5 | 886 | 1.806 | 41 | 40 | 5 | exact |
+| [bytes.cpp](../../output/cornerstone-review/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bytes.cpp) · [graph](../../output/cornerstone-review/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bytes.graph.txt) | 1.228 | 5 | 886 | 1.942 | 9 | 8 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.
 
@@ -58,21 +58,21 @@ Fixture family: `large`. Result: **1 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 6.758 |  |
-| evalZ | 0.098 |  |
-| C++ OpenFst symbols | 0.388167 | symbol labels; standalone |
-| C++ OpenFst bits | 0.020756 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 0.010083 | four-byte big-endian intern IDs; standalone |
+| evalTrie | 9.794 |  |
+| evalZ | 0.127 |  |
+| C++ OpenFst symbols | 4.836129 | symbol labels; standalone; optimized graph |
+| C++ OpenFst bits | 0.020799 | Fibonacci-coded intern IDs; standalone; optimized graph |
+| C++ OpenFst bytes | 0.064227 | four-byte big-endian intern IDs; standalone; optimized graph |
 
 Original benchmark note: large intermediate product should not be materialized by zipper traversal.
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/symbols.cpp) | 38.123 | 3 | 2 | 5 | exact |
-| [bits.cpp](../../output/cornerstone-review/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bits.cpp) | 2.085 | 43 | 42 | 5 | exact |
-| [bytes.cpp](../../output/cornerstone-review/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bytes.cpp) | 3.052 | 9 | 8 | 5 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/symbols.cpp) · [graph](../../output/cornerstone-review/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/symbols.graph.txt) | 1.598 | 5 | 885 | 1.655 | 3 | 2 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bits.cpp) · [graph](../../output/cornerstone-review/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bits.graph.txt) | 2.020 | 5 | 886 | 2.045 | 43 | 42 | 5 | exact |
+| [bytes.cpp](../../output/cornerstone-review/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bytes.cpp) · [graph](../../output/cornerstone-review/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bytes.graph.txt) | 1.094 | 5 | 886 | 1.898 | 9 | 8 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.
 
@@ -82,21 +82,21 @@ Fixture family: `large`. Result: **2,000 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 0.430 |  |
-| evalZ | 0.023 |  |
-| C++ OpenFst symbols | 0.064618 | symbol labels; standalone |
-| C++ OpenFst bits | 0.014840 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 0.020694 | four-byte big-endian intern IDs; standalone |
+| evalTrie | 0.606 |  |
+| evalZ | 0.028 |  |
+| C++ OpenFst symbols | 0.325559 | symbol labels; standalone; optimized graph |
+| C++ OpenFst bits | 0.027825 | Fibonacci-coded intern IDs; standalone; optimized graph |
+| C++ OpenFst bytes | 0.071980 | four-byte big-endian intern IDs; standalone; optimized graph |
 
 Original benchmark note: large intermediate product should not be materialized by zipper traversal.
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/symbols.cpp) | 2.265 | 3 | 2001 | 5 | exact |
-| [bits.cpp](../../output/cornerstone-review/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bits.cpp) | 2.055 | 60 | 90 | 5 | exact |
-| [bytes.cpp](../../output/cornerstone-review/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bytes.cpp) | 1.972 | 11 | 479 | 5 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/symbols.cpp) · [graph](../../output/cornerstone-review/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/symbols.graph.txt) | 3.226 | 5 | 887 | 2.486 | 3 | 2001 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bits.cpp) · [graph](../../output/cornerstone-review/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bits.graph.txt) | 1.100 | 5 | 888 | 1.844 | 60 | 90 | 5 | exact |
+| [bytes.cpp](../../output/cornerstone-review/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bytes.cpp) · [graph](../../output/cornerstone-review/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bytes.graph.txt) | 0.975 | 5 | 888 | 1.502 | 11 | 479 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.
 
@@ -106,21 +106,21 @@ Fixture family: `large`. Result: **10,000 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 2.005 |  |
-| evalZ | 0.035 |  |
-| C++ OpenFst symbols | 0.322316 | symbol labels; standalone |
-| C++ OpenFst bits | 0.033465 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 0.021098 | four-byte big-endian intern IDs; standalone |
+| evalTrie | 2.430 |  |
+| evalZ | 0.081 |  |
+| C++ OpenFst symbols | 1.714573 | symbol labels; standalone; optimized graph |
+| C++ OpenFst bits | 0.043573 | Fibonacci-coded intern IDs; standalone; optimized graph |
+| C++ OpenFst bytes | 0.080910 | four-byte big-endian intern IDs; standalone; optimized graph |
 
 Original benchmark note: large intermediate product should not be materialized by zipper traversal.
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/symbols.cpp) | 1.961 | 3 | 10001 | 5 | exact |
-| [bits.cpp](../../output/cornerstone-review/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bits.cpp) | 1.907 | 86 | 123 | 5 | exact |
-| [bytes.cpp](../../output/cornerstone-review/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bytes.cpp) | 1.709 | 11 | 574 | 5 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/symbols.cpp) · [graph](../../output/cornerstone-review/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/symbols.graph.txt) | 2.393 | 5 | 887 | 415.507 | 3 | 10001 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bits.cpp) · [graph](../../output/cornerstone-review/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bits.graph.txt) | 2.148 | 5 | 888 | 357.920 | 86 | 123 | 5 | exact |
+| [bytes.cpp](../../output/cornerstone-review/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bytes.cpp) · [graph](../../output/cornerstone-review/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bytes.graph.txt) | 2.125 | 5 | 888 | 1.759 | 11 | 574 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.
 
@@ -130,20 +130,20 @@ Fixture family: `large`. Result: **30,000 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 10.377 |  |
-| evalZ | 0.015 |  |
-| C++ OpenFst symbols | 0.929918 | symbol labels; standalone |
-| C++ OpenFst bits | 0.039034 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 0.025654 | four-byte big-endian intern IDs; standalone |
+| evalTrie | 13.794 |  |
+| evalZ | 0.097 |  |
+| C++ OpenFst symbols | 5.371808 | symbol labels; standalone; optimized graph |
+| C++ OpenFst bits | 0.049428 | Fibonacci-coded intern IDs; standalone; optimized graph |
+| C++ OpenFst bytes | 0.105019 | four-byte big-endian intern IDs; standalone; optimized graph |
 
 Original benchmark note: large intermediate product should not be materialized by zipper traversal.
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/symbols.cpp) | 2.037 | 3 | 30001 | 5 | exact |
-| [bits.cpp](../../output/cornerstone-review/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bits.cpp) | 2.107 | 97 | 142 | 5 | exact |
-| [bytes.cpp](../../output/cornerstone-review/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bytes.cpp) | 2.924 | 11 | 684 | 5 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/symbols.cpp) · [graph](../../output/cornerstone-review/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/symbols.graph.txt) | 1.976 | 5 | 887 | 1.878 | 3 | 30001 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bits.cpp) · [graph](../../output/cornerstone-review/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bits.graph.txt) | 1.137 | 5 | 888 | 1.756 | 97 | 142 | 5 | exact |
+| [bytes.cpp](../../output/cornerstone-review/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bytes.cpp) · [graph](../../output/cornerstone-review/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bytes.graph.txt) | 1.091 | 5 | 888 | 1.996 | 11 | 684 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.

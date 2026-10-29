@@ -1,0 +1,24 @@
+Picked up _JAVA_OPTIONS: -Dmorkl.openfst.prefix=/home/ubuntu/zippy-upstream -Dmorkl.openfst.root=/home/ubuntu/Zippy-graph-final7
+Picked up _JAVA_OPTIONS: -Dmorkl.openfst.prefix=/home/ubuntu/zippy-upstream -Dmorkl.openfst.root=/home/ubuntu/Zippy-graph-final7
+[33m[33m-- [E222] Syntax Warning: /home/ubuntu/zippy-graph-callee-probe.scala:1:8 ------[0m[0m
+[33m 1 |[0m[33mpackage[0m morkl
+[33m[33m   |[0m^[0m
+[33m   |[0mThe package name `zippy-graph-callee-probe$package` will be encoded on the classpath, and can lead to undefined behaviour.
+[33m 2 |[0m@main [33mdef[0m graphCalleeProbe(): [33mUnit[0m =
+[33m 3 |[0m  [33mval[0m input=[33mSpaceMention[0m([32m"input"[0m);[33mval[0m h=[33mPathRef[0m([32m"h"[0m);[33mval[0m t=[33mSpaceMention[0m([32m"t"[0m)
+[33m 4 |[0m  [33mval[0m callee=[33mRoutine[0m([33mRoutinePtr[0m([32m"double"[0m),[33mVector[0m.empty,[33mVector[0m(input),[33mSpace[0m.[33mIteration[0m([33mSpace[0m.[33mMention[0m(input),h,t,[33mSpace[0m.[33mSingleton[0m([33mPath[0m.[33mConcat[0m([33mPath[0m.[33mDeref[0m(h),[33mPath[0m.[33mDeref[0m(h)))))
+[33m 5 |[0m  [33mval[0m entry=[33mRoutine[0m([33mRoutinePtr[0m([32m"entry"[0m),[33mVector[0m.empty,[33mVector[0m(input),[33mSpace[0m.[33mCall[0m(callee.name,[33mVector[0m.empty,[33mVector[0m([33mSpace[0m.[33mMention[0m(input))))
+[33m 6 |[0m  [33mval[0m data=[33mSet[0m([33mPathValue[0m([33mList[0m([33mPathItem[0m([32m"a"[0m))),[33mPathValue[0m([33mList[0m([33mPathItem[0m([32m"b"[0m),[33mPathItem[0m([32m"a"[0m))))
+[33m 7 |[0m  [33mval[0m compiled=[33mOpenFstBackend[0m.fromGraph(optimize(transpile(entry)),[33mMap[0m([32m"double"[0m->optimize(transpile(callee))))
+[33m 8 |[0m  assert(compiled.eval(spaces=[33mMap[0m(input->data))==[33mSet[0m([33mPathValue[0m([33mList[0m([33mPathItem[0m([32m"a"[0m),[33mPathItem[0m([32m"a"[0m))),[33mPathValue[0m([33mList[0m([33mPathItem[0m([32m"b"[0m),[33mPathItem[0m([32m"b"[0m)))))
+[33m 9 |[0m  [33mval[0m rec=[33mRoutine[0m([33mRoutinePtr[0m([32m"rec"[0m),[33mVector[0m.empty,[33mVector[0m(input),[33mSpace[0m.[33mUnion[0m([33mSpace[0m.[33mMention[0m(input),[33mSpace[0m.[33mCall[0m([33mRoutinePtr[0m([32m"rec"[0m),[33mVector[0m.empty,[33mVector[0m([33mSpace[0m.[33mMention[0m(input)))))
+[33m10 |[0m  [33mval[0m graph=optimize(transpile(rec))
+[33m11 |[0m  assert([33mOpenFstBackend[0m.fromGraph(graph,[33mMap[0m([32m"rec"[0m->graph)).eval(spaces=[33mMap[0m(input->data))==data)
+[33m12 |[0m  println([32m"direct graph callees and stationary graph recursion passed"[0m)
+[33m   |[0m
+[33m   |[0m longer explanation available when compiling with `-explain`
+1 warning found
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Dmorkl.openfst.prefix=/home/ubuntu/zippy-upstream -Dmorkl.openfst.root=/home/ubuntu/Zippy-graph-final7
+direct graph callees and stationary graph recursion passed

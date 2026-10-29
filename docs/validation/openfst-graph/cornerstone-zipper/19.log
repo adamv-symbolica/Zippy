@@ -1,0 +1,14 @@
+[bench-setup] aunt fixtures
+[bench-setup] graph fixtures
+[bench-setup] datalog residual
+[bench-setup] life compile
+[bench-setup] temperature fixtures
+[bench-setup] temperature committed load
+[bench-setup] temperature committed trie
+[bench-setup] temperature committed query
+[bench-setup] temperature synthetic data
+[bench-setup] temperature synthetic trie
+[bench-setup] temperature synthetic query
+[bench-setup] puzzle fixtures
+[bench-setup] n-queens fixture
+exact first evaluation: 6724.96937 ms

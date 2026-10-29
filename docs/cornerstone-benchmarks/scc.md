@@ -10,16 +10,16 @@ Fixture family: `programs`. Result: **2 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| eval Set | 0.645 |  |
-| ROG exec | 0.826 |  |
-| evalTrie | 0.668 |  |
-| evalZ | 3.339 |  |
-| ROG execT | 0.598 |  |
-| Zippy_bits reference | 5.805469 | BigInt path sets; 5 sample(s), exact check; separate h4d run |
-| Zippy_bytes reference | 4.665799 | byte-array path sets; 5 sample(s), exact check; separate h4d run |
-| C++ OpenFst symbols | 0.494352 | symbol labels; standalone |
-| C++ OpenFst bits | 2.026550 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 1.209030 | four-byte big-endian intern IDs; standalone |
+| eval Set | 0.686 |  |
+| ROG exec | 0.539 |  |
+| evalTrie | 0.601 |  |
+| evalZ | 4.383 |  |
+| ROG execT | 0.309 |  |
+| Zippy_bits reference | 12.521682 | BigInt path sets; 5 sample(s), exact check; separate h4d run |
+| Zippy_bytes reference | 8.463665 | byte-array path sets; 5 sample(s), exact check; separate h4d run |
+| C++ OpenFst symbols | 0.196565 | symbol labels; standalone; optimized graph |
+| C++ OpenFst bits | 1.150000 | Fibonacci-coded intern IDs; standalone; optimized graph |
+| C++ OpenFst bytes | 0.520910 | four-byte big-endian intern IDs; standalone; optimized graph |
 
 Original benchmark note: exec fallback Call dispatch to optimized callee graph(s): reachable, seedless_scc.
 
@@ -28,25 +28,25 @@ Scala compilation costs from the same report (milliseconds):
 | Stage | ms |
 | --- | --- |
 | prep compile | n/a |
-| graph compile | 19.240 |
-| total compile | 19.240 |
-| compile+ROG execT | 19.839 |
-| source pass | 10.476 |
-| lower+inline | 0.502 |
-| graph optimize | 3.748 |
-| graph transpile | 0.892 |
-| const-fold eval | 0.583 |
+| graph compile | 32.774 |
+| total compile | 32.774 |
+| compile+ROG execT | 33.083 |
+| source pass | 14.763 |
+| lower+inline | 1.910 |
+| graph optimize | 3.867 |
+| graph transpile | 1.272 |
+| const-fold eval | 0.596 |
 | const-fold evalTrie | 0.000 |
 | const-fold evalZ | 0.000 |
 | const-fold execT | 0.000 |
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/programs/08-scc-paper-divide-and-conquer/symbols.cpp) | 1.822 | 4 | 4 | 5 | exact |
-| [bits.cpp](../../output/cornerstone-review/programs/08-scc-paper-divide-and-conquer/bits.cpp) | 6949.209 | 9 | 9 | 5 | exact |
-| [bytes.cpp](../../output/cornerstone-review/programs/08-scc-paper-divide-and-conquer/bytes.cpp) | 1536.254 | 13 | 13 | 5 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/programs/08-scc-paper-divide-and-conquer/symbols.cpp) · [graph](../../output/cornerstone-review/programs/08-scc-paper-divide-and-conquer/symbols.graph.txt) | 24.276 | 104 | 5043 | 42.373 | 5 | 4 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/programs/08-scc-paper-divide-and-conquer/bits.cpp) · [graph](../../output/cornerstone-review/programs/08-scc-paper-divide-and-conquer/bits.graph.txt) | 281.187 | 3324 | 232585 | 7014.181 | 14 | 13 | 5 | exact |
+| [bytes.cpp](../../output/cornerstone-review/programs/08-scc-paper-divide-and-conquer/bytes.cpp) · [graph](../../output/cornerstone-review/programs/08-scc-paper-divide-and-conquer/bytes.graph.txt) | 39.783 | 351 | 34938 | 1444.846 | 14 | 13 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.
 
@@ -56,20 +56,20 @@ Fixture family: `large`. Result: **2 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 1.487 |  |
-| evalZ | 5.381 |  |
-| C++ OpenFst symbols | 0.492825 | symbol labels; standalone |
-| C++ OpenFst bits | 2.086802 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 1.218864 | four-byte big-endian intern IDs; standalone |
+| evalTrie | 2.123 |  |
+| evalZ | 8.545 |  |
+| C++ OpenFst symbols | 0.197220 | symbol labels; standalone; optimized graph |
+| C++ OpenFst bits | 1.156293 | Fibonacci-coded intern IDs; standalone; optimized graph |
+| C++ OpenFst bytes | 0.521198 | four-byte big-endian intern IDs; standalone; optimized graph |
 
 Original benchmark note: paper pivot/partition recursion with masked reachability lowered to a native fixpoint.
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/symbols.cpp) | 3.567 | 4 | 4 | 5 | exact |
-| [bits.cpp](../../output/cornerstone-review/large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/bits.cpp) | 5032.669 | 9 | 9 | 5 | exact |
-| [bytes.cpp](../../output/cornerstone-review/large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/bytes.cpp) | 1528.740 | 13 | 13 | 5 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/symbols.cpp) · [graph](../../output/cornerstone-review/large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/symbols.graph.txt) | 96.197 | 104 | 5043 | 690.136 | 5 | 4 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/bits.cpp) · [graph](../../output/cornerstone-review/large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/bits.graph.txt) | 404.136 | 3324 | 232585 | 6913.941 | 14 | 13 | 5 | exact |
+| [bytes.cpp](../../output/cornerstone-review/large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/bytes.cpp) · [graph](../../output/cornerstone-review/large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/bytes.graph.txt) | 44.308 | 351 | 34938 | 1428.153 | 14 | 13 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.

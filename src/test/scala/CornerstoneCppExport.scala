@@ -30,7 +30,7 @@ object CornerstoneCppExport:
     Files.createDirectories(output)
     val records = mutable.ArrayBuffer.empty[String]
     val index = mutable.ArrayBuffer.empty[String]
-    for name <- Vector("zippy_openfst.hpp", "zippy_openfst.cpp", "CMakeLists.txt") do
+    for name <- Vector("zippy_openfst.hpp", "zippy_openfst.cpp", "zippy_lazy.hpp", "CMakeLists.txt") do
       Files.createDirectories(output.resolve("runtime"))
       Files.copy(Paths.get("src/main/cpp", name), output.resolve("runtime").resolve(name), StandardCopyOption.REPLACE_EXISTING)
     val main = TrieBenchmarks.cases().map(c => Work("programs", c.name, c.variant, c.expr, c.sc, c.rc))
@@ -68,6 +68,7 @@ object CornerstoneCppExport:
         val context = encoded.flatMap((id, paths) => Vector(id.toString, paths.size.toString) ++ paths.map(path))
         val request = (Vector("R", "0", symbols.size.toString) ++ dictionary ++ Vector("0", encoded.size.toString) ++ context).mkString(" ")
         write(directory.resolve(s"$dialect.input.txt"), request + "\nQ\n")
+        write(directory.resolve(s"$dialect.graph.txt"), compiled.graphDescription + "\n")
         val source = compiled.source
         val sourceBytes = source.getBytes(UTF_8)
         write(directory.resolve(s"$dialect.cpp"), source)
@@ -90,11 +91,11 @@ object CornerstoneCppExport:
          ||---|---|---:|---:|---|
          |${descriptions.mkString("\n")}
          |
-         |Each translation unit contains `main`, the generated expression functions, and all reachable routines.
+         |Each translation unit contains `main`, typed graph locals, inline control-flow loops, and all reachable routines.
          |[encodings.json](encodings.json) maps every interned symbol to its actual bit and byte codewords.
          |The corresponding `*.input.txt` contains the numeric protocol request for this exact fixture;
          |`*.bindings.json` identifies environment slots and symbolic labels. Digit labels are offset by one (OpenFst reserves zero).
-         |The path slot list includes routine-local slots; the top-level request has no free path bindings.
+         |The graph dumps beside each source show the optimized executor graph used for emission.
          |A callback count above zero requires the JVM callback bridge or explicit native function bindings;
          |its input file alone cannot supply those callbacks. See the bundle README for compilation.
          |""".stripMargin)
@@ -125,7 +126,7 @@ object CornerstoneCppExport:
        |ZIPPY_STACK_MIB=256 build/zippy_program < programs/<case>/symbols.input.txt
        |```
        |
-       |For very large generated units use `-DCMAKE_CXX_FLAGS_RELEASE="-O0 -fno-inline"`;
+       |For very large generated units use `-DCMAKE_CXX_FLAGS_RELEASE="-O0"`;
        |this review build setting is separate from the recorded benchmark settings.
        |Only programs marked standalone run directly with these input files. Others emit callback requests and require
        |`OpenFstBackend.Session` or supplied native grounded functions. Callbacks are explicitly counted per artifact.

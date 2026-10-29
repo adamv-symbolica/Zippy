@@ -10,16 +10,16 @@ Fixture family: `programs`. Result: **12 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| eval Set | 6.303 |  |
+| eval Set | 2.017 |  |
 | ROG exec | 0.001 | precomputed literal |
-| evalTrie | 4.848 |  |
-| evalZ | 7.853 |  |
+| evalTrie | 4.811 |  |
+| evalZ | 7.608 |  |
 | ROG execT | 0.001 | precomputed literal |
-| Zippy_bits reference | 48.906413 | BigInt path sets; 5 sample(s), exact check; separate h4d run |
-| Zippy_bytes reference | 27.942936 | byte-array path sets; 5 sample(s), exact check; separate h4d run |
-| C++ OpenFst symbols | 8.004878 | symbol labels; standalone |
-| C++ OpenFst bits | 71.054772 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 31.720151 | four-byte big-endian intern IDs; standalone |
+| Zippy_bits reference | 48.963295 | BigInt path sets; 5 sample(s), exact check; separate h4d run |
+| Zippy_bytes reference | 32.874061 | byte-array path sets; 5 sample(s), exact check; separate h4d run |
+| C++ OpenFst symbols | 0.000006 | symbol labels; standalone; precomputed literal |
+| C++ OpenFst bits | 31.732589 | Fibonacci-coded intern IDs; standalone; optimized graph |
+| C++ OpenFst bytes | 15.345618 | four-byte big-endian intern IDs; standalone; optimized graph |
 
 Original benchmark note: compiled away; use compile+run.
 
@@ -28,25 +28,25 @@ Scala compilation costs from the same report (milliseconds):
 | Stage | ms |
 | --- | --- |
 | prep compile | n/a |
-| graph compile | 3.029 |
-| total compile | 3.029 |
-| compile+ROG execT | 3.030 |
-| source pass | 2.065 |
-| lower+inline | 0.115 |
-| graph optimize | 0.080 |
-| graph transpile | 0.002 |
-| const-fold eval | 1.274 |
+| graph compile | 3.486 |
+| total compile | 3.486 |
+| compile+ROG execT | 3.487 |
+| source pass | 1.709 |
+| lower+inline | 0.631 |
+| graph optimize | 0.120 |
+| graph transpile | 0.004 |
+| const-fold eval | 0.677 |
 | const-fold evalTrie | 0.000 |
 | const-fold evalZ | 0.000 |
 | const-fold execT | 0.000 |
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/symbols.cpp) | 1.979 | 13 | 19 | 5 | exact |
-| [bits.cpp](../../output/cornerstone-review/programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/bits.cpp) | 6.569 | 40 | 46 | 5 | exact |
-| [bytes.cpp](../../output/cornerstone-review/programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/bytes.cpp) | 2.092 | 49 | 55 | 5 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/symbols.cpp) · [graph](../../output/cornerstone-review/programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/symbols.graph.txt) | 4.561 | 1 | 859 | 3.067 | 13 | 19 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/bits.cpp) · [graph](../../output/cornerstone-review/programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/bits.graph.txt) | 909.633 | 13879 | 977398 | 31103.432 | 144 | 143 | 5 | exact |
+| [bytes.cpp](../../output/cornerstone-review/programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/bytes.cpp) · [graph](../../output/cornerstone-review/programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/bytes.graph.txt) | 64.226 | 639 | 66085 | 2544.752 | 128 | 127 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.
 
@@ -58,14 +58,14 @@ Fixture family: `programs`. Result: **12 paths**.
 | --- | --- | --- |
 | eval Set | 0.001 |  |
 | ROG exec | 0.001 | precomputed literal |
-| evalTrie | 0.007 |  |
+| evalTrie | 0.013 |  |
 | evalZ | 0.007 |  |
 | ROG execT | 0.001 | precomputed literal |
-| Zippy_bits reference | 0.002945 | BigInt path sets; 5 sample(s), exact check; separate h4d run |
-| Zippy_bytes reference | 0.003425 | byte-array path sets; 5 sample(s), exact check; separate h4d run |
-| C++ OpenFst symbols | 0.000005 | symbol labels; standalone |
-| C++ OpenFst bits | 0.000005 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 0.000005 | four-byte big-endian intern IDs; standalone |
+| Zippy_bits reference | 0.002984 | BigInt path sets; 5 sample(s), exact check; separate h4d run |
+| Zippy_bytes reference | 0.003555 | byte-array path sets; 5 sample(s), exact check; separate h4d run |
+| C++ OpenFst symbols | 0.000006 | symbol labels; standalone; precomputed literal |
+| C++ OpenFst bits | 0.000006 | Fibonacci-coded intern IDs; standalone; precomputed literal |
+| C++ OpenFst bytes | 0.000006 | four-byte big-endian intern IDs; standalone; precomputed literal |
 
 Original benchmark note: compiled away; use compile+run.
 
@@ -73,26 +73,26 @@ Scala compilation costs from the same report (milliseconds):
 
 | Stage | ms |
 | --- | --- |
-| prep compile | 10.074 |
-| graph compile | 0.281 |
-| total compile | 10.355 |
-| compile+ROG execT | 10.356 |
-| source pass | 9.347 |
-| lower+inline | 0.267 |
-| graph optimize | 0.085 |
-| graph transpile | 0.004 |
-| const-fold eval | 4.106 |
+| prep compile | 15.568 |
+| graph compile | 0.434 |
+| total compile | 16.002 |
+| compile+ROG execT | 16.003 |
+| source pass | 12.409 |
+| lower+inline | 2.539 |
+| graph optimize | 0.125 |
+| graph transpile | 0.003 |
+| const-fold eval | 4.326 |
 | const-fold evalTrie | 0.000 |
 | const-fold evalZ | 0.000 |
 | const-fold execT | 0.000 |
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/symbols.cpp) | 1.590 | 13 | 19 | 5 | exact |
-| [bits.cpp](../../output/cornerstone-review/programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/bits.cpp) | 1.313 | 40 | 46 | 5 | exact |
-| [bytes.cpp](../../output/cornerstone-review/programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/bytes.cpp) | 1.253 | 49 | 55 | 5 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/symbols.cpp) · [graph](../../output/cornerstone-review/programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/symbols.graph.txt) | 0.528 | 1 | 859 | 382.392 | 13 | 19 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/bits.cpp) · [graph](../../output/cornerstone-review/programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/bits.graph.txt) | 1.211 | 1 | 1082 | 399.137 | 40 | 46 | 5 | exact |
+| [bytes.cpp](../../output/cornerstone-review/programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/bytes.cpp) · [graph](../../output/cornerstone-review/programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/bytes.graph.txt) | 1.287 | 1 | 1100 | 531.274 | 49 | 55 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.
 
@@ -102,16 +102,16 @@ Fixture family: `programs`. Result: **420 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| eval Set | 440.023 |  |
-| ROG exec | 0.002 | precomputed literal |
-| evalTrie | 745.508 |  |
-| evalZ | n/a | omitted by original benchmark (see note below) |
+| eval Set | 358.626 |  |
+| ROG exec | 0.003 | precomputed literal |
+| evalTrie | 912.922 |  |
+| evalZ | 1999.178900 | additional source run: measured; 192g heap, 600 s limit; exact check on success |
 | ROG execT | 0.001 | precomputed literal |
-| Zippy_bits reference | 7334.864319 | BigInt path sets; 1 sample(s), exact check; separate h4d run |
-| Zippy_bytes reference | 3384.286054 | byte-array path sets; 1 sample(s), exact check; separate h4d run |
-| C++ OpenFst symbols | 1920.536003 | symbol labels; standalone |
-| C++ OpenFst bits | 20807.285439 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 8300.112781 | four-byte big-endian intern IDs; standalone |
+| Zippy_bits reference | 7562.843162 | BigInt path sets; 1 sample(s), exact check; separate h4d run |
+| Zippy_bytes reference | 3525.220154 | byte-array path sets; 1 sample(s), exact check; separate h4d run |
+| C++ OpenFst symbols | 0.000006 | symbol labels; standalone; precomputed literal |
+| C++ OpenFst bits | 3223.566853 | Fibonacci-coded intern IDs; standalone; optimized graph |
+| C++ OpenFst bytes | 762.885168 | four-byte big-endian intern IDs; standalone; optimized graph |
 
 Original benchmark note: compiled away; use compile+run; direct evalZ source search tree exceeds the benchmark heap; use evalTrie/graph rows.
 
@@ -120,25 +120,25 @@ Scala compilation costs from the same report (milliseconds):
 | Stage | ms |
 | --- | --- |
 | prep compile | n/a |
-| graph compile | 43.114 |
-| total compile | 43.114 |
-| compile+ROG execT | 43.116 |
-| source pass | 41.603 |
-| lower+inline | 0.114 |
-| graph optimize | 0.089 |
-| graph transpile | 0.003 |
-| const-fold eval | 38.883 |
+| graph compile | 38.665 |
+| total compile | 38.665 |
+| compile+ROG execT | 38.666 |
+| source pass | 35.644 |
+| lower+inline | 0.994 |
+| graph optimize | 0.112 |
+| graph transpile | 0.006 |
+| const-fold eval | 32.449 |
 | const-fold evalTrie | 0.000 |
 | const-fold evalZ | 0.000 |
 | const-fold execT | 0.000 |
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/symbols.cpp) | 2.581 | 419 | 721 | 1 | exact |
-| [bits.cpp](../../output/cornerstone-review/programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/bits.cpp) | 26.751 | 1796 | 2082 | 1 | exact |
-| [bytes.cpp](../../output/cornerstone-review/programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/bytes.cpp) | 3.623 | 1673 | 1975 | 1 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/symbols.cpp) · [graph](../../output/cornerstone-review/programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/symbols.graph.txt) | 68.637 | 1 | 9674 | 401.341 | 419 | 721 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/bits.cpp) · [graph](../../output/cornerstone-review/programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/bits.graph.txt) | 5384.332 | 73023 | 5195957 | 25858.821 | 11146 | 11145 | 1 | exact |
+| [bytes.cpp](../../output/cornerstone-review/programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/bytes.cpp) · [graph](../../output/cornerstone-review/programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/bytes.graph.txt) | 324.548 | 2363 | 250534 | 6681.973 | 7904 | 7903 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.
 
@@ -148,16 +148,16 @@ Fixture family: `programs`. Result: **420 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| eval Set | 0.001 |  |
+| eval Set | 0.002 |  |
 | ROG exec | 0.001 | precomputed literal |
-| evalTrie | 0.397 |  |
-| evalZ | 0.390 |  |
+| evalTrie | 0.325 |  |
+| evalZ | 0.388 |  |
 | ROG execT | 0.001 | precomputed literal |
-| Zippy_bits reference | 0.003526 | BigInt path sets; 5 sample(s), exact check; separate h4d run |
-| Zippy_bytes reference | 0.003675 | byte-array path sets; 5 sample(s), exact check; separate h4d run |
-| C++ OpenFst symbols | 0.000005 | symbol labels; standalone |
-| C++ OpenFst bits | 0.000005 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 0.000005 | four-byte big-endian intern IDs; standalone |
+| Zippy_bits reference | 0.003295 | BigInt path sets; 5 sample(s), exact check; separate h4d run |
+| Zippy_bytes reference | 0.010345 | byte-array path sets; 5 sample(s), exact check; separate h4d run |
+| C++ OpenFst symbols | 0.000006 | symbol labels; standalone; precomputed literal |
+| C++ OpenFst bits | 0.000007 | Fibonacci-coded intern IDs; standalone; precomputed literal |
+| C++ OpenFst bytes | 0.000009 | four-byte big-endian intern IDs; standalone; precomputed literal |
 
 Original benchmark note: compiled away; use compile+run.
 
@@ -165,26 +165,26 @@ Scala compilation costs from the same report (milliseconds):
 
 | Stage | ms |
 | --- | --- |
-| prep compile | 109.211 |
-| graph compile | 0.346 |
-| total compile | 109.558 |
-| compile+ROG execT | 109.559 |
-| source pass | 107.532 |
-| lower+inline | 0.683 |
-| graph optimize | 0.102 |
-| graph transpile | 0.002 |
-| const-fold eval | 93.028 |
+| prep compile | 126.907 |
+| graph compile | 0.472 |
+| total compile | 127.379 |
+| compile+ROG execT | 127.380 |
+| source pass | 120.538 |
+| lower+inline | 4.006 |
+| graph optimize | 0.146 |
+| graph transpile | 0.003 |
+| const-fold eval | 105.999 |
 | const-fold evalTrie | 0.000 |
 | const-fold evalZ | 0.000 |
 | const-fold execT | 0.000 |
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/symbols.cpp) | 1.406 | 419 | 721 | 5 | exact |
-| [bits.cpp](../../output/cornerstone-review/programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/bits.cpp) | 1.299 | 1796 | 2082 | 5 | exact |
-| [bytes.cpp](../../output/cornerstone-review/programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/bytes.cpp) | 2.022 | 1673 | 1975 | 5 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/symbols.cpp) · [graph](../../output/cornerstone-review/programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/symbols.graph.txt) | 2.210 | 1 | 9674 | 3.002 | 419 | 721 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/bits.cpp) · [graph](../../output/cornerstone-review/programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/bits.graph.txt) | 20.326 | 1 | 39055 | 480.770 | 1796 | 2082 | 5 | exact |
+| [bytes.cpp](../../output/cornerstone-review/programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/bytes.cpp) · [graph](../../output/cornerstone-review/programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/bytes.graph.txt) | 13.086 | 1 | 32564 | 504.383 | 1673 | 1975 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.
 
@@ -194,16 +194,16 @@ Fixture family: `programs`. Result: **202 paths**.
 
 | Evaluator / transpilation | Runtime ms | Execution |
 | --- | --- | --- |
-| eval Set | 604.890 |  |
-| ROG exec | 0.028 | precomputed literal |
-| evalTrie | 1355.264 |  |
-| evalZ | n/a | omitted by original benchmark (see note below) |
-| ROG execT | 0.007 | precomputed literal |
-| Zippy_bits reference | 12558.359001 | BigInt path sets; 1 sample(s), exact check; separate h4d run |
-| Zippy_bytes reference | 5560.672841 | byte-array path sets; 1 sample(s), exact check; separate h4d run |
-| C++ OpenFst symbols | 3512.808310 | symbol labels; standalone |
-| C++ OpenFst bits | 43913.322676 | Fibonacci-coded intern IDs; standalone |
-| C++ OpenFst bytes | 15722.868579 | four-byte big-endian intern IDs; standalone |
+| eval Set | 578.346 |  |
+| ROG exec | 0.045 | precomputed literal |
+| evalTrie | 2088.411 |  |
+| evalZ | 6585.874368 | additional source run: measured; 192g heap, 600 s limit; exact check on success |
+| ROG execT | 0.009 | precomputed literal |
+| Zippy_bits reference | 13832.728186 | BigInt path sets; 1 sample(s), exact check; separate h4d run |
+| Zippy_bytes reference | 5347.273505 | byte-array path sets; 1 sample(s), exact check; separate h4d run |
+| C++ OpenFst symbols | 0.000006 | symbol labels; standalone; precomputed literal |
+| C++ OpenFst bits | 4195.090770 | Fibonacci-coded intern IDs; standalone; optimized graph |
+| C++ OpenFst bytes | 866.665058 | four-byte big-endian intern IDs; standalone; optimized graph |
 
 Original benchmark note: compiled away; use compile+run; direct evalZ source search tree exceeds the benchmark heap; use evalTrie/graph rows.
 
@@ -212,25 +212,25 @@ Scala compilation costs from the same report (milliseconds):
 | Stage | ms |
 | --- | --- |
 | prep compile | n/a |
-| graph compile | 73.933 |
-| total compile | 73.933 |
-| compile+ROG execT | 73.940 |
-| source pass | 70.462 |
-| lower+inline | 0.386 |
-| graph optimize | 0.212 |
-| graph transpile | 0.004 |
-| const-fold eval | 56.715 |
+| graph compile | 58.095 |
+| total compile | 58.095 |
+| compile+ROG execT | 58.104 |
+| source pass | 52.233 |
+| lower+inline | 2.933 |
+| graph optimize | 0.175 |
+| graph transpile | 0.006 |
+| const-fold eval | 41.009 |
 | const-fold evalTrie | 0.000 |
 | const-fold evalZ | 0.000 |
 | const-fold execT | 0.000 |
 
 Native compilation/session costs and resulting acceptor sizes:
 
-| Dialect / source | Session setup ms¹ | States | Arcs | Samples | Correctness |
-| --- | --- | --- | --- | --- | --- |
-| [symbols.cpp](../../output/cornerstone-review/programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/symbols.cpp) | 6.659 | 456 | 606 | 1 | exact |
-| [bits.cpp](../../output/cornerstone-review/programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/bits.cpp) | 152.396 | 2260 | 2408 | 1 | exact |
-| [bytes.cpp](../../output/cornerstone-review/programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/bytes.cpp) | 15.153 | 1821 | 1971 | 1 | exact |
+| Dialect / source | Source + graph compile ms | Live nodes | Source bytes | Session setup ms¹ | States | Arcs | Samples | Correctness |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| [symbols.cpp](../../output/cornerstone-review/programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/symbols.cpp) · [graph](../../output/cornerstone-review/programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/symbols.graph.txt) | 94.548 | 1 | 9747 | 497.885 | 456 | 606 | 5 | exact |
+| [bits.cpp](../../output/cornerstone-review/programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/bits.cpp) · [graph](../../output/cornerstone-review/programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/bits.graph.txt) | 63867.932 | 257564 | 18305351 | 84396.669 | 13398 | 13397 | 1 | exact |
+| [bytes.cpp](../../output/cornerstone-review/programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/bytes.cpp) · [graph](../../output/cornerstone-review/programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/bytes.graph.txt) | 531.541 | 7097 | 737869 | 22110.821 | 8486 | 8485 | 5 | exact |
 
 ¹ May include a compilation cache hit; this is not a cold compilation comparison.
 
@@ -240,8 +240,8 @@ This separate compile-time experiment selects Reference, Trie, Zipper, ExecT, or
 
 | benchmark | backend | compile ms | const-fold total ms | eval ms | evalTrie ms | evalZ ms | execT ms |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| sliding puzzle 3x3 pure compile-pass depth-8 step | Reference | 38.906 | 35.844 | 35.844 | 0.000 | 0.000 | 0.000 |
-| sliding puzzle 3x3 pure compile-pass depth-8 step | Trie | 228.907 | 225.662 | 0.000 | 225.662 | 0.000 | 0.000 |
-| sliding puzzle 3x3 pure compile-pass depth-8 step | Zipper | 524.391 | 521.483 | 0.000 | 0.000 | 521.483 | 0.000 |
-| sliding puzzle 3x3 pure compile-pass depth-8 step | ExecT | 58.462 | 55.678 | 0.000 | 0.000 | 0.000 | 55.678 |
-| sliding puzzle 3x3 pure compile-pass depth-8 step | Hybrid | 42.382 | 39.346 | 39.346 | 0.000 | 0.000 | 0.000 |
+| sliding puzzle 3x3 pure compile-pass depth-8 step | Reference | 34.375 | 30.424 | 30.424 | 0.000 | 0.000 | 0.000 |
+| sliding puzzle 3x3 pure compile-pass depth-8 step | Trie | 340.377 | 335.644 | 0.000 | 335.644 | 0.000 | 0.000 |
+| sliding puzzle 3x3 pure compile-pass depth-8 step | Zipper | 562.048 | 558.369 | 0.000 | 0.000 | 558.369 | 0.000 |
+| sliding puzzle 3x3 pure compile-pass depth-8 step | ExecT | 64.836 | 60.881 | 0.000 | 0.000 | 0.000 | 60.881 |
+| sliding puzzle 3x3 pure compile-pass depth-8 step | Hybrid | 57.801 | 52.070 | 52.070 | 0.000 | 0.000 | 0.000 |

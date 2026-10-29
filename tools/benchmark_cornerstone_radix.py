@@ -20,7 +20,9 @@ from pathlib import Path
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--jar", type=Path, required=True)
+    runtime = p.add_mutually_exclusive_group(required=True)
+    runtime.add_argument("--jar", type=Path)
+    runtime.add_argument("--classpath", help="Reuse the immutable benchmark JAR and its dependencies")
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--workers", type=int, default=4)
     p.add_argument("--seconds", type=int, default=600)
@@ -37,7 +39,9 @@ def main():
         stem = f"{index:02d}-{dialect}"
         destination = output / f"{stem}.csv"
         command = ["java", f"-Xmx{args.heap}", "-Xss64m", "-XX:ActiveProcessorCount=8",
-                   "-jar", str(args.jar.resolve()), str(destination), str(index), dialect]
+                   *( ["-jar", str(args.jar.resolve())] if args.jar else
+                      ["-cp", args.classpath, "morkl.cornerstoneRadixReference"] ),
+                   str(destination), str(index), dialect]
         start = time.monotonic()
         with (output / f"{stem}.log").open("w") as log:
             process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)

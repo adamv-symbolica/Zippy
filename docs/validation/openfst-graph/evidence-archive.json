@@ -1,0 +1,7 @@
+{
+  "archive": "zippy-graph-complete-evidence.tar.gz",
+  "sha256": "29a8a7a4f4e4746c66e1f01b1f08870d4305df4ae60cdc18fb27050d0b003a8f",
+  "bytes": 5405707,
+  "contains": "Full native/reference ledgers and logs, every benchmark report and native shard, extra evaluator runs, export checks, environment and source snapshot",
+  "workspaceArchive": "output/openfst-graph-validation/zippy-graph-complete-evidence.tar.gz"
+}
