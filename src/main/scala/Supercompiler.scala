@@ -286,6 +286,11 @@ object Matching:
     val (pnames, snames) = spaceNames(s)
     val freshS = makeFresh(snames, "bound$s")
     val freshP = makeFresh(pnames, "bound$p")
+    def renamedPath(original: PathRef): PathRef =
+      val next=PathRef(freshP())
+      if original.lengthHint >= 0 then next.known(original.lengthHint)
+      else if original.maxLengthHint >= 0 then next.bounded(original.maxLengthHint)
+      else next
     def recp(p: Path, smap: Map[String, SpaceMention], pmap: Map[String, PathRef]): Path = p match
       case Path.Deref(pr) => pmap.get(pr.s).map(Path.Deref(_)).getOrElse(p)
       case Path.Constant(_) => p
@@ -304,19 +309,22 @@ object Matching:
       case Space.Raffination(a, b) => Space.Raffination(recs(a, smap, pmap), recs(b, smap, pmap))
       case Space.Composition(a, b) => Space.Composition(recs(a, smap, pmap), recs(b, smap, pmap))
       case Space.Iteration(src, sym, rest, body) =>
-        val sym2 = PathRef(freshP()).known(sym.lengthHint)
+        val sym2 = renamedPath(sym)
         val rest2 = SpaceMention(freshS()).known(rest.sizeHint)
-        Space.Iteration(recs(src, smap, pmap), sym2, rest2, recs(body, smap + (rest.s -> rest2), pmap + (sym.s -> sym2)))
+        Space.Iteration(recs(src, smap, pmap), sym2, rest2, recs(body,
+          if rest.s == "_" then smap else smap + (rest.s -> rest2),
+          if sym.s == "_" then pmap else pmap + (sym.s -> sym2)))
       case Space.Fold(src, initial, acc, sym, rest, body, update) =>
-        val acc2 = PathRef(freshP()).known(acc.lengthHint)
-        val sym2 = PathRef(freshP()).known(sym.lengthHint)
+        val acc2 = renamedPath(acc)
+        val sym2 = renamedPath(sym)
         val rest2 = SpaceMention(freshS()).known(rest.sizeHint)
-        val smap2 = smap + (rest.s -> rest2)
-        val pmap2 = pmap + (acc.s -> acc2) + (sym.s -> sym2)
+        val smap2 = if rest.s == "_" then smap else smap + (rest.s -> rest2)
+        val pmap2 = pmap ++ Vector(acc.s -> acc2,sym.s -> sym2).filter(_._1 != "_")
         Space.Fold(recs(src, smap, pmap), recp(initial, smap, pmap), acc2, sym2, rest2, recs(body, smap2, pmap2), recp(update, smap2, pmap2))
       case Space.Fixpoint(initial, variable, step) =>
         val variable2 = SpaceMention(freshS()).known(variable.sizeHint)
-        Space.Fixpoint(recs(initial, smap, pmap), variable2, recs(step, smap + (variable.s -> variable2), pmap))
+        Space.Fixpoint(recs(initial, smap, pmap), variable2, recs(step,
+          if variable.s == "_" then smap else smap + (variable.s -> variable2), pmap))
       case Space.Wrap(src, p) => Space.Wrap(recs(src, smap, pmap), recp(p, smap, pmap))
       case Space.Unwrap(src, p) => Space.Unwrap(recs(src, smap, pmap), recp(p, smap, pmap))
       case Space.TailsUnion(src) => Space.TailsUnion(recs(src, smap, pmap))

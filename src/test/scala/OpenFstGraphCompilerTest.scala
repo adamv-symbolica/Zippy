@@ -59,6 +59,30 @@ class OpenFstGraphCompilerTest extends FunSuite:
       eval(source)(using sc=SpaceContextMap(Map(input -> data)),rc=Map(helper -> routine)))
   }
 
+  test("alpha conversion preserves nested shadowing and ignored captures before specialization") {
+    val outer=PathRef("outer");val ignored=PathRef("_");val rest=SpaceMention("_")
+    val value=SpaceValue(Set(PathValue(Nil),PathValue(List(PathItem("a"))),
+      PathValue(List(PathItem("a"),PathItem("tail"))),PathValue(List(PathItem("m"),PathItem("a")))))
+    val literal=Space.Literal(value)
+    val nested=Space.Iteration(literal,h,t,Space.Union(Space.Singleton(Path.Deref(h)),
+      Space.Iteration(Space.Mention(t),h,t,Space.Wrap(Space.Mention(t),Path.Concat(Path.Deref(h),Path.Deref(outer))))))
+    val skip=Space.Iteration(literal,ignored,rest,Space.Wrap(Space.Mention(rest),Path.Deref(ignored)))
+    val pc=PathContextMap(Map(outer->PathValue(List(PathItem("m"))),ignored->PathValue(List(PathItem("a")))))
+    val sc=SpaceContextMap(Map(rest->value))
+    for source <- Vector(nested,skip) do
+      val expected=eval(source)(using pc,sc)
+      assertEquals(eval(Matching.canon(source))(using pc,sc),expected)
+      if java.lang.Boolean.getBoolean("morkl.openfst.test") then
+        assertEquals(OpenFstBackend.symbols(source).eval(pc.m,sc.m.view.mapValues(_.paths).toMap),expected.paths)
+    val name=RoutinePtr("ignored-formals")
+    val routine=Routine(name,Vector(ignored),Vector(rest),Space.Iteration(Space.Mention(rest),ignored,rest,
+      Space.Wrap(Space.Mention(rest),Path.Deref(ignored))))
+    val call=Space.Call(name,Vector(Path.Constant(PathValue(List(PathItem("prefix"))))),Vector(literal))
+    val expected=eval(call)(using rc=Map(name->routine))
+    if java.lang.Boolean.getBoolean("morkl.openfst.test") then
+      assertEquals(OpenFstBackend.symbols(call,Map(name->routine)).eval(),expected.paths)
+  }
+
   if java.lang.Boolean.getBoolean("morkl.openfst.test") then
     test("a shared recursive call stays inside the guards that demand it") {
       val left = SpaceMention("left");val right = SpaceMention("right")

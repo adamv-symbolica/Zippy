@@ -57,6 +57,8 @@ An operator records its input cursors without traversing or copying their graphs
 Final states represent terminal paths, including epsilon at the initial state.
 Common suffix states form a DAG, permitting compact exponential languages.
 No encoding-boundary metadata or new Zippy language cases are introduced.
+Graph path constants use lossless UTF-16 serialization when symbol boundaries
+would otherwise be ambiguous, including dotted and empty symbols.
 
 Language labels are positive OpenFst labels. Bit `0` and `1` become labels `1`
 and `2`; byte `0..255` becomes `1..256`. Symbol labels use a per-program interner.
@@ -86,7 +88,10 @@ depend on numeric interning order. Short paths use an inline four-label buffer.
 `OpenFstBackend.fromGraph(graph, callees)` accepts an already optimized symbolic
 executor graph and its called-graph index directly. The dialect entry points run
 source optimization, existing graph lowering, hoisting, push-out and sharing,
-then use the same emitter. Opaque host closures are never evaluated by compilation.
+then use the same emitter. Lexical binders are alpha-renamed before inlining
+and source specialization, including unused replacements for ignored `_`
+binders; external captures remain free. Exact and maximum path-length hints
+survive renaming. Opaque host closures are never evaluated by compilation.
 Proven encoding selectors survive source rewriting through ordinary function
 abstraction before native graph lowering.
 
@@ -103,7 +108,7 @@ parsed once. Only routines reachable after graph optimization are emitted.
 Cold generated units above two million characters default to `-O0`; set
 `morkl.openfst.largeOptimize` to override that policy. Normal units use `-O2`,
 and the automaton runtime always uses Release optimization. No forced no-inline
-attribute or compiler flag is applied. Source specialization has its existing
+attribute or compiler flag is applied. Source normalization has its existing
 30-second budget; if it expires, structural lowering still proceeds through the
 optimized graph. `morkl.openfst.graphCompileMillis` bounds native graph
 optimization separately (default 300,000 ms). Graph sharing indexes canonical

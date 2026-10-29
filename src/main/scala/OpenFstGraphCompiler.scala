@@ -173,9 +173,9 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
     lazy val structuralLowering =
       val all = ctx.orElse[RoutinePtr,Routine] { case p if p == r.name => r }
       val noSelf = module.filter((p,_) => p != r.name).lift.unlift
-      r.copy(body = Lower.inline(using noSelf)(Supercompiler.lowerFixpointCalls(r.body,all)))
+      r.copy(body = Matching.canon(Lower.inline(using noSelf)(Supercompiler.lowerFixpointCalls(r.body,all))))
     val lowered = if !hasGrounded && !oversizedProduct(r.body) then
-      try Supercompiler.compile(r,ctx=ctx,buildGraph=false).routine
+      try structuralLowering.copy(body=Supercompiler.normalize(structuralLowering.body).space)
       catch
         // Source specialization is optional. A large expanded translation must
         // still compile when that optimization exhausts its own time budget.
@@ -436,7 +436,7 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
     reservedRoutines = routines.keySet
     selector = new OpenFstHeadSelection[V,dialect.type](dialect,labels.encode,routines)
     module = routines.view.mapValues { r =>
-      val body = convertSpace(r.body)
+      val body = Matching.canon(convertSpace(r.body))
       // The language's stationary self-union convention must be resolved
       // before ordinary source rewrites can erase its enclosing Union.
       val lowered = body match
@@ -445,7 +445,7 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
         case _ => body
       Routine(r.name,r.refs,r.mentions,lowered)
     }.toMap
-    val body = convertSpace(entry)
+    val body = Matching.canon(convertSpace(entry))
     val rootName = Iterator.iterate("__openfst_entry")(_+"_").find(n => !module.contains(RoutinePtr(n))).get
     entryName = rootName
     val allPs = Matching.freeRefsV(body);val allSs = Matching.freeMentionsV(body)
