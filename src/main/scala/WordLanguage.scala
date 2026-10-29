@@ -27,10 +27,19 @@ trait WordOps[P]:
 object BitWords extends WordOps[BigInt]:
   val alphabetSize = 2
   override val empty: BigInt = BigInt(1)
-  def fromDigits(p: Iterable[Int]): BigInt = p.foldLeft(empty) { (n, b) =>
-    require(b == 0 || b == 1, s"not a bit: $b")
-    (n << 1) | BigInt(b)
-  }
+  private val zero: BigInt = BigInt(2)
+  private val one: BigInt = BigInt(3)
+  def fromDigits(p: Iterable[Int]): BigInt =
+    val it = p.iterator
+    var small = 1L; var width = 0
+    while it.hasNext && width < 62 do
+      val bit = it.next(); require(bit == 0 || bit == 1, s"not a bit: $bit")
+      small = (small << 1) | bit; width += 1
+    var word = BigInt(small)
+    while it.hasNext do
+      val bit = it.next(); require(bit == 0 || bit == 1, s"not a bit: $bit")
+      word = (word << 1) | BigInt(bit)
+    word
   def digits(p: BigInt): Vector[Int] =
     require(p > 0, "a bit word must have a leading length delimiter")
     Vector.tabulate(p.bitLength - 1)(i => if p.testBit(p.bitLength - 2 - i) then 1 else 0)
@@ -63,7 +72,7 @@ object BitWords extends WordOps[BigInt]:
     if n < 0 then None
     else if p.bitLength <= 63 then
       val bits = p.toLong
-      Some(BigInt(if (bits & (1L << n)) == 0 then 2 else 3) -> BigInt((bits & ((1L << n) - 1)) | (1L << n)))
+      Some((if (bits & (1L << n)) == 0 then zero else one) -> BigInt((bits & ((1L << n) - 1)) | (1L << n)))
     else Some(take(p, 1) -> drop(p, 1))
 
 /** Array-backed immutable value. The backing array is never exposed, including
@@ -179,8 +188,8 @@ object WordEvaluator:
               backend: Option[WordSetBackend[P]] = None)(using ops: WordOps[P]): WordSpaceValue[P] =
     import WordSpace.*
     import ops.ordering
-    import scala.util.control.TailCalls.{TailRec, done, tailcall}
     val store = backend.getOrElse(new WordSetBackend(ops))
+    store.clearCaches()
     val literalCache = new java.util.IdentityHashMap[Set[P], Set[P]]()
     def stored(values: Set[P]): Set[P] =
       val cached = literalCache.get(values)
@@ -193,130 +202,206 @@ object WordEvaluator:
     type SC = Map[SpaceMention, WordSpaceValue[P]]
     def bindPath(pc: PC, r: PathRef, p: P): PC = if r.s == "_" then pc else pc.updated(r, p)
     def bindSpace(sc: SC, r: SpaceMention, s: Set[P]): SC = if r.s == "_" then sc else sc.updated(r, WordSpaceValue(s))
-    def traverse[X, Y](xs: Iterable[X])(f: X => TailRec[Y]): TailRec[Vector[Y]] =
-      if xs.knownSize == 0 then return done(Vector.empty)
-      if xs.knownSize == 1 then return f(xs.head).map(y => Vector(y))
-      if xs.knownSize == 2 then
-        val it = xs.iterator; val first = it.next(); val second = it.next()
-        return for a <- f(first); b <- f(second) yield Vector(a, b)
-      if xs.knownSize == 3 then
-        val it = xs.iterator; val first = it.next(); val second = it.next(); val third = it.next()
-        return for a <- f(first); b <- f(second); c <- f(third) yield Vector(a, b, c)
-      val iterator = xs.iterator
-      val out = Vector.newBuilder[Y]
-      def loop(): TailRec[Vector[Y]] =
-        if !iterator.hasNext then done(out.result())
-        else f(iterator.next()).flatMap { y => out += y; tailcall(loop()) }
-      tailcall(loop())
     def checked(ref: PathRef, value: P): P =
       if validateHints then
         val length = ops.length(value)
         require(ref.lengthHint < 0 || ref.lengthHint == length, s"${ref.s} exact hint ${ref.lengthHint}, actual $length")
         require(ref.maxLengthHint < 0 || length <= ref.maxLengthHint, s"${ref.s} upper hint ${ref.maxLengthHint}, actual $length")
       value
-    def path(p: WordPath[P], pc: PC, sc: SC): TailRec[P] = p match
-      case WordPath.Deref(r) => done(checked(r, pc(r)))
-      case WordPath.Constant(p) => done(p)
-      case WordPath.Concat(l, r) => tailcall { for a <- path(l, pc, sc); b <- path(r, pc, sc) yield ops.concat(a, b) }
-      case WordPath.GroundedPP(p, f) => tailcall(path(p, pc, sc).map(f))
-      case WordPath.GroundedSP(s, f) => tailcall(run(s, pc, sc).map(x => f(WordSpaceValue(x))))
-    def run(s: WordSpace[P], pc: PC, sc: SC): TailRec[Set[P]] =
-      stats.foreach(x => x.nodes += 1)
-      s match
-        case Empty() => done(store.empty)
-        case Mention(m) => done(sc(m).paths)
-        case Literal(v) => done(stored(v.paths))
-        case Singleton(p) => path(p, pc, sc).map(p => store.from(Vector(p)))
-        case _ => execute(s, pc, sc)
-    def execute(s: WordSpace[P], pc: PC, sc: SC): TailRec[Set[P]] = tailcall {
-      def rec(s: WordSpace[P]): TailRec[Set[P]] = run(s, pc, sc)
-      def binary(x: WordSpace[P], y: WordSpace[P])(f: (Set[P], Set[P]) => Set[P]): TailRec[Set[P]] =
-        for a <- rec(x); b <- rec(y) yield f(a, b)
-      s match
-        case Empty() => done(store.empty)
-        case Call(r, ps, ss) =>
-          stats.foreach(x => x.calls += 1)
-          val routine = routines(r)
-          require(ps.size == routine.refs.size && ss.size == routine.mentions.size, s"arity mismatch: ${r.s}")
-          for
-            pathValues <- traverse(ps)(path(_, pc, sc))
-            spaceValues <- traverse(ss)(rec)
-            result <-
-              if validateHints then routine.refs.zip(pathValues).foreach((ref, value) => checked(ref, value))
-              val nextPC = routine.refs.zip(pathValues).toMap
-              val nextSC = routine.mentions.zip(spaceValues.map(WordSpaceValue(_))).toMap
-              routine.body match
-                case Union(left, Call(next, nextPS, nextSS)) if next == r && nextPS == ps && nextSS == ss =>
-                  for
-                    actualPS <- traverse(nextPS)(path(_, nextPC, nextSC))
-                    actualSS <- traverse(nextSS)(run(_, nextPC, nextSC))
-                    out <- if actualPS == pathValues && actualSS == spaceValues then run(left, nextPC, nextSC) else run(routine.body, nextPC, nextSC)
-                  yield out
-                case _ => run(routine.body, nextPC, nextSC)
-          yield result
-        case Mention(m) => done(sc(m).paths)
-        case Singleton(p) => path(p, pc, sc).map(p => store.from(Vector(p)))
-        case Literal(v) => done(stored(v.paths))
-        case Union(x, y) => binary(x, y)(store.union)
-        case Intersection(x, y) => binary(x, y)(store.intersect)
-        case Subtraction(x, y) => binary(x, y)(store.subtract)
-        case Restriction(x, y) => binary(x, y)((a, b) => store.restrict(a, b, true))
-        case Raffination(x, y) => binary(x, y)((a, b) => store.restrict(a, b, false))
-        case Composition(x, y) => rec(x).flatMap { a =>
-          if a.isEmpty then done(store.empty)
-          else rec(y).map(b => store.compose(a, b))
-        }
-        case Wrap(s, p) => for prefix <- path(p, pc, sc); values <- rec(s) yield store.wrap(values, prefix)
-        case Unwrap(s, p) => for prefix <- path(p, pc, sc); values <- rec(s)
-          yield store.unwrap(values, prefix)
-        case Iteration(s, h, t, body) => rec(s).flatMap { values =>
-          if h.s == "_" && t.s == "_" && values.size == 1 then
-            if ops.length(values.head) > 0 then run(body, pc, sc) else done(store.empty)
-          else
-            val groups = store.groups(values)
-            if groups.isEmpty then done(store.empty)
-            else if groups.size == 1 then
-              val (head, tail) = groups.head
-              run(body, bindPath(pc, h, head), bindSpace(sc, t, tail))
-            else traverse(groups)((head, tail) => run(body, bindPath(pc, h, head), bindSpace(sc, t, tail))).map(_.foldLeft(store.empty)(store.union))
-        }
-        case Fold(s, initial, acc, h, t, body, update) =>
-          for
-            initialValue <- path(initial, pc, sc)
-            values <- rec(s)
-            result <-
-              val iterator = store.groups(values).sortBy(_._1).iterator
-              val out = Set.newBuilder[P]
-              def loop(a: P): TailRec[Set[P]] =
-                if !iterator.hasNext then done(store.from(out.result()))
+
+    // A heap continuation machine: each suspension needs one continuation,
+    // rather than TailRec's Call/Done/Cont objects and composed closures.
+    // Both path and space evaluation use this same loop on both backends.
+    val pending = scala.collection.mutable.ArrayDeque.empty[() => Unit]
+    var currentSpace = expression
+    var currentPath: WordPath[P] = WordPath.Constant(ops.empty)
+    var currentPC = paths
+    var currentSC = Map.empty[SpaceMention, WordSpaceValue[P]]
+    var spaceValue = store.empty
+    var pathValue = ops.empty
+    var mode = 0 // 0: space, 1: path, 2: resume
+    def space(s: WordSpace[P], pc: PC, sc: SC): Unit =
+      currentSpace = s; currentPC = pc; currentSC = sc; mode = 0
+    def path(p: WordPath[P], pc: PC, sc: SC): Unit =
+      currentPath = p; currentPC = pc; currentSC = sc; mode = 1
+    def result(s: Set[P]): Unit = { spaceValue = s; mode = 2 }
+    def pathResult(p: P): Unit = { pathValue = p; mode = 2 }
+    def after(k: () => Unit): Unit = pending.append(k)
+    def binary(x: WordSpace[P], y: WordSpace[P], pc: PC, sc: SC)(f: (Set[P], Set[P]) => Set[P]): Unit =
+      after { () =>
+        val left = spaceValue
+        after(() => result(f(left, spaceValue)))
+        space(y, pc, sc)
+      }
+      space(x, pc, sc)
+    def unary(s: WordSpace[P], pc: PC, sc: SC)(f: Set[P] => Set[P]): Unit =
+      after(() => result(f(spaceValue))); space(s, pc, sc)
+    def arguments(ps: Vector[WordPath[P]], ss: Vector[WordSpace[P]], pc: PC, sc: SC)
+        (done: (Array[Any], Array[Set[P]]) => Unit): Unit =
+      val pv = new Array[Any](ps.size)
+      val sv = new Array[Set[P]](ss.size)
+      var pi = 0; var si = 0
+      def advance(): Unit =
+        while pi < ps.size do
+          ps(pi) match
+            case WordPath.Constant(value) => pv(pi) = value; pi += 1
+            case WordPath.Deref(ref) => pv(pi) = checked(ref, pc(ref)); pi += 1
+            case p =>
+              after(() => { pv(pi) = pathValue; pi += 1; advance() })
+              path(p, pc, sc)
+              return
+        while si < ss.size do
+          ss(si) match
+            case Mention(ref) => stats.foreach(x => x.nodes += 1); sv(si) = sc(ref).paths; si += 1
+            case Literal(value) => stats.foreach(x => x.nodes += 1); sv(si) = stored(value.paths); si += 1
+            case Empty() => stats.foreach(x => x.nodes += 1); sv(si) = store.empty; si += 1
+            case s =>
+              after(() => { sv(si) = spaceValue; si += 1; advance() })
+              space(s, pc, sc)
+              return
+        done(pv, sv)
+      advance()
+
+    var finished = false
+    try
+      currentSC = spaces.view.mapValues(v => WordSpaceValue(store.from(v.paths))).toMap
+      while !finished do
+        if mode == 2 then
+          if pending.isEmpty then finished = true else pending.removeLast()()
+        else if mode == 1 then
+          val pc = currentPC; val sc = currentSC
+          currentPath match
+            case WordPath.Constant(p) => pathResult(p)
+            case WordPath.Deref(r) => pathResult(checked(r, pc(r)))
+            case WordPath.Concat(l, r) =>
+              after { () =>
+                val left = pathValue
+                after(() => pathResult(ops.concat(left, pathValue)))
+                path(r, pc, sc)
+              }
+              path(l, pc, sc)
+            case WordPath.GroundedPP(p, f) => after(() => pathResult(f(pathValue))); path(p, pc, sc)
+            case WordPath.GroundedSP(s, f) => after(() => pathResult(f(WordSpaceValue(spaceValue)))); space(s, pc, sc)
+        else
+          stats.foreach(x => x.nodes += 1)
+          val pc = currentPC; val sc = currentSC
+          currentSpace match
+            case Empty() => result(store.empty)
+            case Mention(m) => result(sc(m).paths)
+            case Literal(v) => result(stored(v.paths))
+            case Singleton(p) => after(() => result(store.singleton(pathValue))); path(p, pc, sc)
+            case Call(r, ps, ss) =>
+              stats.foreach(x => x.calls += 1)
+              val routine = routines(r)
+              require(ps.size == routine.refs.size && ss.size == routine.mentions.size, s"arity mismatch: ${r.s}")
+              arguments(ps, ss, pc, sc) { (pv, sv) =>
+                var nextPC = Map.empty[PathRef, P]; var nextSC = Map.empty[SpaceMention, WordSpaceValue[P]]
+                var i = 0
+                while i < pv.length do
+                  val value = pv(i).asInstanceOf[P]
+                  nextPC = nextPC.updated(routine.refs(i), checked(routine.refs(i), value)); i += 1
+                i = 0
+                while i < sv.length do
+                  nextSC = nextSC.updated(routine.mentions(i), WordSpaceValue(sv(i))); i += 1
+                routine.body match
+                  case Union(left, Call(next, nextPS, nextSS)) if next == r && nextPS == ps && nextSS == ss =>
+                    arguments(nextPS, nextSS, nextPC, nextSC) { (actualP, actualS) =>
+                      space(if actualP.sameElements(pv) && actualS.sameElements(sv) then left else routine.body, nextPC, nextSC)
+                    }
+                  case body => space(body, nextPC, nextSC)
+              }
+            case Union(x, y) => binary(x, y, pc, sc)(store.union)
+            case Intersection(x, y) => binary(x, y, pc, sc)(store.intersect)
+            case Subtraction(x, y) => binary(x, y, pc, sc)(store.subtract)
+            case Restriction(x, y) => binary(x, y, pc, sc)((a, b) => store.restrict(a, b, true))
+            case Raffination(x, y) => binary(x, y, pc, sc)((a, b) => store.restrict(a, b, false))
+            case Composition(x, y) =>
+              after { () =>
+                val left = spaceValue
+                if left.isEmpty then result(store.empty)
                 else
-                  val (head, tail) = iterator.next()
-                  val nextPC = bindPath(bindPath(pc, acc, a), h, head)
-                  val nextSC = bindSpace(sc, t, tail)
-                  for
-                    value <- run(body, nextPC, nextSC)
-                    next <- path(update, nextPC, nextSC)
-                    result <- { out ++= value; tailcall(loop(next)) }
-                  yield result
-              tailcall(loop(initialValue))
-          yield result
-        case Fixpoint(initial, variable, step) => rec(initial).flatMap { start =>
-          def loop(current: Set[P]): TailRec[Set[P]] = run(step, pc, bindSpace(sc, variable, current)).flatMap { value =>
-            val next = store.union(current, value)
-            if next == current then done(current) else tailcall(loop(next))
-          }
-          tailcall(loop(start))
-        }
-        case TailsUnion(s) => rec(s).map(values => store.from(store.groups(values).iterator.flatMap(_._2).toVector))
-        case TailsIntersection(s) => rec(s).map(values => store.groups(values).map(_._2).reduceOption(store.intersect).getOrElse(store.empty))
-        case PrefixClosure(s) => rec(s).map(v => store.from(v.flatMap(p => (1 to ops.length(p)).map(ops.take(p, _)))))
-        case SuffixClosure(s) => rec(s).map(v => store.from(v.flatMap(p => (0 until ops.length(p)).map(ops.drop(p, _)))))
-        case TailsClosure(s) => rec(s).map(v => store.from(v.flatMap(p => (0 to ops.length(p)).map(ops.drop(p, _)))))
-        case GroundedPS(p, f) => path(p, pc, sc).map(x => stored(f(x).paths))
-        case GroundedSS(s, f) => rec(s).map(x => stored(f(WordSpaceValue(x)).paths))
-        case Range(s, start, end) => rec(s).map(values => store.range(values, start, end))
-    }
-    WordSpaceValue(run(expression, paths, spaces.view.mapValues(v => WordSpaceValue(store.from(v.paths))).toMap).result)
+                  after(() => result(store.compose(left, spaceValue)))
+                  space(y, pc, sc)
+              }
+              space(x, pc, sc)
+            case Wrap(s, p) =>
+              after { () =>
+                val prefix = pathValue
+                after(() => result(store.wrap(spaceValue, prefix))); space(s, pc, sc)
+              }
+              path(p, pc, sc)
+            case Unwrap(s, p) =>
+              after { () =>
+                val prefix = pathValue
+                after(() => result(store.unwrap(spaceValue, prefix))); space(s, pc, sc)
+              }
+              path(p, pc, sc)
+            case Iteration(s, h, t, body) =>
+              after { () =>
+                val values = spaceValue
+                if h.s == "_" && t.s == "_" && values.size == 1 then
+                  if ops.length(values.head) > 0 then space(body, pc, sc) else result(store.empty)
+                else
+                  val groups = store.groups(values)
+                  if groups.isEmpty then result(store.empty)
+                  else if groups.size == 1 then
+                    val (head, tail) = groups.head
+                    space(body, bindPath(pc, h, head), bindSpace(sc, t, tail))
+                  else
+                    val iterator = groups.iterator
+                    var out = store.empty
+                    def next(): Unit =
+                      if !iterator.hasNext then result(out)
+                      else
+                        val (head, tail) = iterator.next()
+                        after(() => { out = store.union(out, spaceValue); next() })
+                        space(body, bindPath(pc, h, head), bindSpace(sc, t, tail))
+                    next()
+              }
+              space(s, pc, sc)
+            case Fold(s, initial, acc, h, t, body, update) =>
+              after { () =>
+                val initialValue = pathValue
+                after { () =>
+                  val iterator = store.groups(spaceValue).sortBy(_._1).iterator
+                  var out = store.empty
+                  def next(a: P): Unit =
+                    if !iterator.hasNext then result(out)
+                    else
+                      val (head, tail) = iterator.next()
+                      val nextPC = bindPath(bindPath(pc, acc, a), h, head)
+                      val nextSC = bindSpace(sc, t, tail)
+                      after { () =>
+                        out = store.union(out, spaceValue)
+                        after(() => next(pathValue)); path(update, nextPC, nextSC)
+                      }
+                      space(body, nextPC, nextSC)
+                  next(initialValue)
+                }
+                space(s, pc, sc)
+              }
+              path(initial, pc, sc)
+            case Fixpoint(initial, variable, step) =>
+              after { () =>
+                def next(current: Set[P]): Unit =
+                  after { () =>
+                    val value = store.union(current, spaceValue)
+                    if value == current then result(current) else next(value)
+                  }
+                  space(step, pc, bindSpace(sc, variable, current))
+                next(spaceValue)
+              }
+              space(initial, pc, sc)
+            case TailsUnion(s) => unary(s, pc, sc)(v => store.from(store.groups(v).iterator.flatMap(_._2).toVector))
+            case TailsIntersection(s) => unary(s, pc, sc)(v => store.groups(v).map(_._2).reduceOption(store.intersect).getOrElse(store.empty))
+            case PrefixClosure(s) => unary(s, pc, sc)(v => store.from(v.flatMap(p => (1 to ops.length(p)).map(ops.take(p, _)))))
+            case SuffixClosure(s) => unary(s, pc, sc)(v => store.from(v.flatMap(p => (0 until ops.length(p)).map(ops.drop(p, _)))))
+            case TailsClosure(s) => unary(s, pc, sc)(v => store.from(v.flatMap(p => (0 to ops.length(p)).map(ops.drop(p, _)))))
+            case GroundedPS(p, f) => after(() => result(stored(f(pathValue).paths))); path(p, pc, sc)
+            case GroundedSS(s, f) => unary(s, pc, sc)(v => stored(f(WordSpaceValue(v)).paths))
+            case Range(s, start, end) => unary(s, pc, sc)(v => store.range(v, start, end))
+      WordSpaceValue(spaceValue)
+    finally store.clearCaches()
 
 type BitPathValue = BigInt
 object BitPathValue:
@@ -398,7 +483,7 @@ object Zippy_bytes:
             spaces: Map[SpaceMention, ByteSpaceValue] = Map.empty,
             routines: Map[RoutinePtr, ByteRoutine] = Map.empty,
             stats: Option[WordEvaluationStats] = None, validateHints: Boolean = false): ByteTrie =
-    val value = WordEvaluator.eval(s, paths, spaces, routines, stats, validateHints, Some(ByteTrieBackend))(using ByteWords)
+    val value = WordEvaluator.eval(s, paths, spaces, routines, stats, validateHints, Some(new ByteTrieBackend))(using ByteWords)
     value.paths.asInstanceOf[ByteTrieSet].trie
   /** A 256-bit result, independent of the number of paths in the subspace. */
   def headMask(value: ByteSpaceValue): BigInt = value.paths.iterator.flatMap(ByteWords.split).foldLeft(BigInt(0))((m, p) => m.setBit(ByteWords.digits(p._1).head))

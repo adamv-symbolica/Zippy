@@ -87,6 +87,13 @@ scala-cli test src/main/scala src/test/scala \
   --dependency org.scala-lang.modules::scala-collection-contrib:0.3.0
 ```
 
+Run the finite-alphabet correctness, deep-trie and performance acceptance gate
+with the default JVM stack:
+
+```bash
+python3 tools/finite_alphabet_gate.py
+```
+
 Run the three root egg models:
 
 ```bash

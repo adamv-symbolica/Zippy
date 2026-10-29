@@ -12,8 +12,8 @@ class WordEncodingCorpusTest extends FunSuite:
     val fib = WordEncodings.sortedDictionaryBits(interner)
     val utf8 = WordEncodings.stringSymbolsToBytes(interner)
     val intern = WordEncodings.sortedDictionaryBytes(interner)
-    val actualFib = WordEncodings.internedSymbolsToBits(interner)
-    val actualBytes = WordEncodings.internedSymbolsToBytes(interner)
+    val actualFib = WordEncodings.internedSymbolsToBits(interner, Some(alphabet))
+    val actualBytes = WordEncodings.internedSymbolsToBytes(interner, Some(alphabet))
     val coverage = scala.collection.mutable.Map.empty[String, Int].withDefaultValue(0)
     val records = scala.collection.mutable.ArrayBuffer.empty[(Int, Long, Long, Long, Long)]
     val bitsToSymbols = WordEncodings.bitsToSymbols()
@@ -31,18 +31,11 @@ class WordEncodingCorpusTest extends FunSuite:
       val expandedBits = WordEncodings.bytesToBits.compile(strings.entry, strings.routines)
       val injectedBitSymbols = bitsToSymbols.compile(bits.entry, bits.routines)
       val injectedByteSymbols = bytesToSymbols.compile(strings.entry, strings.routines)
-      val ordered = SpaceFuzzerCorpus.opKinds(source).exists(k => k == "Space.Range" || k == "Space.Fold")
-      def actual[B](label: String, code: WordEncoding[PathValue, B]): Option[WordProgram[B]] =
-        if ordered then
-          intercept[UnsupportedEncodedOrdering](code.compile(syntax, defs))
-          coverage(label + "/named-order-error") += 1
-          None
-        else
-          coverage(label + "/supported") += 1
-          Some(code.compile(syntax, defs))
-      val literalFib = actual("literal-fib", actualFib)
-      val literalBytes = actual("literal-bytes", actualBytes)
-      val literalChain = literalFib.map(p => WordEncodings.bitsToBytes.compile(p.entry, p.routines))
+      val literalFib = actualFib.compile(syntax, defs)
+      val literalBytes = actualBytes.compile(syntax, defs)
+      val literalChain = WordEncodings.bitsToBytes.compile(literalFib.entry, literalFib.routines)
+      coverage("literal-fib/executed") += 1
+      coverage("literal-bytes/executed") += 1
       val composed = WordEncodings.bytesToBits.compile(injectedBytes.entry, injectedBytes.routines)
       for input <- Vector(first, second) do
         val expected = WordSpaceValue(morkl.eval(source)(using PathContext.emptyMap,
@@ -63,9 +56,9 @@ class WordEncodingCorpusTest extends FunSuite:
           records += ((index, sourceNodes, program.nodeCount, sourceStats.nodes, stats.nodes))
           code.decodeSpace(result)
         val raw = WordSpaceValue(input.paths)
-        literalFib.foreach(p => assertEquals(run(actualFib, p, raw), expected, s"literal fib $index"))
-        literalBytes.foreach(p => assertEquals(run(actualBytes, p, raw), expected, s"literal bytes $index"))
-        literalChain.foreach(p => assertEquals(actualFib.decodeSpace(run(WordEncodings.bitsToBytes, p, actualFib.encodeSpace(raw), expansion = 46)), expected, s"literal chain $index"))
+        assertEquals(run(actualFib, literalFib, raw), expected, s"literal fib $index")
+        assertEquals(run(actualBytes, literalBytes, raw), expected, s"literal bytes $index")
+        assertEquals(actualFib.decodeSpace(run(WordEncodings.bitsToBytes, literalChain, actualFib.encodeSpace(raw), expansion = actualFib.maxCodeLength.get)), expected, s"literal chain $index")
         val trie = Zippy_bytes.evalZ(strings.entry, spaces = Map(SpaceFuzzer.argM -> utf8.encodeSpace(raw)),
           routines = strings.routines, validateHints = true).toSpaceValue
         assertEquals(utf8.decodeSpace(trie), expected, s"byte trie case $index")
@@ -79,10 +72,8 @@ class WordEncodingCorpusTest extends FunSuite:
         assertEquals(utf8.decodeSpace(run(bytesToSymbols, injectedByteSymbols, utf8.encodeSpace(raw), expansion = 8)), expected, s"byte symbols $index")
         assertEquals(fib.decodeSpace(WordEncodings.bitsToBytes.decodeSpace(run(WordEncodings.bytesToBits, composed,
           WordEncodings.bitsToBytes.encodeSpace(fib.encodeSpace(raw)), expansion = fib.maxCodeLength.get))), expected, s"composition $index")
-    assertEquals(coverage("literal-fib/supported") + coverage("literal-fib/named-order-error"), 1000)
-    assertEquals(coverage("literal-bytes/supported") + coverage("literal-bytes/named-order-error"), 1000)
-    assert(coverage("literal-fib/supported") > 500)
-    assert(coverage("literal-fib/named-order-error") > 50)
+    assertEquals(coverage("literal-fib/executed"), 1000)
+    assertEquals(coverage("literal-bytes/executed"), 1000)
     assertEquals(coverage("byte-trie/frames"), 2000)
     assert(records.size >= 16000)
     println(s"encoding coverage: ${coverage.toVector.sorted.mkString(", ")}; measurements=${records.size}")

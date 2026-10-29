@@ -12,7 +12,7 @@ enum WordCodeShape:
 final case class WordEncoding[A, B](source: WordOps[A], target: WordOps[B],
     code: Int => Vector[Int], decodeDigit: Vector[Int] => Int,
     shape: WordCodeShape, maxCodeLength: Option[Int],
-    orderedDigits: Vector[Int], preservesOrder: Boolean, unsupportedOrdering: Option[String] = None):
+    orderedDigits: Vector[Int], preservesOrder: Boolean):
   def encode(p: A): B = target.fromDigits(source.digits(p).flatMap(code))
   def decode(p: B): A =
     val ds = target.digits(p)
@@ -116,19 +116,32 @@ object WordEncodings:
         order(rank),
       WordCodeShape.Fixed(4), Some(4), order, true)
 
-  /** Literal interner IDs are stable and open-world. Lexical order of future
-    * names cannot be recovered from IDs, so ordered source ops fail by name.
+  /** Literal IDs remain unchanged. A frozen vocabulary supplies lexical order
+    * and bounds, and rejects inadmissible host values before interning them.
+    * Without a vocabulary the codec remains open for order-free programs.
     */
-  def internedSymbolsToBits(interner: PathItemInterner): WordEncoding[PathValue, BigInt] =
-    WordEncoding(new SymbolWords(interner), BitWords, FibonacciCode.encode, FibonacciCode.decode,
-      WordCodeShape.Fibonacci, Some(FibonacciCode.encode(Int.MaxValue).size), Vector.empty, false,
-      Some("literal Fibonacci interner IDs"))
+  private def literalSymbols(interner: PathItemInterner, vocabulary: Option[Iterable[PathItem]]): (SymbolWords, Vector[Int]) =
+    val frozen = vocabulary.map(_.toSet)
+    frozen.foreach(_.foreach(interner.intern))
+    val order = frozen.toVector.flatten.toVector.sortBy(_.show).map(item => interner.lookup(item).get)
+    new SymbolWords(interner, admissibleVocabulary = frozen) -> order
 
-  def internedSymbolsToBytes(interner: PathItemInterner): WordEncoding[PathValue, BytePathValue] =
-    WordEncoding(new SymbolWords(interner), ByteWords,
+  def internedSymbolsToBits(interner: PathItemInterner,
+      orderedVocabulary: Option[Iterable[PathItem]] = None, maxAdmissibleId: Option[Int] = None): WordEncoding[PathValue, BigInt] =
+    val (ops, order) = literalSymbols(interner, orderedVocabulary)
+    val bound = maxAdmissibleId.orElse(orderedVocabulary.map(_ => order.maxOption.getOrElse(0))).getOrElse(Int.MaxValue)
+    require(bound >= 0 && order.forall(_ <= bound), "invalid admissible intern-ID bound")
+    WordEncoding(ops, BitWords, id => { require(id <= bound, "intern ID exceeds declared bound"); FibonacciCode.encode(id) },
+      FibonacciCode.decode, WordCodeShape.Fibonacci, Some(FibonacciCode.encode(bound).size), order,
+      orderedVocabulary.nonEmpty && order.size <= 1)
+
+  def internedSymbolsToBytes(interner: PathItemInterner,
+      orderedVocabulary: Option[Iterable[PathItem]] = None): WordEncoding[PathValue, BytePathValue] =
+    val (ops, order) = literalSymbols(interner, orderedVocabulary)
+    WordEncoding(ops, ByteWords,
       id => Vector.tabulate(4)(i => (id >>> (24 - i * 8)) & 255),
       ds => { require(ds.size == 4 && ds.head < 128); ds.foldLeft(0)((n, b) => (n << 8) | b) },
-      WordCodeShape.Fixed(4), Some(4), Vector.empty, false, Some("literal four-byte interner IDs"))
+      WordCodeShape.Fixed(4), Some(4), order, orderedVocabulary.nonEmpty && order.size <= 1)
 
   /** CESU-8 encodes UTF-16 code units separately, including lone surrogates.
     * It is total on Java String and preserves String.compareTo byte order.
@@ -191,6 +204,3 @@ object WordEncodings:
     items.foreach(interner.intern)
     WordEncoding(ByteWords, new SymbolWords(interner), b => Vector(b), _.head,
       WordCodeShape.Fixed(1), Some(1), (0 until 256).toVector, items.map(_.show) == items.map(_.show).sorted)
-
-final case class UnsupportedEncodedOrdering(codec: String, operation: String)
-  extends IllegalArgumentException(s"$operation requires symbol ordering unavailable for $codec; use a sortedDictionary codec or CESU-8")

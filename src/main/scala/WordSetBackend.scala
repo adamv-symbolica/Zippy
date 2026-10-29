@@ -1,12 +1,13 @@
 package morkl
 
-import scala.collection.immutable.{SortedSet, TreeSet}
+import scala.collection.immutable.TreeSet
 
 /** Storage algorithms are evaluator implementation choices, not language ops
   * or side metadata on encoded paths. The reference remains a set of words.
   */
 class WordSetBackend[P](val ops: WordOps[P]):
   private val sortedCache = new java.util.IdentityHashMap[Iterable[P], Set[P]]()
+  def clearCaches(): Unit = sortedCache.clear()
   def literal(values: Set[P]): Set[P] = values
   def from(values: Iterable[P]): Set[P] = values match
     case sorted: TreeSet[P @unchecked] if sorted.ordering eq ops.ordering => sorted
@@ -17,6 +18,8 @@ class WordSetBackend[P](val ops: WordOps[P]):
         val result = TreeSet.from(values)(using ops.ordering)
         if values.knownSize > 8 then sortedCache.put(values, result)
         result
+  private lazy val epsilon: Set[P] = TreeSet(ops.empty)(using ops.ordering)
+  def singleton(word: P): Set[P] = if word == ops.empty then epsilon else TreeSet(word)(using ops.ordering)
   lazy val empty: Set[P] = from(Vector.empty)
   def union(a: Set[P], b: Set[P]): Set[P] =
     if a.isEmpty then b else if b.isEmpty then a
@@ -26,10 +29,11 @@ class WordSetBackend[P](val ops: WordOps[P]):
     else from(a intersect b)
   def subtract(a: Set[P], b: Set[P]): Set[P] =
     if a.size == 1 then if b(a.head) then empty else a
+    else if b.size == 1 then from(from(a) - b.head)
     else from(a diff b)
   def groups(values: Set[P]): Vector[(P, Set[P])] =
     if values.isEmpty then return Vector.empty
-    if values.size == 1 then return ops.split(values.head).toVector.map((h, t) => h -> from(Vector(t)))
+    if values.size == 1 then return ops.split(values.head).toVector.map((h, t) => h -> singleton(t))
     val out = scala.collection.mutable.HashMap.empty[P, scala.collection.mutable.Set[P]]
     values.iterator.flatMap(ops.split).foreach((h, t) => out.getOrElseUpdate(h, scala.collection.mutable.Set.empty) += t)
     out.iterator.map((h, t) => h -> from(t)).toVector
@@ -47,5 +51,5 @@ class WordSetBackend[P](val ops: WordOps[P]):
     val (lo, hi) = RangeBounds.normalize(sorted.size, start, end)
     if hi <= lo then empty
     else if lo == 0 && hi == sorted.size then sorted
-    else if lo == 0 && hi == 1 then from(Vector(sorted.head))
+    else if lo == 0 && hi == 1 then singleton(sorted.head)
     else sorted.drop(lo).take(hi - lo)

@@ -8,18 +8,18 @@ private[morkl] object WordSyntax:
     def without(ps: PathRef*): Free = copy(paths = paths -- ps.map(_.s))
     def withoutSpace(ss: SpaceMention*): Free = copy(spaces = spaces -- ss.map(_.s))
   val empty: Free = Free(Map.empty, Map.empty)
-  private case class Analysis(free: Free, names: Set[String], nodes: Long = 0):
-    def ++(other: Analysis): Analysis = Analysis(free ++ other.free, names ++ other.names, nodes + other.nodes)
+  private case class Analysis(free: Free, names: Set[String], nodes: Long = 0, pure: Boolean = true, calls: Set[RoutinePtr] = Set.empty):
+    def ++(other: Analysis): Analysis = Analysis(free ++ other.free, names ++ other.names, nodes + other.nodes, pure && other.pure, calls ++ other.calls)
     def bind(ps: Vector[PathRef] = Vector.empty, ss: Vector[SpaceMention] = Vector.empty): Analysis =
-      Analysis(free.without(ps.filterNot(_.s == "_")*).withoutSpace(ss.filterNot(_.s == "_")*), names ++ ps.map(_.s) ++ ss.map(_.s), nodes)
+      Analysis(free.without(ps.filterNot(_.s == "_")*).withoutSpace(ss.filterNot(_.s == "_")*), names ++ ps.map(_.s) ++ ss.map(_.s), nodes, pure, calls)
   private val zero = Analysis(empty, Set.empty)
   private def paths[P](p: WordPath[P]): Analysis =
     val result = p match
       case WordPath.Deref(r) => Analysis(Free(Map(r.s -> r), Map.empty), Set(r.s))
       case WordPath.Constant(_) => zero
       case WordPath.Concat(l, r) => paths(l) ++ paths(r)
-      case WordPath.GroundedPP(p, _) => paths(p)
-      case WordPath.GroundedSP(s, _) => analyze(s)
+      case WordPath.GroundedPP(p, _) => paths(p).copy(pure = false)
+      case WordPath.GroundedSP(s, _) => analyze(s).copy(pure = false)
     result.copy(nodes = result.nodes + 1)
   /** One exhaustive, binder-aware walk supplies both capture analysis and all
     * reserved names. Adding a constructor cannot silently omit it from either.
@@ -28,7 +28,7 @@ private[morkl] object WordSyntax:
     import WordSpace.*
     val result = s match
         case Empty() | Literal(_) => zero
-        case Call(r, ps, ss) => Analysis(empty, Set(r.s)) ++ ps.map(paths).foldLeft(zero)(_ ++ _) ++ ss.map(analyze).foldLeft(zero)(_ ++ _)
+        case Call(r, ps, ss) => Analysis(empty, Set(r.s), calls = Set(r)) ++ ps.map(paths).foldLeft(zero)(_ ++ _) ++ ss.map(analyze).foldLeft(zero)(_ ++ _)
         case Mention(m) => Analysis(Free(Map.empty, Map(m.s -> m)), Set(m.s))
         case Singleton(p) => paths(p)
         case Union(x, y) => analyze(x) ++ analyze(y)
@@ -47,14 +47,18 @@ private[morkl] object WordSyntax:
         case PrefixClosure(src) => analyze(src)
         case SuffixClosure(src) => analyze(src)
         case TailsClosure(src) => analyze(src)
-        case GroundedPS(p, _) => paths(p)
-        case GroundedSS(s, _) => analyze(s)
+        case GroundedPS(p, _) => paths(p).copy(pure = false)
+        case GroundedSS(s, _) => analyze(s).copy(pure = false)
         case Range(s, _, _) => analyze(s)
     result.copy(nodes = result.nodes + 1)
   def free[P](s: WordSpace[P]): Free = analyze(s).free
   def path[P](p: WordPath[P]): Free = paths(p).free
   def names[P](s: WordSpace[P]): Set[String] = analyze(s).names
   def nodes[P](s: WordSpace[P]): Long = analyze(s).nodes
+  def purity[P](s: WordSpace[P]): (Boolean, Set[RoutinePtr]) =
+    val a = analyze(s); a.pure -> a.calls
+  def pathPurity[P](p: WordPath[P]): (Boolean, Set[RoutinePtr]) =
+    val a = paths(p); a.pure -> a.calls
 
 /** A syntax-to-syntax compiler. All boundary recognition, closure traversal,
   * ordering repair and fold sequencing use the original algebra and routines.
@@ -67,6 +71,19 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
   private var used = Set.empty[String]
   private var serial = 0
   private var decoderBudget = 512
+  private var sourceRoutines = Map.empty[RoutinePtr, WordRoutine[A]]
+  private def pure(analysis: (Boolean, Set[RoutinePtr])): Boolean =
+    val pending = mutable.Stack(analysis)
+    val seen = mutable.Set.empty[RoutinePtr]
+    while pending.nonEmpty do
+      val (localPure, calls) = pending.pop()
+      if !localPure then return false
+      for r <- calls if seen.add(r) do
+        val body = definitions.get(r).map(r => WordSyntax.purity(r.body))
+          .orElse(sourceRoutines.get(r).map(r => WordSyntax.purity(r.body)))
+        if body.isEmpty then return false
+        pending.push(body.get)
+    true
   private def fresh(tag: String): String =
     var name = ""
     while name.isEmpty || used(name) do
@@ -102,6 +119,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
 
   def compile(entry: WordSpace[A], routines: Map[RoutinePtr, WordRoutine[A]] = Map.empty): WordProgram[B] =
     require(definitions.isEmpty, "a compiler instance is single-use")
+    sourceRoutines = routines
     used = WordSyntax.names(entry) ++ routines.valuesIterator.flatMap(r =>
       WordSyntax.names(r.body) ++ r.refs.map(_.s) ++ r.mentions.map(_.s) + r.name.s).toSet
     val result = space(WordReferenceHints.tag(entry))
@@ -183,21 +201,26 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
           cache.getOrElseUpdate(key, {
             val name = rp("scan")
             cache(key) = name
-            def arm(n: Int, keep: Boolean, state: Boolean, complete: Boolean): WordSpace[B] =
-              val digit = pr("digit").known(1); val rest = sm("digits")
-              val accepted = Literal(WordSpaceValue(Set(target.fromDigits(Vector(n)))))
-              val selected = if keep then Restriction(mention(remaining), accepted) else Raffination(mention(remaining), accepted)
-              val nextPrefix = WordPath.Concat(deref(prefix), deref(digit))
-              val continuation =
-                if complete then finish(nextPrefix, mention(rest))
-                else if bounded && depth + 1 >= limit.get then Empty()
-                else Call(scanner(state, depth + 1), nextPrefix +: cps.map(deref), mention(rest) +: css.map(mention))
-              Iteration(selected, digit, rest, continuation)
-            val branch = shape match
-              case WordCodeShape.Fibonacci => Union(arm(0, true, false, false), arm(1, true, true, previousOne))
-              case WordCodeShape.Terminated(b) => Union(arm(b, true, false, true), arm(b, false, false, false))
-              case _ => throw IllegalStateException("fixed scanner dispatched as variable")
-            definitions(name) = WordRoutine(name, prefix +: cps, remaining +: css, branch)
+            // Inline one extra digit between routine boundaries. This keeps
+            // the state/depth DAG bounded while halving call-frame churn.
+            def branch(previous: Boolean, at: Int, accumulated: WordPath[B], input: WordSpace[B], inline: Boolean): WordSpace[B] =
+              def arm(n: Int, keep: Boolean, state: Boolean, complete: Boolean): WordSpace[B] =
+                val digit = pr("digit").known(1); val rest = sm("digits")
+                val accepted = Literal(WordSpaceValue(Set(target.fromDigits(Vector(n)))))
+                val selected = if keep then Restriction(input, accepted) else Raffination(input, accepted)
+                val nextPrefix = WordPath.Concat(accumulated, deref(digit))
+                val continuation =
+                  if complete then finish(nextPrefix, mention(rest))
+                  else if bounded && at + 1 >= limit.get then Empty()
+                  else if inline then branch(state, at + 1, nextPrefix, mention(rest), false)
+                  else Call(scanner(state, at + 1), nextPrefix +: cps.map(deref), mention(rest) +: css.map(mention))
+                Iteration(selected, digit, rest, continuation)
+              shape match
+                case WordCodeShape.Fibonacci => Union(arm(0, true, false, false), arm(1, true, true, previous))
+                case WordCodeShape.Terminated(b) => Union(arm(b, true, false, true), arm(b, false, false, false))
+                case _ => throw IllegalStateException("fixed scanner dispatched as variable")
+            val body = branch(previousOne, depth, deref(prefix), mention(remaining), unrollBounded)
+            definitions(name) = WordRoutine(name, prefix +: cps, remaining +: css, body)
             name
           })
         Call(scanner(false, 0), constant(target.empty) +: cps.map(deref), src +: css.map(mention))
@@ -232,11 +255,12 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
     }
     require(alphabet.size >= 2, "ordered projection needs two target digits")
     var width = 1
-    while (BigInt(1) << width) < encoding.orderedDigits.size do width += 1
+    while BigInt(alphabet.size).pow(width) < encoding.orderedDigits.size do width += 1
     val codes = encoding.orderedDigits.zipWithIndex.map { (digit, rank) =>
-      digit -> Vector.tabulate(width)(i => alphabet((rank >>> (width - 1 - i)) & 1))
+      digit -> Vector.tabulate(width)(i => alphabet((rank / BigInt(alphabet.size).pow(width - 1 - i).toInt) % alphabet.size))
     }.toMap
-    WordEncoding(encoding.source, target, codes.apply, ds => codes.find(_._2 == ds).get._1,
+    val inverse = codes.iterator.map((id, word) => word -> id).toMap
+    WordEncoding(encoding.source, target, codes.apply, inverse.apply,
       WordCodeShape.Fixed(width), Some(width), encoding.orderedDigits, true)
 
   private def recoder(from: WordEncoding[A, B], to: WordEncoding[A, B]): RoutinePtr =
@@ -260,7 +284,13 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
   private lazy val toOrder: RoutinePtr = recoder(encoding, orderCode)
   private lazy val fromOrder: RoutinePtr = recoder(orderCode, encoding)
   private def orderedRange(src: WordSpace[B], start: Int, end: Int): WordSpace[B] =
-    encoding.unsupportedOrdering.foreach(name => throw UnsupportedEncodedOrdering(name, "Range"))
+    // These windows are independent of ordering; retain evaluation of src.
+    if end == 0 && (start == 0 || start == 1) then return src
+    if (start > 0 && end > 0 || start < 0 && end < 0) && end <= start then return Range(src, start, end)
+    src match
+      case Literal(v) if start == 0 && end >= v.paths.size => return src
+      case _ => ()
+    require(encoding.preservesOrder || encoding.orderedDigits.nonEmpty, "Range requires a frozen orderedVocabulary for literal interner IDs")
     if encoding.preservesOrder then Range(src, start, end)
     else Call(fromOrder, Vector.empty, Vector(Range(Call(toOrder, Vector.empty, Vector(src)), start, end)))
 
@@ -268,8 +298,10 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
     * one by balanced whole-word membership, without rescanning every digit.
     * The source and user continuation are each evaluated/stored once.
     */
-  private def bindHead(src: WordSpace[B], h: PathRef, t: SpaceMention, body: WordSpace[B]): WordSpace[B] =
-    if encoding.orderedDigits.isEmpty || encoding.shape != WordCodeShape.Fibonacci then return iterate(src, h, t, body)
+  private def bindHead(src: WordSpace[B], h: PathRef, t: SpaceMention, body: WordSpace[B],
+                       from: WordEncoding[A, B] = encoding): WordSpace[B] =
+    if encoding.orderedDigits.isEmpty || ((from eq encoding) && encoding.shape != WordCodeShape.Fibonacci) then
+      return iterate(src, h, t, body)
     val free = WordSyntax.free(body).without(h).withoutSpace(t)
     val cps = free.paths.values.toVector.sortBy(_.s); val css = free.spaces.values.toVector.sortBy(_.s)
     val leaf = rp("head_body"); val input = sm("selected_head"); val entry = rp("bind_head")
@@ -279,7 +311,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
         Call(leaf, constant(target.fromDigits(encoding.code(ds.head))) +: cps.map(deref), epsilon +: css.map(mention))
       else
         val (left, right) = ds.splitAt(ds.size / 2)
-        val accepted = Literal(WordSpaceValue(left.map(d => target.fromDigits(encoding.code(d))).toSet))
+        val accepted = Literal(WordSpaceValue(left.map(d => target.fromDigits(from.code(d))).toSet))
         Union(guard(Intersection(mention(input), accepted), lookup(left)),
           guard(Subtraction(mention(input), accepted), lookup(right)))
     definitions(entry) = WordRoutine(entry, cps, input +: css,
@@ -287,31 +319,45 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
     Call(entry, cps.map(deref), src +: css.map(mention))
 
   private def fold(src: WordSpace[B], initial: WordPath[B], acc: PathRef, h: PathRef,
-                   t: SpaceMention, body: WordSpace[B], update: WordPath[B]): WordSpace[B] =
-    encoding.unsupportedOrdering.foreach(name => throw UnsupportedEncodedOrdering(name, "Fold"))
+                   t: SpaceMention, body: WordSpace[B], update: WordPath[B], ignoredAccumulator: Boolean = false): WordSpace[B] =
     if encoding.shape == WordCodeShape.Fixed(1) && encoding.preservesOrder then
       return Fold(src, initial, acc, h.known(1), t, body, update)
     val free = (WordSyntax.free(body) ++ WordSyntax.path(update)).without(acc, h).withoutSpace(t)
     val cps = free.paths.values.toVector.sortBy(_.s); val css = free.spaces.values.toVector.sortBy(_.s)
-    if update == deref(acc) then
+    if update == deref(acc) && pure(WordSyntax.purity(body)) then
       val name = rp("fold_invariant"); val input = sm("fold_input")
       definitions(name) = WordRoutine(name, acc +: cps, input +: css,
         iterate(mention(input), h, t, body))
       return Call(name, initial +: cps.map(deref), src +: css.map(mention))
+    if ignoredAccumulator && pure(WordSyntax.purity(body)) && pure(WordSyntax.pathPurity(update)) then
+      // The accumulator is unobservable, but its initializer and every update
+      // still run. Stage body before update with ordinary call-by-value calls.
+      val outer = rp("fold_ignored"); val input = sm("fold_input")
+      val afterBody = rp("fold_after_body"); val ignoreUpdate = rp("fold_ignore_update")
+      val value = sm("fold_value"); val discarded = pr("discarded_update")
+      definitions(ignoreUpdate) = WordRoutine(ignoreUpdate, Vector(discarded), Vector(value), mention(value))
+      definitions(afterBody) = WordRoutine(afterBody, h +: cps, Vector(value, t) ++ css,
+        Call(ignoreUpdate, Vector(update), Vector(mention(value))))
+      val each = Call(afterBody, deref(h) +: cps.map(deref), Vector(body, mention(t)) ++ css.map(mention))
+      definitions(outer) = WordRoutine(outer, acc +: cps, input +: css, iterate(mention(input), h, t, each))
+      return Call(outer, initial +: cps.map(deref), src +: css.map(mention))
+    require(encoding.preservesOrder || encoding.orderedDigits.nonEmpty, "Fold requires a frozen orderedVocabulary for literal interner IDs")
     val loop = rp("fold"); val input = sm("fold_input"); val heads = sm("fold_heads")
     val selected = pr("selected"); val ignored = sm("selected_tail")
     val step = rp("fold_step")
     definitions(step) = WordRoutine(step, Vector(acc, h) ++ cps, Vector(input, heads, t) ++ css,
       Union(body, Call(loop, update +: cps.map(deref),
-        Vector(mention(input), orderedRange(mention(heads), 2, 0)) ++ css.map(mention))))
+        Vector(mention(input), Subtraction(mention(heads),
+          if encoding.preservesOrder then Singleton(deref(h)) else Range(mention(heads), 0, 1))) ++ css.map(mention))))
     val next = Call(step, Vector(deref(acc), deref(selected)) ++ cps.map(deref),
       Vector(mention(input), mention(heads), Unwrap(mention(input), deref(selected))) ++ css.map(mention))
     definitions(loop) = WordRoutine(loop, acc +: cps, Vector(input, heads) ++ css,
-      bindHead(orderedRange(mention(heads), 0, 1), selected, ignored, next))
+      bindHead(Range(mention(heads), 0, 1), selected, ignored, next,
+        if encoding.preservesOrder then encoding else orderCode))
     val prepare = rp("fold_prepare"); val head = pr("head"); val tail = sm("tail")
     val allHeads = iterate(mention(input), head, tail, Singleton(deref(head)))
     definitions(prepare) = WordRoutine(prepare, acc +: cps, input +: css,
-      Call(loop, deref(acc) +: cps.map(deref), Vector(mention(input), allHeads) ++ css.map(mention)))
+      Call(loop, deref(acc) +: cps.map(deref), Vector(mention(input), if encoding.preservesOrder then allHeads else Call(toOrder, Vector.empty, Vector(allHeads))) ++ css.map(mention)))
     Call(prepare, initial +: cps.map(deref), src +: css.map(mention))
 
   private def space(s: WordSpace[A]): WordSpace[B] = s match
@@ -334,7 +380,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
       val acc = if a.s == "_" then pr("ignored_acc") else encodedRef(a)
       val head = if h.s == "_" then pr("ignored_head") else encodedRef(h.known(1))
       val tail = if t.s == "_" then sm("ignored_tail") else t
-      fold(space(src), path(i), acc, head, tail, space(b), path(u))
+      fold(space(src), path(i), acc, head, tail, space(b), path(u), a.s == "_")
     case Fixpoint(i, v, step) => Fixpoint(space(i), v, space(step))
     case Wrap(src, p) => Wrap(space(src), path(p))
     case Unwrap(src, p) => Unwrap(space(src), path(p))

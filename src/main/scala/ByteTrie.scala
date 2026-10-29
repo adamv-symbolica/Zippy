@@ -6,8 +6,6 @@ import scala.collection.immutable.{AbstractSet, IntMap}
   * the child mask is derived from its actual children, never symbol metadata.
   */
 final case class ByteTrie private (terminal: Boolean, children: IntMap[ByteTrie]):
-  require(children.forall((b, child) => b >= 0 && b < 256 && !child.isEmpty), "invalid byte-trie child")
-  lazy val childMask: BigInt = children.keysIterator.foldLeft(BigInt(0))(_.setBit(_))
   private var cachedCount = -1
   def pathCount: Int =
     if cachedCount < 0 then
@@ -20,18 +18,7 @@ final case class ByteTrie private (terminal: Boolean, children: IntMap[ByteTrie]
             pending.push(node -> true)
             node.children.valuesIterator.filter(_.cachedCount < 0).foreach(c => pending.push(c -> false))
     cachedCount
-  def slice(lo: Int, hi: Int): ByteTrie =
-    if lo <= 0 && hi >= pathCount then this
-    else if hi <= lo then ByteTrie.empty
-    else
-      var offset = if terminal then 1 else 0
-      val entries = children.iterator.toVector.sortBy(_._1).iterator.flatMap { (b, child) =>
-        val start = offset
-        offset += child.pathCount
-        if hi <= start || lo >= offset then None
-        else Some(b -> child.slice((lo - start).max(0), (hi - start).min(child.pathCount)))
-      }
-      ByteTrie.node(terminal && lo == 0 && hi > 0, entries)
+  def slice(lo: Int, hi: Int): ByteTrie = ByteTrie.evaluate(ByteTrie.Slice(this, lo, hi))
   def isEmpty: Boolean = !terminal && children.isEmpty
   def subtree(prefix: BytePathValue): ByteTrie =
     var node = this
@@ -67,47 +54,29 @@ final case class ByteTrie private (terminal: Boolean, children: IntMap[ByteTrie]
         result = ByteTrie(false, IntMap((bytes(i) & 255) -> result))
         i -= 1
       result
-  def union(that: ByteTrie): ByteTrie =
-    if this eq that then this
-    else if isEmpty then that
-    else if that.isEmpty then this
-    else
-      var next = children
-      that.children.foreach { (b, child) => next = next.updated(b, next.get(b).fold(child)(_.union(child))) }
-      ByteTrie(terminal || that.terminal, next)
-  def intersect(that: ByteTrie): ByteTrie =
-    if this eq that then this
-    else if isEmpty || that.isEmpty then ByteTrie.empty
-    else ByteTrie.node(terminal && that.terminal, children.iterator.flatMap { (b, child) =>
-      that.children.get(b).map(other => b -> child.intersect(other))
-    })
-  def subtract(that: ByteTrie): ByteTrie =
-    if this eq that then ByteTrie.empty
-    else if isEmpty || that.isEmpty then this
-    else ByteTrie.node(terminal && !that.terminal, children.iterator.map { (b, child) =>
-      b -> that.children.get(b).fold(child)(child.subtract)
-    })
+  def union(that: ByteTrie): ByteTrie = ByteTrie.evaluate(ByteTrie.Merge(this, that, 0))
+  def intersect(that: ByteTrie): ByteTrie = ByteTrie.evaluate(ByteTrie.Merge(this, that, 1))
+  def subtract(that: ByteTrie): ByteTrie = ByteTrie.evaluate(ByteTrie.Merge(this, that, 2))
   def restrict(prefixes: ByteTrie, keep: Boolean): ByteTrie =
-    if prefixes.terminal then if keep then this else ByteTrie.empty
-    else if prefixes.isEmpty then if keep then ByteTrie.empty else this
-    else ByteTrie.node(terminal && !keep, children.iterator.map { (b, child) =>
-      b -> child.restrict(prefixes.children.getOrElse(b, ByteTrie.empty), keep)
-    })
-  def compose(that: ByteTrie): ByteTrie =
-    if isEmpty || that.isEmpty then ByteTrie.empty
-    else
-      val descendants = ByteTrie.node(false, children.iterator.map((b, c) => b -> c.compose(that)))
-      if terminal then descendants.union(that) else descendants
+    ByteTrie.evaluate(ByteTrie.Merge(this, prefixes, if keep then 3 else 4))
+  def compose(that: ByteTrie): ByteTrie = ByteTrie.evaluate(ByteTrie.Compose(this, that))
   def iterator: Iterator[BytePathValue] = new Iterator[BytePathValue]:
-    private val pending = scala.collection.mutable.Stack((ByteWords.empty, ByteTrie.this))
-    private var ready: Option[BytePathValue] = None
+    private def edges(node: ByteTrie): Iterator[(Int, ByteTrie)] =
+      if node.children.size <= 1 then node.children.iterator
+      else node.children.iterator.toVector.sortBy(_._1).iterator
+    private val pending = scala.collection.mutable.Stack(edges(ByteTrie.this))
+    private val bytes = scala.collection.mutable.ArrayBuffer.empty[Byte]
+    private var ready: Option[BytePathValue] = Option.when(terminal)(ByteWords.empty)
     private def advance(): Unit =
       while ready.isEmpty && pending.nonEmpty do
-        val (prefix, node) = pending.pop()
-        node.children.iterator.toVector.sortBy(_._1).reverseIterator.foreach { (b, child) =>
-          pending.push(ByteWords.concat(prefix, ByteWords.fromDigits(Vector(b))) -> child)
-        }
-        if node.terminal then ready = Some(prefix)
+        if pending.top.hasNext then
+          val (b, child) = pending.top.next()
+          bytes += b.toByte
+          pending.push(edges(child))
+          if child.terminal then ready = Some(BytePathValue(bytes.toArray))
+        else
+          pending.pop()
+          if pending.nonEmpty then bytes.remove(bytes.size - 1)
     def hasNext: Boolean = { advance(); ready.nonEmpty }
     def next(): BytePathValue =
       advance()
@@ -120,6 +89,59 @@ object ByteTrie:
   val empty: ByteTrie = ByteTrie(false, IntMap.empty)
   private def node(terminal: Boolean, entries: Iterator[(Int, ByteTrie)]): ByteTrie =
     ByteTrie(terminal, IntMap.from(entries.filterNot(_._2.isEmpty)))
+  // All algebra uses this postorder work stack. No operation consumes a JVM
+  // frame per byte, including when composition merges its terminal suffix.
+  private sealed trait Work
+  private case class Merge(a: ByteTrie, b: ByteTrie, op: Int) extends Work
+  private case class Slice(a: ByteTrie, lo: Int, hi: Int) extends Work
+  private case class Compose(a: ByteTrie, b: ByteTrie) extends Work
+  private case class Build(terminal: Boolean, keys: Vector[Int], suffix: Option[ByteTrie] = None) extends Work
+  private def evaluate(initial: Work): ByteTrie =
+    val pending = scala.collection.mutable.Stack(initial)
+    val results = scala.collection.mutable.ArrayBuffer.empty[ByteTrie]
+    def schedule(terminal: Boolean, jobs: Vector[(Int, Work)], suffix: Option[ByteTrie] = None): Unit =
+      pending.push(Build(terminal, jobs.map(_._1), suffix))
+      jobs.reverseIterator.foreach((_, job) => pending.push(job))
+    while pending.nonEmpty do
+      pending.pop() match
+        case Build(terminal, keys, suffix) =>
+          val start = results.size - keys.size
+          val built = node(terminal, keys.indices.iterator.map(i => keys(i) -> results(start + i)))
+          results.dropRightInPlace(keys.size)
+          results += suffix.fold(built)(built.union)
+        case Compose(a, b) =>
+          if a.isEmpty || b.isEmpty then results += empty
+          else schedule(false, a.children.iterator.map((k, c) => k -> Compose(c, b)).toVector,
+            Option.when(a.terminal)(b))
+        case Slice(a, lo, hi) =>
+          if lo <= 0 && hi >= a.pathCount then results += a
+          else if hi <= lo || hi <= 0 || lo >= a.pathCount then results += empty
+          else
+            var offset = if a.terminal then 1 else 0
+            val jobs = a.children.iterator.toVector.sortBy(_._1).flatMap { (k, child) =>
+              val start = offset; offset += child.pathCount
+              Option.when(hi > start && lo < offset)(k -> Slice(child, (lo - start).max(0), (hi - start).min(child.pathCount)))
+            }
+            schedule(a.terminal && lo <= 0 && hi > 0, jobs)
+        case Merge(a, b, op) =>
+          val quick: Option[ByteTrie] = op match
+            case 0 => if a eq b then Some(a) else if a.isEmpty then Some(b) else if b.isEmpty then Some(a) else None
+            case 1 => if a eq b then Some(a) else if a.isEmpty || b.isEmpty then Some(empty) else None
+            case 2 => if a eq b then Some(empty) else if a.isEmpty || b.isEmpty then Some(a) else None
+            case 3 => if a.isEmpty || b.isEmpty then Some(empty) else if b.terminal then Some(a) else None
+            case 4 => if a.isEmpty || b.terminal then Some(empty) else if b.isEmpty then Some(a) else None
+          quick match
+            case Some(value) => results += value
+            case None =>
+              val terminal = op match
+                case 0 => a.terminal || b.terminal
+                case 1 => a.terminal && b.terminal
+                case 2 => a.terminal && !b.terminal
+                case 3 => false
+                case 4 => a.terminal
+              val keys = if op == 0 then (a.children.keySet ++ b.children.keySet).toVector else a.children.keysIterator.toVector
+              schedule(terminal, keys.map(k => k -> Merge(a.children.getOrElse(k, empty), b.children.getOrElse(k, empty), op)))
+    results.head
   def fromPaths(paths: Iterable[BytePathValue]): ByteTrie = paths.foldLeft(empty)(_.insert(_))
 
 private[morkl] final class ByteTrieSet(val trie: ByteTrie) extends AbstractSet[BytePathValue]:
@@ -130,11 +152,12 @@ private[morkl] final class ByteTrieSet(val trie: ByteTrie) extends AbstractSet[B
   override def isEmpty: Boolean = trie.isEmpty
   override def size: Int = trie.pathCount
 
-private[morkl] object ByteTrieBackend extends WordSetBackend[BytePathValue](ByteWords):
+private[morkl] final class ByteTrieBackend extends WordSetBackend[BytePathValue](ByteWords):
   private def tree(values: Set[BytePathValue]): ByteTrie = values match
     case t: ByteTrieSet => t.trie
     case _ => ByteTrie.fromPaths(values)
   private def set(t: ByteTrie): Set[BytePathValue] = new ByteTrieSet(t)
+  override def singleton(word: BytePathValue): Set[BytePathValue] = set(ByteTrie.empty.insert(word))
   override def literal(values: Set[BytePathValue]): Set[BytePathValue] = from(values)
   override def from(values: Iterable[BytePathValue]): Set[BytePathValue] = values match
     case t: ByteTrieSet => t

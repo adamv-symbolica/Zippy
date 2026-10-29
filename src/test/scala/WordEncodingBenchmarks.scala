@@ -1,7 +1,7 @@
 package morkl
 
 /** Reproducible review probes. Compilation and encoding happen outside timed
-  * evaluation regions; report the median of five runs after two warmups.
+  * evaluation regions; report the median of five runs after eight warmups.
   */
 object WordEncodingBenchmarks:
   private val x = SpaceMention("x")
@@ -9,7 +9,7 @@ object WordEncodingBenchmarks:
   private val t = SpaceMention("t")
   private val a = PathRef("a")
   private def measure(label: String)(body: => Any): Double =
-    for _ <- 0 until 2 do body
+    for _ <- 0 until 8 do body
     val samples = Vector.fill(5) {
       val start = System.nanoTime(); body
       (System.nanoTime() - start).toDouble / 1e6
@@ -60,7 +60,7 @@ object WordEncodingBenchmarks:
       val source = Space.GroundedSS(Space.Literal(raw), value => { evaluations += 1; value })
       val expr = (0 until depth).foldLeft(source: Space)((s, _) => Space.TailsIntersection(s))
       coded(s"E4/TI/$depth", WordEncodings.sortedDictionaryBits(interner), expr, raw)
-      println(s"E4/source_evaluations/$depth,$evaluations") // Seven runs: exactly seven evaluations.
+      println(s"E4/source_evaluations/$depth,$evaluations") // Thirteen runs: exactly thirteen evaluations.
     val rng = new scala.util.Random(7)
     val bytes = ByteSpaceValue((0 until 20000).map(_ => BytePathValue(rng.nextBytes(32))).toSet)
     measure("E5/byte_range/20000x32")(Zippy_bytes.eval(ByteSpace.Range(ByteSpace.Literal(bytes), 0, 1)))
@@ -70,3 +70,35 @@ object WordEncodingBenchmarks:
     val (asciiInterner, ascii) = input(20000)
     coded("E5/ASCII_range/CESU8", WordEncodings.stringSymbolsToBytes(asciiInterner), range, ascii)
     coded("E5/ASCII_range/dictionary4", WordEncodings.sortedDictionaryBytes(asciiInterner), range, ascii)
+
+  @main def stableIdReviewReport(): Unit =
+    println("probe,median_ms")
+    val iteration = Space.Iteration(Space.Mention(x), h, t, Space.Singleton(Path.Deref(h)))
+    val range = Space.Range(Space.Mention(x), -2, 0)
+    val fold = Space.Fold(Space.Mention(x), Path.ZERO, a, h, t,
+      Space.Singleton(Path.Concat(Path.Deref(a), Path.Deref(h))), Path.Deref(h))
+    val violations = scala.collection.mutable.ArrayBuffer.empty[String]
+    for n <- Vector(1000, 4000, 20000) do
+      val (it, values) = input(n)
+      val vocabulary = (0 until it.size).map(it.decodeItem).toVector
+      val open = WordEncodings.internedSymbolsToBits(it)
+      val bits = WordEncodings.internedSymbolsToBits(it, Some(vocabulary))
+      val bytes = WordEncodings.internedSymbolsToBytes(it, Some(vocabulary))
+      def sizes[B](name: String, code: WordEncoding[PathValue, B]): Unit =
+        val program = code.compile(SymbolWordLanguage.space(iteration))
+        println(s"iteration-size/$name/$n,${program.nodeCount},${program.routines.size}")
+        val bound = code.maxCodeLength.get
+        assert(program.routines.size <= 2 * bound + 1)
+      sizes("open-fib", open); sizes("snapshot-fib", bits); sizes("snapshot-id4", bytes)
+      measure(s"iteration/source/$n")(morkl.eval(iteration)(using PathContext.emptyMap,
+        SpaceContextMap(Map(x -> values)), PartialFunction.empty))
+      val bitTime = coded(s"iteration/open-fib/$n", open, iteration, values)
+      val snapshotTime = coded(s"iteration/snapshot-fib/$n", bits, iteration, values)
+      val byteTime = coded(s"iteration/snapshot-id4/$n", bytes, iteration, values)
+      println(f"iteration/ratios/$n,${bitTime/byteTime}%.3f,${snapshotTime/byteTime}%.3f")
+      if snapshotTime > 3 * byteTime || bitTime > 3 * byteTime then violations += s"Fibonacci iteration exceeds 3x id4 at $n"
+      coded(s"range/snapshot-fib/$n", bits, range, values)
+      coded(s"range/snapshot-id4/$n", bytes, range, values)
+      coded(s"fold/snapshot-fib/$n", bits, fold, values)
+      coded(s"fold/snapshot-id4/$n", bytes, fold, values)
+    assert(violations.isEmpty, violations.mkString("; "))
