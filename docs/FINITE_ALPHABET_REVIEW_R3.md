@@ -65,7 +65,13 @@ measurements establish a major improvement over the quadratic implementation,
 but do not establish the full performance acceptance criterion. Further
 allocation profiling and stable benchmark validation remain necessary.
 
-Final logs are `/tmp/r3-checked-*.log`. The benchmark includes ordinary JVM
+Final regression total: **129 passed, one failed**. The sole failure is the
+strict changing-Fold performance test above. Passing suites include
+`FiniteAlphabetTest` (14), `MORKL2Space` (8), `Routines` (6), `TrieSpaceTest`
+(82), `ResultPathLengthTest` (2), and 17 tests in `WordEncoding*Test`.
+
+Final logs are `/tmp/r3-checked-*.log`, also preserved under
+`~/polemic-notes/zippy-coded-followup-2026-10-29/round-three/`. The benchmark includes ordinary JVM
 allocation/collection costs; no forced-GC exclusion or relaxed timing threshold
 was introduced.
 
