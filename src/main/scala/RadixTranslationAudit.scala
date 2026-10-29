@@ -10,6 +10,9 @@ import scala.collection.mutable
   * The accompanying runner treats a missing report or any failure as failure.
   */
 object RadixTranslationAudit:
+  private[morkl] def withoutCapture[A](body: => A): A =
+    val previous = replaying.get();replaying.set(true)
+    try body finally replaying.set(previous)
   private val output = Option(System.getProperty("morkl.radixAudit.path")).orElse(Option(System.getProperty("morkl.openfstAudit.path"))).filter(_.nonEmpty)
   val enabled: Boolean = output.nonEmpty
   private final class Identity(val value: AnyRef):

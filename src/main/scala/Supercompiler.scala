@@ -204,6 +204,11 @@ object Matching:
     val (substPNames, substSNames) = substNames(sm, pm)
     val freshS = makeFresh(termSNames ++ substSNames ++ sm.keys.map(_.s), "s")
     val freshP = makeFresh(termPNames ++ substPNames ++ pm.keys.map(_.s), "p")
+    def renamedPath(original: PathRef): PathRef =
+      val next = PathRef(freshP())
+      if original.lengthHint >= 0 then next.known(original.lengthHint)
+      else if original.maxLengthHint >= 0 then next.bounded(original.maxLengthHint)
+      else next
 
     def activeFreeMentions(ss: Map[SpaceMention, Space], pp: Map[PathRef, Path]): Set[String] = substNames(ss, pp)._2
     def activeFreeRefs(ss: Map[SpaceMention, Space], pp: Map[PathRef, Path]): Set[String] = substNames(ss, pp)._1
@@ -233,7 +238,7 @@ object Matching:
         val renameS = activeFreeMentions(ssBody0, ppBody0)(rest.s)
         val renameP = activeFreeRefs(ssBody0, ppBody0)(sym.s)
         val rest2 = if renameS then SpaceMention(freshS()).known(rest.sizeHint) else rest
-        val sym2 = if renameP then PathRef(freshP()).known(sym.lengthHint) else sym
+        val sym2 = if renameP then renamedPath(sym) else sym
         val body2 = if renameS || renameP then renameBound(body,
           if renameS then Map(rest.s -> rest2) else Map.empty,
           if renameP then Map(sym.s -> sym2) else Map.empty) else body
@@ -246,8 +251,8 @@ object Matching:
         val freeS = activeFreeMentions(ssBody0, ppBody0)
         val freeP = activeFreeRefs(ssBody0, ppBody0)
         val rest2 = if freeS(rest.s) then SpaceMention(freshS()).known(rest.sizeHint) else rest
-        val acc2 = if freeP(acc.s) then PathRef(freshP()).known(acc.lengthHint) else acc
-        val sym2 = if freeP(sym.s) then PathRef(freshP()).known(sym.lengthHint) else sym
+        val acc2 = if freeP(acc.s) then renamedPath(acc) else acc
+        val sym2 = if freeP(sym.s) then renamedPath(sym) else sym
         val smap = List(rest.s -> rest2).filter((old, neu) => old != neu.s).toMap
         val pmap = List(acc.s -> acc2, sym.s -> sym2).filter((old, neu) => old != neu.s).toMap
         val body2 = if smap.nonEmpty || pmap.nonEmpty then renameBound(body, smap, pmap) else body

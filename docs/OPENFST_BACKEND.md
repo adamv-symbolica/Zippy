@@ -1,8 +1,9 @@
 # C++ / OpenFst backend
 
 `OpenFstBackend.symbols`, `.bits`, and `.bytes` transpile the corresponding
-Zippy AST and routine module into C++17. Generated functions execute against
-OpenFst acceptors. There is no AST interpreter or reference-evaluator fallback
+Zippy program and routine module into C++17 through the same optimized
+`RecursiveOpGraph` used by `exec`/`execT`. The emitter consumes graph coordinates,
+not expression-tree nodes. Generated code executes against delayed OpenFst acceptors. There is no AST interpreter or reference-evaluator fallback
 in the executable. All five path cases and all 24 space cases are supported.
 
 ```scala
@@ -38,56 +39,84 @@ finally session.close()
 
 Native timings exclude compilation, initial input-acceptor construction,
 request/result protocol IO, and result enumeration. A grounded host callback
-inside execution includes its host work and bridge IO in the measured interval. Constants and symbol-table initialization
+inside execution includes its host work and bridge IO in the measured interval.
+Final automaton expansion and exact DAG cardinality analysis occur **inside**
+every timed invocation; deferring an operation does not remove its consumption
+cost from the measurement. Constants and symbol-table initialization
 are warmed before timing. The compiled program and shared runtime are cached
 under `target/openfst`; nonblocking filesystem locks protect concurrent JVM builds. Audit batches are
 bounded by emitted source size as well as case count.
 
 ## Representation and operations
 
-A space owns an immutable, deterministic, epsilon-free, acyclic OpenFst
-`VectorFst<StdArc>`. Final states represent terminal paths, including epsilon at
-the initial state. Unit tropical weights give finite-set semantics. Common
-suffixes are merged into a DAG, so a compact acceptor can represent a very
-large finite language. No path-length side table or new language case is used.
+A space is an immutable language view over an OpenFst `Fst<StdArc>` and a
+root-state cursor. Literals use `VectorFst`; composed operators use the private
+`CachedFst` implementation of OpenFst's interface. Its deterministic,
+epsilon-free transitions and final states are computed once per state on demand.
+An operator records its input cursors without traversing or copying their graphs.
+Final states represent terminal paths, including epsilon at the initial state.
+Common suffix states form a DAG, permitting compact exponential languages.
+No encoding-boundary metadata or new Zippy language cases are introduced.
 
 Language labels are positive OpenFst labels. Bit `0` and `1` become labels `1`
 and `2`; byte `0..255` becomes `1..256`. Symbol labels use a per-program interner.
-OpenFst label zero is reserved for temporary epsilon transitions during general
-concatenation, suffix closure, and bulk unions. Those transitions are removed
-before a space is returned. Symbol ordering uses the original UTF-16 code units,
-including NULs, empty symbols, and unpaired surrogates; it does not depend on the
-numeric order in which symbols were interned.
+All returned automata are epsilon free. Symbol ordering uses the original UTF-16
+code units, including NULs, empty symbols, and unpaired surrogates; it does not
+depend on numeric interning order. Short paths use an inline four-label buffer.
 
 | Zippy operation | Native implementation |
 |---|---|
-| Empty, literal, singleton | Direct minimal acyclic acceptor construction with shared suffix states |
-| Union, intersection, subtraction | Deterministic graph products followed by acyclic state merging; no epsilon construction |
-| Restriction, raffination | Prefix-state product with an accepting continuation state; exact subtraction for raffination |
-| Composition | Shared right-hand suffix graph when the left language is prefix free; OpenFst concatenation and determinization otherwise |
-| Wrap, unwrap | Prefix construction or direct prefix traversal and reachable-subgraph extraction |
-| Iteration | Initial arcs expose native head labels and residual acceptors; equivalent residuals are shared; outputs use balanced deterministic unions or one small bulk normalization |
-| Fold | Ordered native head traversal with the path accumulator and exact body/update evaluation order |
-| Fixpoint | Native space union until graph-language equality; no enumeration for equality |
-| Head | Direct initial-arc projection to a two-state acceptor |
-| Tails union/intersection | Residual acceptor unions/products, deduplicating identical residual states |
-| Prefix closure | Final-state transformation on the graph |
-| Suffix/tails closure | OpenFst epsilon union of graph residuals, determinization, and optional epsilon exclusion |
-| Range | Exact arbitrary-precision subtree counts; only boundary subgraphs are sliced, without path enumeration |
-| Calls and bindings | Generated C++ functions and explicit path/space environments |
-| Grounded operations | Native bindings when supplied; otherwise an explicit host callback protocol |
+| Empty, literal, singleton | Direct acyclic acceptors with shared suffix states |
+| Union | Delayed n-ary deterministic union; nested unexpanded unions fuse when consumed |
+| Intersection, subtraction | Delayed state-pair products |
+| Restriction, raffination | Direct delayed prefix-state products; singleton prefix exclusion uses a persistent boundary edit |
+| Composition | Delayed deterministic concatenation subsets; no intermediate epsilon automaton |
+| Wrap, unwrap | Delayed prefix automaton and shared root cursors; completed wrap/unwrap prefixes cancel |
+| Iteration | Inline C++ `for` loop over productive native branches; bit loops have exactly two candidate labels |
+| Fold | Inline ordered loop, native path accumulator, direct body/update locals; graph framing tags are removed at compilation |
+| Fixpoint | Inline loop with lazy union and language equality via symmetric difference |
+| Head | Native two-state projection; bit/byte masks bound the alphabet and cache small results |
+| Tails union/intersection | Shared child cursors and delayed union/product automata |
+| Prefix closure | Delayed final-state view |
+| Suffix/tails closure | Delayed deterministic union of reachable residuals, optionally excluding epsilon |
+| Range | Delayed rank slices; positive bounds use saturated counts, negative bounds use exact arbitrary-precision DAG counts |
+| Calls and bindings | Typed C++ routine calls, graph locals and lexical loop binders |
+| Grounded operations | Plain native function pointers when supplied; otherwise the explicit host callback protocol |
 
-Large literal path sets and symbol tables are emitted as compact numeric text
-constants. Parsing happens once; generated source avoids enormous nested C++
-initializer expressions. Function boundaries are retained to keep compilation
-of deeply expanded translations bounded. Only routines reachable after native
-operation selection are emitted, including recursive dependencies; eliminated
-scanner helpers do not inflate C++ compilation. Generated translation units
-above two million characters cap STL inlining with `-fno-inline`. Already
-optimized artifacts are reused; cold large units default to `-O0` to avoid
-spending tens of minutes optimizing generated STL plumbing. Set
-`morkl.openfst.largeOptimize` to choose another level. The OpenFst graph runtime
-retains full Release optimization.
+`OpenFstBackend.fromGraph(graph, callees)` accepts an already optimized symbolic
+executor graph and its called-graph index directly. The dialect entry points run
+source optimization, existing graph lowering, hoisting, push-out and sharing,
+then use the same emitter. Opaque host closures are never evaluated by compilation.
+Proven encoding selectors survive source rewriting through ordinary function
+abstraction before native graph lowering.
+
+Every live graph coordinate becomes a typed C++ local. There is no node dispatch,
+value stack, type-erased loop callback or environment copy in generated loops.
+Only actual language routines become generated functions, eligible for ordinary
+C++ inlining. Input maps are consulted once by the protocol entry wrapper;
+unused captures are not forced. Potentially recursive or opaque computations
+stay within the composition guards that demand them. Shared computations use
+existing dominating locals or are emitted inside their guarded use sites.
+
+Large literal path sets and symbol tables use compact numeric text constants,
+parsed once. Only routines reachable after graph optimization are emitted.
+Cold generated units above two million characters default to `-O0`; set
+`morkl.openfst.largeOptimize` to override that policy. Normal units use `-O2`,
+and the automaton runtime always uses Release optimization. No forced no-inline
+attribute or compiler flag is applied. Source specialization has its existing
+30-second budget; if it expires, structural lowering still proceeds through the
+optimized graph. `morkl.openfst.graphCompileMillis` bounds native graph
+optimization separately (default 300,000 ms). Graph sharing indexes canonical
+nodes instead of repeatedly scanning the graph.
+
+The caches hold automaton transitions, productivity and cardinalities, not
+symbol encodings or path boundaries. Consumers traverse the cached DAG without
+creating a `VectorFst` snapshot. Operator-chain destruction uses an iterative
+queue, avoiding stack growth for long persistent union chains. Singleton prefix
+exclusion copies only states along the changed prefix and shares the remaining
+child cursors. Cursor normalization bypasses these edit views, so successive
+exclusions do not create a chain of product machines. Literal epsilon
+concatenations cancel without probing a delayed operand.
 
 Ordered codebook decision trees are recognized directly from the existing AST.
 A conservative grammar check and abstract scanner execution prove when head
@@ -162,7 +191,8 @@ JVM properties: `morkl.openfst.root`, `.cache`, `.prefix`, `.cxx`, `.cxxflags`,
 compiler, extra flags, compiler timeout (default 1,800 seconds), and
 generated-code optimization level (default `-O2`). Very large expanded programs
 can still produce substantial source and compilation costs; benchmark CSVs
-record those costs separately.
+record source/graph compilation (`graph_compile_ms`), live graph nodes, generated
+source size, precomputed-literal status, and native session setup separately.
 The runtime is built as a shared C++ library through CMake.
 
 ```scala

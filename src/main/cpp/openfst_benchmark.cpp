@@ -13,11 +13,11 @@ static Path encode(int dialect,int value,int width) {
   p.push_back(1);return p;
 }
 static int width(int n) {int w=1;while((uint64_t(1)<<w)<uint64_t(n)) ++w;return w;}
-static void row(const std::string& dialect,const std::string& operation,int size,const std::function<Space()>& run,uint64_t expected,bool expensive=false) {
+template<class F> static void row(const std::string& dialect,const std::string& operation,int size,F&& run,uint64_t expected,bool expensive=false) {
   Space result;std::vector<double> samples;
   const int count=expensive?1:5;
-  if(!expensive) result=run();
-  for(int i=0;i<count;++i) {auto start=Clock::now();result=run();samples.push_back(std::chrono::duration<double,std::nano>(Clock::now()-start).count());}
+  if(!expensive) {result=run();realize(result);}
+  for(int i=0;i<count;++i) {auto start=Clock::now();result=run();realize(result);samples.push_back(std::chrono::duration<double,std::nano>(Clock::now()-start).count());}
   auto stats=inspect(result);
   if(stats.paths!=std::to_string(expected)) throw std::runtime_error("microbenchmark cardinality mismatch");
   std::sort(samples.begin(),samples.end());

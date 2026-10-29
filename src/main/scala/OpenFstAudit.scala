@@ -11,6 +11,9 @@ import java.util.concurrent.atomic.AtomicLong
 object OpenFstAudit:
   val enabled = Option(System.getProperty("morkl.openfstAudit.path")).exists(_.nonEmpty)
   private val busy = ThreadLocal.withInitial(() => false)
+  private[morkl] def withoutCapture[A](body: => A): A =
+    val previous = busy.get();busy.set(true)
+    try body finally busy.set(previous)
   private final class Identity(val value: AnyRef):
     override def hashCode(): Int = System.identityHashCode(value)
     override def equals(other: Any): Boolean = other match
@@ -26,8 +29,23 @@ object OpenFstAudit:
   private def check[V](p: OpenFstBackend.Compiled[V], paths: Map[PathRef,V], spaces: Map[SpaceMention,Set[V]], expected: Set[V]): Check = new Check:
     val program = p
     def run(session: OpenFstBackend.Session,index: Int): Unit =
-      val actual = session.eval(index,p)(paths,spaces)
-      if actual != expected then throw AssertionError(s"expected ${expected.size} paths, got ${actual.size}; missing=${(expected diff actual).take(5)}; extra=${(actual diff expected).take(5)}")
+      try
+        val actual = session.eval(index,p)(paths,spaces)
+        if actual != expected then throw AssertionError(s"expected ${expected.size} paths, got ${actual.size}; missing=${(expected diff actual).take(5)}; extra=${(actual diff expected).take(5)}")
+      catch case error: Throwable =>
+        val directory = Paths.get(System.getProperty("morkl.openfstAudit.path")).resolve("failures")
+        Files.createDirectories(directory)
+        val key = Integer.toUnsignedString(p.code.hashCode,16)
+        Files.writeString(directory.resolve(s"$key.cpp"),p.source)
+        Files.writeString(directory.resolve(s"$key.graph.txt"),p.graphDescription)
+        def path(v: Vector[Int]) = s"${v.size} ${v.mkString(" ")}"
+        val ps = paths.toVector.flatMap((r,v) => p.pathIds.get(r).map(i => s"$i ${path(p.labels.encode(v))}"))
+        val ss = spaces.toVector.flatMap((r,vs) => p.spaceIds.get(r).map(i => s"$i ${vs.size} ${vs.toVector.map(v => path(p.labels.encode(v))).mkString(" ")}"))
+        val symbols = p.labels.symbols
+        val dictionary = symbols.map((i,s) => s"$i ${s.length} ${s.toVector.map(_.toInt).mkString(" ")}").mkString(" ")
+        Files.writeString(directory.resolve(s"$key.input.txt"),s"R 0 ${symbols.size} $dictionary ${ps.size} ${ps.mkString(" ")} ${ss.size} ${ss.mkString(" ")}\nQ\n")
+        Files.writeString(directory.resolve(s"$key.error.txt"),s"$error\npaths=$paths\nspaces=$spaces\nexpected=$expected\n")
+        throw error
   private val cases = ConcurrentLinkedQueue[Case]()
   private val seen = ConcurrentHashMap[Any, java.lang.Boolean]()
   private val observations = AtomicLong(0)

@@ -540,12 +540,29 @@ object LiteralCodec:
 
 object PathConstantCodec:
   private val emptyMarker = "path64:"
+  private val marker = "path16:"
+
+  private def encodeItem(item: PathItem): String =
+    val bytes = item.show.toVector.flatMap(c => Vector((c.toInt >>> 8).toByte,c.toByte)).toArray
+    "S" + Base64.getEncoder.encodeToString(bytes)
+
+  private def decodeItem(item: String): PathItem =
+    require(item.startsWith("S"),"invalid encoded path item")
+    val bytes = Base64.getDecoder.decode(item.substring(1))
+    require(bytes.length % 2 == 0,"invalid UTF-16 path item")
+    PathItem(bytes.grouped(2).map(pair => (((pair(0)&255)<<8)|(pair(1)&255)).toChar).mkString)
 
   def encode(path: PathValue): String =
-    if path.items.isEmpty then emptyMarker else path.show
+    if path.items.isEmpty then emptyMarker
+    else if path.show == emptyMarker || path.show.startsWith(marker) || path.items.exists(p =>
+        p.show.isEmpty || p.show.contains('.') || p.show.exists(Character.isSurrogate)) then
+      marker + path.items.map(encodeItem).mkString(".")
+    else path.show
 
   def decode(constant: String): PathValue =
-    if constant == emptyMarker then PathValue(Nil) else Syntax.parse(constant)
+    if constant == emptyMarker then PathValue(Nil)
+    else if constant.startsWith(marker) then PathValue(constant.substring(marker.length).split("\\.",-1).toList.map(decodeItem))
+    else Syntax.parse(constant)
 
 
 case class RoutinePtr(s: String)
@@ -834,7 +851,18 @@ class RecursiveOpGraph(var root: Node[(Int, Int)],
         case Some(p) => return Some(p)
     None
 
-def transpile(r: Routine, caller: Option[RecursiveOpGraph] = None): RecursiveOpGraph =
+/** Optional native lowering for existing grounded operations and proven
+  * automaton idioms. Payloads exist only in the compile-time operation graph.
+  */
+trait NativeGraphLowering:
+  def pp(f: PathValue => PathValue): String
+  def sp(f: SpaceValue => PathValue): String
+  def ps(f: PathValue => SpaceValue): String
+  def ss(f: SpaceValue => SpaceValue): String
+  def space(s: Space): Option[(String, String, Vector[Space])] = None
+
+def transpile(r: Routine, caller: Option[RecursiveOpGraph] = None,
+              native: Option[NativeGraphLowering] = None): RecursiveOpGraph =
   val routine = ReferenceHints.tag(r)
   val g = RecursiveOpGraph(Node("Routine", routine.name.s, "space", Vector()), caller, ArrayBuffer.empty)
   for (pr, i) <- routine.refs.zipWithIndex do
@@ -856,11 +884,19 @@ def transpile(r: Routine, caller: Option[RecursiveOpGraph] = None): RecursiveOpG
     case Path.Concat(l, r) =>
       g.store(Node("Concat", "", "path", Vector(recp(l), recp(r))))
     case Path.GroundedPP(p, f) =>
-      throw UnsupportedOperationException("operation-graph backend does not serialize Path.GroundedPP")
+      val hooks = native.getOrElse(throw UnsupportedOperationException("operation-graph backend does not serialize Path.GroundedPP"))
+      g.store(Node("GroundedPP", hooks.pp(f), "path", Vector(recp(p))))
     case Path.GroundedSP(s, f) =>
-      throw UnsupportedOperationException("operation-graph backend does not serialize Path.GroundedSP")
+      val hooks = native.getOrElse(throw UnsupportedOperationException("operation-graph backend does not serialize Path.GroundedSP"))
+      g.store(Node("GroundedSP", hooks.sp(f), "path", Vector(recs(s))))
 
   def recs(x: Space): (Int, Int) =
+    native.flatMap(_.space(x)) match
+      case Some((operation, payload, inputs)) =>
+        g.store(Node(operation, payload, "space", inputs.map(recs)))
+      case None => plainSpace(x)
+
+  def plainSpace(x: Space): (Int, Int) =
     x match
       case Space.Empty =>
         g.store(Node("Empty", "", "space", Vector()))
@@ -912,7 +948,7 @@ def transpile(r: Routine, caller: Option[RecursiveOpGraph] = None): RecursiveOpG
           Vector(symbol),
           Vector(rest),
           templates
-        ), Some(g))
+        ), Some(g), native)
         rog.root = Node("Iteration", symbol.s, "space", Vector(s))
         g.store(rog)
       case Space.Fold(src, initial, acc, symbol, rest, templates, update) =>
@@ -928,7 +964,7 @@ def transpile(r: Routine, caller: Option[RecursiveOpGraph] = None): RecursiveOpG
           Vector(acc, symbol),
           Vector(rest),
           packed
-        ), Some(g))
+        ), Some(g), native)
         rog.root = Node("Fold", symbol.s, "space", Vector(s, init))
         g.store(rog)
       case Space.Fixpoint(initial, variable, step) =>
@@ -938,13 +974,15 @@ def transpile(r: Routine, caller: Option[RecursiveOpGraph] = None): RecursiveOpG
           Vector.empty,
           Vector(variable),
           step
-        ), Some(g))
+        ), Some(g), native)
         rog.root = Node("Fixpoint", variable.s, "space", Vector(init))
         g.store(rog)
       case Space.GroundedPS(p, f) =>
-        throw UnsupportedOperationException("operation-graph backend does not serialize Space.GroundedPS")
+        val hooks = native.getOrElse(throw UnsupportedOperationException("operation-graph backend does not serialize Space.GroundedPS"))
+        g.store(Node("GroundedPS", hooks.ps(f), "space", Vector(recp(p))))
       case Space.GroundedSS(s, f) =>
-        throw UnsupportedOperationException("operation-graph backend does not serialize Space.GroundedSS")
+        val hooks = native.getOrElse(throw UnsupportedOperationException("operation-graph backend does not serialize Space.GroundedSS"))
+        g.store(Node("GroundedSS", hooks.ss(f), "space", Vector(recs(s))))
       case Space.Range(x, start, end) =>
         g.store(Node("Range", s"$start:$end", "space", Vector(recs(x))))
 
@@ -1318,11 +1356,17 @@ def optimize_sharing(g: RecursiveOpGraph,
   def toOutputNode(n: Node[(Int, Int)]): Node[(Int, Int)] =
     n.map((lm, xm) => stack(lm)._2(xm))
   var c = 0
+  // Inputs refer only to earlier coordinates, whose forwarding is already
+  // final. Index the first local canonical node instead of rescanning the
+  // entire source graph for every node (quadratic on expanded digit graphs).
+  // A local match always exists in the old find: the current node itself.
+  val canonicalNodes = collection.mutable.HashMap.empty[Node[(Int, Int)], Int]
   val canonicalSubgraphs = collection.mutable.HashMap.empty[Int, ArrayBuffer[(Int, RecursiveOpGraph)]]
   for (n, j) <- g.nodes.zipWithIndex do n match
     case Left(n) =>
       val canonical = forwardNode(n).getOrElse(throw RuntimeException(s"cannot remap node ${n.show} at level $l"))
-      val (l2, i) = g.find(m => forwardNode(m).contains(canonical)).get
+      val l2 = l
+      val i = canonicalNodes.getOrElseUpdate(canonical, j)
       if (l, i) == (l2, j) then
         r.store(toOutputNode(canonical))
         stack(l2)._2.update(i, l -> c)
@@ -1358,7 +1402,7 @@ def push_out(g: RecursiveOpGraph, stack: ArrayBuffer[LongMap[(Int, Int)]] = Arra
   def pred(g: RecursiveOpGraph, n: Node[(Int, Int)], pos: (Int, Int), gather: Boolean): Boolean =
     (pos._2 != g.nodes.length - 1) &&
     n.inputs.forall((l, x) => l < pos._1 && (stack(l)(x)._1 < lb || (stack(l)(x)._1 == lb && stack(l)(x)._2 < jb))) &&
-    !n.operation.startsWith("Extract")
+    !n.operation.startsWith("Extract") && !n.operation.startsWith("Grounded") && n.operation != "Call"
 
   def gather(g: RecursiveOpGraph, r: RecursiveOpGraph): Unit =
     val lr = g.level
@@ -1428,6 +1472,7 @@ def hoist_loop_invariant_subgraphs(g: RecursiveOpGraph): RecursiveOpGraph =
       hoistInto.nonEmpty &&
         index != src.nodes.length - 1 &&
         !node.operation.startsWith("Extract") &&
+        !node.operation.startsWith("Grounded") && node.operation != "Call" &&
         node.inputs.forall((level, _) => level < out.level)
 
     for (entry, index) <- src.nodes.zipWithIndex do entry match
@@ -2377,9 +2422,7 @@ object Lower:
     case Space.Call(ctx(r), refs, mentions) =>
       val refmap = (r.refs zip refs).toMap
       val mentionmap = (r.mentions zip mentions).toMap
-      subs(r.body)(PartialFunction.empty,
-        spost = { case Space.Mention(mentionmap(rhs)) => rhs },
-        ppost = { case Path.Deref(refmap(rhs)) => rhs })
+      Matching.subst(r.body, sm = mentionmap, pm = refmap)
   })
 end Lower
 

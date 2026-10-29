@@ -69,7 +69,7 @@ object OpenFstBenchmarks:
   def run(output: java.nio.file.Path, family: String = "", shard: Int = 0, shards: Int = 1): Unit =
     Files.createDirectories(output)
     val writer=Files.newBufferedWriter(output.resolve("native.csv"))
-    writer.write("family,name,dialect,paths,states,arcs,compile_ms,native_ms,reference_trie_ms,samples,checked\n");writer.flush()
+    writer.write("family,name,dialect,paths,states,arcs,compile_ms,native_ms,reference_trie_ms,samples,checked,graph_compile_ms,graph_nodes,generated_bytes,precomputed\n");writer.flush()
     val failures=mutable.ArrayBuffer.empty[String]
     require(shards>0 && shard>=0 && shard<shards,"invalid benchmark shard")
     val all=workloads(family).zipWithIndex.collect {case (work,index) if index%shards==shard => work}
@@ -105,7 +105,8 @@ object OpenFstBenchmarks:
             require(samples.forall(_.paths==count),s"native $dialect cardinality mismatch")
             val stat=samples.sortBy(_.nanos).apply(samples.size/2)
             writer.write(Vector(quote(work.family),quote(work.name),dialect,count,stat.states,stat.arcs,
-              f"$compileMs%.3f",f"${stat.nanos/1e6}%.6f",f"$trieMs%.3f",samples.size,if expected.isDefined then "exact" else "cardinality").mkString(",")+"\n")
+              f"$compileMs%.3f",f"${stat.nanos/1e6}%.6f",f"$trieMs%.3f",samples.size,if expected.isDefined then "exact" else "cardinality",
+              f"${p.compileNanos/1e6}%.3f",p.graphNodes,p.source.getBytes(java.nio.charset.StandardCharsets.UTF_8).length,p.precomputed).mkString(",")+"\n")
             writer.flush()
           finally session.close()
         measure("symbols",OpenFstBackend.symbols(work.expr,defs),work.context.m.view.mapValues(_.paths).toMap,identity)

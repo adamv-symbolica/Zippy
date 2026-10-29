@@ -21,7 +21,7 @@ class OpenFstBackendTest extends FunSuite:
       Vector((0,0),(0,1),(1,4),(-3,0),(0,-1),(Int.MinValue,Int.MaxValue),(Int.MaxValue,0),(4,2)).map((lo,hi) => S.Range(src,lo,hi))
 
   test("all operations transpile to native calls in all three dialects") {
-    val b = OpenFstBackend.bits(BitSpace.TailsClosure(Zippy_bits.literal(BigInt(1),BigInt(2))))
+    val b = OpenFstBackend.bits(BitSpace.TailsClosure(BitSpace.Mention(SpaceMention("input"))))
     assert(b.source.contains("suffix_closure"))
     assert(b.source.contains("int main()"))
     assert(!b.source.contains("enum Space"))
@@ -37,8 +37,9 @@ class OpenFstBackendTest extends FunSuite:
     val tail=Space.TailsUnion(Space.Mention(input))
     val guard=Space.Union(Space.Intersection(tail,eps),Space.Iteration(tail,PathRef("_"),SpaceMention("_"),eps))
     val scalar=OpenFstBackend.symbols(guard)
-    assert(scalar.source.contains("head_space(e.spaces.at("))
-    assert(!scalar.source.contains("tails_union("))
+    assert(scalar.graphDescription.nonEmpty)
+    assert(!scalar.source.contains("iterate(c,e"))
+    assert(!scalar.source.contains("Env n"))
   }
 
   if java.lang.Boolean.getBoolean("morkl.openfst.test") then
