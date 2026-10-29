@@ -16,6 +16,7 @@ only the repository guide.
 The project contains working implementations of:
 
 - the direct `Set[PathValue]` reference semantics;
+- bit and byte languages with native set reference backends and seven structural translations (see [Finite Alphabets](docs/FINITE_ALPHABETS.md));
 - an interned `IntMap` trie runtime;
 - a virtual zipper evaluator with focus/context movement;
 - recursive operation-graph lowering and direct trie execution;

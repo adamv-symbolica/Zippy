@@ -255,17 +255,21 @@ final class Translator[S, T](code: Code[S, T], unrollLimit: Int = 64):
     val ignored = sm("fold_ignored")
     val head = pr("fold_head")
     val tail = sm("fold_tail")
+    val currentAcc = pr("fold_accumulator")
+    val accFormal = if acc.s == "_" then pr("ignored_acc") else acc
+    val headFormal = if h.s == "_" then pr("ignored_fold_head") else h
+    val restFormal = if rest.s == "_" then sm("ignored_fold_rest") else rest
     def sp(r: PathRef): Path[S] = Path.Deref(r)
     def ss(r: SpaceMention): Space[S] = Mention(r)
     val heads: Space[S] = Iteration(ss(remaining), head, tail, Singleton(sp(head)))
-    val stepCall: Space[S] = Call(step, cps.map(sp) ++ Vector(sp(acc), sp(h)),
-      css.map(ss) ++ Vector(ss(remaining), Unwrap(ss(remaining), sp(h))))
-    val loopBody: Space[S] = Iteration(Range(heads, 0, 1), h, ignored, stepCall)
+    val stepCall: Space[S] = Call(step, cps.map(sp) ++ Vector(sp(currentAcc), sp(head)),
+      css.map(ss) ++ Vector(ss(remaining), Unwrap(ss(remaining), sp(head))))
+    val loopBody: Space[S] = Iteration(Range(heads, 0, 1), head, ignored, stepCall)
     val next: Space[S] = Call(loop, cps.map(sp) :+ update,
-      css.map(ss) :+ Raffination(ss(remaining), Singleton(sp(h))))
+      css.map(ss) :+ Raffination(ss(remaining), Singleton(sp(headFormal))))
     val stepBody: Space[S] = Union(body, next)
-    remember(Routine(loop, cps :+ acc, css :+ remaining, lower(loopBody)))
-    remember(Routine(step, cps ++ Vector(acc, h), css ++ Vector(remaining, rest), lower(stepBody)))
+    remember(Routine(loop, cps :+ currentAcc, css :+ remaining, lower(loopBody)))
+    remember(Routine(step, cps ++ Vector(accFormal, headFormal), css ++ Vector(remaining, restFormal), lower(stepBody)))
     Call(loop, cps.map(r => lowerPath(sp(r))) :+ lowerPath(initial), css.map(m) :+ lower(src))
 
   private def lower(s: Space[S]): Space[T] =

@@ -28,7 +28,7 @@ import scala.concurrent.duration.*
       suite.beforeAll()
       try
         for test <- suite.munitTests() do
-          if test.tags.exists(_.value == "munit.Ignore") then ignored += 1
+          if test.tags.contains(munit.Ignore) then ignored += 1
           else
             println(s"audit $name: ${test.name}")
             suite.beforeEach(munit.BeforeEach(test))

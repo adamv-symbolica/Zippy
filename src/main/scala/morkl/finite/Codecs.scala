@@ -14,10 +14,22 @@ trait Code[S, T]:
   def decodeSymbol(code: Vector[T]): S
   def transition(state: Int, unit: T): Option[ScanStep]
   def maxUnits: Option[Int]
+  def minUnits: Int = fixedUnits.getOrElse(1)
   def fixedUnits: Option[Int] = None
   def orderPreserving: Boolean
   /** Required only for non-order-preserving codes, to compile an order adapter. */
   def orderedSymbols: Option[Vector[S]] = None
+  /** Convert symbol-count annotations into physical target-unit bounds.
+    * These are compiler facts; they add no fields to runtime paths. */
+  final def lengthBounds(source: morkl.PathLengthEstimate): morkl.PathLengthEstimate =
+    import morkl.{PathLengthExpr, PathLengthEstimate}
+    def scale(value: PathLengthExpr, n: Int): PathLengthExpr =
+      PathLengthExpr.add(Vector.fill(n)(value)*)
+    val upper = maxUnits match
+      case Some(n) => scale(source.upper, n)
+      case None if source.upper.annotatedValue.contains(BigInt(0)) => PathLengthExpr.Zero
+      case None => PathLengthExpr.Infinity
+    PathLengthEstimate(scale(source.lower, minUnits), upper)
   final def encode(path: Vector[S]): Vector[T] = path.flatMap(encodeSymbol)
   final def decode(path: Vector[T]): Vector[S] =
     val out = Vector.newBuilder[S]
@@ -73,6 +85,7 @@ object Codes:
     new Code[PathItem, Boolean]:
       val targetAlphabet = Vector(false, true)
       val maxUnits = Some(if symbols.isEmpty then 2 else fibonacci(symbols.size - 1).size)
+      override val minUnits = 2
       val orderPreserving = false
       override val orderedSymbols = Some(symbols.sortBy(_.show))
       def encodeSymbol(s: PathItem) = fibonacci(ids.getOrElse(s, throw IllegalArgumentException(s"symbol ${s.show} was not registered before translation")))

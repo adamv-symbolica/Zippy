@@ -173,7 +173,7 @@ class FiniteAlphabetTest extends FunSuite:
   }
 
   test("existing dependent corpus executes through all three symbol encodings") {
-    val records = SpaceFuzzerCorpus.generate(160, 20261029L, maxDepth = 5, maxResult = 160, extended = true)
+    val records = SpaceFuzzerCorpus.generate(1000, 20261029L, maxDepth = 5, maxResult = 160, extended = true)
     for record <- records do
       val e = record.example
       val inputs = Map(SpaceFuzzer.argM -> e.arg)
@@ -183,4 +183,77 @@ class FiniteAlphabetTest extends FunSuite:
         assertEquals(ZippyTranslations.stringsToBytes(e.program, spaceInputs = inputs, routines = routines).runDecoded(), e.result)
         assertEquals(ZippyTranslations.internedStringsToBytes(e.program, spaceInputs = inputs, routines = routines, extraSymbols = Vector(PathItem("g"))).runDecoded(), e.result)
       }
+  }
+
+  test("recursive and mutually recursive calls retain explicit path and space parameters") {
+    val x = SpaceMention("x"); val h = PathRef("h"); val r = SpaceMention("r"); val prefix = PathRef("prefix").known(1)
+    val a = RoutinePtr("recursive_a"); val b = RoutinePtr("recursive_b")
+    def body(next: RoutinePtr): FS[Int] = FS.Union(
+      FS.Wrap(FS.Intersection(FS.Mention(x), FS.Singleton(FP.zero[Int])), FP.Deref(prefix)),
+      FS.Iteration(FS.Mention(x), h, r,
+        FS.Wrap(FS.Call(next, Vector(FP.Deref(prefix)), Vector(FS.Mention(r))), FP.Deref(h))))
+    val routines = Map(a -> FR(a, Vector(prefix), Vector(x), body(b)), b -> FR(b, Vector(prefix), Vector(x), body(a)))
+    val expr: FS[Int] = FS.Call(a, Vector(FP.Constant(Vector(127))), Vector(FS.Literal(Set(Vector.empty, Vector(0), Vector(255, 0, 128)))))
+    val expected = ByteSpace.evaluator(expr, routines = routines).vectors
+    verify(expr, routines, Codes.bytesToBits, BitStorage, expected)
+    val symbols = ZippyTranslations.bytesToSymbols(expr, routines)
+    assertEquals(symbols.decodePaths(Symbols.paths(eval(Symbols.toSpace(symbols.expression))(
+      using rc = symbols.routines.view.mapValues(Symbols.toRoutine).toMap))), expected)
+  }
+
+  test("ignored and shadowed fold binders retain the symbol semantics") {
+    val source = FS.Literal[PathItem](Set(Vector(PathItem("z")), Vector(PathItem("a"))))
+    val outer = PathRef("_"); val rest = SpaceMention("_"); val shared = PathRef("same")
+    val cases = Vector(
+      FS.Fold(source, FP.zero[PathItem], outer, PathRef("h"), rest, FS.Singleton(FP.Deref(outer)), FP.Deref(outer)),
+      FS.Fold(source, FP.zero[PathItem], PathRef("acc"), outer, rest, FS.Singleton(FP.Deref(outer)), FP.Deref(outer)),
+      FS.Fold(source, FP.zero[PathItem], shared, shared, rest, FS.Singleton(FP.Deref(shared)), FP.Deref(shared)))
+    for expr <- cases do
+      val original = Symbols.toSpace(expr)
+      val pc = Map(outer -> PathValue(List(PathItem("outside"))))
+      val expected = eval(original)(using PathContextMap(pc))
+      assertEquals(ZippyTranslations.symbolsToBits(original, pathInputs = pc).runDecoded(), expected)
+      assertEquals(ZippyTranslations.internedStringsToBytes(original, pathInputs = pc).runDecoded(), expected)
+      assertEquals(ZippyTranslations.stringsToBytes(original, pathInputs = pc).runDecoded(), expected)
+  }
+
+  test("scanner bounds unroll Fibonacci recognition while terminated strings remain recursive") {
+    val source = Space.Iteration(Space.Literal(SpaceValue(Set(Syntax.parse("long.a"), Syntax.parse("b.a")))),
+      PathRef("h").known(1), SpaceMention("r"), Space.Singleton(Path.Deref(PathRef("h").known(1))))
+    val bit = ZippyTranslations.symbolsToBits(source)
+    assert(bit.compiled.scanBounds.nonEmpty)
+    assert(bit.compiled.scanBounds.forall(b => b.unrolled && b.maximumDepth.exists(_ >= 2)))
+    val direct = Translator(bit.compiled.code, unrollLimit = 0)(Symbols.fromSpace(source))
+    assert(direct.scanBounds.forall(!_.unrolled))
+    assertEquals(direct.decodePaths(BitSpace.evaluator(direct.expression, routines = direct.routines).vectors), Symbols.paths(eval(source)))
+    assert(ZippyTranslations.stringsToBytes(source).compiled.scanBounds.forall(b => !b.unrolled && b.maximumDepth.isEmpty))
+    assert(ZippyTranslations.internedStringsToBytes(source).compiled.scanBounds.forall(b => b.unrolled && b.maximumDepth.contains(4)))
+  }
+
+  test("symbol length annotations become physical bit and byte bounds") {
+    val interner = PathItemInterner()
+    Vector("a", "b", "c", "d", "e", "f", "g").foreach(s => interner.intern(PathItem(s)))
+    val source = PathLengthEstimate.exact(PathLengthExpr.const(3))
+    val bit = Codes.internedBits(interner).lengthBounds(source)
+    assertEquals(bit.lower.annotatedValue, Some(BigInt(6)))
+    assertEquals(bit.upper.annotatedValue, Some(BigInt(3 * Codes.fibonacci(6).size)))
+    val bytes = Codes.internedBytes(interner).lengthBounds(source)
+    assertEquals(bytes.lower.annotatedValue, Some(BigInt(12)))
+    assertEquals(bytes.upper.annotatedValue, Some(BigInt(12)))
+    assertEquals(Codes.bytesToBits.lengthBounds(source).upper.annotatedValue, Some(BigInt(24)))
+    assertEquals(Codes.stringBytes.lengthBounds(source).upper, PathLengthExpr.Infinity)
+  }
+
+  test("native reference calls traverse long bit and byte paths without JVM stack growth") {
+    def program[A](item: A): (FS[A], Map[RoutinePtr, FR[A]]) =
+      val name = RoutinePtr("walk_long_path")
+      val source = SpaceMention("source"); val h = PathRef("head"); val r = SpaceMention("rest")
+      val empty: FS[A] = FS.Singleton(FP.zero[A])
+      val body: FS[A] = FS.Union(FS.Intersection(FS.Mention(source), empty),
+        FS.Iteration(FS.Mention(source), h, r, FS.Call(name, Vector.empty, Vector(FS.Mention(r)))))
+      FS.Call(name, Vector.empty, Vector(FS.Literal(Set(Vector.fill(5000)(item))))) -> Map(name -> FR(name, Vector.empty, Vector(source), body))
+    val (bits, br) = program(false)
+    val (bytes, yr) = program(255)
+    assertEquals(BitSpace.evaluator(bits, routines = br).vectors, Set(Vector.empty[Boolean]))
+    assertEquals(ByteSpace.evaluator(bytes, routines = yr).vectors, Set(Vector.empty[Int]))
   }

@@ -67,19 +67,33 @@ trait Storage[A, P, V]:
   final def singleton(path: P): V = value(Set(path))
   final def union(a: V, b: V): V = value(paths(a) union paths(b))
 
+/** Trampolined reference interpreter: codeword and source recursion consume
+  * heap continuations rather than one JVM frame per bit or byte. */
 final class Evaluator[A, P, V](val storage: Storage[A, P, V]):
   import Space.*
+  import scala.util.control.TailCalls.{TailRec, done, tailcall}
   private val st = storage
 
   def apply(expr: Space[A], pathInputs: Map[PathRef, P] = Map.empty,
             spaceInputs: Map[SpaceMention, V] = Map.empty,
             routines: Map[RoutinePtr, Routine[A]] = Map.empty): V =
-    def evalPath(p: Path[A], pc: Map[PathRef, P], sc: Map[SpaceMention, V]): P = p match
-      case Path.Deref(ref) => pc(ref)
-      case Path.Constant(items) => st.path(items)
-      case Path.Concat(a, b) => st.concat(evalPath(a, pc, sc), evalPath(b, pc, sc))
-      case Path.GroundedPP(p, f) => st.path(f(st.items(evalPath(p, pc, sc))))
-      case Path.GroundedSP(s, f) => st.path(f(st.paths(rec(s, pc, sc)).map(st.items)))
+    val constantPaths = java.util.IdentityHashMap[Path[A], P]()
+    val literalSpaces = java.util.IdentityHashMap[Space[A], V]()
+    def sequence[X, Y](xs: Vector[X])(f: X => TailRec[Y]): TailRec[Vector[Y]] =
+      xs.foldLeft(done(Vector.empty[Y]))((acc, x) => acc.flatMap(out => f(x).map(out :+ _)))
+    def path(p: Path[A], pc: Map[PathRef, P], sc: Map[SpaceMention, V]): TailRec[P] = tailcall(p match
+      case Path.Deref(ref) => done(pc(ref))
+      case Path.Constant(items) =>
+        val cached = constantPaths.get(p)
+        if cached != null then done(cached)
+        else
+          val value = st.path(items)
+          constantPaths.put(p, value)
+          done(value)
+      case Path.Concat(a, b) => for x <- path(a, pc, sc); y <- path(b, pc, sc) yield st.concat(x, y)
+      case Path.GroundedPP(p, f) => path(p, pc, sc).map(v => st.path(f(st.items(v))))
+      case Path.GroundedSP(s, f) => rec(s, pc, sc).map(v => st.path(f(st.paths(v).map(st.items))))
+    )
     def bindP(pc: Map[PathRef, P], ref: PathRef, p: P) = if ref.s == "_" then pc else pc.updated(ref, p)
     def bindS(sc: Map[SpaceMention, V], ref: SpaceMention, s: V) = if ref.s == "_" then sc else sc.updated(ref, s)
     def groups(s: V): Vector[(P, V)] =
@@ -87,83 +101,100 @@ final class Evaluator[A, P, V](val storage: Storage[A, P, V]):
         .groupMap(st.take(_, 1))(st.drop(_, 1)).iterator
         .map((h, tails) => h -> st.value(tails.toSet)).toVector
         .sortWith((a, b) => st.compare(a._1, b._1) < 0)
-    def rec(s: Space[A], pc: Map[PathRef, P], sc: Map[SpaceMention, V]): V = s match
-      case Empty() => st.empty
+    def rec(s: Space[A], pc: Map[PathRef, P], sc: Map[SpaceMention, V]): TailRec[V] = tailcall(s match
+      case Empty() => done(st.empty)
       case Call(rp, refs, mentions) =>
         val r = routines.getOrElse(rp, throw IllegalArgumentException(s"undefined routine ${rp.s}"))
         require(refs.size == r.refs.size && mentions.size == r.mentions.size, s"arity mismatch calling ${rp.s}")
-        val ps = refs.map(evalPath(_, pc, sc))
-        val ss = mentions.map(rec(_, pc, sc))
-        val nextP = r.refs.zip(ps).toMap
-        val nextS = r.mentions.zip(ss).toMap
-        // Match the symbol evaluator's stable union-tail-call convention.
-        r.body match
-          case Union(left, Call(`rp`, tailP, tailS)) if tailP == refs && tailS == mentions &&
-              tailP.map(evalPath(_, nextP, nextS)) == ps && tailS.map(rec(_, nextP, nextS)) == ss =>
-            rec(left, nextP, nextS)
-          case _ => rec(r.body, nextP, nextS)
-      case Mention(ref) => sc(ref)
-      case Singleton(p) => st.singleton(evalPath(p, pc, sc))
-      case Literal(ps) => st.value(ps.map(st.path))
-      case Union(a, b) => st.union(rec(a, pc, sc), rec(b, pc, sc))
-      case Intersection(a, b) => st.value(st.paths(rec(a, pc, sc)) intersect st.paths(rec(b, pc, sc)))
-      case Subtraction(a, b) => st.value(st.paths(rec(a, pc, sc)) diff st.paths(rec(b, pc, sc)))
-      case Restriction(a, b) =>
-        val prefixes = st.paths(rec(b, pc, sc))
-        st.value(st.paths(rec(a, pc, sc)).filter(p => prefixes.exists(st.startsWith(p, _))))
-      case Raffination(a, b) =>
-        val prefixes = st.paths(rec(b, pc, sc))
-        st.value(st.paths(rec(a, pc, sc)).filterNot(p => prefixes.exists(st.startsWith(p, _))))
-      case Composition(a, b) =>
-        val left = st.paths(rec(a, pc, sc))
-        if left.isEmpty then st.empty
+        for
+          ps <- sequence(refs)(path(_, pc, sc))
+          ss <- sequence(mentions)(rec(_, pc, sc))
+          out <-
+            val nextP = r.refs.zip(ps).toMap
+            val nextS = r.mentions.zip(ss).toMap
+            r.body match
+              case Union(left, Call(`rp`, tailP, tailS)) if tailP == refs && tailS == mentions =>
+                for
+                  againP <- sequence(tailP)(path(_, nextP, nextS))
+                  againS <- if againP == ps then sequence(tailS)(rec(_, nextP, nextS)) else done(Vector.empty[V])
+                  value <- rec(if againP == ps && againS == ss then left else r.body, nextP, nextS)
+                yield value
+              case _ => rec(r.body, nextP, nextS)
+        yield out
+      case Mention(ref) => done(sc(ref))
+      case Singleton(p) => path(p, pc, sc).map(st.singleton)
+      case Literal(ps) =>
+        val cached = literalSpaces.get(s)
+        if cached != null then done(cached)
         else
-          val right = st.paths(rec(b, pc, sc))
-          st.value(for p <- left; q <- right yield st.concat(p, q))
-      case Wrap(src, p) =>
-        val prefix = evalPath(p, pc, sc)
-        st.value(st.paths(rec(src, pc, sc)).map(st.concat(prefix, _)))
-      case Unwrap(src, p) =>
-        val prefix = evalPath(p, pc, sc)
-        st.value(st.paths(rec(src, pc, sc)).filter(st.startsWith(_, prefix)).map(st.drop(_, st.length(prefix))))
-      case TailsUnion(src) => st.value(groups(rec(src, pc, sc)).flatMap(g => st.paths(g._2)).toSet)
-      case TailsIntersection(src) =>
-        val gs = groups(rec(src, pc, sc))
+          val value = st.value(ps.map(st.path))
+          literalSpaces.put(s, value)
+          done(value)
+      case Union(a, b) => for x <- rec(a, pc, sc); y <- rec(b, pc, sc) yield st.union(x, y)
+      case Intersection(a, b) => for x <- rec(a, pc, sc); y <- rec(b, pc, sc) yield st.value(st.paths(x) intersect st.paths(y))
+      case Subtraction(a, b) => for x <- rec(a, pc, sc); y <- rec(b, pc, sc) yield st.value(st.paths(x) diff st.paths(y))
+      case Restriction(a, b) =>
+        for
+          prefixes <- rec(b, pc, sc)
+          source <- rec(a, pc, sc)
+        yield st.value(st.paths(source).filter(p => st.paths(prefixes).exists(st.startsWith(p, _))))
+      case Raffination(a, b) =>
+        for
+          prefixes <- rec(b, pc, sc)
+          source <- rec(a, pc, sc)
+        yield st.value(st.paths(source).filterNot(p => st.paths(prefixes).exists(st.startsWith(p, _))))
+      case Composition(a, b) => rec(a, pc, sc).flatMap { left =>
+        if st.paths(left).isEmpty then done(st.empty)
+        else rec(b, pc, sc).map(right => st.value(for p <- st.paths(left); q <- st.paths(right) yield st.concat(p, q)))
+      }
+      case Wrap(src, p) => for prefix <- path(p, pc, sc); value <- rec(src, pc, sc)
+        yield st.value(st.paths(value).map(st.concat(prefix, _)))
+      case Unwrap(src, p) => for prefix <- path(p, pc, sc); value <- rec(src, pc, sc)
+        yield st.value(st.paths(value).filter(st.startsWith(_, prefix)).map(st.drop(_, st.length(prefix))))
+      case TailsUnion(src) => rec(src, pc, sc).map(v => st.value(groups(v).flatMap(g => st.paths(g._2)).toSet))
+      case TailsIntersection(src) => rec(src, pc, sc).map { v =>
+        val gs = groups(v)
         if gs.isEmpty then st.empty else st.value(gs.map(g => st.paths(g._2)).reduce(_ intersect _))
-      case PrefixClosure(src) =>
-        st.value(st.paths(rec(src, pc, sc)).flatMap(p => (1 to st.length(p)).map(st.take(p, _))))
-      case SuffixClosure(src) =>
-        st.value(st.paths(rec(src, pc, sc)).flatMap(p => (0 until st.length(p)).map(st.drop(p, _))))
-      case TailsClosure(src) =>
-        st.value(st.paths(rec(src, pc, sc)).flatMap(p => (0 to st.length(p)).map(st.drop(p, _))))
-      case Iteration(src, h, rest, body) =>
-        groups(rec(src, pc, sc)).foldLeft(st.empty) { case (out, (head, tails)) =>
-          st.union(out, rec(body, bindP(pc, h, head), bindS(sc, rest, tails)))
+      }
+      case PrefixClosure(src) => rec(src, pc, sc).map(v =>
+        st.value(st.paths(v).flatMap(p => (1 to st.length(p)).map(st.take(p, _)))))
+      case SuffixClosure(src) => rec(src, pc, sc).map(v =>
+        st.value(st.paths(v).flatMap(p => (0 until st.length(p)).map(st.drop(p, _)))))
+      case TailsClosure(src) => rec(src, pc, sc).map(v =>
+        st.value(st.paths(v).flatMap(p => (0 to st.length(p)).map(st.drop(p, _)))))
+      case Iteration(src, h, rest, body) => rec(src, pc, sc).flatMap { value =>
+        groups(value).foldLeft(done(st.empty)) { case (out, (head, tails)) =>
+          out.flatMap(acc => rec(body, bindP(pc, h, head), bindS(sc, rest, tails)).map(st.union(acc, _)))
         }
+      }
       case Fold(src, initial, acc, h, rest, body, update) =>
-        var current = evalPath(initial, pc, sc)
-        var out = st.empty
-        for (head, tails) <- groups(rec(src, pc, sc)) do
-          val pctx = bindP(bindP(pc, acc, current), h, head)
-          val sctx = bindS(sc, rest, tails)
-          out = st.union(out, rec(body, pctx, sctx))
-          current = evalPath(update, pctx, sctx)
-        out
+        for
+          initialPath <- path(initial, pc, sc)
+          value <- rec(src, pc, sc)
+          result <- groups(value).foldLeft(done(initialPath -> st.empty)) { case (state, (head, tails)) =>
+            state.flatMap { (current, out) =>
+              val pctx = bindP(bindP(pc, acc, current), h, head)
+              val sctx = bindS(sc, rest, tails)
+              for emitted <- rec(body, pctx, sctx); next <- path(update, pctx, sctx)
+                yield next -> st.union(out, emitted)
+            }
+          }
+        yield result._2
       case Fixpoint(initial, variable, step) =>
-        var current = rec(initial, pc, sc)
-        var changed = true
-        while changed do
-          val next = st.union(current, rec(step, pc, bindS(sc, variable, current)))
-          changed = st.paths(next) != st.paths(current)
-          current = next
-        current
-      case GroundedPS(p, f) => st.value(f(st.items(evalPath(p, pc, sc))).map(st.path))
-      case GroundedSS(src, f) => st.value(f(st.paths(rec(src, pc, sc)).map(st.items)).map(st.path))
-      case Range(src, start, end) =>
-        val ps = st.paths(rec(src, pc, sc))
+        def rounds(current: V): TailRec[V] = rec(step, pc, bindS(sc, variable, current)).flatMap { stepped =>
+          val next = st.union(current, stepped)
+          if st.paths(next) == st.paths(current) then done(current) else tailcall(rounds(next))
+        }
+        rec(initial, pc, sc).flatMap(rounds)
+      case GroundedPS(p, f) => path(p, pc, sc).map(v => st.value(f(st.items(v)).map(st.path)))
+      case GroundedSS(src, f) => rec(src, pc, sc).map(v => st.value(f(st.paths(v).map(st.items)).map(st.path)))
+      case Range(src, start, end) => rec(src, pc, sc).map { value =>
+        val ps = st.paths(value)
         val (lo, hi) = RangeBounds.normalize(ps.size, start, end)
         st.value(ps.toVector.sortWith(st.compare(_, _) < 0).slice(lo, hi).toSet)
-    rec(expr, pathInputs, spaceInputs)
+      }
+    )
+    rec(expr, pathInputs, spaceInputs).result
 
 object VectorStorage:
   def apply[A](ordering: Ordering[A]): Storage[A, Vector[A], Set[Vector[A]]] = new Storage[A, Vector[A], Set[Vector[A]]]:

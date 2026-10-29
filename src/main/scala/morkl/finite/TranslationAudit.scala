@@ -93,4 +93,8 @@ object TranslationAudit:
         symbols(bytes, Codes.bytesToSymbols, "bytes -> 256 symbols")
         observations.incrementAndGet()
         expected
+      catch
+        case error: Throwable =>
+          System.err.println(s"Translation audit failed after ${comparisons.get()} comparisons: ${s.show}")
+          throw error
       finally current.remove()
