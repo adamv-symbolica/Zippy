@@ -1,5 +1,7 @@
 # Finite-alphabet review follow-up
 
+Historical round-two report; superseded by [round three](FINITE_ALPHABET_REVIEW_R3.md).
+
 This addresses `feedback.md` and retains the techniques in `learnings.md`.
 The review's referenced scratch probes were absent in this checkout, so its
 E1–E5 inputs were reconstructed. `WordEncodingBenchmarks.scala` is the durable

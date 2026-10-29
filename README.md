@@ -36,8 +36,9 @@ See [Proof Status](#proof-status) and [`fallbacks.md`](docs/fallbacks.md).
 | --- | --- |
 | `src/main/scala/MORKL.scala` | language syntax, reference evaluator, operation graphs, optimization, and `execT` |
 | `src/main/scala/WordLanguage.scala` | bit/byte syntax and set reference evaluators |
+| `src/main/scala/ByteTrie.scala` | 256-ary byte-trie reference evaluator backend |
 | `src/main/scala/WordCompiler.scala` | encoding translations into existing operations and routines |
-| `src/main/scala/WordEncoding.scala` | Fibonacci, terminated UTF-8, fixed intern IDs, and injections |
+| `src/main/scala/WordEncoding.scala` | Fibonacci, total CESU-8, stable intern IDs, sorted dictionaries, and injections |
 | `src/main/scala/TrieSpace.scala` | interned trie representation and native algebra |
 | `src/main/scala/ZipperSpace.scala` | virtual zipper operators, traversal, context, and `execZ` |
 | `src/main/scala/Supercompiler.scala` | positive supercompiler and residualization |

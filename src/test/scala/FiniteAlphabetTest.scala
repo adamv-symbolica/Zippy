@@ -59,11 +59,11 @@ class FiniteAlphabetTest extends FunSuite:
     }
 
   test("all source constructs commute with Fibonacci, string and fixed intern encodings") {
-    checkSymbols(WordEncodings.internedSymbolsToBits(interner()), false)
-    checkSymbols(WordEncodings.internedSymbolsToBits(interner()), true)
+    checkSymbols(WordEncodings.sortedDictionaryBits(interner()), false)
+    checkSymbols(WordEncodings.sortedDictionaryBits(interner()), true)
     checkSymbols(WordEncodings.stringSymbolsToBytes(interner()), false)
     checkSymbols(WordEncodings.stringSymbolsToBytes(interner()), true)
-    checkSymbols(WordEncodings.internedSymbolsToBytes(interner()), false)
+    checkSymbols(WordEncodings.sortedDictionaryBytes(interner()), false)
   }
 
   private def nativeExpressions[P](ops: WordOps[P]): Vector[WordSpace[P]] =
@@ -204,7 +204,8 @@ class FiniteAlphabetTest extends FunSuite:
     }
     intercept[IllegalArgumentException](code.decode(ByteWords.fromDigits(Vector(1, 3, 0))))
     val malformed = new PathItemInterner; malformed.intern(PathItem("\uD800"))
-    intercept[java.nio.charset.CharacterCodingException](WordEncodings.stringSymbolsToBytes(malformed))
+    val surrogateCode = WordEncodings.stringSymbolsToBytes(malformed)
+    assertEquals(surrogateCode.decode(surrogateCode.encode(p("\uD800"))), p("\uD800"))
   }
 
   test("open string encoding preserves JVM order without a compilation dictionary") {
@@ -243,7 +244,7 @@ class FiniteAlphabetTest extends FunSuite:
   }
 
   test("path bounds drive finite scanner unrolling without becoming exact lengths") {
-    val code = WordEncodings.internedSymbolsToBits(interner())
+    val code = WordEncodings.sortedDictionaryBits(interner())
     val expr = SymbolWordLanguage.space(Space.Iteration(input, h, t, Space.Singleton(Path.Deref(h))))
     val recursive = code.compile(expr, unrollBounded = false)
     val unrolled = code.compile(expr, unrollBounded = true)
@@ -273,15 +274,15 @@ class FiniteAlphabetTest extends FunSuite:
     assertEquals(WordPathLength.upper(boundProgram.entry.asInstanceOf[WordSpace.Singleton[BigInt]].p)(using BitWords), code.maxCodeLength.map(n => BigInt(n * 2)))
     val byte = WordEncodings.bytesToBits.compile(ByteSpace.Singleton(BytePath.Deref(ref)))
     assertEquals(WordPathLength.upper(byte.entry.asInstanceOf[WordSpace.Singleton[BigInt]].p)(using BitWords), Some(BigInt(16)))
-    val boundedStrings = WordEncodings.stringSymbolsToBytes(interner(), maxSymbolBytes = Some(4))
+    val boundedStrings = WordEncodings.stringSymbolsToBytes(interner(), maxSymbolBytes = Some(6))
     checkSymbols(boundedStrings, true)
   }
 
   test("seeded dependent programs commute with all symbol encodings") {
     val rng = new scala.util.Random(0x7a69707079L)
-    val bits = WordEncodings.internedSymbolsToBits(interner())
+    val bits = WordEncodings.sortedDictionaryBits(interner())
     val strings = WordEncodings.stringSymbolsToBytes(interner())
-    val interned = WordEncodings.internedSymbolsToBytes(interner())
+    val interned = WordEncodings.sortedDictionaryBytes(interner())
     def generate(depth: Int): Space =
       if depth == 0 then rng.nextInt(4) match
         case 0 => input

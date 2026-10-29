@@ -70,8 +70,12 @@ object SymbolWordLanguage:
     case WordSpace.Range(s, a, b) => Space.Range(symbolSpace(s), a, b)
   def symbolRoutine(r: WordRoutine[PathValue]): Routine = Routine(r.name, r.refs, r.mentions, symbolSpace(r.body))
 
-final class SymbolWords(val interner: PathItemInterner) extends WordOps[PathValue]:
+final class SymbolWords(val interner: PathItemInterner, closed: Boolean = false) extends WordOps[PathValue]:
+  private val allowed = if closed then Some((0 until interner.size).map(i => interner.decodeItem(i).show -> i).toMap) else None
   def alphabetSize: Int = interner.size
-  def digits(p: PathValue): Vector[Int] = interner.encode(p).toVector
+  def digits(p: PathValue): Vector[Int] = allowed match
+    case None => interner.encode(p).toVector
+    case Some(ids) => p.items.iterator.map(item => ids.getOrElse(item.show,
+      throw IllegalArgumentException(s"symbol ${item.show} is outside the closed dictionary"))).toVector
   def fromDigits(p: Iterable[Int]): PathValue = interner.decodePath(p)
   override def compare(p: PathValue, q: PathValue): Int = PathItemOrder.given_Ordering_PathValue.compare(p, q)

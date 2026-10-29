@@ -83,6 +83,8 @@ final class PathItemInterner:
       id
     })
 
+  def lookup(item: PathItem): Option[Int] = ids.get(item.show)
+
   def size: Int = items.length
 
   def encode(path: PathValue): List[Int] =

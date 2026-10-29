@@ -1,7 +1,5 @@
 package morkl
 
-import java.nio.{ByteBuffer, CharBuffer}
-import java.nio.charset.{CodingErrorAction, StandardCharsets}
 
 /** Codeword boundaries are recognized by generated ordinary target programs.
   * This description belongs to the compiler, never to an evaluated space.
@@ -14,7 +12,7 @@ enum WordCodeShape:
 final case class WordEncoding[A, B](source: WordOps[A], target: WordOps[B],
     code: Int => Vector[Int], decodeDigit: Vector[Int] => Int,
     shape: WordCodeShape, maxCodeLength: Option[Int],
-    orderedDigits: Vector[Int], preservesOrder: Boolean, utf8StringOrder: Boolean = false):
+    orderedDigits: Vector[Int], preservesOrder: Boolean, unsupportedOrdering: Option[String] = None):
   def encode(p: A): B = target.fromDigits(source.digits(p).flatMap(code))
   def decode(p: B): A =
     val ds = target.digits(p)
@@ -84,14 +82,14 @@ object WordEncodings:
     WordCodeShape.Fixed(8), Some(8), (0 until 256).toVector, true)
 
   private def symbols(interner: PathItemInterner): (SymbolWords, Vector[Int]) =
-    val ops = new SymbolWords(interner)
+    val ops = new SymbolWords(interner, closed = true)
     val ordered = (0 until interner.size).toVector.sortBy(i => interner.decodeItem(i).show)
     ops -> ordered
 
   /** The interner is a compilation alphabet. Register open input symbols before
     * constructing an encoding, as well as symbols occurring in the program.
     */
-  def internedSymbolsToBits(interner: PathItemInterner): WordEncoding[PathValue, BigInt] =
+  def sortedDictionaryBits(interner: PathItemInterner): WordEncoding[PathValue, BigInt] =
     val (ops, order) = symbols(interner)
     // Reassign the same Fibonacci code set in lexical order. Raw interner IDs
     // are allocation order, and need not have the source symbol ordering.
@@ -105,7 +103,7 @@ object WordEncodings:
       word => inverse.getOrElse(FibonacciCode.decode(word), throw IllegalArgumentException("Fibonacci word is outside the declared encoding alphabet")),
       WordCodeShape.Fibonacci, Some(max), order, true)
 
-  def internedSymbolsToBytes(interner: PathItemInterner): WordEncoding[PathValue, BytePathValue] =
+  def sortedDictionaryBytes(interner: PathItemInterner): WordEncoding[PathValue, BytePathValue] =
     val (ops, order) = symbols(interner)
     val ranks = order.zipWithIndex.toMap
     WordEncoding(ops, ByteWords, id =>
@@ -118,45 +116,64 @@ object WordEncodings:
         order(rank),
       WordCodeShape.Fixed(4), Some(4), order, true)
 
+  /** Literal interner IDs are stable and open-world. Lexical order of future
+    * names cannot be recovered from IDs, so ordered source ops fail by name.
+    */
+  def internedSymbolsToBits(interner: PathItemInterner): WordEncoding[PathValue, BigInt] =
+    WordEncoding(new SymbolWords(interner), BitWords, FibonacciCode.encode, FibonacciCode.decode,
+      WordCodeShape.Fibonacci, Some(FibonacciCode.encode(Int.MaxValue).size), Vector.empty, false,
+      Some("literal Fibonacci interner IDs"))
+
+  def internedSymbolsToBytes(interner: PathItemInterner): WordEncoding[PathValue, BytePathValue] =
+    WordEncoding(new SymbolWords(interner), ByteWords,
+      id => Vector.tabulate(4)(i => (id >>> (24 - i * 8)) & 255),
+      ds => { require(ds.size == 4 && ds.head < 128); ds.foldLeft(0)((n, b) => (n << 8) | b) },
+      WordCodeShape.Fixed(4), Some(4), Vector.empty, false, Some("literal four-byte interner IDs"))
+
+  /** CESU-8 encodes UTF-16 code units separately, including lone surrogates.
+    * It is total on Java String and preserves String.compareTo byte order.
+    */
   def stringSymbolsToBytes(interner: PathItemInterner, maxSymbolBytes: Option[Int] = None): WordEncoding[PathValue, BytePathValue] =
     require(maxSymbolBytes.forall(n => n >= 0 && n < Int.MaxValue), "invalid string-symbol byte bound")
-    val (ops, order) = symbols(interner)
-    def utf8(id: Int): Vector[Int] =
-      val text = interner.decodeItem(id).show
-      val encoder = StandardCharsets.UTF_8.newEncoder().onMalformedInput(CodingErrorAction.REPORT)
-      val buffer = encoder.encode(CharBuffer.wrap(text))
-      val bytes = new Array[Byte](buffer.remaining()); buffer.get(bytes)
-      // Escape NUL and the escape byte in-band, leaving NUL exclusively as
-      // the terminator. This is also order preserving: NUL -> 1,1; SOH -> 1,2.
-      val result = bytes.iterator.flatMap { raw =>
-        (raw & 255) match
-          case 0 => Vector(1, 1)
-          case 1 => Vector(1, 2)
-          case b => Vector(b)
-      }.toVector :+ 0
+    val ops = new SymbolWords(interner)
+    def encode(id: Int): Vector[Int] =
+      val bytes = Vector.newBuilder[Int]
+      interner.decodeItem(id).show.foreach { c =>
+        val n = c.toInt
+        if n == 0 then bytes ++= Vector(1, 1)
+        else if n == 1 then bytes ++= Vector(1, 2)
+        else if n < 128 then bytes += n
+        else if n < 2048 then bytes ++= Vector(0xC0 | (n >>> 6), 0x80 | (n & 63))
+        else bytes ++= Vector(0xE0 | (n >>> 12), 0x80 | ((n >>> 6) & 63), 0x80 | (n & 63))
+      }
+      val result = bytes.result() :+ 0
       require(maxSymbolBytes.forall(result.size - 1 <= _), "string symbol exceeds its declared byte bound")
       result
-    order.foreach(utf8) // Validate any already interned strings, including malformed UTF-16.
-    WordEncoding(ops, ByteWords, utf8,
-      ds =>
-        require(ds.nonEmpty && ds.last == 0)
-        val payload = ds.dropRight(1)
-        val bytes = Vector.newBuilder[Byte]
-        var index = 0
-        while index < payload.size do
-          if payload(index) == 1 then
-            require(index + 1 < payload.size && (payload(index + 1) == 1 || payload(index + 1) == 2), "invalid string escape")
-            bytes += (payload(index + 1) - 1).toByte
-            index += 2
-          else
-            require(payload(index) != 0, "interior string terminator")
-            bytes += payload(index).toByte
-            index += 1
-        val decoder = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
-        val text = decoder.decode(ByteBuffer.wrap(bytes.result().toArray)).toString
-        interner.intern(PathItem(text)),
-      WordCodeShape.Terminated(0), maxSymbolBytes.map(n => Math.addExact(n, 1)),
-      order, false, utf8StringOrder = true)
+    def decode(ds: Vector[Int]): Int =
+      require(ds.nonEmpty && ds.last == 0)
+      val text = new java.lang.StringBuilder
+      var i = 0
+      val end = ds.size - 1
+      def continuation(at: Int): Int =
+        require(at < end && ds(at) >= 0x80 && ds(at) <= 0xBF, "invalid CESU-8 continuation")
+        ds(at) & 63
+      while i < end do
+        val b = ds(i)
+        if b == 1 then
+          require(i + 1 < end && (ds(i + 1) == 1 || ds(i + 1) == 2), "invalid string escape")
+          text.append((ds(i + 1) - 1).toChar); i += 2
+        else if b >= 2 && b < 128 then
+          text.append(b.toChar); i += 1
+        else if b >= 0xC2 && b <= 0xDF then
+          text.append((((b & 31) << 6) | continuation(i + 1)).toChar); i += 2
+        else
+          require(b >= 0xE0 && b <= 0xEF, "invalid CESU-8 lead byte")
+          val n = ((b & 15) << 12) | (continuation(i + 1) << 6) | continuation(i + 2)
+          require(n >= 2048, "overlong CESU-8 word")
+          text.append(n.toChar); i += 3
+      interner.intern(PathItem(text.toString))
+    WordEncoding(ops, ByteWords, encode, decode, WordCodeShape.Terminated(0), maxSymbolBytes.map(_ + 1),
+      Vector.empty, true)
 
   def bitsToSymbols(falseSymbol: PathItem = PathItem("false"), trueSymbol: PathItem = PathItem("true")):
       WordEncoding[BigInt, PathValue] =
@@ -174,3 +191,6 @@ object WordEncodings:
     items.foreach(interner.intern)
     WordEncoding(ByteWords, new SymbolWords(interner), b => Vector(b), _.head,
       WordCodeShape.Fixed(1), Some(1), (0 until 256).toVector, items.map(_.show) == items.map(_.show).sorted)
+
+final case class UnsupportedEncodedOrdering(codec: String, operation: String)
+  extends IllegalArgumentException(s"$operation requires symbol ordering unavailable for $codec; use a sortedDictionary codec or CESU-8")
