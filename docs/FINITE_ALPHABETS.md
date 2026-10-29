@@ -89,7 +89,11 @@ Each decoder has one lifted user body. Small closed Fibonacci alphabets unroll
 the code trie and call that body at the leaves, so nested iterations do not
 multiply copies of an inner program. Bounded larger scanners specialize a
 (state, depth) DAG under a compiler-wide 512-state budget; excess decoders use
-bounded recursive routines. Fixed-width scans expand to their known depth.
+bounded recursive routines. Fully open ID codecs keep two recursive scanner
+states with their conservative global bound; snapshots and tighter ID bounds
+specialize depth. Each scanner can inline two digits between routine calls,
+reducing call allocation with a constant amount of code expansion. Fixed-width
+scans expand to their known depth.
 Unbounded strings use recursive scanners. `unrollBounded = false` disables
 optional specialization. All dispatch filters input before `Iteration`, with
 inactive continuations never entered on eager backends.
@@ -125,7 +129,7 @@ Structural path counts support rank slicing. Binary algebra, composition and
 rank slicing use explicit work stacks, including 100,000-byte overlapping paths
 on a 512 KiB thread. Iteration maintains a mutable traversal buffer and copies
 only when emitting a path; it does not copy each intermediate prefix. No symbol tables or boundary
-metadata are stored in the trie. `Head` observes at most the 256 mask bits.
+metadata are stored in the trie. `Head` observes at most the 256 child positions.
 Some closure projections enumerate paths in this reference implementation.
 
 The old `ByteZipper` remains a compatibility cursor over a set. Byte-trie

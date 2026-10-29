@@ -27,10 +27,19 @@ trait WordOps[P]:
 object BitWords extends WordOps[BigInt]:
   val alphabetSize = 2
   override val empty: BigInt = BigInt(1)
-  def fromDigits(p: Iterable[Int]): BigInt = p.foldLeft(empty) { (n, b) =>
-    require(b == 0 || b == 1, s"not a bit: $b")
-    (n << 1) | BigInt(b)
-  }
+  private val zero: BigInt = BigInt(2)
+  private val one: BigInt = BigInt(3)
+  def fromDigits(p: Iterable[Int]): BigInt =
+    val it = p.iterator
+    var small = 1L; var width = 0
+    while it.hasNext && width < 62 do
+      val bit = it.next(); require(bit == 0 || bit == 1, s"not a bit: $bit")
+      small = (small << 1) | bit; width += 1
+    var word = BigInt(small)
+    while it.hasNext do
+      val bit = it.next(); require(bit == 0 || bit == 1, s"not a bit: $bit")
+      word = (word << 1) | BigInt(bit)
+    word
   def digits(p: BigInt): Vector[Int] =
     require(p > 0, "a bit word must have a leading length delimiter")
     Vector.tabulate(p.bitLength - 1)(i => if p.testBit(p.bitLength - 2 - i) then 1 else 0)
@@ -63,7 +72,7 @@ object BitWords extends WordOps[BigInt]:
     if n < 0 then None
     else if p.bitLength <= 63 then
       val bits = p.toLong
-      Some(BigInt(if (bits & (1L << n)) == 0 then 2 else 3) -> BigInt((bits & ((1L << n) - 1)) | (1L << n)))
+      Some((if (bits & (1L << n)) == 0 then zero else one) -> BigInt((bits & ((1L << n) - 1)) | (1L << n)))
     else Some(take(p, 1) -> drop(p, 1))
 
 /** Array-backed immutable value. The backing array is never exposed, including
@@ -280,7 +289,7 @@ object WordEvaluator:
             case Empty() => result(store.empty)
             case Mention(m) => result(sc(m).paths)
             case Literal(v) => result(stored(v.paths))
-            case Singleton(p) => after(() => result(store.from(Vector(pathValue)))); path(p, pc, sc)
+            case Singleton(p) => after(() => result(store.singleton(pathValue))); path(p, pc, sc)
             case Call(r, ps, ss) =>
               stats.foreach(x => x.calls += 1)
               val routine = routines(r)

@@ -193,7 +193,11 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
       case shape =>
         val prefix = code.maxCodeLength.fold(pr("prefix")) { max => pr("prefix").bounded(max) }
         val remaining = sm("remaining")
-        val bounded = unrollBounded && limit.exists(n => 2 * n <= decoderBudget)
+        // The global open-ID bound admits billions of symbols: retain two
+        // scanner states there. Specialize a useful vocabulary/id bound.
+        val specializeDepth = shape != WordCodeShape.Fibonacci || code.orderedDigits.nonEmpty ||
+          limit.exists(_ < FibonacciCode.encode(Int.MaxValue).size)
+        val bounded = unrollBounded && specializeDepth && limit.exists(n => 2 * n <= decoderBudget)
         if bounded then decoderBudget -= 2 * limit.get
         val cache = mutable.Map.empty[(Boolean, Int), RoutinePtr]
         def scanner(previousOne: Boolean, depth: Int): RoutinePtr =
@@ -201,21 +205,26 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
           cache.getOrElseUpdate(key, {
             val name = rp("scan")
             cache(key) = name
-            def arm(n: Int, keep: Boolean, state: Boolean, complete: Boolean): WordSpace[B] =
-              val digit = pr("digit").known(1); val rest = sm("digits")
-              val accepted = Literal(WordSpaceValue(Set(target.fromDigits(Vector(n)))))
-              val selected = if keep then Restriction(mention(remaining), accepted) else Raffination(mention(remaining), accepted)
-              val nextPrefix = WordPath.Concat(deref(prefix), deref(digit))
-              val continuation =
-                if complete then finish(nextPrefix, mention(rest))
-                else if bounded && depth + 1 >= limit.get then Empty()
-                else Call(scanner(state, depth + 1), nextPrefix +: cps.map(deref), mention(rest) +: css.map(mention))
-              Iteration(selected, digit, rest, continuation)
-            val branch = shape match
-              case WordCodeShape.Fibonacci => Union(arm(0, true, false, false), arm(1, true, true, previousOne))
-              case WordCodeShape.Terminated(b) => Union(arm(b, true, false, true), arm(b, false, false, false))
-              case _ => throw IllegalStateException("fixed scanner dispatched as variable")
-            definitions(name) = WordRoutine(name, prefix +: cps, remaining +: css, branch)
+            // Inline one extra digit between routine boundaries. This keeps
+            // the state/depth DAG bounded while halving call-frame churn.
+            def branch(previous: Boolean, at: Int, accumulated: WordPath[B], input: WordSpace[B], inline: Boolean): WordSpace[B] =
+              def arm(n: Int, keep: Boolean, state: Boolean, complete: Boolean): WordSpace[B] =
+                val digit = pr("digit").known(1); val rest = sm("digits")
+                val accepted = Literal(WordSpaceValue(Set(target.fromDigits(Vector(n)))))
+                val selected = if keep then Restriction(input, accepted) else Raffination(input, accepted)
+                val nextPrefix = WordPath.Concat(accumulated, deref(digit))
+                val continuation =
+                  if complete then finish(nextPrefix, mention(rest))
+                  else if bounded && at + 1 >= limit.get then Empty()
+                  else if inline then branch(state, at + 1, nextPrefix, mention(rest), false)
+                  else Call(scanner(state, at + 1), nextPrefix +: cps.map(deref), mention(rest) +: css.map(mention))
+                Iteration(selected, digit, rest, continuation)
+              shape match
+                case WordCodeShape.Fibonacci => Union(arm(0, true, false, false), arm(1, true, true, previous))
+                case WordCodeShape.Terminated(b) => Union(arm(b, true, false, true), arm(b, false, false, false))
+                case _ => throw IllegalStateException("fixed scanner dispatched as variable")
+            val body = branch(previousOne, depth, deref(prefix), mention(remaining), unrollBounded)
+            definitions(name) = WordRoutine(name, prefix +: cps, remaining +: css, body)
             name
           })
         Call(scanner(false, 0), constant(target.empty) +: cps.map(deref), src +: css.map(mention))

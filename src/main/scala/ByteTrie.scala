@@ -157,6 +157,7 @@ private[morkl] final class ByteTrieBackend extends WordSetBackend[BytePathValue]
     case t: ByteTrieSet => t.trie
     case _ => ByteTrie.fromPaths(values)
   private def set(t: ByteTrie): Set[BytePathValue] = new ByteTrieSet(t)
+  override def singleton(word: BytePathValue): Set[BytePathValue] = set(ByteTrie.empty.insert(word))
   override def literal(values: Set[BytePathValue]): Set[BytePathValue] = from(values)
   override def from(values: Iterable[BytePathValue]): Set[BytePathValue] = values match
     case t: ByteTrieSet => t
