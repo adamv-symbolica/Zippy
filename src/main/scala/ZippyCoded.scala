@@ -33,8 +33,15 @@ package morkl
  *    interner-4   String -> bytes, the 4 big-endian bytes of the `Interner` id
  *    fib-dict / dict-4  closed-dictionary, order-preserving specializations of the two above
  *    byte-8bit    bytes -> bits;  bit-byte, bit-symbol, byte-symbol: alphabet injections
- *  Interner-id codes do not preserve symbol order, so `Range` (other than the identity window) and
- *  `Fold` are rejected for them with a named error rather than translated wrongly.
+ *  Interner-id codes do not preserve symbol order.  Order-free uses of `Fold` (accumulator `_` or
+ *  unchanged) become one Iteration under every code.  Other `Range` / `Fold` need a FROZEN ADMISSIBLE
+ *  VOCABULARY (`InternerId4.ordered(vocab)`, `FibInterner(bound).ordered(vocab)`): ids stay the stable
+ *  interner ids, and the compiler emits ordinary recoding routines into an order-preserving projection
+ *  (dict-4 / fib-dict over the vocabulary) and back around each ordered step.  Without a vocabulary
+ *  they are rejected with a named error — an integer id cannot reveal where a future symbol sorts.
+ *
+ *  The reference evaluator is a trampoline (`TailCalls`): generated recursion depth (fold loops, scans
+ *  over long codes) costs heap, not JVM stack.  See docs/ZIPPY_CODED.md for the contract and limits.
  *
  *  EXAMPLE
  *  {{{
@@ -336,6 +343,7 @@ final class VecRepr[A](using ord: Ordering[A]) extends PathRepr[A, Vector[A]]:
  *  operator `X ↦ X ∪ F(X)`, same self-call passthrough on `Call`, same `Range` slice order. */
 final class ZEval[A, R](val repr: PathRepr[A, R], routines: Map[RoutinePtr, ZRoutine[A]] = Map.empty[RoutinePtr, ZRoutine[A]],
                         checkHints: Boolean = false):
+  import scala.util.control.TailCalls.*
   /** AST nodes evaluated so far: the work counter the scaling checks read */
   var steps: Long = 0L
   /** with `checkHints`, every binding of an annotated ref (`.known(n)`) is checked against its value */
@@ -348,73 +356,123 @@ final class ZEval[A, R](val repr: PathRepr[A, R], routines: Map[RoutinePtr, ZRou
   private def bindP(pc: PC, k: PathRef, v: R): PC = { hint(k, v); if k.s == "_" then pc else pc.updated(k, v) }
   private def bindS(sc: SC, k: SpaceMention, v: Set[R]): SC = if k.s == "_" then sc else sc.updated(k, v)
 
-  def path(x: ZPath[A], pc: PC, sc: SC): R = x match
-    case ZPath.Deref(pr) => pc.getOrElse(pr, throw RuntimeException(s"$pr path ref not resolved"))
-    case ZPath.Constant(v) => repr.fromAtoms(v)
-    case ZPath.Concat(l, r) => repr.concat(path(l, pc, sc), path(r, pc, sc))
-    case ZPath.GroundedPP(q, f) => repr.fromAtoms(f(repr.toAtoms(path(q, pc, sc))))
-    case ZPath.GroundedSP(q, f) => repr.fromAtoms(f(apply(q, pc, sc).map(repr.toAtoms)))
+  // A Literal denotes one constant set: it is built once per evaluator, and large literal sets get a
+  // sorted index so prefix queries (Restriction / Unwrap by a few prefixes — the shape of a recoding
+  // table lookup) are a binary search instead of a scan.  Pure evaluator caching: same results.
+  private val literals = java.util.IdentityHashMap[ZSpace.Literal[A], Set[R]]()
+  private val indexed = java.util.IdentityHashMap[Set[R], Array[AnyRef]]()
+  private def literal(l: ZSpace.Literal[A]): Set[R] =
+    var v = literals.get(l)
+    if v == null then
+      v = l.p.map(repr.fromAtoms); literals.put(l, v)
+      if v.size > 32 then indexed.put(v, v.toArray[Any].map(_.asInstanceOf[AnyRef]).sortWith((x, y) => repr.compare(x.asInstanceOf[R], y.asInstanceOf[R]) < 0))
+    v
+  /** the elements of `s` starting with prefix `p` (extensions of p are contiguous in canonical order) */
+  private def withPrefix(s: Set[R], p: R): Iterator[R] =
+    val ix = indexed.get(s)
+    if ix == null then s.iterator.filter(repr.startsWith(_, p))
+    else
+      var lo = 0; var hi = ix.length
+      while lo < hi do { val m = (lo + hi) >>> 1; if repr.compare(ix(m).asInstanceOf[R], p) < 0 then lo = m + 1 else hi = m }
+      ix.iterator.drop(lo).map(_.asInstanceOf[R]).takeWhile(repr.startsWith(_, p))
+  private def restrict(xs: Set[R], ps: Set[R]): Set[R] =
+    if indexed.containsKey(xs) && ps.size * 8 < xs.size then ps.iterator.flatMap(withPrefix(xs, _)).toSet
+    else xs.filter(e => ps.exists(p => repr.startsWith(e, p)))
+
+  /** stack-safe sequencing: every recursive evaluation goes through `TailCalls`, so deep generated
+   *  recursion (fold loops, scanners over long codes) runs in constant JVM stack */
+  private def foldT[X, S](it: Iterator[X], z: S)(f: (S, X) => TailRec[S]): TailRec[S] =
+    if !it.hasNext then done(z) else { val x = it.next(); f(z, x).flatMap(s => tailcall(foldT(it, s)(f))) }
+  private def allT[X](xs: Vector[X])(f: X => TailRec[Boolean]): TailRec[Boolean] =
+    foldT(xs.iterator, true)((ok, x) => if !ok then done(false) else f(x))
+  private def mapT[X, Y](xs: Vector[X])(f: X => TailRec[Y]): TailRec[Vector[Y]] =
+    foldT(xs.iterator, Vector.empty[Y])((acc, x) => f(x).map(acc :+ _))
+
+  def path(x: ZPath[A], pc: PC = Map.empty, sc: SC = Map.empty): R = pathT(x, pc, sc).result
+  def apply(s: ZSpace[A], pc: PC = Map.empty, sc: SC = Map.empty): Set[R] = ev(s, pc, sc).result
+
+  private def pathT(x: ZPath[A], pc: PC, sc: SC): TailRec[R] = x match
+    case ZPath.Deref(pr) => done(pc.getOrElse(pr, throw RuntimeException(s"$pr path ref not resolved")))
+    case ZPath.Constant(v) => done(repr.fromAtoms(v))
+    case ZPath.Concat(l, r) => for a <- tailcall(pathT(l, pc, sc)); b <- tailcall(pathT(r, pc, sc)) yield repr.concat(a, b)
+    case ZPath.GroundedPP(q, f) => tailcall(pathT(q, pc, sc)).map(v => repr.fromAtoms(f(repr.toAtoms(v))))
+    case ZPath.GroundedSP(q, f) => tailcall(ev(q, pc, sc)).map(v => repr.fromAtoms(f(v.map(repr.toAtoms))))
 
   private def groups(s: Set[R]): Map[R, Set[R]] = s.iterator.flatMap(repr.uncons).toSeq.groupMap(_._1)(_._2).view.mapValues(_.toSet).toMap
 
-  def apply(s: ZSpace[A], pc: PC = Map.empty, sc: SC = Map.empty): Set[R] =
-    def rec(x: ZSpace[A]): Set[R] = apply(x, pc, sc)
+  private def ev(s: ZSpace[A], pc: PC, sc: SC): TailRec[Set[R]] =
+    def rec(x: ZSpace[A]): TailRec[Set[R]] = tailcall(ev(x, pc, sc))
+    def bin(x: ZSpace[A], y: ZSpace[A])(f: (Set[R], Set[R]) => Set[R]) = for a <- rec(x); b <- rec(y) yield f(a, b)
     steps += 1
     s match
-      case ZSpace.Empty() => Set.empty
+      case ZSpace.Empty() => done(Set.empty)
       case ZSpace.Call(rp, refs, ms) =>
-        val refvs = refs.map(path(_, pc, sc))
-        val msvs = ms.map(rec)
-        val ZRoutine(_, refns, msns, body) = routines.getOrElse(rp, throw RuntimeException(s"routine ${rp.s} not defined"))
-        // formals are bound DIRECTLY (as `eval` does: `PathContextMap(Map.from(refns zip refvs))`):
-        // only local binders ignore `_`; a formal named `_` is an ordinary parameter
-        refns.zip(refvs).foreach(hint)
-        val pctx: PC = Map.from(refns zip refvs)
-        val sctx: SC = Map.from(msns zip msvs)
-        body match
-          case ZSpace.Union(l, ZSpace.Call(`rp`, `refs`, `ms`))
-            if refs.zip(refvs).forall((p, v) => path(p, pctx, sctx) == v) && ms.zip(msvs).forall((q, v) => apply(q, pctx, sctx) == v) =>
-            apply(l, pctx, sctx)
-          case _ => apply(body, pctx, sctx)
-      case ZSpace.Mention(v) => sc.getOrElse(v, throw RuntimeException(s"$v space mention not resolved"))
-      case ZSpace.Singleton(p) => Set(path(p, pc, sc))
-      case ZSpace.Literal(ps) => ps.map(repr.fromAtoms)
-      case ZSpace.Union(x, y) => rec(x) union rec(y)
-      case ZSpace.Intersection(x, y) => rec(x) intersect rec(y)
-      case ZSpace.Subtraction(x, y) => rec(x) removedAll rec(y)
-      case ZSpace.Restriction(x, y) => val ps = rec(y); rec(x).filter(e => ps.exists(p => repr.startsWith(e, p)))
-      case ZSpace.Raffination(x, y) => val ps = rec(y); rec(x).filterNot(e => ps.exists(p => repr.startsWith(e, p)))
-      case ZSpace.Composition(x, y) => val ys = rec(y); for a <- rec(x); b <- ys yield repr.concat(a, b)
-      case ZSpace.Wrap(src, p) => val pv = path(p, pc, sc); rec(src).map(repr.concat(pv, _))
-      case ZSpace.Unwrap(src, p) => val pv = path(p, pc, sc); rec(src).collect { case e if repr.startsWith(e, pv) => repr.dropPrefix(e, pv) }
-      case ZSpace.TailsUnion(src) => rec(src).flatMap(e => repr.uncons(e).map(_._2))
+        for
+          refvs <- mapT(refs)(p => tailcall(pathT(p, pc, sc)))
+          msvs <- mapT(ms)(rec)
+          res <- {
+            val ZRoutine(_, refns, msns, body) = routines.getOrElse(rp, throw RuntimeException(s"routine ${rp.s} not defined"))
+            // formals are bound DIRECTLY (as `eval` does: `PathContextMap(Map.from(refns zip refvs))`):
+            // only local binders ignore `_`; a formal named `_` is an ordinary parameter
+            refns.zip(refvs).foreach(hint)
+            val pctx: PC = Map.from(refns zip refvs)
+            val sctx: SC = Map.from(msns zip msvs)
+            body match
+              case ZSpace.Union(l, ZSpace.Call(`rp`, `refs`, `ms`)) =>
+                // self-call passthrough, as in `eval`: the call re-binds the same arguments
+                for
+                  same <- allT(refs.indices.toVector)(i => tailcall(pathT(refs(i), pctx, sctx)).map(_ == refvs(i)))
+                  same2 <- if !same then done(false) else allT(ms.indices.toVector)(i => tailcall(ev(ms(i), pctx, sctx)).map(_ == msvs(i)))
+                  r <- tailcall(ev(if same2 then l else body, pctx, sctx))
+                yield r
+              case _ => tailcall(ev(body, pctx, sctx))
+          }
+        yield res
+      case ZSpace.Mention(v) => done(sc.getOrElse(v, throw RuntimeException(s"$v space mention not resolved")))
+      case ZSpace.Singleton(p) => tailcall(pathT(p, pc, sc)).map(Set(_))
+      case l: ZSpace.Literal[A] => done(literal(l))
+      case ZSpace.Union(x, y) => bin(x, y)(_ union _)
+      case ZSpace.Intersection(x, y) => bin(x, y)(_ intersect _)
+      case ZSpace.Subtraction(x, y) => bin(x, y)(_ removedAll _)
+      case ZSpace.Restriction(x, y) => bin(x, y)(restrict)
+      case ZSpace.Raffination(x, y) => bin(x, y)((xs, ps) => xs.filterNot(e => ps.exists(p => repr.startsWith(e, p))))
+      case ZSpace.Composition(x, y) => bin(x, y)((xs, ys) => for a <- xs; b <- ys yield repr.concat(a, b))
+      case ZSpace.Wrap(src, p) => for pv <- tailcall(pathT(p, pc, sc)); v <- rec(src) yield v.map(repr.concat(pv, _))
+      case ZSpace.Unwrap(src, p) => for pv <- tailcall(pathT(p, pc, sc)); v <- rec(src) yield withPrefix(v, pv).map(repr.dropPrefix(_, pv)).toSet
+      case ZSpace.TailsUnion(src) => rec(src).map(_.flatMap(e => repr.uncons(e).map(_._2)))
       case ZSpace.TailsIntersection(src) =>
-        val g = groups(rec(src))
-        if g.isEmpty then Set.empty else g.valuesIterator.reduce(_ intersect _)
+        rec(src).map { v => val g = groups(v); if g.isEmpty then Set.empty else g.valuesIterator.reduce(_ intersect _) }
       case ZSpace.Iteration(src, h, r, t) =>
-        groups(rec(src)).iterator.flatMap((hv, rv) => apply(t, bindP(pc, h, hv), bindS(sc, r, rv))).toSet
+        rec(src).flatMap(v => foldT(groups(v).iterator, Set.empty[R])((acc, hr) =>
+          tailcall(ev(t, bindP(pc, h, hr._1), bindS(sc, r, hr._2))).map(acc union _)))
       case ZSpace.Fixpoint(init, r, body) =>
-        var cur = rec(init)
-        var stop = false
-        while !stop do
-          val nxt = cur union apply(body, pc, bindS(sc, r, cur))
-          if nxt == cur then stop = true else cur = nxt
-        cur
+        def loop(cur: Set[R]): TailRec[Set[R]] =
+          tailcall(ev(body, pc, bindS(sc, r, cur))).flatMap { b =>
+            val nxt = cur union b
+            if nxt == cur then done(cur) else tailcall(loop(nxt))
+          }
+        rec(init).flatMap(loop)
       case ZSpace.Fold(src, initial, acc, h, r, t, u) =>
-        var accV = path(initial, pc, sc)
-        val out = Set.newBuilder[R]
-        for (hv, rv) <- groups(rec(src)).toSeq.sortBy(_._1) do
-          val pc1 = bindP(bindP(pc, acc, accV), h, hv)
-          val sc1 = bindS(sc, r, rv)
-          out ++= apply(t, pc1, sc1)
-          accV = path(u, pc1, sc1)
-        out.result()
-      case ZSpace.GroundedPS(p, f) => f(repr.toAtoms(path(p, pc, sc))).map(repr.fromAtoms)
-      case ZSpace.GroundedSS(q, f) => f(rec(q).map(repr.toAtoms)).map(repr.fromAtoms)
+        for
+          acc0 <- tailcall(pathT(initial, pc, sc))
+          v <- rec(src)
+          res <- foldT(groups(v).toSeq.sortBy(_._1).iterator, (acc0, Set.empty[R])) { case ((accV, out), (hv, rv)) =>
+            val pc1 = bindP(bindP(pc, acc, accV), h, hv)
+            val sc1 = bindS(sc, r, rv)
+            for o <- tailcall(ev(t, pc1, sc1)); a2 <- tailcall(pathT(u, pc1, sc1)) yield (a2, out union o)
+          }
+        yield res._2
+      case ZSpace.GroundedPS(p, f) => tailcall(pathT(p, pc, sc)).map(v => f(repr.toAtoms(v)).map(repr.fromAtoms))
+      case ZSpace.GroundedSS(q, f) => rec(q).map(v => f(v.map(repr.toAtoms)).map(repr.fromAtoms))
       case ZSpace.Range(x, lo, hi) =>
-        val v = rec(x)
-        val (l, h) = RangeBounds.normalize(v.size, lo, hi)
-        if h <= l then Set.empty else if l == 0 && h == v.size then v else v.toVector.sorted.slice(l, h).toSet
+        rec(x).map { v =>
+          val (l, h) = RangeBounds.normalize(v.size, lo, hi)
+          if h <= l then Set.empty
+          else if l == 0 && h == v.size then v
+          else if h - l == 1 && l == 0 then Set(v.min)                 // one-element slices: a scan, not a sort
+          else if h - l == 1 && h == v.size then Set(v.max)
+          else v.toVector.sorted.slice(l, h).toSet
+        }
 
 object ZEval:
   def bits(rs: Iterable[ZRoutine[Bit]] = Nil, checkHints: Boolean = false) = ZEval(BitRepr, rs.map(r => r.name -> r).toMap, checkHints)
@@ -443,6 +501,10 @@ trait Code[A, B]:
   def fixedLength: Option[Int] = None
   /** code order = symbol order (Java `String.compareTo` per item): required for `Range` and `Fold` */
   def orderPreserving: Boolean = true
+  /** for a code that is NOT order-preserving: a frozen admissible vocabulary and an order-preserving
+   *  code over it with the same target alphabet.  Ordered operators are compiled through ordinary
+   *  recoding routines into this projection and back (see `CodedTranslation`). */
+  def orderProjection: Option[(Code[A, B], Vector[A])] = None
   def name: String
 
   private def matches(c: AtomClass[B], b: B): Boolean = c match
@@ -505,7 +567,7 @@ object Codes:
    *  do not depend on the program or on other symbols.  CONTRACT: every admissible symbol has an id
    *  below `idBound`; that bound fixes the maximum code length, i.e. the decoder's recursion depth.
    *  Interner ids are first-seen order, not symbol order, so `Range`/`Fold` are rejected. */
-  final class FibInterner(val idBound: Int) extends Code[String, Bit]:
+  final class FibInterner(val idBound: Int, val snapshot: Option[Vector[String]] = None) extends Code[String, Bit]:
     require(idBound >= 1)
     val name = "fib-interner"
     def enc(a: String) =
@@ -516,8 +578,12 @@ object Codes:
       val fibs = Iterator.iterate((1L, 2L))((a, b) => (b, a + b)).map(_._1)
       Interner.unintern((c.init.zip(fibs).collect { case (true, f) => f }.sum - 1).toInt)
     val automaton = FibAutomaton
-    override val maxCodeLength = Some((1 to idBound).iterator.map(fibonacci(_).length).max)
+    // Fibonacci code length is monotone in n, so the longest code below the bound is that of idBound itself
+    override val maxCodeLength = Some(fibonacci(idBound).length)
     override def orderPreserving = false
+    override val orderProjection = snapshot.map(v => (FibDictionary(v), v.distinct))
+    /** the same stable ids, plus a frozen admissible vocabulary for `Range` / `Fold` */
+    def ordered(vocab: Iterable[String]) = FibInterner(idBound, Some(vocab.toVector))
 
   /** STRING SYMBOLS -> BYTES, NUL-terminated.  Every UTF-16 code unit (lone surrogates included) is
    *  written as the generalized-UTF-8 encoding of its 16-bit value, so byte order = code-unit order =
@@ -562,17 +628,21 @@ object Codes:
 
   /** INTERNED SYMBOLS -> BYTES: the 4 big-endian bytes of the stable `Interner` id — the same int an
    *  `ITrie` keys on.  Stable across programs; not order-preserving, so `Range`/`Fold` are rejected. */
-  object InternerId4 extends Code[String, Byte]:
+  final class InternerIds4(val snapshot: Option[Vector[String]]) extends Code[String, Byte]:
     val name = "interner-4"
     def enc(a: String) = be4(Interner.intern(a))
     def dec(c: Vector[Byte]) = Interner.unintern(unbe4(c))
     val automaton = Fixed4
     override def fixedLength = Some(4)
     override def orderPreserving = false
+    override val orderProjection = snapshot.map(v => (Dictionary4(v), v.distinct))
+    /** the same stable 4-byte ids, plus a frozen admissible vocabulary for `Range` / `Fold` */
+    def ordered(vocab: Iterable[String]) = InternerIds4(Some(vocab.toVector))
+  val InternerId4 = InternerIds4(None)
 
   private def be4(i: Int) = Vector((i >>> 24).toByte, (i >>> 16).toByte, (i >>> 8).toByte, i.toByte)
   private def unbe4(c: Vector[Byte]) = c.foldLeft(0)((acc, b) => (acc << 8) | (b & 0xff))
-  private val Fixed4 = Vector.tabulate(4)(q => Vector(AtomClass.AnyAtom[Byte]() -> (if q == 3 then None else Some(q + 1))))
+  private lazy val Fixed4 = Vector.tabulate(4)(q => Vector(AtomClass.AnyAtom[Byte]() -> (if q == 3 then None else Some(q + 1))))
 
   /** BYTES -> BITS, one to eight (MSB first: unsigned byte order = bit order) */
   object BytesToBits extends Code[Byte, Bit]:
@@ -648,10 +718,30 @@ final class CodedTranslation[A, B](val code: Code[A, B], reserved: Set[String], 
   private def emit(r: ZRoutine[B]): Unit =
     require(!out.contains(r.name), s"routine ${r.name.s} defined twice"); out(r.name) = r
 
-  private def ordered(what: String): Unit =
-    if !code.orderPreserving then throw UnsupportedOperationException(
-      s"${code.name}: $what needs symbol order, which this code (stable interner ids) does not preserve; " +
-      "use an order-preserving code (string-nul, fib-dict, dict-4) for programs with ordered operators")
+  /** the order projection of a non-order-preserving code (stable interner ids carry no symbol order) */
+  private def projection(what: String): (Code[A, B], Vector[A]) = code.orderProjection.getOrElse(throw UnsupportedOperationException(
+    s"${code.name}: $what needs symbol order; an interner id does not determine it — compile with a frozen " +
+    "admissible vocabulary (`.ordered(vocab)`), or use an order-preserving code (string-nul, fib-dict, dict-4)"))
+
+  /** RECODING between the code and its order projection, as an ordinary routine:
+   *    recode(X) = (X ∩ {ε}) ∪ ⋃_{head h of X} Unwrap(T, h) × recode(tail_h)
+   *  where T = { from(c) ++ to(c) | c in vocabulary } is a literal table (prefix-free: Unwrap(T, h) is
+   *  exactly {to(c)} for the c with from(c) = h, and empty for an inadmissible head). */
+  private val recoders = collection.mutable.Map.empty[Boolean, RoutinePtr]
+  private def recode(toProjection: Boolean, x: ZSpace[B]): ZSpace[B] =
+    val rp = recoders.getOrElseUpdate(toProjection, {
+      val (pc, vocab) = projection("Range/Fold")
+      val (from, to) = if toProjection then (code, pc) else (pc, code)
+      val rp = RoutinePtr(nm(if toProjection then "to_order" else "from_order"))
+      val tab = ZSpace.Literal[B](vocab.map(c => from.enc(c) ++ to.enc(c)).toSet)
+      val xm = SpaceMention(nm("x"))
+      val body = ZSpace.Union(ZSpace.Intersection(ZSpace.Mention(xm), ZSpace.Singleton(ZPath.Constant(Vector()))),
+        decode(from, ZSpace.Mention(xm), Vector(), Vector(),
+          (hp, r) => ZSpace.Composition(ZSpace.Unwrap(tab, hp), ZSpace.Call(rp, Vector(), Vector(r)))))
+      emit(ZRoutine(rp, Vector(), Vector(xm), body))
+      rp
+    })
+    ZSpace.Call(rp, Vector(), Vector(x))
 
   def space(s: ZSpace[A]): ZSpace[B] = s match
     case ZSpace.Empty() => ZSpace.Empty()
@@ -671,9 +761,10 @@ final class CodedTranslation[A, B](val code: Code[A, B], reserved: Set[String], 
     case ZSpace.GroundedPS(p, f) => ZSpace.GroundedPS(path(p), v => f(code.decPath(v)).map(code.encPath))
     case ZSpace.GroundedSS(q, f) => ZSpace.GroundedSS(space(q), x => f(x.map(code.decPath)).map(code.encPath))
     // order-preserving code: the canonical-order slice of the image is the image of the slice
+    // a non-order-preserving code slices in its order projection: recode, slice, recode back
     case ZSpace.Range(x, lo, hi) =>
-      if !(lo == 0 && hi == 0) then ordered("Range")
-      ZSpace.Range(space(x), lo, hi)
+      if code.orderPreserving || (lo == 0 && hi == 0) then ZSpace.Range(space(x), lo, hi)
+      else recode(false, ZSpace.Range(recode(true, space(x)), lo, hi))
     // ---- the atom-observing cases ----
     case ZSpace.Iteration(src, h, r, t) =>
       if unit then ZSpace.Iteration(space(src), ref(h), r, space(t)) else iteration(space(src), h, r, t)
@@ -684,7 +775,21 @@ final class CodedTranslation[A, B](val code: Code[A, B], reserved: Set[String], 
       if unit then ZSpace.TailsIntersection(space(x)) else space(tailsIntersection(x))
     case f @ ZSpace.Fold(src, i, a, h, r, t, u) =>
       if unit then ZSpace.Fold(space(src), path(i), ref(a), ref(h), r, space(t), path(u))
-      else { ordered("Fold"); space(fold(f)) }
+      // the accumulator is never bound (`_`): the fold is a union over groups, order-free
+      else if a.s == "_" then space(ZSpace.Iteration(src, h, r, t))
+      // the accumulator never changes (u = a, not shadowed by the head): bind it once, iterate
+      else if u == ZPath.Deref(a) && (h.s == "_" || h != a) then space(constantFold(src, i, a, h, r, t))
+      else if code.orderPreserving then space(fold(f))
+      else projectedFold(f)
+
+  /** Fold(src, i, a, h, r, t, a) = (λ a. Iteration(src, h, r, t))(i), with src evaluated outside a's scope */
+  private def constantFold(src: ZSpace[A], i: ZPath[A], a: PathRef, h: PathRef, r: SpaceMention, t: ZSpace[A]): ZSpace[A] =
+    val rp = RoutinePtr(nm("fold_const")); val xm = SpaceMention(nm("x"))
+    val it = ZSpace.Iteration(ZSpace.Mention[A](xm), h, r, t)
+    val (fp0, fm0) = ZOps.free(it)
+    val fp = (fp0 - a).toVector.sortBy(_.s); val fm = (fm0 - xm).toVector.sortBy(_.s)
+    routine(ZRoutine(rp, a +: fp, xm +: fm, it))
+    ZSpace.Call(rp, i +: fp.map(ZPath.Deref[A](_)), src +: fm.map(ZSpace.Mention[A](_)))
 
   /** a binder spelled `_` binds nothing: give its lifted formal a fresh name so `_` stays free */
   private def formalP(pr: PathRef): PathRef = if pr.s == "_" then PathRef(nm("ignored")) else pr
@@ -726,6 +831,34 @@ final class CodedTranslation[A, B](val code: Code[A, B], reserved: Set[String], 
         ZSpace.Raffination(ZSpace.Mention(ss), ZSpace.Singleton(ZPath.Deref(hS))) +: fmA))))
     ZSpace.Call(loop, initial +: fpA, src +: fmA)
 
+  /** Fold under a code without symbol order (stable interner ids).  The HEADS of the source are
+   *  recoded ONCE into the order projection; the loop takes the least projected head (a minimum scan),
+   *  recodes that one head back, binds it with the code's decoder and runs the step on the source group
+   *  Unwrap(src, h) — so recoding work is linear in the number of groups.  Steps and shadowing are as
+   *  in `fold`: formals (acc, h) with the head winning, `_` binders fresh. */
+  private def projectedFold(f: ZSpace.Fold[A]): ZSpace[B] =
+    val ZSpace.Fold(src, initial, acc, h, rest, t, u) = f
+    projection("Fold")
+    val (fp0, fm0) = ZOps.free(ZSpace.Union(t, ZSpace.Singleton(u)))
+    val fp = (fp0 -- Set(acc, h).filter(_.s != "_")).toVector.sortBy(_.s)
+    val fm = (fm0 -- Set(rest).filter(_.s != "_")).toVector.sortBy(_.s)
+    val fpT = fp.map(ref); val fpB = fpT.map(ZPath.Deref[B](_)); val fmB = fm.map(ZSpace.Mention[B](_))
+    val entry = RoutinePtr(nm("fold_entry")); val loop = RoutinePtr(nm("fold")); val step = RoutinePtr(nm("fold_step"))
+    val accR = PathRef(nm("acc")); val xm = SpaceMention(nm("x"))
+    val hsm = SpaceMention(nm("heads")); val hsRest = SpaceMention(nm("heads_rest")); val srcm = SpaceMention(nm("src"))
+    val least = ZSpace.Range(ZSpace.Mention[B](hsm), 1, 2)
+    emit(ZRoutine(loop, accR +: fpT, Vector(hsm, srcm) ++ fm,
+      decode(code, recode(false, least), accR +: fpT, Vector(hsm, srcm) ++ fm, (hp, _) =>
+        ZSpace.Call(step, Vector(ZPath.Deref(accR), hp) ++ fpB,
+          Vector(ZSpace.Unwrap(ZSpace.Mention(srcm), hp), ZSpace.Subtraction(ZSpace.Mention(hsm), least), ZSpace.Mention(srcm)) ++ fmB))))
+    val heads = decode(code, ZSpace.Mention(xm), Vector(), Vector(), (hp, _) => ZSpace.Singleton(hp))
+    emit(ZRoutine(entry, accR +: fpT, xm +: fm,
+      ZSpace.Call(loop, ZPath.Deref[B](accR) +: fpB, Vector(recode(true, heads), ZSpace.Mention(xm)) ++ fmB)))
+    val fpA = fp.map(ZPath.Deref[A](_)); val fmA = fm.map(ZSpace.Mention[A](_))
+    routine(ZRoutine(step, Vector(formalP(acc), formalP(h)) ++ fp, Vector(formalS(rest), hsRest, srcm) ++ fm,
+      ZSpace.Union(t, ZSpace.Call(loop, u +: fpA, Vector(ZSpace.Mention[A](hsRest), ZSpace.Mention[A](srcm)) ++ fmA))))
+    ZSpace.Call(entry, path(initial) +: fpB, space(src) +: fmB)
+
   /** Iteration(src, h, rest, t) over A-symbols as a decoder over B-atoms.  The body is lambda-lifted
    *  into a routine of (h, free path refs; rest, free mentions); the decoder walks the atoms of its
    *  space parameter (bound once to `src`) with B-level Iterations, accumulating the code in a path. */
@@ -737,26 +870,33 @@ final class CodedTranslation[A, B](val code: Code[A, B], reserved: Set[String], 
     val fpB = fpT.map(ZPath.Deref[B](_)); val fmB = fm.map(ZSpace.Mention[B](_))
     val body = RoutinePtr(nm("iter_body"))
     routine(ZRoutine(body, formalP(h) +: fp, formalS(rest) +: fm, t))
-    def callBody(hp: ZPath[B], r: ZSpace[B]) = ZSpace.Call(body, hp +: fpB, r +: fmB)
-    def filter(c: AtomClass[B], x: ZSpace[B]): ZSpace[B] = c match
+    decode(code, src, fpT, fm, (hp, r) => ZSpace.Call(body, hp +: fpB, r +: fmB))
+
+  /** the DECODER of code `c` over `src` (evaluated once): for every complete code h at the front of a
+   *  path, with tails r, the result of `leaf(h, r)`.  `fpT` / `fm` are the target refs and mentions the
+   *  leaf mentions; they are threaded through the decoder routines as formals. */
+  private def decode(c: Code[A, B], src: ZSpace[B], fpT: Vector[PathRef], fm: Vector[SpaceMention],
+                     callBody: (ZPath[B], ZSpace[B]) => ZSpace[B]): ZSpace[B] =
+    val fpB = fpT.map(ZPath.Deref[B](_)); val fmB = fm.map(ZSpace.Mention[B](_))
+    def filter(ac: AtomClass[B], x: ZSpace[B]): ZSpace[B] = ac match
       case AtomClass.Is(b) => ZSpace.Restriction(x, ZSpace.Singleton(ZPath.Constant(Vector(b))))
       case AtomClass.Not(bs) => ZSpace.Raffination(x, ZSpace.Literal(bs.map(Vector(_))))
       case AtomClass.AnyAtom() => x
-    def arm(c: AtomClass[B], x: ZSpace[B], acc: ZPath[B], k: (ZPath[B], ZSpace[B]) => ZSpace[B]): ZSpace[B] =
+    def arm(ac: AtomClass[B], x: ZSpace[B], acc: ZPath[B], k: (ZPath[B], ZSpace[B]) => ZSpace[B]): ZSpace[B] =
       val b = PathRef(nm("b")).known(1); val r = SpaceMention(nm("r"))
       val acc2 = acc match
         case ZPath.Constant(v) if v.isEmpty => ZPath.Deref[B](b)
         case _ => ZPath.Concat(acc, ZPath.Deref(b))
-      ZSpace.Iteration(filter(c, x), b, r, k(acc2, ZSpace.Mention(r)))
+      ZSpace.Iteration(filter(ac, x), b, r, k(acc2, ZSpace.Mention(r)))
     def unions(xs: Iterable[ZSpace[B]]): ZSpace[B] = xs.reduceOption(ZSpace.Union(_, _)).getOrElse(ZSpace.Empty())
-    val nStates = code.automaton.length
+    val nStates = c.automaton.length
     val xm = SpaceMention(nm("x")); val accR = PathRef(nm("acc"))
-    val bounded = code.maxCodeLength.filter(l => l.toLong * nStates <= depthBudget)
-    if code.acyclic then
+    val bounded = c.maxCodeLength.filter(l => l.toLong * nStates <= depthBudget)
+    if c.acyclic then
       // FIXED/BOUNDED-LENGTH DECODER: one entry routine, nested Iterations, h = the atom binders
       val entry = RoutinePtr(nm("iter_entry"))
       def go(q: Int, acc: ZPath[B], x: ZSpace[B]): ZSpace[B] =
-        unions(code.automaton(q).map((c, tgt) => arm(c, x, acc, (acc2, r) => tgt match
+        unions(c.automaton(q).map((ac, tgt) => arm(ac, x, acc, (acc2, r) => tgt match
           case None => callBody(acc2, r)
           case Some(q2) => go(q2, acc2, r))))
       emit(ZRoutine(entry, fpT, xm +: fm, go(0, ZPath.Constant(Vector()), ZSpace.Mention(xm))))
@@ -767,20 +907,20 @@ final class CodedTranslation[A, B](val code: Code[A, B], reserved: Set[String], 
         // need atom maxLen+1 is dropped.  Recursion-free: depth ≤ maxLen, size = states × maxLen.
         val rs = Vector.tabulate(nStates, maxLen)((q, d) => RoutinePtr(nm(s"iter_q${q}_d$d")))
         for q <- 0 until nStates; d <- 0 until maxLen do
-          val arms = code.automaton(q).flatMap { (c, tgt) =>
+          val arms = c.automaton(q).flatMap { (ac, tgt) =>
             tgt match
-              case None => Some(arm(c, ZSpace.Mention(xm), ZPath.Deref(accR), (acc2, r) => callBody(acc2, r)))
+              case None => Some(arm(ac, ZSpace.Mention(xm), ZPath.Deref(accR), (acc2, r) => callBody(acc2, r)))
               case Some(q2) if d + 1 < maxLen =>
-                Some(arm(c, ZSpace.Mention(xm), ZPath.Deref(accR), (acc2, r) => ZSpace.Call(rs(q2)(d + 1), acc2 +: fpB, r +: fmB)))
+                Some(arm(ac, ZSpace.Mention(xm), ZPath.Deref(accR), (acc2, r) => ZSpace.Call(rs(q2)(d + 1), acc2 +: fpB, r +: fmB)))
               case _ => None
           }
           emit(ZRoutine(rs(q)(d), accR +: fpT, xm +: fm, unions(arms)))
         if maxLen == 0 then ZSpace.Empty() else ZSpace.Call(rs(0)(0), ZPath.Constant[B](Vector()) +: fpB, src +: fmB)
       case None =>
         // UNBOUNDED DECODER: one recursive routine per state, (acc, free refs; X, free mentions)
-        val states = code.automaton.indices.map(q => RoutinePtr(nm(s"iter_q$q"))).toVector
-        for q <- code.automaton.indices do
-          val arms = code.automaton(q).map((c, tgt) => arm(c, ZSpace.Mention(xm), ZPath.Deref(accR), (acc2, r) => tgt match
+        val states = c.automaton.indices.map(q => RoutinePtr(nm(s"iter_q$q"))).toVector
+        for q <- c.automaton.indices do
+          val arms = c.automaton(q).map((ac, tgt) => arm(ac, ZSpace.Mention(xm), ZPath.Deref(accR), (acc2, r) => tgt match
             case None => callBody(acc2, r)
             case Some(q2) => ZSpace.Call(states(q2), acc2 +: fpB, r +: fmB)))
           emit(ZRoutine(states(q), accR +: fpT, xm +: fm, unions(arms)))
@@ -790,6 +930,11 @@ object CodedTranslation:
   /** translate (main, routines) along `code`; returns the target main and the full target routine table */
   def apply[A, B](code: Code[A, B], main: ZSpace[A], routines: Iterable[ZRoutine[A]] = Nil, depthBudget: Int = 4096): (ZSpace[B], Vector[ZRoutine[B]]) =
     val reserved = ZOps.names(main) ++ routines.flatMap(ZOps.names(_))
+    // a frozen vocabulary is the admissibility contract: the program's own constants must be in it
+    for (_, vocab) <- code.orderProjection do
+      val admissible = vocab.toSet
+      val outside = (ZOps.constants(main) ++ routines.iterator.flatMap(r => ZOps.constants(r.body))).flatten.filterNot(admissible).toSet
+      require(outside.isEmpty, s"${code.name}: program constants outside the frozen vocabulary: ${outside.take(5).mkString(", ")}")
     val t = new CodedTranslation(code, reserved, depthBudget)
     routines.foreach(t.routine)
     val m = t.space(main)

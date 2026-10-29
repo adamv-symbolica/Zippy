@@ -16,6 +16,8 @@ class ZippyCodedCheck extends munit.FunSuite:
   private def rndSpace(rng: scala.util.Random, maxLen: Int = 3) = Set.fill(rng.nextInt(8))(rndPath(rng, maxLen))
 
   private given Ordering[Bit] = Ordering.Boolean
+  /** (constructor, codec chain) pairs that actually ran and matched: the coverage matrix */
+  private val coverage = collection.mutable.Set.empty[(String, String)]
 
   private def symEval(main: SymSpace, rs: Vector[ZRoutine[String]], pc: Map[PathRef, Vector[String]], sc: Map[SpaceMention, Set[Vector[String]]]) =
     ZSym.fromV(eval(ZSym.to(main))(using PathContextMap(pc.map((k, v) => k -> PathValue(v.toList))),
@@ -81,22 +83,28 @@ class ZippyCodedCheck extends munit.FunSuite:
       Chain("symbols->bits->bytes", ByteRepr, jm, jr, v => BitsToBytes.encPath(dictFib.encPath(v))),
       Chain("symbols->bits->symbols", VecRepr[String], sm, sr, v => BitsToSyms.encPath(dictFib.encPath(v))),
       Chain("symbols->bytes->symbols", VecRepr[String], ym, yr, v => BytesToSyms.encPath(StringBytes.encPath(v))))
-    if ordered(main, rs) then ordinary
-    else
-      val (im, ir) = CodedTranslation(InternerId4, main, rs)
-      val (fim, fir) = CodedTranslation(fibI, main, rs)
-      ordinary ++ Vector(
-        Chain("symbols->bytes (interner-4)", ByteRepr, im, ir, InternerId4.encPath),
-        Chain("symbols->bits (fib-interner)", BitRepr, fim, fir, fibI.encPath))
+    // the stable-id routes ALWAYS run: plain for order-free programs, with the frozen vocabulary otherwise
+    univ.foreach(Interner.intern)
+    val fibIp = FibInterner(Interner.size + 16)
+    val (i4, fi) = if ordered(main, rs) then (InternerId4.ordered(univ), fibIp.ordered(univ)) else (InternerId4, fibIp)
+    val (im, ir) = CodedTranslation(i4, main, rs)
+    val (fim, fir) = CodedTranslation(fi, main, rs)
+    val (fim0, fir0) = CodedTranslation(fi, main, rs, depthBudget = 0)
+    ordinary ++ Vector(
+      Chain("symbols->bytes (interner-4)", ByteRepr, im, ir, i4.encPath),
+      Chain("symbols->bits (fib-interner, depth-bounded)", BitRepr, fim, fir, fi.encPath),
+      Chain("symbols->bits (fib-interner, recursive)", BitRepr, fim0, fir0, fi.encPath))
 
   private def checkFrames(main: SymSpace, rs: Vector[ZRoutine[String]], frames: Seq[(Map[PathRef, Vector[String]], Map[SpaceMention, Set[Vector[String]]])]): Unit =
     val cs = chains(main, rs)
+    val kinds = (main +: rs.map(_.body)).flatMap(sub).map(_.productPrefix).toSet
     for (pc, sc) <- frames do
       val exp = symEval(main, rs, pc, sc)
       assertEquals(ZEval.syms(rs, checkHints = true)(main, pc, sc), exp)
       for c <- cs do
         val ch = c.asInstanceOf[Chain[Any, Any]]
         assertEquals(ch.run(pc, sc), ch.want(exp), s"${c.label} on ${ZSym.to(main).show}")
+        for k <- kinds do coverage += ((k, c.label))
 
   private def frames(main: SymSpace, rng: scala.util.Random, n: Int) =
     val (fp, fm) = ZOps.free(main)
@@ -173,6 +181,7 @@ class ZippyCodedCheck extends munit.FunSuite:
     assertEquals(Interner.internPath(List("zippy-review-z", "zippy-review-a")),
       InternerId4.encPath(Vector("zippy-review-z", "zippy-review-a")).grouped(4).map(g => g.foldLeft(0)((x, b) => (x << 8) | (b & 0xff))).toList)
     assertEquals(fibI.dec(fibI.enc("a")), "a")
+    // without a frozen vocabulary an id cannot say where a symbol sorts: a named rejection, not a wrong answer
     intercept[UnsupportedOperationException](CodedTranslation(InternerId4, ZSpace.Range(s0, 1, 2)))
 
   test("Zippy_bits heads ⊆ {0,1}; Zippy_bytes heads: all 256 unsigned bytes"):
@@ -303,3 +312,150 @@ class ZippyCodedCheck extends munit.FunSuite:
       checkFrames(m, Vector(), fs)
       checked += fs.length
     assert(checked >= 3000, checked)
+
+  // ----------------------------------------------------------------------------------------------
+  // round 3: ordered operators on the stable-id codecs, stack safety, scale, coverage matrix
+
+  /** run `f` on a thread with a deliberately SMALL stack (512 KiB): stack safety, not a big -Xss */
+  private def smallStack[T](f: => T): T =
+    var res: Either[Throwable, T] = null
+    val th = Thread(null, () => res = try Right(f) catch { case e: Throwable => Left(e) }, "small-stack", 512L * 1024)
+    th.start(); th.join()
+    res.fold(e => throw e, identity)
+
+  private val fa = PathRef("a"); private val fh = PathRef("h"); private val ft = SpaceMention("t")
+  /** Fold collecting each head; accumulator unchanged (`u = a`) or changing (`u = a ++ h`, emitted with the head) */
+  private def foldProg[A](src: ZSpace[A], changing: Boolean): ZSpace[A] =
+    if changing then ZSpace.Fold(src, ZPath.Constant(Vector.empty), fa, fh, ft,
+      ZSpace.Singleton(ZPath.Concat(ZPath.Deref(fa), ZPath.Deref(fh))), ZPath.Concat(ZPath.Deref(fa), ZPath.Deref(fh)))
+    else ZSpace.Fold(src, ZPath.Constant(Vector.empty), fa, fh, ft, ZSpace.Singleton(ZPath.Deref(fh)), ZPath.Deref(fa))
+
+  test("stable-id codecs run Range and Fold through a frozen vocabulary; ids are unchanged"):
+    // the review's minimized example: a literal supplies its own vocabulary
+    val src: SymSpace = ZSpace.Range(lit(Vector("z"), Vector("a")), 0, 1)
+    val vocab = Vector("z", "a")
+    for code <- Vector[Code[String, ?]](InternerId4.ordered(vocab), FibInterner(Interner.size + 10).ordered(vocab)) do
+      code match
+        case c: InternerIds4 =>
+          val (m, rs) = CodedTranslation(c, src)
+          assertEquals(ZEval.bytes(rs, checkHints = true)(m), Set(ByteRepr.fromAtoms(c.encPath(Vector("a")))))
+        case c: FibInterner =>
+          val (m, rs) = CodedTranslation(c, src)
+          assertEquals(ZEval.bits(rs, checkHints = true)(m), Set(BitRepr.fromAtoms(c.encPath(Vector("a")))))
+    // OPPOSITE interning and lexical order: ids increase while symbols decrease
+    val tag = "ord" + System.nanoTime()
+    val opp = Vector(s"$tag-9", s"$tag-5", s"$tag-1")
+    opp.foreach(Interner.intern)
+    assert(Interner.intern(opp(0)) < Interner.intern(opp(2)) && opp(0) > opp(2))
+    val idsBefore = opp.map(InternerId4.enc)
+    val gp: SymSpace = ZSpace.Singleton(ZPath.GroundedSP(ZSpace.Range(s0, -2, -1), ps => ps.toVector.flatten.sorted))
+    val ev = RoutinePtr("ev"); val od = RoutinePtr("od")
+    val mutual = Vector(
+      ZRoutine[String](ev, Vector(), Vector(SpaceMention("x")), ZSpace.Union(ZSpace.Range(ZSpace.Mention(SpaceMention("x")), 0, 1),
+        ZSpace.Iteration(ZSpace.Mention(SpaceMention("x")), PathRef("_"), SpaceMention("r"), ZSpace.Call(od, Vector(), Vector(ZSpace.Mention(SpaceMention("r"))))))),
+      ZRoutine[String](od, Vector(), Vector(SpaceMention("x")), ZSpace.Range(ZSpace.TailsUnion(ZSpace.Mention(SpaceMention("x"))), -1, 0)))
+    val progs: Vector[(SymSpace, Vector[ZRoutine[String]])] = Vector(
+      ZSpace.Range(s0, 1, 3) -> Vector(), ZSpace.Range(s0, -3, -1) -> Vector(), ZSpace.Range(s0, -1, 0) -> Vector(),
+      foldProg(s0, changing = true) -> Vector(), foldProg(s0, changing = false) -> Vector(),
+      // accumulator-sensitive: only heads after the first contribute the accumulated prefix
+      ZSpace.Fold(s0, c(), fa, fh, ft, ZSpace.Wrap(ZSpace.Mention(ft), ZPath.Deref(fa)), ZPath.Deref(fh)) -> Vector(),
+      gp -> Vector(), ZSpace.Call(ev, Vector(), Vector(s0)) -> mutual)
+    val rng = scala.util.Random(11)
+    val pool = opp ++ Vector("a", "b", "ab")
+    for (m, rs) <- progs do
+      val fs = Vector.fill(6)((Map.empty[PathRef, Vector[String]],
+        Map(SpaceMention("s0") -> Set.fill(rng.nextInt(7))(Vector.fill(rng.nextInt(4))(pool(rng.nextInt(pool.length)))))))
+      val i4 = InternerId4.ordered(pool); val fi = FibInterner(Interner.size + 16).ordered(pool)
+      val (bm, br) = CodedTranslation(i4, m, rs)
+      val chainsF = Vector(CodedTranslation(fi, m, rs), CodedTranslation(fi, m, rs, depthBudget = 0))
+      for (pc, sc) <- fs do
+        val exp = symEval(m, rs, pc, sc)
+        assertEquals(ZEval.bytes(br, checkHints = true)(bm, sc = sc.map((k, v) => k -> v.map(p => ByteRepr.fromAtoms(i4.encPath(p))))),
+          exp.map(p => ByteRepr.fromAtoms(i4.encPath(p))), ZSym.to(m).show)
+        for (fm, fr) <- chainsF do
+          assertEquals(ZEval.bits(fr, checkHints = true)(fm, sc = sc.map((k, v) => k -> v.map(p => BitRepr.fromAtoms(fi.encPath(p))))),
+            exp.map(p => BitRepr.fromAtoms(fi.encPath(p))), ZSym.to(m).show)
+    Interner.intern(s"$tag-unrelated")
+    assertEquals(opp.map(InternerId4.enc), idsBefore)
+    assertEquals(idsBefore.map(_.foldLeft(0)((x, b) => (x << 8) | (b & 0xff))), opp.map(Interner.intern))
+    // an inadmissible program constant is rejected at compile time
+    intercept[IllegalArgumentException](CodedTranslation(InternerId4.ordered(Vector("a")), ZSpace.Range(lit(Vector("q")), 0, 1)))
+    // no grounded callback is introduced into a pure ordered program
+    val (pm, pr) = CodedTranslation(InternerId4.ordered(pool), foldProg(s0, changing = true))
+    assert(!(pm +: pr.map(_.body)).exists(_.toString.contains("Grounded")))
+
+  test("stack safety: the review's fold, long-head and native byte-fold witnesses on a 512 KiB stack"):
+    smallStack {
+      // A: 200-group fold under dict-4
+      val values = (0 until 200).map(i => Vector(f"s$i%06d")).toSet
+      val fold: SymSpace = ZSpace.Fold(ZSpace.Literal(values), ZPath.Constant(Vector.empty), fa, fh, ft,
+        ZSpace.Singleton(ZPath.Deref(fh)), ZPath.Deref(fa))
+      val d4 = Dictionary4(values.flatten.toVector)
+      for changing <- Vector(false, true) do
+        val src = foldProg(ZSpace.Literal(values), changing)
+        val (m, rs) = CodedTranslation(d4, src)
+        assertEquals(ZEval.bytes(rs)(m), ZEval.syms()(src).map(p => ByteRepr.fromAtoms(d4.encPath(p))))
+      // B: one string head of 512 .. 65,536 characters through the unbounded string scanner
+      for n <- Vector(128, 512, 4096, 65536) do
+        val src: SymSpace = ZSpace.Iteration(ZSpace.Literal(Set(Vector("a" * n))), fh, ft, ZSpace.Singleton(ZPath.Deref(fh)))
+        val (m, rs) = CodedTranslation(StringBytes, src)
+        val out = ZEval.bytes(rs)(m)
+        assertEquals(out, Set(ByteRepr.fromAtoms(StringBytes.enc("a" * n))))
+        assertEquals(out.head.length, n + 1)
+      // C: a NATIVE byte-language Fold over all 256 heads, then bytes -> bits
+      for changing <- Vector(false, true) do
+        val src: ByteSpace = foldProg(ZSpace.Literal((0 until 256).map(i => Vector(i.toByte)).toSet), changing)
+        val native = ZEval.bytes()(src)
+        assertEquals(native.size, 256)
+        val (m, rs) = CodedTranslation(BytesToBits, src)
+        assertEquals(ZEval.bits(rs, checkHints = true)(m), native.map(b => BitRepr.fromAtoms(BytesToBits.encPath(b.bytes.toVector))))
+      // a native bit-language Fold translated to bytes and symbols
+      val bsrc: BitSpace = foldProg(ZSpace.Literal(Set(Vector(true, false), Vector(false), Vector(true, true, false))), changing = true)
+      val bn = ZEval.bits()(bsrc)
+      val (jm, jr) = CodedTranslation(BitsToBytes, bsrc)
+      assertEquals(ZEval.bytes(jr)(jm), bn.map(b => ByteRepr.fromAtoms(BitsToBytes.encPath(BitRepr.toAtoms(b)))))
+    }
+
+  test("fold sweep: 50 .. 10,000 groups, unchanged and changing accumulator, every byte/bit codec"):
+    smallStack {
+      for n <- Vector(0, 50, 200, 800, 4000, 10000); changing <- Vector(false, true) if !(changing && n > 4000) do
+        val syms = (0 until n).map(i => f"g$i%06d").toVector
+        // grouped tails and epsilon: each head carries two tails, plus the empty path
+        val in: Set[Vector[String]] = syms.flatMap(s => Vector(Vector(s), Vector(s, "t"))).toSet + Vector()
+        val src = foldProg(ZSpace.Mention[String](SpaceMention("s")), changing)
+        val exp = ZEval.syms()(src, sc = Map(SpaceMention("s") -> in))
+        val vocab = syms :+ "t"
+        vocab.foreach(Interner.intern)
+        val codes: Vector[Code[String, Byte]] = Vector(Dictionary4(vocab), StringBytes, InternerId4.ordered(vocab))
+        for code <- codes do
+          val (m, rs) = CodedTranslation(code, src)
+          val ev = ZEval.bytes(rs)
+          assertEquals(ev(m, sc = Map(SpaceMention("s") -> in.map(p => ByteRepr.fromAtoms(code.encPath(p))))),
+            exp.map(p => ByteRepr.fromAtoms(code.encPath(p))), s"${code.name} n=$n changing=$changing")
+    }
+
+  test("FibInterner bound: direct maximum code length equals the exhaustive one, logarithmic construction"):
+    for b <- (1 to 3000) do
+      assertEquals(FibInterner(b).maxCodeLength.get, (1 to b).map(Codes.fibonacci(_).length).max, s"bound $b")
+    val size0 = Interner.size
+    val t0 = System.nanoTime()
+    for b <- Vector(1, 64, 65, 1024, 1000000, Int.MaxValue) do
+      val code = FibInterner(b)
+      val (m, rs) = CodedTranslation(code, ZSpace.TailsUnion(s0))
+      assert(rs.length <= 2 * code.maxCodeLength.get + 1, s"bound $b: ${rs.length} routines")
+    assert((System.nanoTime() - t0) / 1e9 < 5.0)
+    assertEquals(Interner.size, size0)
+    assertEquals(FibInterner(Int.MaxValue).maxCodeLength.get, Codes.fibonacci(Int.MaxValue).length)
+
+  test("coverage matrix: every constructor ran through every mandatory codec chain"):
+    val constructors = Set("Empty", "Call", "Mention", "Singleton", "Literal", "Union", "Intersection", "Subtraction",
+      "Restriction", "Raffination", "Composition", "Iteration", "Fixpoint", "Fold", "Wrap", "Unwrap", "TailsUnion",
+      "TailsIntersection", "GroundedPS", "GroundedSS", "Range")
+    // grounded callbacks (with an ordered argument) and Empty, through the same compile-once route
+    val g: SymSpace = ZSpace.Union(ZSpace.GroundedSS(ZSpace.Range(s0, 0, 2), _.map(_.reverse)),
+      ZSpace.Union(ZSpace.GroundedPS(c("a"), v => Set(v, v :+ "b")), ZSpace.Empty()))
+    checkFrames(g, Vector(), frames(g, scala.util.Random(5), 6))
+    val labels = coverage.map(_._2).toSet
+    assertEquals(labels.size, 12, labels.toString)
+    val missing = for k <- constructors; l <- labels if !coverage((k, l)) yield (k, l)
+    assert(missing.isEmpty, s"constructor × codec pairs never exercised: ${missing.toVector.sorted.take(20)}")
