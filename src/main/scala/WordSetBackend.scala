@@ -38,7 +38,9 @@ class WordSetBackend[P](val ops: WordOps[P]):
     from(sorted.iteratorFrom(prefix).takeWhile(ops.startsWith(_, prefix)).map(ops.drop(_, ops.length(prefix))).toVector)
   def wrap(values: Set[P], prefix: P): Set[P] = from(values.iterator.map(ops.concat(prefix, _)).toVector)
   def restrict(a: Set[P], b: Set[P], keep: Boolean): Set[P] =
-    from(a.filter(p => b.exists(ops.startsWith(p, _)) == keep))
+    if a.size == 1 then
+      if b.exists(ops.startsWith(a.head, _)) == keep then a else empty
+    else from(a.filter(p => b.exists(ops.startsWith(p, _)) == keep))
   def compose(a: Set[P], b: Set[P]): Set[P] = from(for p <- a; q <- b yield ops.concat(p, q))
   def range(values: Set[P], start: Int, end: Int): Set[P] =
     val sorted = from(values).asInstanceOf[TreeSet[P]]

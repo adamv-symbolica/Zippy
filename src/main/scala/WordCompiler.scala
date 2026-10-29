@@ -303,7 +303,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
     val step = rp("fold_step")
     definitions(step) = WordRoutine(step, Vector(acc, h) ++ cps, Vector(input, heads, t) ++ css,
       Union(body, Call(loop, update +: cps.map(deref),
-        Vector(mention(input), Range(mention(heads), 2, 0)) ++ css.map(mention))))
+        Vector(mention(input), orderedRange(mention(heads), 2, 0)) ++ css.map(mention))))
     val next = Call(step, Vector(deref(acc), deref(selected)) ++ cps.map(deref),
       Vector(mention(input), mention(heads), Unwrap(mention(input), deref(selected))) ++ css.map(mention))
     definitions(loop) = WordRoutine(loop, acc +: cps, Vector(input, heads) ++ css,

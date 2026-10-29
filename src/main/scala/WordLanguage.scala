@@ -194,6 +194,14 @@ object WordEvaluator:
     def bindPath(pc: PC, r: PathRef, p: P): PC = if r.s == "_" then pc else pc.updated(r, p)
     def bindSpace(sc: SC, r: SpaceMention, s: Set[P]): SC = if r.s == "_" then sc else sc.updated(r, WordSpaceValue(s))
     def traverse[X, Y](xs: Iterable[X])(f: X => TailRec[Y]): TailRec[Vector[Y]] =
+      if xs.knownSize == 0 then return done(Vector.empty)
+      if xs.knownSize == 1 then return f(xs.head).map(y => Vector(y))
+      if xs.knownSize == 2 then
+        val it = xs.iterator; val first = it.next(); val second = it.next()
+        return for a <- f(first); b <- f(second) yield Vector(a, b)
+      if xs.knownSize == 3 then
+        val it = xs.iterator; val first = it.next(); val second = it.next(); val third = it.next()
+        return for a <- f(first); b <- f(second); c <- f(third) yield Vector(a, b, c)
       val iterator = xs.iterator
       val out = Vector.newBuilder[Y]
       def loop(): TailRec[Vector[Y]] =
@@ -262,14 +270,15 @@ object WordEvaluator:
         case Unwrap(s, p) => for prefix <- path(p, pc, sc); values <- rec(s)
           yield store.unwrap(values, prefix)
         case Iteration(s, h, t, body) => rec(s).flatMap { values =>
-          val groups = if h.s == "_" && t.s == "_" && values.size == 1 then None else Some(store.groups(values))
-          if groups.isEmpty then
+          if h.s == "_" && t.s == "_" && values.size == 1 then
             if ops.length(values.head) > 0 then run(body, pc, sc) else done(store.empty)
-          else if groups.get.isEmpty then done(store.empty)
-          else if groups.get.size == 1 then
-            val (head, tail) = groups.get.head
-            run(body, bindPath(pc, h, head), bindSpace(sc, t, tail))
-          else traverse(groups.get)((head, tail) => run(body, bindPath(pc, h, head), bindSpace(sc, t, tail))).map(_.foldLeft(store.empty)(store.union))
+          else
+            val groups = store.groups(values)
+            if groups.isEmpty then done(store.empty)
+            else if groups.size == 1 then
+              val (head, tail) = groups.head
+              run(body, bindPath(pc, h, head), bindSpace(sc, t, tail))
+            else traverse(groups)((head, tail) => run(body, bindPath(pc, h, head), bindSpace(sc, t, tail))).map(_.foldLeft(store.empty)(store.union))
         }
         case Fold(s, initial, acc, h, t, body, update) =>
           for

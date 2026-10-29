@@ -67,9 +67,6 @@ object WordEncodingBenchmarks:
     val left = ByteSpace.Literal(ByteSpaceValue(bytes.paths.take(300)))
     val right = ByteSpace.Literal(ByteSpaceValue(bytes.paths.drop(300).take(300)))
     measure("E5/composition/300x300")(Zippy_bytes.eval(ByteSpace.Composition(left, right)))
-    // ASCII has the same UTF-8/UTF-16 order, so disabling repair is a valid
-    // measurement control here. This is not safe for arbitrary Unicode input.
     val (asciiInterner, ascii) = input(20000)
-    val strings = WordEncodings.stringSymbolsToBytes(asciiInterner)
-    coded("E5/ASCII_range/UTF16_repair", strings, range, ascii)
-    coded("E5/ASCII_range/native_control", strings.copy(preservesOrder = true), range, ascii)
+    coded("E5/ASCII_range/CESU8", WordEncodings.stringSymbolsToBytes(asciiInterner), range, ascii)
+    coded("E5/ASCII_range/dictionary4", WordEncodings.sortedDictionaryBytes(asciiInterner), range, ascii)

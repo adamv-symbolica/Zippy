@@ -47,6 +47,8 @@ class WordEncodingReviewTest extends FunSuite:
     val x = SpaceMention("x"); val h = PathRef("h"); val t = SpaceMention("t")
     val source = SymbolWordLanguage.space(Space.Iteration(Space.Mention(x), h, t, Space.Singleton(Path.Deref(h))))
     val bp = bits.compile(source); val byp = bytes.compile(source)
+    assert(bp.routines.size > 20, "the literal ID bit bound should produce a depth-indexed DAG")
+    assert(bp.routines.size <= 2 * bits.maxCodeLength.get + 1)
     val count = it.size
     intercept[IllegalArgumentException](closed.encode(p("a")))
     assertEquals(it.size, count)
@@ -114,4 +116,23 @@ class WordEncodingReviewTest extends FunSuite:
     for name <- Vector("dictionary4", "dictionaryFib", "CESU8") do
       val exponent = math.log(samples((name,16000)) / samples((name,4000))) / math.log(4)
       assert(exponent <= 1.3, s"$name growth exponent $exponent")
+  }
+
+  test("CESU-8 Range stays within twice four-byte dictionary Range at 20000 paths") {
+    val x = SpaceMention("x")
+    val raw = WordSpaceValue((0 until 20000).map(i => p(f"s_$i%06d")).toSet)
+    val it = new PathItemInterner; raw.paths.foreach(it.encode)
+    val source = SymbolWordLanguage.space(Space.Range(Space.Mention(x), 0, 1))
+    def measure(code: WordEncoding[PathValue, BytePathValue]): Double =
+      val program = code.compile(source)
+      assert(program.routines.isEmpty)
+      val data = Map(x -> code.encodeSpace(raw))
+      def run() = program.eval(spaces = data)(using ByteWords)
+      assertEquals(code.decodeSpace(run()).paths, Set(p("s_000000")))
+      (0 until 3).foreach(_ => run())
+      Vector.fill(7) { val start = System.nanoTime(); run(); (System.nanoTime()-start).toDouble/1e6 }.sorted.apply(3)
+    val fixed = measure(WordEncodings.sortedDictionaryBytes(it))
+    val strings = measure(WordEncodings.stringSymbolsToBytes(it))
+    println(f"Probe E/20000 dictionary=$fixed%.3f ms CESU8=$strings%.3f ms ratio=${strings/fixed}%.2f")
+    assert(strings <= 2 * fixed, s"CESU8 Range $strings exceeds twice dictionary Range $fixed")
   }

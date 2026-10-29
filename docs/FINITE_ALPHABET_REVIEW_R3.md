@@ -36,7 +36,44 @@ references and avoid binding work.
 
 ## Acceptance evidence
 
-RESULTS_PENDING
+The final production-path run passed the 1,000-program × two-frame corpus,
+including 2,000 byte-trie comparisons and 20,920 recorded target evaluations.
+Each literal-ID codec executed 820 programs and raised the required named
+ordering error for 180. The size and normalized-work gates passed. All
+correctness, bounds, long-word, backend, and Range tests in the finite-word
+suites passed.
+
+Probe E (20,000 paths): dictionary Range 8.982 ms, CESU-8 Range 9.082 ms,
+ratio 1.01, below the requested 2× ceiling.
+
+**Unfinished acceptance item: the CESU-8 changing-Fold 20× timing gate.**
+The final strict test failed; it has not been weakened or disabled. Median
+milliseconds after three warmups, five samples, against the real source eval:
+
+| Codec | 4,000 groups | 16,000 groups | Ratio to source at 16,000 |
+| --- | ---: | ---: | ---: |
+| Source symbols | 7.206 | 23.634 | 1.00 |
+| Sorted dictionary bytes | 38.279 | 323.657 | 13.69 |
+| Sorted dictionary Fibonacci | 91.828 | 370.697 | 15.68 |
+| CESU-8 | 96.413 | 493.714 | **20.89** |
+
+The corresponding observed growth exponents are approximately 1.54, 1.01 and
+1.18. The four-byte timing had a large run-to-run outlier (other runs were
+165–198 ms at 16,000), so its final growth sample also misses 1.3. The strict
+20× assertion stops before the exponent checks on this failing run. These
+measurements establish a major improvement over the quadratic implementation,
+but do not establish the full performance acceptance criterion. Further
+allocation profiling and stable benchmark validation remain necessary.
+
+Final regression total: **129 passed, one failed**. The sole failure is the
+strict changing-Fold performance test above. Passing suites include
+`FiniteAlphabetTest` (14), `MORKL2Space` (8), `Routines` (6), `TrieSpaceTest`
+(82), `ResultPathLengthTest` (2), and 17 tests in `WordEncoding*Test`.
+
+Final logs are `/tmp/r3-checked-*.log`, also preserved under
+`~/polemic-notes/zippy-coded-followup-2026-10-29/round-three/`. The benchmark includes ordinary JVM
+allocation/collection costs; no forced-GC exclusion or relaxed timing threshold
+was introduced.
 
 The corpus records raw entry/routine AST counts and executed-node counts per
 program. Its outlier bounds normalize by encoding width and the input/output
