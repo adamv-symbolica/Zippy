@@ -15,6 +15,9 @@ class ZippyCodedCheck extends munit.FunSuite:
   private def rndPath(rng: scala.util.Random, max: Int) = Vector.fill(rng.nextInt(max + 1))(alphabet(rng.nextInt(alphabet.length)))
   private def rndSpace(rng: scala.util.Random, maxLen: Int = 3) = Set.fill(rng.nextInt(8))(rndPath(rng, maxLen))
 
+  // the scale gates time warm medians over 1k..16k groups on five routes: give them room to report the
+  // real budget assertion instead of a generic timeout
+  override val munitTimeout = scala.concurrent.duration.Duration(10, "min")
   private given Ordering[Bit] = Ordering.Boolean
   /** (constructor, codec chain) pairs that actually ran and matched: the coverage matrix */
   private val coverage = collection.mutable.Set.empty[(String, String)]

@@ -548,11 +548,11 @@ final class ZEval[A, R](val repr: PathRepr[A, R], routines: Map[RoutinePtr, ZRou
         rec(src).map { v => val g = groups(v); if g.isEmpty then Set.empty else g.valuesIterator.reduce(_ intersect _) }
       case ZSpace.Iteration(src, h, r, t) =>
         rec(src).flatMap(v => foldT(groups(v).iterator, Set.empty[R])((acc, hr) =>
-          tailcall(ev(t, bindP(pc, h, hr._1), bindS(sc, r, hr._2))).map(acc union _)))
+          tailcall(ev(t, bindP(pc, h, hr._1), bindS(sc, r, hr._2))).map(unite(acc, _))))
       case ZSpace.Fixpoint(init, r, body) =>
         def loop(cur: Set[R]): TailRec[Set[R]] =
           tailcall(ev(body, pc, bindS(sc, r, cur))).flatMap { b =>
-            val nxt = cur union b
+            val nxt = unite(cur, b)
             if nxt == cur then done(cur) else tailcall(loop(nxt))
           }
         rec(init).flatMap(loop)
@@ -563,7 +563,7 @@ final class ZEval[A, R](val repr: PathRepr[A, R], routines: Map[RoutinePtr, ZRou
           res <- foldT(groups(v).toSeq.sortBy(_._1).iterator, (acc0, Set.empty[R])) { case ((accV, out), (hv, rv)) =>
             val pc1 = bindP(bindP(pc, acc, accV), h, hv)
             val sc1 = bindS(sc, r, rv)
-            for o <- tailcall(ev(t, pc1, sc1)); a2 <- tailcall(pathT(u, pc1, sc1)) yield (a2, out union o)
+            for o <- tailcall(ev(t, pc1, sc1)); a2 <- tailcall(pathT(u, pc1, sc1)) yield (a2, unite(out, o))
           }
         yield res._2
       case ZSpace.GroundedPS(p, f) => tailcall(pathT(p, pc, sc)).map(v => f(repr.toAtoms(v)).map(repr.fromAtoms))
