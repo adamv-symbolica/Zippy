@@ -19,24 +19,24 @@ object ZippyTranslations:
     subs(entry)(spre = { case s @ Space.Literal(_) => registerLiteral(s) })
     routines.values.foreach(r => subs(r.body)(spre = { case s @ Space.Literal(_) => registerLiteral(s) }))
     val code = make(interner)
-    val program = code.compile(SymbolWordLanguage.space(ReferenceHints.tag(entry)),
-      routines.view.mapValues(r => SymbolWordLanguage.routine(ReferenceHints.tag(r))).toMap, unrollBounded)
+    val program = code.compile(SymbolWordLanguage.space(entry),
+      routines.view.mapValues(r => SymbolWordLanguage.routine(r)).toMap, unrollBounded)
     code -> program
 
   def symbolsToBits(entry: Space, interner: PathItemInterner = new PathItemInterner,
-      routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = false):
+      routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true):
       (WordEncoding[PathValue, BigInt], WordProgram[BigInt]) =
     symbolProgram(entry, interner, routines, WordEncodings.internedSymbolsToBits, unrollBounded)
 
   def stringsToBytes(entry: Space, interner: PathItemInterner = new PathItemInterner,
-      routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = false):
+      routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true):
       (WordEncoding[PathValue, BytePathValue], WordProgram[BytePathValue]) =
     symbolProgram(entry, interner, routines, i => WordEncodings.stringSymbolsToBytes(i), unrollBounded)
 
   def internedStringsToBytes(entry: Space, interner: PathItemInterner = new PathItemInterner,
-      routines: Map[RoutinePtr, Routine] = Map.empty):
+      routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true):
       (WordEncoding[PathValue, BytePathValue], WordProgram[BytePathValue]) =
-    symbolProgram(entry, interner, routines, WordEncodings.internedSymbolsToBytes, false)
+    symbolProgram(entry, interner, routines, WordEncodings.internedSymbolsToBytes, unrollBounded)
 
   def bitsToBytes(entry: BitSpace, routines: Map[RoutinePtr, BitRoutine] = Map.empty): WordProgram[BytePathValue] =
     WordEncodings.bitsToBytes.compile(entry, routines)

@@ -24,7 +24,8 @@ object WordReferenceHints:
       case Composition(l, r) => Composition(space(l, env), space(r, env))
       case Iteration(src, h, t, b) => Iteration(space(src, env), h.known(1), t, space(b, if h.s == "_" then env else env.updated(h.s, h.known(1))))
       case Fold(src, i, a, h, t, b, u) =>
-        val inner = (env - a.s).updated(h.s, h.known(1))
+        val accumulatorScope = if a.s == "_" then env else env - a.s
+        val inner = if h.s == "_" then accumulatorScope else accumulatorScope.updated(h.s, h.known(1))
         Fold(space(src, env), path(i, env), a, h.known(1), t, space(b, inner), path(u, inner))
       case Fixpoint(i, v, step) => Fixpoint(space(i, env), v, space(step, env))
       case Wrap(src, p) => Wrap(space(src, env), path(p, env))

@@ -245,7 +245,7 @@ class FiniteAlphabetTest extends FunSuite:
   test("path bounds drive finite scanner unrolling without becoming exact lengths") {
     val code = WordEncodings.internedSymbolsToBits(interner())
     val expr = SymbolWordLanguage.space(Space.Iteration(input, h, t, Space.Singleton(Path.Deref(h))))
-    val recursive = code.compile(expr)
+    val recursive = code.compile(expr, unrollBounded = false)
     val unrolled = code.compile(expr, unrollBounded = true)
     def cyclic(program: WordProgram[BigInt]): Boolean =
       def calls(s: BitSpace): Set[RoutinePtr] =
