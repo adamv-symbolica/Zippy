@@ -29,6 +29,11 @@ object PathItem:
 
 case class PathRef(s: String):
   val lengthHint = -1
+  /** Upper bound for encoded words; unlike lengthHint this need not be exact. */
+  def maxLengthHint: Int = lengthHint
+  def bounded(maxLength: Int): PathRef =
+    require(maxLength >= 0)
+    new PathRef(s) { override val maxLengthHint = maxLength }
   def known(length: Int): PathRef =
     if lengthHint == length then this else new PathRef(s) { override val lengthHint = length }
 
