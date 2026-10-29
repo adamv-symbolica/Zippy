@@ -42,7 +42,7 @@ final case class WordEncoding[A, B](source: WordOps[A], target: WordOps[B],
   def encodeSpace(s: WordSpaceValue[A]): WordSpaceValue[B] = WordSpaceValue(s.paths.map(encode))
   def decodeSpace(s: WordSpaceValue[B]): WordSpaceValue[A] = WordSpaceValue(s.paths.map(decode))
   def compile(entry: WordSpace[A], routines: Map[RoutinePtr, WordRoutine[A]] = Map.empty,
-              unrollBounded: Boolean = false): WordProgram[B] =
+              unrollBounded: Boolean = true): WordProgram[B] =
     new WordCompiler(this, unrollBounded).compile(entry, routines)
 
 object FibonacciCode:
@@ -96,15 +96,25 @@ object WordEncodings:
     */
   def internedSymbolsToBits(interner: PathItemInterner): WordEncoding[PathValue, BigInt] =
     val (ops, order) = symbols(interner)
-    val max = order.map(FibonacciCode.encode(_).size).maxOption.getOrElse(2)
-    WordEncoding(ops, BitWords, checkedCode(order.toSet, FibonacciCode.encode), FibonacciCode.decode,
-      WordCodeShape.Fibonacci, Some(max), order, false)
+    // Reassign the same Fibonacci code set in lexical order. Raw interner IDs
+    // are allocation order, and need not have the source symbol ordering.
+    val words = order.indices.map(FibonacciCode.encode).toVector.sortWith { (a, b) =>
+      BitWords.compare(BitWords.fromDigits(a), BitWords.fromDigits(b)) < 0
+    }
+    val codes = order.zip(words).toMap
+    val inverse = words.zip(order).map((word, id) => FibonacciCode.decode(word) -> id).toMap
+    val max = words.map(_.size).maxOption.getOrElse(2)
+    WordEncoding(ops, BitWords, codes.apply, word => inverse(FibonacciCode.decode(word)),
+      WordCodeShape.Fibonacci, Some(max), order, true)
 
   def internedSymbolsToBytes(interner: PathItemInterner): WordEncoding[PathValue, BytePathValue] =
     val (ops, order) = symbols(interner)
-    WordEncoding(ops, ByteWords, checkedCode(order.toSet, id => Vector.tabulate(4)(i => (id >>> (24 - i * 8)) & 255)),
-      ds => { require(ds.size == 4 && ds.head < 128); ds.foldLeft(0)((n, b) => (n << 8) | b) },
-      WordCodeShape.Fixed(4), Some(4), order, false)
+    val ranks = order.zipWithIndex.toMap
+    WordEncoding(ops, ByteWords, id =>
+      val rank = ranks(id)
+      Vector.tabulate(4)(i => (rank >>> (24 - i * 8)) & 255),
+      ds => { require(ds.size == 4 && ds.head < 128); order(ds.foldLeft(0)((n, b) => (n << 8) | b)) },
+      WordCodeShape.Fixed(4), Some(4), order, true)
 
   def stringSymbolsToBytes(interner: PathItemInterner, maxSymbolBytes: Option[Int] = None): WordEncoding[PathValue, BytePathValue] =
     require(maxSymbolBytes.forall(n => n >= 0 && n < Int.MaxValue), "invalid string-symbol byte bound")
