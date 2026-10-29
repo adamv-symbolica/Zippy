@@ -82,7 +82,9 @@ constants. Parsing happens once; generated source avoids enormous nested C++
 initializer expressions. Function boundaries are retained to keep compilation
 of deeply expanded translations bounded. Only routines reachable after native
 operation selection are emitted, including recursive dependencies; eliminated
-scanner helpers do not inflate C++ compilation.
+scanner helpers do not inflate C++ compilation. Generated translation units
+above two million characters cap STL inlining with `-fno-inline`; the OpenFst
+runtime retains full Release optimization.
 
 Ordered codebook decision trees are recognized directly from the existing AST.
 A conservative grammar check and abstract scanner execution prove when head
@@ -95,6 +97,10 @@ the existing constant list. The value-keyed control cache never adds fields to
 a space or stores encoding boundaries. Unsupported shapes compile
 through the ordinary operations. The generated native constants are derived
 from language expressions, with no extra language cases or path metadata.
+
+Pure nonempty guards over a bound space lower to a direct emptiness test.
+A nonempty guard over its tails union lowers to a native head-presence check,
+avoiding construction of residual unions for a Boolean observation.
 
 The encoding compiler also shares the source and union of tails for encoded
 `TailsIntersection` through ordinary routine parameters. This removes repeated

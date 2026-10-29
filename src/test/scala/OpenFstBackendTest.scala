@@ -33,6 +33,12 @@ class OpenFstBackendTest extends FunSuite:
     val pruned=OpenFstBackend.symbols(Space.Singleton(Path.ZERO),Map(unused->dead))
     assertEquals(pruned.callbackCount,0)
     assert(!pruned.source.contains("static ZIPPY_NOINLINE Space routine_"))
+    val input=SpaceMention("truth-input");val eps=Space.Singleton(Path.ZERO)
+    val tail=Space.TailsUnion(Space.Mention(input))
+    val guard=Space.Union(Space.Intersection(tail,eps),Space.Iteration(tail,PathRef("_"),SpaceMention("_"),eps))
+    val scalar=OpenFstBackend.symbols(guard)
+    assert(scalar.source.contains("head_space(e.spaces.at("))
+    assert(!scalar.source.contains("tails_union("))
   }
 
   if java.lang.Boolean.getBoolean("morkl.openfst.test") then

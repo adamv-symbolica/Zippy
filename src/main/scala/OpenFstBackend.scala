@@ -155,73 +155,85 @@ object OpenFstBackend:
         pmemo.put(x,name); name
     private def binary(a: dialect.Space, b: dialect.Space, op: String): String =
       s"auto a=${cs(a)}(c,e); auto b=${cs(b)}(c,e); return $op(a,b);"
+    private def epsilon(x: dialect.Space): Boolean = x match
+      case S.Singleton(P.Constant(v)) => dialect.paths.length(v)==0
+      case _ => false
+    private def truth(x: dialect.Space): Option[String] = x match
+      case S.Union(S.Intersection(value,unit),S.Iteration(same,_,_,body)) if value==same && epsilon(unit) && epsilon(body) =>
+        value match
+          case S.Mention(r) => Some(s"return e.spaces.at(${sid(r)}).empty()?Space():singleton(Path{});")
+          case S.TailsUnion(S.Mention(r)) => Some(s"return head_space(e.spaces.at(${sid(r)})).empty()?Space():singleton(Path{});")
+          case _ => None
+      case _ => None
     private def cs(x: dialect.Space): String =
       val old = smemo.get(x)
       if old != null then old
       else
-        val name = node("Space", n => {smemo.put(x,n);()})(headSelection.plan(x) match
-          case Some(plan) =>
-            val codes=plan.codes
-            val fibonacci=codes.zipWithIndex.forall { (code,index) =>
-              scala.util.Try(FibonacciCode.decode(code.map(_-1))==Vector(BigInt(index+1))).getOrElse(false)
-            }
-            val input=cs(plan.input)
-            if fibonacci && codes.nonEmpty then
-              s"return first_fibonacci($input(c,e),${codes.size},${codes.map(_.size).max},${plan.prefix});"
-            else
-              val text=s"${codes.size} "+codes.map(p=>s"${p.size} "+p.mkString(" ")).mkString(" ")
-              if codes==codes.sorted then
-                s"""static const Space allowed=literal_text("$text");return first_matching($input(c,e),allowed,${plan.prefix});"""
-              else s"""static const auto order=paths_text("$text");return first_listed($input(c,e),order,${plan.prefix});"""
-          case None => x match
-            case S.Empty => "return Space();"
-            case S.Mention(r) => s"return e.spaces.at(${sid(r)});"
-            case S.Literal(v) => s"static const Space value=${literal(v.paths)}; return value;"
-            case S.Singleton(p) => s"return singleton(${cp(p)}(c,e));"
-            case S.Call(r,ps,ss) =>
-              neededRoutines += r
-              val fn = routines.getOrElse(r,throw IllegalArgumentException(s"undefined routine: ${r.s}"))
-              require(ps.size == fn.refs.size && ss.size == fn.mentions.size,s"arity mismatch: ${r.s}")
-              val pv = ps.map(p => s"${cp(p)}(c,e)").mkString("std::vector<Path> pv{",",","};")
-              val sv = ss.map(s => s"${cs(s)}(c,e)").mkString("std::vector<Space> sv{",",","};")
-              val binds = fn.refs.zipWithIndex.map((r,i) => s"n.paths[${pid(r)}]=pv[$i];").mkString +
-                fn.mentions.zipWithIndex.map((r,i) => s"n.spaces[${sid(r)}]=sv[$i];").mkString
-              val stationary = fn.body match
-                case S.Union(left,S.Call(`r`,`ps`,`ss`)) =>
-                  val tests = ps.zipWithIndex.map((p,i) => s"${cp(p)}(c,n)==pv[$i]") ++
-                    ss.zipWithIndex.map((s,i) => s"equal(${cs(s)}(c,n),sv[$i])")
-                  s"if(${if tests.isEmpty then "true" else tests.mkString(" && ")}) return ${cs(left)}(c,n);"
-                case _ => ""
-              s"$pv $sv Env n; $binds $stationary return ${routineIds(r)}(c,n);"
-            case S.Union(a,b) => binary(a,b,"unite")
-            case S.Intersection(a,b) => binary(a,b,"intersect")
-            case S.Subtraction(a,b) => binary(a,b,"subtract")
-            case S.Restriction(a,b) =>
-              s"auto b=${cs(b)}(c,e); auto a=${cs(a)}(c,e); return restrict_to(a,b);"
-            case S.Raffination(a,b) =>
-              // Reference semantics evaluate a separately on both sides.
-              s"auto a=${cs(a)}(c,e); auto b=${cs(b)}(c,e); auto again=${cs(a)}(c,e); return subtract(a,restrict_to(again,b));"
-            case S.Composition(a,b) => s"auto a=${cs(a)}(c,e); if(a.empty()) return a; return compose(a,${cs(b)}(c,e));"
-            case S.Wrap(a,p) => s"auto p=${cp(p)}(c,e); return wrap(${cs(a)}(c,e),p);"
-            case S.Unwrap(a,p) => s"auto p=${cp(p)}(c,e); return unwrap(${cs(a)}(c,e),p);"
-            case S.TailsUnion(a) => s"return tails_union(${cs(a)}(c,e));"
-            case S.TailsIntersection(a) => s"return tails_intersection(${cs(a)}(c,e));"
-            case S.PrefixClosure(a) => s"return prefix_closure(${cs(a)}(c,e));"
-            case S.SuffixClosure(a) => s"return suffix_closure(${cs(a)}(c,e),false);"
-            case S.TailsClosure(a) => s"return suffix_closure(${cs(a)}(c,e),true);"
-            case S.Range(a,start,end) => s"return range(c,${cs(a)}(c,e),$start,$end);"
-            case S.Iteration(a,h,_,S.Singleton(P.Deref(r))) if h.s!="_" && r==h => s"return head_space(${cs(a)}(c,e));"
-            case S.Iteration(a,_,t,S.Mention(r)) if t.s!="_" && r==t => s"return tails_union(${cs(a)}(c,e));"
-            case S.Iteration(a,h,t,b) => s"return iterate(c,e,${cs(a)}(c,e),${binder(h)},${binder(t)},${cs(b)});"
-            case S.Fold(a,i,acc,h,t,b,u) =>
-              s"auto initial=${cp(i)}(c,e); auto src=${cs(a)}(c,e); return fold(c,e,src,initial,${binder(acc)},${binder(h)},${binder(t)},${cs(b)},${cp(u)});"
-            case S.Fixpoint(a,v,b) => s"return fixpoint(c,e,${cs(a)}(c,e),${binder(v)},${cs(b)});"
-            case S.GroundedPS(p,f) =>
-              val id = callback(ps => f(labels.decode(ps.head)).paths.toVector.map(labels.encode))
-              s"return c.callback_space($id,singleton(${cp(p)}(c,e)));"
-            case S.GroundedSS(s,f) =>
-              val id = callback(ps => f(dialect.SpaceValue(ps.map(labels.decode).toSet)).paths.toVector.map(labels.encode))
-              s"return c.callback_space($id,${cs(s)}(c,e));"
+        val name = node("Space", n => {smemo.put(x,n);()})(truth(x) match
+          case Some(code) => code
+          case None => headSelection.plan(x) match
+            case Some(plan) =>
+              val codes=plan.codes
+              val fibonacci=codes.zipWithIndex.forall { (code,index) =>
+                scala.util.Try(FibonacciCode.decode(code.map(_-1))==Vector(BigInt(index+1))).getOrElse(false)
+              }
+              val input=cs(plan.input)
+              if fibonacci && codes.nonEmpty then
+                s"return first_fibonacci($input(c,e),${codes.size},${codes.map(_.size).max},${plan.prefix});"
+              else
+                val text=s"${codes.size} "+codes.map(p=>s"${p.size} "+p.mkString(" ")).mkString(" ")
+                if codes==codes.sorted then
+                  s"""static const Space allowed=literal_text("$text");return first_matching($input(c,e),allowed,${plan.prefix});"""
+                else s"""static const auto order=paths_text("$text");return first_listed($input(c,e),order,${plan.prefix});"""
+            case None => x match
+              case S.Empty => "return Space();"
+              case S.Mention(r) => s"return e.spaces.at(${sid(r)});"
+              case S.Literal(v) => s"static const Space value=${literal(v.paths)}; return value;"
+              case S.Singleton(p) => s"return singleton(${cp(p)}(c,e));"
+              case S.Call(r,ps,ss) =>
+                neededRoutines += r
+                val fn = routines.getOrElse(r,throw IllegalArgumentException(s"undefined routine: ${r.s}"))
+                require(ps.size == fn.refs.size && ss.size == fn.mentions.size,s"arity mismatch: ${r.s}")
+                val pv = ps.map(p => s"${cp(p)}(c,e)").mkString("std::vector<Path> pv{",",","};")
+                val sv = ss.map(s => s"${cs(s)}(c,e)").mkString("std::vector<Space> sv{",",","};")
+                val binds = fn.refs.zipWithIndex.map((r,i) => s"n.paths[${pid(r)}]=pv[$i];").mkString +
+                  fn.mentions.zipWithIndex.map((r,i) => s"n.spaces[${sid(r)}]=sv[$i];").mkString
+                val stationary = fn.body match
+                  case S.Union(left,S.Call(`r`,`ps`,`ss`)) =>
+                    val tests = ps.zipWithIndex.map((p,i) => s"${cp(p)}(c,n)==pv[$i]") ++
+                      ss.zipWithIndex.map((s,i) => s"equal(${cs(s)}(c,n),sv[$i])")
+                    s"if(${if tests.isEmpty then "true" else tests.mkString(" && ")}) return ${cs(left)}(c,n);"
+                  case _ => ""
+                s"$pv $sv Env n; $binds $stationary return ${routineIds(r)}(c,n);"
+              case S.Union(a,b) => binary(a,b,"unite")
+              case S.Intersection(a,b) => binary(a,b,"intersect")
+              case S.Subtraction(a,b) => binary(a,b,"subtract")
+              case S.Restriction(a,b) =>
+                s"auto b=${cs(b)}(c,e); auto a=${cs(a)}(c,e); return restrict_to(a,b);"
+              case S.Raffination(a,b) =>
+                // Reference semantics evaluate a separately on both sides.
+                s"auto a=${cs(a)}(c,e); auto b=${cs(b)}(c,e); auto again=${cs(a)}(c,e); return subtract(a,restrict_to(again,b));"
+              case S.Composition(a,b) => s"auto a=${cs(a)}(c,e); if(a.empty()) return a; return compose(a,${cs(b)}(c,e));"
+              case S.Wrap(a,p) => s"auto p=${cp(p)}(c,e); return wrap(${cs(a)}(c,e),p);"
+              case S.Unwrap(a,p) => s"auto p=${cp(p)}(c,e); return unwrap(${cs(a)}(c,e),p);"
+              case S.TailsUnion(a) => s"return tails_union(${cs(a)}(c,e));"
+              case S.TailsIntersection(a) => s"return tails_intersection(${cs(a)}(c,e));"
+              case S.PrefixClosure(a) => s"return prefix_closure(${cs(a)}(c,e));"
+              case S.SuffixClosure(a) => s"return suffix_closure(${cs(a)}(c,e),false);"
+              case S.TailsClosure(a) => s"return suffix_closure(${cs(a)}(c,e),true);"
+              case S.Range(a,start,end) => s"return range(c,${cs(a)}(c,e),$start,$end);"
+              case S.Iteration(a,h,_,S.Singleton(P.Deref(r))) if h.s!="_" && r==h => s"return head_space(${cs(a)}(c,e));"
+              case S.Iteration(a,_,t,S.Mention(r)) if t.s!="_" && r==t => s"return tails_union(${cs(a)}(c,e));"
+              case S.Iteration(a,h,t,b) => s"return iterate(c,e,${cs(a)}(c,e),${binder(h)},${binder(t)},${cs(b)});"
+              case S.Fold(a,i,acc,h,t,b,u) =>
+                s"auto initial=${cp(i)}(c,e); auto src=${cs(a)}(c,e); return fold(c,e,src,initial,${binder(acc)},${binder(h)},${binder(t)},${cs(b)},${cp(u)});"
+              case S.Fixpoint(a,v,b) => s"return fixpoint(c,e,${cs(a)}(c,e),${binder(v)},${cs(b)});"
+              case S.GroundedPS(p,f) =>
+                val id = callback(ps => f(labels.decode(ps.head)).paths.toVector.map(labels.encode))
+                s"return c.callback_space($id,singleton(${cp(p)}(c,e)));"
+              case S.GroundedSS(s,f) =>
+                val id = callback(ps => f(dialect.SpaceValue(ps.map(labels.decode).toSet)).paths.toVector.map(labels.encode))
+                s"return c.callback_space($id,${cs(s)}(c,e));"
         )
         smemo.put(x,name); name
     def compile(entry: dialect.Space, module: Map[RoutinePtr, dialect.Routine]): Compiled[V] =
@@ -358,6 +370,7 @@ object OpenFstBackend:
         Files.writeString(cpp,source)
         val temporary = cache.resolve(s"$key.building")
         command(Vector(System.getProperty("morkl.openfst.cxx","c++"),"-std=c++17",System.getProperty("morkl.openfst.optimize","-O2"),"-pthread","-I"+root.resolve("src/main/cpp")) ++
+          (if source.length>2000000 then Vector("-fno-inline") else Vector.empty) ++
           flags("morkl.openfst.cxxflags", "") ++ Vector(cpp.toString,library.toString,"-Wl,-rpath,"+library.getParent) ++
           flags("morkl.openfst.ldflags", "") ++ Vector("-o",temporary.toString),cache.resolve(s"$key.build.log"))
         Files.move(temporary,executable,StandardCopyOption.ATOMIC_MOVE)
