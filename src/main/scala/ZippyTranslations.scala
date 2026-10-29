@@ -24,9 +24,10 @@ object ZippyTranslations:
     code -> program
 
   def symbolsToBits(entry: Space, interner: PathItemInterner = new PathItemInterner,
-      routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true):
+      routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true,
+      orderedVocabulary: Option[Iterable[PathItem]] = None, maxAdmissibleId: Option[Int] = None):
       (WordEncoding[PathValue, BigInt], WordProgram[BigInt]) =
-    symbolProgram(entry, interner, routines, WordEncodings.internedSymbolsToBits, unrollBounded)
+    symbolProgram(entry, interner, routines, i => WordEncodings.internedSymbolsToBits(i, orderedVocabulary, maxAdmissibleId), unrollBounded)
 
   def stringsToBytes(entry: Space, interner: PathItemInterner = new PathItemInterner,
       routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true):
@@ -34,9 +35,10 @@ object ZippyTranslations:
     symbolProgram(entry, interner, routines, i => WordEncodings.stringSymbolsToBytes(i), unrollBounded)
 
   def internedStringsToBytes(entry: Space, interner: PathItemInterner = new PathItemInterner,
-      routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true):
+      routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true,
+      orderedVocabulary: Option[Iterable[PathItem]] = None):
       (WordEncoding[PathValue, BytePathValue], WordProgram[BytePathValue]) =
-    symbolProgram(entry, interner, routines, WordEncodings.internedSymbolsToBytes, unrollBounded)
+    symbolProgram(entry, interner, routines, i => WordEncodings.internedSymbolsToBytes(i, orderedVocabulary), unrollBounded)
 
   def sortedDictionaryToBits(entry: Space, interner: PathItemInterner = new PathItemInterner,
       routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true):

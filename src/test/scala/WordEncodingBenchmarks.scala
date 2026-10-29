@@ -70,3 +70,31 @@ object WordEncodingBenchmarks:
     val (asciiInterner, ascii) = input(20000)
     coded("E5/ASCII_range/CESU8", WordEncodings.stringSymbolsToBytes(asciiInterner), range, ascii)
     coded("E5/ASCII_range/dictionary4", WordEncodings.sortedDictionaryBytes(asciiInterner), range, ascii)
+
+  @main def stableIdReviewReport(): Unit =
+    println("probe,median_ms")
+    val iteration = Space.Iteration(Space.Mention(x), h, t, Space.Singleton(Path.Deref(h)))
+    val range = Space.Range(Space.Mention(x), -2, 0)
+    val fold = Space.Fold(Space.Mention(x), Path.ZERO, a, h, t,
+      Space.Singleton(Path.Concat(Path.Deref(a), Path.Deref(h))), Path.Deref(h))
+    for n <- Vector(1000, 4000, 20000) do
+      val (it, values) = input(n)
+      val vocabulary = (0 until it.size).map(it.decodeItem).toVector
+      val open = WordEncodings.internedSymbolsToBits(it)
+      val bits = WordEncodings.internedSymbolsToBits(it, Some(vocabulary))
+      val bytes = WordEncodings.internedSymbolsToBytes(it, Some(vocabulary))
+      def sizes[B](name: String, code: WordEncoding[PathValue, B]): Unit =
+        val program = code.compile(SymbolWordLanguage.space(iteration))
+        println(s"iteration-size/$name/$n,${program.nodeCount},${program.routines.size}")
+        val bound = code.maxCodeLength.get
+        assert(program.routines.size <= 2 * bound + 1)
+      sizes("open-fib", open); sizes("snapshot-fib", bits); sizes("snapshot-id4", bytes)
+      val bitTime = coded(s"iteration/open-fib/$n", open, iteration, values)
+      val snapshotTime = coded(s"iteration/snapshot-fib/$n", bits, iteration, values)
+      val byteTime = coded(s"iteration/snapshot-id4/$n", bytes, iteration, values)
+      println(f"iteration/ratios/$n,${bitTime/byteTime}%.3f,${snapshotTime/byteTime}%.3f")
+      assert(snapshotTime <= 3 * byteTime && bitTime <= 3 * byteTime, s"Fibonacci iteration exceeds 3x id4 at $n")
+      coded(s"range/snapshot-fib/$n", bits, range, values)
+      coded(s"range/snapshot-id4/$n", bytes, range, values)
+      coded(s"fold/snapshot-fib/$n", bits, fold, values)
+      coded(s"fold/snapshot-id4/$n", bytes, fold, values)

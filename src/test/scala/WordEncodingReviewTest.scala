@@ -60,15 +60,18 @@ class WordEncodingReviewTest extends FunSuite:
     assertEquals(bits.encode(p("b")), beforeBits)
     assertEquals(bytes.encode(p("a")).unsigned, Vector(0,0,0,1))
     assertEquals(bits.encode(p("a")), BitWords.fromDigits(FibonacciCode.encode(1)))
-    val ordered = SymbolWordLanguage.space(Space.Range(Space.Mention(x), 0, 1))
-    intercept[UnsupportedEncodedOrdering](bits.compile(ordered))
-    intercept[UnsupportedEncodedOrdering](bytes.compile(ordered))
+    // Order-free Fold remains available in the open-world codecs.
+    val a = PathRef("acc")
+    val fold = SymbolWordLanguage.space(Space.Fold(Space.Mention(x), Path.ZERO, a, h, t,
+      Space.Singleton(Path.Deref(h)), Path.Deref(a)))
+    assertEquals(bits.decodeSpace(bits.compile(fold).eval(spaces = Map(x -> bits.encodeSpace(value)))(using BitWords)), value)
+    assertEquals(bytes.decodeSpace(bytes.compile(fold).eval(spaces = Map(x -> bytes.encodeSpace(value)))(using ByteWords)), value)
   }
 
   test("byte-trie masks, focus and native algebra agree with the set reference") {
     val values = ByteSpaceValue((0 until 256).map(i => ByteWords.fromDigits(Vector(i, 255-i))).toSet + ByteWords.empty)
     val trie = ByteTrie.fromPaths(values.paths)
-    assertEquals(trie.childMask, (BigInt(1) << 256) - 1)
+    assertEquals(trie.children.keysIterator.foldLeft(BigInt(0))(_.setBit(_)), (BigInt(1) << 256) - 1)
     assertEquals(trie.pathCount, 257)
     val expressions = Vector[ByteSpace](ByteSpace.Head(ByteSpace.Literal(values)),
       ByteSpace.PrefixClosure(ByteSpace.Literal(values)), ByteSpace.Range(ByteSpace.Literal(values), -12, 0),
@@ -135,4 +138,44 @@ class WordEncodingReviewTest extends FunSuite:
     val strings = measure(WordEncodings.stringSymbolsToBytes(it))
     println(f"Probe E/20000 dictionary=$fixed%.3f ms CESU8=$strings%.3f ms ratio=${strings/fixed}%.2f")
     assert(strings <= 2 * fixed, s"CESU8 Range $strings exceeds twice dictionary Range $fixed")
+  }
+
+  test("frozen literal-ID vocabularies support every ordered form without changing IDs") {
+    val it = new PathItemInterner
+    val vocabulary = Vector("z", "b", "a").map(PathItem(_)); vocabulary.foreach(it.intern)
+    val before = WordEncodings.internedSymbolsToBytes(it).encode(p("b"))
+    val x = SpaceMention("x"); val a = PathRef("a"); val h = PathRef("h"); val t = SpaceMention("t")
+    val raw = SpaceValue(vocabulary.map(v => PathValue(List(v))).toSet)
+    val literal = Space.Literal(raw)
+    val r1 = RoutinePtr("ordered1"); val r2 = RoutinePtr("ordered2"); val formal = SpaceMention("formal")
+    val routines = Map(r1 -> Routine(r1, Vector.empty, Vector(formal), Space.Call(r2, Vector.empty, Vector(Space.Mention(formal)))),
+      r2 -> Routine(r2, Vector.empty, Vector(formal), Space.Union(Space.Range(Space.Mention(formal), 0, 1),
+        Space.Call(r1, Vector.empty, Vector(Space.Empty)))))
+    // Use a terminating mutual path: the empty input selects no iteration and makes no recursive call.
+    val safeR2 = Routine(r2, Vector.empty, Vector(formal), Space.Iteration(Space.Range(Space.Mention(formal), 0, 1), h, t,
+      Space.Union(Space.Singleton(Path.Deref(h)), Space.Call(r1, Vector.empty, Vector(Space.Mention(t))))))
+    val defs = routines.updated(r2, safeR2)
+    val expressions = Vector(
+      Space.Range(literal, 0, 1), Space.Range(Space.Mention(x), -2, 0), Space.Range(Space.Mention(x), 0, -1),
+      Space.Fold(Space.Mention(x), Path.ZERO, a, h, t, Space.Singleton(Path.Concat(Path.Deref(a), Path.Deref(h))), Path.Deref(h)),
+      Space.Singleton(Path.GroundedSP(Space.Range(Space.Mention(x), 0, 1), v => v.paths.head)),
+      Space.Call(r1, Vector.empty, Vector(Space.Mention(x))))
+    def check[B](code: WordEncoding[PathValue, B]): Unit =
+      val definitions = defs.view.mapValues(SymbolWordLanguage.routine).toMap
+      expressions.foreach { source =>
+        val expected = morkl.eval(source)(using PathContext.emptyMap, SpaceContextMap(Map(x -> raw)), defs)
+        val program = code.compile(SymbolWordLanguage.space(source), definitions)
+        val actual = program.eval(spaces = Map(x -> code.encodeSpace(WordSpaceValue(raw.paths))), validateHints = true)(using code.target)
+        assertEquals(code.decodeSpace(actual).paths, expected.paths)
+      }
+      val count = it.size
+      intercept[IllegalArgumentException](code.encode(p("future")))
+      intercept[IllegalArgumentException](code.compile(SymbolWordLanguage.space(Space.Singleton(Path.Constant(p("future"))))))
+      assertEquals(it.size, count)
+    check(WordEncodings.internedSymbolsToBits(it, Some(vocabulary)))
+    check(WordEncodings.internedSymbolsToBytes(it, Some(vocabulary)))
+    it.intern(PathItem("unrelated"))
+    assertEquals(WordEncodings.internedSymbolsToBytes(it).encode(p("b")), before)
+    val bounded = WordEncodings.internedSymbolsToBits(it, Some(vocabulary))
+    assertEquals(bounded.maxCodeLength, Some(FibonacciCode.encode(2).size))
   }

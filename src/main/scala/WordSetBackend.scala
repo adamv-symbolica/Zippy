@@ -7,6 +7,7 @@ import scala.collection.immutable.{SortedSet, TreeSet}
   */
 class WordSetBackend[P](val ops: WordOps[P]):
   private val sortedCache = new java.util.IdentityHashMap[Iterable[P], Set[P]]()
+  def clearCaches(): Unit = sortedCache.clear()
   def literal(values: Set[P]): Set[P] = values
   def from(values: Iterable[P]): Set[P] = values match
     case sorted: TreeSet[P @unchecked] if sorted.ordering eq ops.ordering => sorted
@@ -26,6 +27,7 @@ class WordSetBackend[P](val ops: WordOps[P]):
     else from(a intersect b)
   def subtract(a: Set[P], b: Set[P]): Set[P] =
     if a.size == 1 then if b(a.head) then empty else a
+    else if b.size == 1 then from(from(a) - b.head)
     else from(a diff b)
   def groups(values: Set[P]): Vector[(P, Set[P])] =
     if values.isEmpty then return Vector.empty
