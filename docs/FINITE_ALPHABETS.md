@@ -89,9 +89,9 @@ Each decoder has one lifted user body. Small closed Fibonacci alphabets unroll
 the code trie and call that body at the leaves, so nested iterations do not
 multiply copies of an inner program. Bounded larger scanners specialize a
 (state, depth) DAG under a compiler-wide 512-state budget; excess decoders use
-bounded recursive routines. Fully open ID codecs keep two recursive scanner
-states with their conservative global bound; snapshots and tighter ID bounds
-specialize depth. Each scanner can inline two digits between routine calls,
+bounded recursive routines. Snapshots and tighter ID bounds reduce the depth
+specialization; fully open IDs use the conservative global bound. Each scanner
+can inline two digits between routine calls,
 reducing call allocation with a constant amount of code expansion. Fixed-width
 scans expand to their known depth.
 Unbounded strings use recursive scanners. `unrollBounded = false` disables

@@ -193,11 +193,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
       case shape =>
         val prefix = code.maxCodeLength.fold(pr("prefix")) { max => pr("prefix").bounded(max) }
         val remaining = sm("remaining")
-        // The global open-ID bound admits billions of symbols: retain two
-        // scanner states there. Specialize a useful vocabulary/id bound.
-        val specializeDepth = shape != WordCodeShape.Fibonacci || code.orderedDigits.nonEmpty ||
-          limit.exists(_ < FibonacciCode.encode(Int.MaxValue).size)
-        val bounded = unrollBounded && specializeDepth && limit.exists(n => 2 * n <= decoderBudget)
+        val bounded = unrollBounded && limit.exists(n => 2 * n <= decoderBudget)
         if bounded then decoderBudget -= 2 * limit.get
         val cache = mutable.Map.empty[(Boolean, Int), RoutinePtr]
         def scanner(previousOne: Boolean, depth: Int): RoutinePtr =

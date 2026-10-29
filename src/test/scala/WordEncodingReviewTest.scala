@@ -47,7 +47,7 @@ class WordEncodingReviewTest extends FunSuite:
     val x = SpaceMention("x"); val h = PathRef("h"); val t = SpaceMention("t")
     val source = SymbolWordLanguage.space(Space.Iteration(Space.Mention(x), h, t, Space.Singleton(Path.Deref(h))))
     val bp = bits.compile(source); val byp = bytes.compile(source)
-    assertEquals(bp.routines.size, 3) // Two open scanner states and one lifted body.
+    assert(bp.routines.size > 20, "the global ID bound should produce a depth-indexed DAG")
     val bounded = WordEncodings.internedSymbolsToBits(it, maxAdmissibleId = Some(10000))
     val dag = bounded.compile(source)
     assert(dag.routines.size > 10 && dag.routines.size <= 2 * bounded.maxCodeLength.get + 1)
