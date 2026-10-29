@@ -552,6 +552,11 @@ case class Routine(name: RoutinePtr, refs: Vector[PathRef], mentions: Vector[Spa
 //    })(body), List(Lower.IterateSingleton_Deref, Lower.LiteralSpaceOps, Lower.SingletonConst_Literal, Lower.ConcatSingleton_Iter, Lower.IterUnion_Indep, Lower.Wrap_Iter, Lower.Iter_Ident, Lower.Concat_Path, Lower.IterateLiteral_Union, Lower.UnwrapConcat_Unwraps, Lower.SingletonComposition_Wrap, Lower.SingletonSpaceOp_PathOp, Lower.SingletonRestriction_Unwrap)))
 
 def eval(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceContext = SpaceContextMap(Map.empty), rc: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty): SpaceValue =
+  if morkl.finite.TranslationAudit.enabled then
+    morkl.finite.TranslationAudit.evaluate(s)(evalReference(s))
+  else evalReference(s)
+
+private def evalReference(s: Space)(using pc: PathContext, sc: SpaceContext, rc: PartialFunction[RoutinePtr, Routine]): SpaceValue =
   import PathItemOrder.given
 
   val staticSpaceMemo = java.util.IdentityHashMap[Space, java.lang.Boolean]()
@@ -561,8 +566,12 @@ def eval(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceC
     case Path.Deref(pr) => pc.resolve(pr).items
     case Path.Constant(pi) => pi.items
     case Path.Concat(l, r) => recp(l) ++ recp(r)
-    case Path.GroundedPP(p, f) => f(PathValue(recp(p))).items
-    case Path.GroundedSP(s, f) => f(SpaceValue(recs(s))).items
+    case Path.GroundedPP(p, f) =>
+      val input = PathValue(recp(p))
+      morkl.finite.TranslationAudit.callback(f, input)(f(input)).items
+    case Path.GroundedSP(s, f) =>
+      val input = SpaceValue(recs(s))
+      morkl.finite.TranslationAudit.callback(f, input)(f(input)).items
 
   def staticPath(p: Path): Boolean = p match
     case Path.Deref(_) => false
@@ -726,8 +735,12 @@ def eval(s: Space)(using pc: PathContext = PathContextMap(Map.empty), sc: SpaceC
         current = next
       current.paths
     case Space.Raffination(x_e, y_e) => recs(Space.Subtraction(x_e, Space.Restriction(x_e, y_e)))
-    case Space.GroundedPS(p, f) => f(PathValue(recp(p))).paths
-    case Space.GroundedSS(s, f) => f(SpaceValue(recs(s))).paths
+    case Space.GroundedPS(p, f) =>
+      val input = PathValue(recp(p))
+      morkl.finite.TranslationAudit.callback(f, input)(f(input)).paths
+    case Space.GroundedSS(s, f) =>
+      val input = SpaceValue(recs(s))
+      morkl.finite.TranslationAudit.callback(f, input)(f(input)).paths
     case Space.Range(x, start, end) =>
       val values = recs(x)
       val (lo, hi) = RangeBounds.normalize(values.size, start, end)

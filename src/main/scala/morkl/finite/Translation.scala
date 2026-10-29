@@ -58,6 +58,10 @@ final class Translator[S, T](code: Code[S, T], unrollLimit: Int = 64):
   private val reserved = mutable.HashSet.empty[String]
   private var serial = 0
   private var used = false
+  private val pathMemo = java.util.IdentityHashMap[Path[S], Path[T]]()
+  private val spaceMemo = java.util.IdentityHashMap[Space[S], Space[T]]()
+  private val seenNamesP = java.util.IdentityHashMap[Path[S], java.lang.Boolean]()
+  private val seenNamesS = java.util.IdentityHashMap[Space[S], java.lang.Boolean]()
   private def fresh(label: String): String =
     var s = ""
     while s.isEmpty || reserved(s) do
@@ -76,13 +80,17 @@ final class Translator[S, T](code: Code[S, T], unrollLimit: Int = 64):
   private def remember(r: Routine[T]): Unit = output(r.name) = r
 
   // Reserve binder names as well as free names, including names below callbacks.
-  private def namesPath(p: Path[S]): Unit = p match
+  private def namesPath(p: Path[S]): Unit =
+    if seenNamesP.put(p, true) == null then namesPathUncached(p)
+  private def namesPathUncached(p: Path[S]): Unit = p match
     case Path.Deref(r) => reserved += r.s
     case Path.Constant(_) => ()
     case Path.Concat(a, b) => namesPath(a); namesPath(b)
     case Path.GroundedPP(p, _) => namesPath(p)
     case Path.GroundedSP(s, _) => names(s)
-  private def names(s: Space[S]): Unit = s match
+  private def names(s: Space[S]): Unit =
+    if seenNamesS.put(s, true) == null then namesUncached(s)
+  private def namesUncached(s: Space[S]): Unit = s match
     case Empty() | Literal(_) => ()
     case Call(r, ps, ss) => reserved += r.s; ps.foreach(namesPath); ss.foreach(names)
     case Mention(v) => reserved += v.s
@@ -108,7 +116,14 @@ final class Translator[S, T](code: Code[S, T], unrollLimit: Int = 64):
     case GroundedSS(src, _) => names(src)
     case Range(src, _, _) => names(src)
 
-  private def lowerPath(x: Path[S]): Path[T] = x match
+  private def lowerPath(x: Path[S]): Path[T] =
+    val cached = pathMemo.get(x)
+    if cached != null then cached
+    else
+      val result = lowerPathUncached(x)
+      pathMemo.put(x, result)
+      result
+  private def lowerPathUncached(x: Path[S]): Path[T] = x match
     case Path.Deref(ref) =>
       val hint = for n <- Option.when(ref.lengthHint >= 0)(ref.lengthHint); width <- code.fixedUnits
                      if BigInt(n) * width <= Int.MaxValue
@@ -128,7 +143,8 @@ final class Translator[S, T](code: Code[S, T], unrollLimit: Int = 64):
       val free = FreeVariables.space(body).bind(h)(rest)
       val cps = free.paths.toVector.sortBy(_.s)
       val css = free.spaces.toVector.sortBy(_.s)
-      val boundH = if h.s == "_" then pr("ignored_head") else h
+      val rawH = if h.s == "_" then pr("ignored_head") else PathRef(h.s)
+      val boundH = scanner.fixedUnits.fold(rawH)(rawH.known)
       val boundR = if rest.s == "_" then sm("ignored_rest") else rest
       val cont = rp("symbol_body")
       remember(Routine(cont, cps :+ boundH, css :+ boundR, body))
@@ -144,7 +160,8 @@ final class Translator[S, T](code: Code[S, T], unrollLimit: Int = 64):
           val name = rp("scan")
           // Install before descending, to close recursive recognizers.
           memo(key) = name
-          val accumulated = Path.Concat(p(prefix), p(unit))
+          val atDepth = if limit.isDefined then prefix.known(depth) else prefix
+          val accumulated = Path.Concat(p(atDepth), p(unit))
           val transitions = scanner.targetAlphabet.flatMap(u => scanner.transition(state, u).map(_ -> u)).groupMap(_._1)(_._2)
           val branches = transitions.toVector.sortBy(_._1.toString).map { (step, units) =>
             val next: Space[T] = step match
@@ -158,7 +175,7 @@ final class Translator[S, T](code: Code[S, T], unrollLimit: Int = 64):
               Iteration(filter, pr("guard"), sm("guard_tail"), next)
           }
           val dispatch = branches.reduceOption(Union(_, _)).getOrElse(Empty())
-          remember(Routine(name, cps :+ prefix, css :+ source, Iteration(m(source), unit, tail, dispatch)))
+          remember(Routine(name, cps :+ atDepth, css :+ source, Iteration(m(source), unit, tail, dispatch)))
           name
         })
       val start = stateRoutine(0, 0)
@@ -251,7 +268,14 @@ final class Translator[S, T](code: Code[S, T], unrollLimit: Int = 64):
     remember(Routine(step, cps ++ Vector(acc, h), css ++ Vector(remaining, rest), lower(stepBody)))
     Call(loop, cps.map(r => lowerPath(sp(r))) :+ lowerPath(initial), css.map(m) :+ lower(src))
 
-  private def lower(s: Space[S]): Space[T] = s match
+  private def lower(s: Space[S]): Space[T] =
+    val cached = spaceMemo.get(s)
+    if cached != null then cached
+    else
+      val result = lowerUncached(s)
+      spaceMemo.put(s, result)
+      result
+  private def lowerUncached(s: Space[S]): Space[T] = s match
     case Empty() => Empty()
     case Call(r, ps, ss) => Call(r, ps.map(lowerPath), ss.map(lower))
     case Mention(ref) => Mention(ref)
@@ -295,6 +319,8 @@ final class Translator[S, T](code: Code[S, T], unrollLimit: Int = 64):
     }
     val result = lower(expression)
     routines.values.toVector.sortBy(_.name.s).foreach { r =>
-      remember(Routine(r.name, r.refs.map(x => lowerPath(Path.Deref(x)).asInstanceOf[Path.Deref[T]].ref), r.mentions, lower(r.body)))
+      remember(Routine(r.name, r.refs.map(x => lowerPath(Path.Deref(x)) match
+        case Path.Deref(ref) => ref
+        case _ => throw IllegalStateException("dereference changed constructor")), r.mentions, lower(r.body)))
     }
     Translation(result, output.toMap, code, scans.toVector)

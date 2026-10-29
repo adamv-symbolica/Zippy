@@ -4,13 +4,40 @@ import morkl.{Path as SymbolPath, Space as SymbolSpace, Routine as SymbolRoutine
 
 /** Lossless syntax bridge; the generic symbol instance is exactly Zippy_symbols. */
 object Symbols:
-  def fromPath(p: SymbolPath): Path[PathItem] = p match
+  private final class FromMemo:
+    val paths = java.util.IdentityHashMap[SymbolPath, Path[PathItem]]()
+    val spaces = java.util.IdentityHashMap[SymbolSpace, Space[PathItem]]()
+  private val fromMemo = new ThreadLocal[FromMemo]()
+  private def withFrom[A](f: FromMemo => A): A =
+    val existing = fromMemo.get()
+    if existing != null then f(existing)
+    else
+      val memo = FromMemo()
+      fromMemo.set(memo)
+      try f(memo) finally fromMemo.remove()
+  def fromPath(p: SymbolPath): Path[PathItem] = withFrom { memo =>
+    val cached = memo.paths.get(p)
+    if cached != null then cached
+    else
+      val result = fromPathUncached(p)
+      memo.paths.put(p, result)
+      result
+  }
+  def fromSpace(s: SymbolSpace): Space[PathItem] = withFrom { memo =>
+    val cached = memo.spaces.get(s)
+    if cached != null then cached
+    else
+      val result = fromSpaceUncached(s)
+      memo.spaces.put(s, result)
+      result
+  }
+  private def fromPathUncached(p: SymbolPath): Path[PathItem] = p match
     case SymbolPath.Deref(r) => Path.Deref(r)
     case SymbolPath.Constant(p) => Path.Constant(p.items.toVector)
     case SymbolPath.Concat(a, b) => Path.Concat(fromPath(a), fromPath(b))
-    case SymbolPath.GroundedPP(p, f) => Path.GroundedPP(fromPath(p), xs => f(PathValue(xs.toList)).items.toVector)
-    case SymbolPath.GroundedSP(s, f) => Path.GroundedSP(fromSpace(s), xs => f(value(xs)).items.toVector)
-  def fromSpace(s: SymbolSpace): Space[PathItem] = s match
+    case SymbolPath.GroundedPP(p, f) => Path.GroundedPP(fromPath(p), xs => { val input = PathValue(xs.toList); TranslationAudit.callback(f, input)(f(input)).items.toVector })
+    case SymbolPath.GroundedSP(s, f) => Path.GroundedSP(fromSpace(s), xs => { val input = value(xs); TranslationAudit.callback(f, input)(f(input)).items.toVector })
+  private def fromSpaceUncached(s: SymbolSpace): Space[PathItem] = s match
     case SymbolSpace.Empty => Space.Empty()
     case SymbolSpace.Call(r, ps, ss) => Space.Call(r, ps.map(fromPath), ss.map(fromSpace))
     case SymbolSpace.Mention(r) => Space.Mention(r)
@@ -33,20 +60,47 @@ object Symbols:
     case SymbolSpace.PrefixClosure(src) => Space.PrefixClosure(fromSpace(src))
     case SymbolSpace.SuffixClosure(src) => Space.SuffixClosure(fromSpace(src))
     case SymbolSpace.TailsClosure(src) => Space.TailsClosure(fromSpace(src))
-    case SymbolSpace.GroundedPS(p, f) => Space.GroundedPS(fromPath(p), xs => paths(f(PathValue(xs.toList))))
-    case SymbolSpace.GroundedSS(s, f) => Space.GroundedSS(fromSpace(s), xs => paths(f(value(xs))))
+    case SymbolSpace.GroundedPS(p, f) => Space.GroundedPS(fromPath(p), xs => { val input = PathValue(xs.toList); paths(TranslationAudit.callback(f, input)(f(input))) })
+    case SymbolSpace.GroundedSS(s, f) => Space.GroundedSS(fromSpace(s), xs => { val input = value(xs); paths(TranslationAudit.callback(f, input)(f(input))) })
     case SymbolSpace.Range(src, a, b) => Space.Range(fromSpace(src), a, b)
   def fromRoutine(r: SymbolRoutine): Routine[PathItem] = Routine(r.name, r.refs, r.mentions, fromSpace(r.body))
   def paths(v: SpaceValue): Set[Vector[PathItem]] = v.paths.map(_.items.toVector)
   def value(ps: Set[Vector[PathItem]]): SpaceValue = SpaceValue(ps.map(xs => PathValue(xs.toList)))
 
-  def toPath(p: Path[PathItem]): SymbolPath = p match
+  private final class ToMemo:
+    val paths = java.util.IdentityHashMap[Path[PathItem], SymbolPath]()
+    val spaces = java.util.IdentityHashMap[Space[PathItem], SymbolSpace]()
+  private val toMemo = new ThreadLocal[ToMemo]()
+  private def withTo[A](f: ToMemo => A): A =
+    val existing = toMemo.get()
+    if existing != null then f(existing)
+    else
+      val memo = ToMemo()
+      toMemo.set(memo)
+      try f(memo) finally toMemo.remove()
+  def toPath(p: Path[PathItem]): SymbolPath = withTo { memo =>
+    val cached = memo.paths.get(p)
+    if cached != null then cached
+    else
+      val result = toPathUncached(p)
+      memo.paths.put(p, result)
+      result
+  }
+  def toSpace(s: Space[PathItem]): SymbolSpace = withTo { memo =>
+    val cached = memo.spaces.get(s)
+    if cached != null then cached
+    else
+      val result = toSpaceUncached(s)
+      memo.spaces.put(s, result)
+      result
+  }
+  private def toPathUncached(p: Path[PathItem]): SymbolPath = p match
     case Path.Deref(r) => SymbolPath.Deref(r)
     case Path.Constant(xs) => SymbolPath.Constant(PathValue(xs.toList))
     case Path.Concat(a, b) => SymbolPath.Concat(toPath(a), toPath(b))
-    case Path.GroundedPP(p, f) => SymbolPath.GroundedPP(toPath(p), xs => PathValue(f(xs.items.toVector).toList))
-    case Path.GroundedSP(s, f) => SymbolPath.GroundedSP(toSpace(s), xs => PathValue(f(paths(xs)).toList))
-  def toSpace(s: Space[PathItem]): SymbolSpace = s match
+    case Path.GroundedPP(p, f) => SymbolPath.GroundedPP(toPath(p), TranslationAudit.adapter((xs: PathValue) => PathValue(f(xs.items.toVector).toList)))
+    case Path.GroundedSP(s, f) => SymbolPath.GroundedSP(toSpace(s), TranslationAudit.adapter((xs: SpaceValue) => PathValue(f(paths(xs)).toList)))
+  private def toSpaceUncached(s: Space[PathItem]): SymbolSpace = s match
     case Space.Empty() => SymbolSpace.Empty
     case Space.Call(r, ps, ss) => SymbolSpace.Call(r, ps.map(toPath), ss.map(toSpace))
     case Space.Mention(r) => SymbolSpace.Mention(r)
@@ -69,14 +123,17 @@ object Symbols:
     case Space.PrefixClosure(src) => SymbolSpace.PrefixClosure(toSpace(src))
     case Space.SuffixClosure(src) => SymbolSpace.SuffixClosure(toSpace(src))
     case Space.TailsClosure(src) => SymbolSpace.TailsClosure(toSpace(src))
-    case Space.GroundedPS(p, f) => SymbolSpace.GroundedPS(toPath(p), xs => value(f(xs.items.toVector)))
-    case Space.GroundedSS(s, f) => SymbolSpace.GroundedSS(toSpace(s), xs => value(f(paths(xs))))
+    case Space.GroundedPS(p, f) => SymbolSpace.GroundedPS(toPath(p), TranslationAudit.adapter((xs: PathValue) => value(f(xs.items.toVector))))
+    case Space.GroundedSS(s, f) => SymbolSpace.GroundedSS(toSpace(s), TranslationAudit.adapter((xs: SpaceValue) => value(f(paths(xs)))))
     case Space.Range(src, a, b) => SymbolSpace.Range(toSpace(src), a, b)
   def toRoutine(r: Routine[PathItem]): SymbolRoutine = SymbolRoutine(r.name, r.refs, r.mentions, toSpace(r.body))
 
   /** Visit syntax, including space expressions nested inside grounded paths. */
   def foreach[A](s: Space[A])(onSpace: Space[A] => Unit, onPath: Path[A] => Unit): Unit =
+    val seenPaths = java.util.IdentityHashMap[Path[A], java.lang.Boolean]()
+    val seenSpaces = java.util.IdentityHashMap[Space[A], java.lang.Boolean]()
     def p(x: Path[A]): Unit =
+      if seenPaths.put(x, true) != null then return
       onPath(x)
       x match
         case Path.Concat(a, b) => p(a); p(b)
@@ -84,6 +141,7 @@ object Symbols:
         case Path.GroundedSP(a, _) => rec(a)
         case _ => ()
     def rec(x: Space[A]): Unit =
+      if seenSpaces.put(x, true) != null then return
       onSpace(x)
       x match
         case Space.Call(_, ps, ss) => ps.foreach(p); ss.foreach(rec)
