@@ -456,6 +456,6 @@ class ZippyCodedCheck extends munit.FunSuite:
       ZSpace.Union(ZSpace.GroundedPS(c("a"), v => Set(v, v :+ "b")), ZSpace.Empty()))
     checkFrames(g, Vector(), frames(g, scala.util.Random(5), 6))
     val labels = coverage.map(_._2).toSet
-    assertEquals(labels.size, 13, labels.toString) // CONTROLLED FAILURE
+    assertEquals(labels.size, 12, labels.toString)
     val missing = for k <- constructors; l <- labels if !coverage((k, l)) yield (k, l)
     assert(missing.isEmpty, s"constructor × codec pairs never exercised: ${missing.toVector.sorted.take(20)}")
