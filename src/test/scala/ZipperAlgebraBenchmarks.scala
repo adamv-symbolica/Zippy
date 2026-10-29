@@ -173,6 +173,21 @@ object ZipperAlgebraBenchmarks:
       BenchCase("combination", "range of union", Space.Range(S"a" \/ S"b", 0, BorderRange), note = "border slice over a virtual union")
     )
 
+  /** Same checked workloads exposed to additional execution backends. */
+  def nativeCases(): Vector[(String, Space, SpaceContextMap)] =
+    Vector(1,50,90).flatMap { percent =>
+      val data = scenario(percent)
+      val ctx = SpaceContextMap(context(data)._1.m.view.mapValues(_.toSpaceValue).toMap)
+      cases(data).map(c => (s"${data.label}/${c.group}/${c.name}",c.expr,ctx))
+    }
+  def nativeMicroCases(): Vector[(String, Space, SpaceContextMap)] =
+    Vector((32,12),(96,16),(192,16)).map { (heads,fanout) =>
+      val src = iterRangeTailTrie(heads,fanout).toSpaceValue
+      val tail=SpaceMention("range-tail")
+      val expression=Space.Iteration(Space.Mention(SpaceMention("src")),PathRef("_"),tail,Space.Range(Space.Mention(tail),0,-1))
+      (s"heads=$heads/fanout=$fanout",expression,SpaceContextMap(Map(SpaceMention("src")->src)))
+    }
+
   /** Warm, adaptively batch, and report the median per-invocation time.  The
     * calibration target keeps timer/scheduler noise from dominating cheap
     * virtual operations, while the hard batch cap and seven samples bound the

@@ -361,9 +361,20 @@ final class EncodingCompiler[S, T, SL <: DigitLanguage[S], TL <: DigitLanguage[T
         val src = s(a, pe, se)
         if unitEncoding then E.TailsIntersection(src)
         else
-          val all = tails(src)
+          // Share the source and union of tails through ordinary parameters.
+          // Recomputing either inside each branch makes large encoded meets
+          // quadratic in the number of heads before the actual set algebra.
+          val sourceName = sm("intersection_source")
+          val allName = sm("intersection_all")
           val t = sm("intersection_tail")
-          E.Subtraction(all, iter(src, pr("intersection_head"), t, E.Subtraction(all, sd(t))))
+          val meet = rp("intersection_meet")
+          definitions(meet) = R(meet, Vector.empty, Vector(sourceName, allName),
+            E.Subtraction(sd(allName), iter(sd(sourceName), pr("intersection_head"), t,
+              E.Subtraction(sd(allName), sd(t)))))
+          val prepare = rp("intersection_prepare")
+          definitions(prepare) = R(prepare, Vector.empty, Vector(sourceName),
+            E.Call(meet, Vector.empty, Vector(sd(sourceName), tails(sd(sourceName)))))
+          E.Call(prepare, Vector.empty, Vector(src))
       case source.Space.PrefixClosure(a) =>
         if unitEncoding then E.PrefixClosure(s(a, pe, se)) else closure(s(a, pe, se), 0)
       case source.Space.SuffixClosure(a) =>

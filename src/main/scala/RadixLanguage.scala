@@ -129,6 +129,13 @@ class DigitLanguage[V](val paths: DigitPaths[V]):
            pathArgs: Map[PathRef, V] = Map.empty,
            spaceArgs: Map[SpaceMention, SpaceValue] = Map.empty,
            routines: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty): SpaceValue =
+    if OpenFstAudit.enabled then
+      OpenFstAudit.evaluate(DigitLanguage.this)(expression,pathArgs,spaceArgs,routines) {
+        evalReference(expression,pathArgs,spaceArgs,routines)
+      }
+    else evalReference(expression,pathArgs,spaceArgs,routines)
+  private def evalReference(expression: Space, pathArgs: Map[PathRef,V], spaceArgs: Map[SpaceMention,SpaceValue],
+                            routines: PartialFunction[RoutinePtr,Routine]): SpaceValue =
     def bind[K, A](env: Map[K, A], key: K, name: String, value: A): Map[K, A] =
       if name == "_" then env else env.updated(key, value)
     // Both path and space continuations are trampolined: generated code may

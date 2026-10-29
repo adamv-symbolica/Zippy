@@ -331,3 +331,15 @@ class RadixLanguageTest extends FunSuite:
     assertEquals(c.decode(c.program.eval()), expected)
     assertEquals(calls.get(), 1)
   }
+
+  test("encoded tails intersection evaluates its source once") {
+    val calls = new java.util.concurrent.atomic.AtomicInteger()
+    val op = Space.TailsIntersection(Space.GroundedSS(src,value=>{calls.incrementAndGet();value}))
+    val expected = eval(op)
+    val bit = RadixTranslations.symbolsToBits(op,interner=interner())
+    val string = RadixTranslations.stringsToBytes(op)
+    val interned = RadixTranslations.internedSymbolsToBytes(op,interner=interner())
+    calls.set(0);assertEquals(bit.decode(bit.program.eval()),expected);assertEquals(calls.get(),1)
+    calls.set(0);assertEquals(string.decode(string.program.eval()),expected);assertEquals(calls.get(),1)
+    calls.set(0);assertEquals(interned.decode(interned.program.eval()),expected);assertEquals(calls.get(),1)
+  }

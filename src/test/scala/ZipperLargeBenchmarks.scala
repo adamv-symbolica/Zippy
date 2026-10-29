@@ -151,7 +151,7 @@ object ZipperLargeBenchmarks:
       runs = 3,
     )
 
-  private def cases(): Vector[ProgramCase] =
+  def cases(): Vector[ProgramCase] =
     Vector(
       twoHopCase(180),
       twoHopCase(360),

@@ -14,6 +14,10 @@ path 1 is 3. Thus zeroes and length survive without a separate length table.
 The sentinel is never visible to language operations. Use `BitPaths.fromDigits`
 and `BitPaths.digits` to construct and inspect paths.
 
+Both dialects also support the [C++ / OpenFst backend](OPENFST_BACKEND.md),
+which transpiles the same operations and routines to native functions. It can
+execute either direct digit programs or any of the translations below.
+
 Byte paths are `BytePathValue`s backed by immutable byte arrays with structural
 equality. Construction and array access copy; `unsigned` exposes digits as
 integers in 0..255. Ordering is unsigned lexicographic ordering, with a proper

@@ -10,7 +10,7 @@ import scala.collection.mutable
   * The accompanying runner treats a missing report or any failure as failure.
   */
 object RadixTranslationAudit:
-  private val output = Option(System.getProperty("morkl.radixAudit.path")).filter(_.nonEmpty)
+  private val output = Option(System.getProperty("morkl.radixAudit.path")).orElse(Option(System.getProperty("morkl.openfstAudit.path"))).filter(_.nonEmpty)
   val enabled: Boolean = output.nonEmpty
   private final class Identity(val value: AnyRef):
     override def hashCode(): Int = System.identityHashCode(value)
@@ -189,38 +189,42 @@ object RadixTranslationAudit:
     Runtime.getRuntime.addShutdownHook(new Thread(() =>
       val directory = Paths.get(location)
       Files.createDirectories(directory)
-      val writer = Files.newBufferedWriter(directory.resolve("checks.jsonl"))
-      def record(line: String): Unit = writer.synchronized { writer.write(line); writer.newLine(); writer.flush() }
       val snapshot = examples.values().toArray(new Array[Example](0)).toVector.sortBy(_.id)
       println(s"Radix translation audit: ${snapshot.size} distinct cases from ${observations.get()} reference evaluations")
-      val workers = Integer.getInteger("morkl.radixAudit.workers", 16).intValue().max(1)
-      val pool = Executors.newFixedThreadPool(workers, new ThreadFactory:
-        def newThread(task: Runnable): Thread =
-          val thread = new Thread(task, "radix-audit")
-          thread.setDaemon(true)
-          thread
-      )
-      snapshot.foreach { example => pool.submit(new Runnable:
-        def run(): Unit =
-          try verify(example, record)
-          catch case failure: Throwable =>
-            failures.incrementAndGet()
-            record(s"{\"case\":${example.id},\"status\":\"harness-failure\",\"error\":${quote(failure.toString)}}")
-          finally
-            val n = completed.incrementAndGet()
-            if n % 100 == 0 || n == snapshot.size then println(s"Radix translation audit: $n/${snapshot.size} cases, ${failures.get()} failures")
-      ) }
-      pool.shutdown()
-      val finished = pool.awaitTermination(java.lang.Long.getLong("morkl.radixAudit.seconds", 5400L), TimeUnit.SECONDS)
-      if !finished then
-        failures.incrementAndGet()
-        pool.shutdownNow()
-      val counts = directions.map(d => quote(d) + ":" + Option(passed.get(d)).fold(0L)(_.get())).mkString(",")
-      val callers = snapshot.groupBy(_.caller).toVector.sortBy(_._1).map((n,v) => quote(n) + ":" + v.size).mkString(",")
-      val summary = s"{\"observations\":${observations.get()},\"cases\":${snapshot.size},\"completed\":${completed.get()},\"checks\":${checks.get()},\"failures\":${failures.get()},\"sourceErrors\":${sourceErrors.get()},\"finished\":$finished,\"passed\":{$counts},\"callers\":{$callers}}"
-      Files.writeString(directory.resolve("summary.json"), summary + "\n")
-      writer.close()
-      println("Radix translation audit: " + summary)
+      if OpenFstAudit.enabled then
+        snapshot.foreach { e => OpenFstAudit.addSymbol(e.expression,e.paths,e.spaces,e.routines,e.expected,e.alphabet,e.caller) }
+        OpenFstAudit.finish(snapshot.size)
+      else
+        val writer = Files.newBufferedWriter(directory.resolve("checks.jsonl"))
+        def record(line: String): Unit = writer.synchronized { writer.write(line); writer.newLine(); writer.flush() }
+        val workers = Integer.getInteger("morkl.radixAudit.workers", 16).intValue().max(1)
+        val pool = Executors.newFixedThreadPool(workers, new ThreadFactory:
+          def newThread(task: Runnable): Thread =
+            val thread = new Thread(task, "radix-audit")
+            thread.setDaemon(true)
+            thread
+        )
+        snapshot.foreach { example => pool.submit(new Runnable:
+          def run(): Unit =
+            try verify(example, record)
+            catch case failure: Throwable =>
+              failures.incrementAndGet()
+              record(s"{\"case\":${example.id},\"status\":\"harness-failure\",\"error\":${quote(failure.toString)}}")
+            finally
+              val n = completed.incrementAndGet()
+              if n % 100 == 0 || n == snapshot.size then println(s"Radix translation audit: $n/${snapshot.size} cases, ${failures.get()} failures")
+        ) }
+        pool.shutdown()
+        val finished = pool.awaitTermination(java.lang.Long.getLong("morkl.radixAudit.seconds", 5400L), TimeUnit.SECONDS)
+        if !finished then
+          failures.incrementAndGet()
+          pool.shutdownNow()
+        val counts = directions.map(d => quote(d) + ":" + Option(passed.get(d)).fold(0L)(_.get())).mkString(",")
+        val callers = snapshot.groupBy(_.caller).toVector.sortBy(_._1).map((n,v) => quote(n) + ":" + v.size).mkString(",")
+        val summary = s"{\"observations\":${observations.get()},\"cases\":${snapshot.size},\"completed\":${completed.get()},\"checks\":${checks.get()},\"failures\":${failures.get()},\"sourceErrors\":${sourceErrors.get()},\"finished\":$finished,\"passed\":{$counts},\"callers\":{$callers}}"
+        Files.writeString(directory.resolve("summary.json"), summary + "\n")
+        writer.close()
+        println("Radix translation audit: " + summary)
       ()
     , "radix-audit-shutdown"))
   }
