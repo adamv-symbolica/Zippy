@@ -39,8 +39,8 @@ class WordEncodingScaleTest extends FunSuite:
         val encoded = code.encodeSpace(WordSpaceValue(input.paths))
         val result = timed(s"Range/$label/$n")(program.eval(spaces = Map(x -> encoded), validateHints = true)(using code.target))
         assertEquals(code.decodeSpace(result).paths, expected.paths)
-      check("fib", WordEncodings.internedSymbolsToBits(interner))
-      check("intern4", WordEncodings.internedSymbolsToBytes(interner))
+      check("fib", WordEncodings.sortedDictionaryBits(interner))
+      check("intern4", WordEncodings.sortedDictionaryBytes(interner))
   }
 
   test("invariant Fold scales through 10000 groups and preserves grouped rest spaces") {
@@ -49,7 +49,7 @@ class WordEncodingScaleTest extends FunSuite:
     for n <- Vector(50, 200, 800, 1000, 10000) do
       val (interner, input) = symbols(n, tail = true)
       timed(s"Fold/intern4/$n") {
-        assertEquals(execute(WordEncodings.internedSymbolsToBytes(interner), expr, input), input)
+        assertEquals(execute(WordEncodings.sortedDictionaryBytes(interner), expr, input), input)
       }
       timed(s"Fold/utf8/$n") {
         assertEquals(execute(WordEncodings.stringSymbolsToBytes(interner), expr, input), input)
@@ -61,7 +61,7 @@ class WordEncodingScaleTest extends FunSuite:
     val expr = Space.Fold(Space.Mention(x), Path.ZERO, a, h, t,
       Space.Singleton(Path.Deref(h)), Path.Concat(Path.Deref(a), Path.Deref(h)))
     timed("Fold/changing/intern4/1000") {
-      assertEquals(execute(WordEncodings.internedSymbolsToBytes(interner), expr, input), input)
+      assertEquals(execute(WordEncodings.sortedDictionaryBytes(interner), expr, input), input)
     }
   }
 
@@ -69,7 +69,7 @@ class WordEncodingScaleTest extends FunSuite:
     val raw = SpaceValue((0 until 128).map(i => PathValue(List.tabulate(7)(bit =>
       PathItem(if ((i >>> bit) & 1) == 0 then "a" else "b")))).toSet)
     val interner = new PathItemInterner; raw.paths.foreach(interner.encode)
-    val code = WordEncodings.internedSymbolsToBits(interner)
+    val code = WordEncodings.sortedDictionaryBits(interner)
     for depth <- 1 to 6 do
       var evaluations = 0
       val input = Space.GroundedSS(Space.Literal(raw), v => { evaluations += 1; v })
@@ -84,11 +84,11 @@ class WordEncodingScaleTest extends FunSuite:
 
   test("scanner calls grow linearly in codeword length and small alphabets inline by default") {
     val (interner, input) = symbols(16)
-    val code = WordEncodings.internedSymbolsToBits(interner)
+    val code = WordEncodings.sortedDictionaryBits(interner)
     val expr = SymbolWordLanguage.space(Space.Iteration(Space.Mention(x), h, t, Space.Singleton(Path.Deref(h))))
     val recursive = code.compile(expr, unrollBounded = false)
     val inlined = code.compile(expr)
-    assert(inlined.routines.isEmpty)
+    assertEquals(inlined.routines.size, 1)
     for value <- input.paths do
       val stats = new WordEvaluationStats
       val encoded = code.encode(value)

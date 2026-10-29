@@ -38,6 +38,16 @@ object ZippyTranslations:
       (WordEncoding[PathValue, BytePathValue], WordProgram[BytePathValue]) =
     symbolProgram(entry, interner, routines, WordEncodings.internedSymbolsToBytes, unrollBounded)
 
+  def sortedDictionaryToBits(entry: Space, interner: PathItemInterner = new PathItemInterner,
+      routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true):
+      (WordEncoding[PathValue, BigInt], WordProgram[BigInt]) =
+    symbolProgram(entry, interner, routines, WordEncodings.sortedDictionaryBits, unrollBounded)
+
+  def sortedDictionaryToBytes(entry: Space, interner: PathItemInterner = new PathItemInterner,
+      routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true):
+      (WordEncoding[PathValue, BytePathValue], WordProgram[BytePathValue]) =
+    symbolProgram(entry, interner, routines, WordEncodings.sortedDictionaryBytes, unrollBounded)
+
   def bitsToBytes(entry: BitSpace, routines: Map[RoutinePtr, BitRoutine] = Map.empty): WordProgram[BytePathValue] =
     WordEncodings.bitsToBytes.compile(entry, routines)
   def bytesToBits(entry: ByteSpace, routines: Map[RoutinePtr, ByteRoutine] = Map.empty): WordProgram[BigInt] =

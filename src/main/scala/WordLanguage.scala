@@ -140,6 +140,7 @@ object WordSpace:
 
 case class WordRoutine[P](name: RoutinePtr, refs: Vector[PathRef], mentions: Vector[SpaceMention], body: WordSpace[P])
 case class WordProgram[P](entry: WordSpace[P], routines: Map[RoutinePtr, WordRoutine[P]]):
+  def nodeCount: Long = WordSyntax.nodes(entry) + routines.valuesIterator.map(r => WordSyntax.nodes(r.body)).sum
   def eval(paths: Map[PathRef, P] = Map.empty[PathRef, P], spaces: Map[SpaceMention, WordSpaceValue[P]] = Map.empty[SpaceMention, WordSpaceValue[P]],
            stats: Option[WordEvaluationStats] = None, validateHints: Boolean = false)(using ops: WordOps[P]): WordSpaceValue[P] =
     WordEvaluator.eval(entry, paths, spaces, routines, stats, validateHints)
@@ -153,10 +154,20 @@ object WordEvaluator:
   def eval[P](expression: WordSpace[P], paths: Map[PathRef, P] = Map.empty[PathRef, P],
               spaces: Map[SpaceMention, WordSpaceValue[P]] = Map.empty[SpaceMention, WordSpaceValue[P]],
               routines: Map[RoutinePtr, WordRoutine[P]] = Map.empty[RoutinePtr, WordRoutine[P]],
-              stats: Option[WordEvaluationStats] = None, validateHints: Boolean = false)(using ops: WordOps[P]): WordSpaceValue[P] =
+              stats: Option[WordEvaluationStats] = None, validateHints: Boolean = false,
+              backend: Option[WordSetBackend[P]] = None)(using ops: WordOps[P]): WordSpaceValue[P] =
     import WordSpace.*
     import ops.ordering
     import scala.util.control.TailCalls.{TailRec, done, tailcall}
+    val store = backend.getOrElse(new WordSetBackend(ops))
+    val literalCache = new java.util.IdentityHashMap[Set[P], Set[P]]()
+    def stored(values: Set[P]): Set[P] =
+      val cached = literalCache.get(values)
+      if cached != null then cached
+      else
+        val result = store.from(values)
+        literalCache.put(values, result)
+        result
     type PC = Map[PathRef, P]
     type SC = Map[SpaceMention, WordSpaceValue[P]]
     def bindPath(pc: PC, r: PathRef, p: P): PC = if r.s == "_" then pc else pc.updated(r, p)
@@ -182,17 +193,13 @@ object WordEvaluator:
         case WordPath.GroundedPP(p, f) => path(p, pc, sc).map(f)
         case WordPath.GroundedSP(s, f) => run(s, pc, sc).map(x => f(WordSpaceValue(x)))
     }
-    def grouped(values: Set[P]): Vector[(P, Set[P])] =
-      val groups = scala.collection.mutable.HashMap.empty[P, scala.collection.mutable.Set[P]]
-      values.iterator.flatMap(ops.split).foreach { (h, t) => groups.getOrElseUpdate(h, scala.collection.mutable.Set.empty) += t }
-      groups.iterator.map((h, t) => h -> t.toSet).toVector
     def run(s: WordSpace[P], pc: PC, sc: SC): TailRec[Set[P]] = tailcall {
       stats.foreach(x => x.nodes += 1)
       def rec(s: WordSpace[P]): TailRec[Set[P]] = run(s, pc, sc)
       def binary(x: WordSpace[P], y: WordSpace[P])(f: (Set[P], Set[P]) => Set[P]): TailRec[Set[P]] =
         for a <- rec(x); b <- rec(y) yield f(a, b)
       s match
-        case Empty() => done(Set.empty)
+        case Empty() => done(store.empty)
         case Call(r, ps, ss) =>
           stats.foreach(x => x.calls += 1)
           val routine = routines(r)
@@ -214,32 +221,32 @@ object WordEvaluator:
                 case _ => run(routine.body, nextPC, nextSC)
           yield result
         case Mention(m) => done(sc(m).paths)
-        case Singleton(p) => path(p, pc, sc).map(Set(_))
-        case Literal(v) => done(v.paths)
-        case Union(x, y) => binary(x, y)(_ union _)
-        case Intersection(x, y) => binary(x, y)(_ intersect _)
-        case Subtraction(x, y) => binary(x, y)(_ diff _)
-        case Restriction(x, y) => binary(x, y)((a, b) => a.filter(p => b.exists(ops.startsWith(p, _))))
-        case Raffination(x, y) => binary(x, y)((a, b) => a.filterNot(p => b.exists(ops.startsWith(p, _))))
+        case Singleton(p) => path(p, pc, sc).map(p => store.from(Vector(p)))
+        case Literal(v) => done(stored(v.paths))
+        case Union(x, y) => binary(x, y)(store.union)
+        case Intersection(x, y) => binary(x, y)(store.intersect)
+        case Subtraction(x, y) => binary(x, y)(store.subtract)
+        case Restriction(x, y) => binary(x, y)((a, b) => store.restrict(a, b, true))
+        case Raffination(x, y) => binary(x, y)((a, b) => store.restrict(a, b, false))
         case Composition(x, y) => rec(x).flatMap { a =>
-          if a.isEmpty then done(Set.empty)
-          else rec(y).map(b => for p <- a; q <- b yield ops.concat(p, q))
+          if a.isEmpty then done(store.empty)
+          else rec(y).map(b => store.compose(a, b))
         }
-        case Wrap(s, p) => for prefix <- path(p, pc, sc); values <- rec(s) yield values.map(ops.concat(prefix, _))
+        case Wrap(s, p) => for prefix <- path(p, pc, sc); values <- rec(s) yield store.wrap(values, prefix)
         case Unwrap(s, p) => for prefix <- path(p, pc, sc); values <- rec(s)
-          yield values.filter(ops.startsWith(_, prefix)).map(ops.drop(_, ops.length(prefix)))
+          yield store.unwrap(values, prefix)
         case Iteration(s, h, t, body) => rec(s).flatMap { values =>
-          traverse(grouped(values))((head, tail) => run(body, bindPath(pc, h, head), bindSpace(sc, t, tail))).map(_.iterator.flatten.toSet)
+          traverse(store.groups(values))((head, tail) => run(body, bindPath(pc, h, head), bindSpace(sc, t, tail))).map(_.foldLeft(store.empty)(store.union))
         }
         case Fold(s, initial, acc, h, t, body, update) =>
           for
             initialValue <- path(initial, pc, sc)
             values <- rec(s)
             result <-
-              val iterator = grouped(values).sortBy(_._1).iterator
+              val iterator = store.groups(values).sortBy(_._1).iterator
               val out = Set.newBuilder[P]
               def loop(a: P): TailRec[Set[P]] =
-                if !iterator.hasNext then done(out.result())
+                if !iterator.hasNext then done(store.from(out.result()))
                 else
                   val (head, tail) = iterator.next()
                   val nextPC = bindPath(bindPath(pc, acc, a), h, head)
@@ -253,27 +260,21 @@ object WordEvaluator:
           yield result
         case Fixpoint(initial, variable, step) => rec(initial).flatMap { start =>
           def loop(current: Set[P]): TailRec[Set[P]] = run(step, pc, bindSpace(sc, variable, current)).flatMap { value =>
-            val next = current union value
+            val next = store.union(current, value)
             if next == current then done(current) else tailcall(loop(next))
           }
           tailcall(loop(start))
         }
-        case TailsUnion(s) => rec(s).map(values => grouped(values).iterator.flatMap(_._2).toSet)
-        case TailsIntersection(s) => rec(s).map(values => grouped(values).map(_._2).reduceOption(_ intersect _).getOrElse(Set.empty))
-        case PrefixClosure(s) => rec(s).map(_.flatMap(p => (1 to ops.length(p)).map(ops.take(p, _))))
-        case SuffixClosure(s) => rec(s).map(_.flatMap(p => (0 until ops.length(p)).map(ops.drop(p, _))))
-        case TailsClosure(s) => rec(s).map(_.flatMap(p => (0 to ops.length(p)).map(ops.drop(p, _))))
-        case GroundedPS(p, f) => path(p, pc, sc).map(x => f(x).paths)
-        case GroundedSS(s, f) => rec(s).map(x => f(WordSpaceValue(x)).paths)
-        case Range(s, start, end) => rec(s).map { values =>
-          val (lo, hi) = RangeBounds.normalize(values.size, start, end)
-          if hi <= lo then Set.empty
-          else if lo == 0 && hi == values.size then values
-          else if lo == 0 && hi == 1 then Set(values.min)
-          else values.toVector.sorted.slice(lo, hi).toSet
-        }
+        case TailsUnion(s) => rec(s).map(values => store.from(store.groups(values).iterator.flatMap(_._2).toVector))
+        case TailsIntersection(s) => rec(s).map(values => store.groups(values).map(_._2).reduceOption(store.intersect).getOrElse(store.empty))
+        case PrefixClosure(s) => rec(s).map(v => store.from(v.flatMap(p => (1 to ops.length(p)).map(ops.take(p, _)))))
+        case SuffixClosure(s) => rec(s).map(v => store.from(v.flatMap(p => (0 until ops.length(p)).map(ops.drop(p, _)))))
+        case TailsClosure(s) => rec(s).map(v => store.from(v.flatMap(p => (0 to ops.length(p)).map(ops.drop(p, _)))))
+        case GroundedPS(p, f) => path(p, pc, sc).map(x => stored(f(x).paths))
+        case GroundedSS(s, f) => rec(s).map(x => stored(f(WordSpaceValue(x)).paths))
+        case Range(s, start, end) => rec(s).map(values => store.range(values, start, end))
     }
-    WordSpaceValue(run(expression, paths, spaces).result)
+    WordSpaceValue(run(expression, paths, spaces.view.mapValues(v => WordSpaceValue(store.from(v.paths))).toMap).result)
 
 type BitPathValue = BigInt
 object BitPathValue:
@@ -351,5 +352,11 @@ object Zippy_bytes:
   given WordOps[BytePathValue] = ByteWords
   def eval(s: ByteSpace, paths: Map[PathRef, BytePathValue] = Map.empty, spaces: Map[SpaceMention, ByteSpaceValue] = Map.empty,
            routines: Map[RoutinePtr, ByteRoutine] = Map.empty): ByteSpaceValue = WordEvaluator.eval(s, paths, spaces, routines)
+  def evalZ(s: ByteSpace, paths: Map[PathRef, BytePathValue] = Map.empty,
+            spaces: Map[SpaceMention, ByteSpaceValue] = Map.empty,
+            routines: Map[RoutinePtr, ByteRoutine] = Map.empty,
+            stats: Option[WordEvaluationStats] = None, validateHints: Boolean = false): ByteTrie =
+    val value = WordEvaluator.eval(s, paths, spaces, routines, stats, validateHints, Some(ByteTrieBackend))(using ByteWords)
+    value.paths.asInstanceOf[ByteTrieSet].trie
   /** A 256-bit result, independent of the number of paths in the subspace. */
   def headMask(value: ByteSpaceValue): BigInt = value.paths.iterator.flatMap(ByteWords.split).foldLeft(BigInt(0))((m, p) => m.setBit(ByteWords.digits(p._1).head))
