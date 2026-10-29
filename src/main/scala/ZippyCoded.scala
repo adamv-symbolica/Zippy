@@ -225,7 +225,28 @@ object ZOps:
       case other =>
         (children(other).map(free) ++ paths(other).map(fp)).foldLeft((Set[PathRef](), Set[SpaceMention]()))(join)
 
-  def size[A](s: ZSpace[A]): Int = 1 + children(s).map(size).sum
+  /** EXHAUSTIVE walk: every space node, including spaces nested in paths (`ZPath.GroundedSP`) */
+  def subspaces[A](s: ZSpace[A]): Iterator[ZSpace[A]] =
+    Iterator(s) ++ children(s).flatMap(subspaces) ++ paths(s).flatMap(subpaths).flatMap {
+      case ZPath.GroundedSP(q, _) => subspaces(q)
+      case _ => Iterator.empty
+    }
+  /** every path node of `s` (exhaustive, through nested spaces) */
+  def subpaths[A](p: ZPath[A]): Iterator[ZPath[A]] = Iterator(p) ++ (p match
+    case ZPath.Concat(l, r) => subpaths(l) ++ subpaths(r)
+    case ZPath.GroundedPP(q, _) => subpaths(q)
+    case _ => Iterator.empty)
+  def allPaths[A](s: ZSpace[A]): Iterator[ZPath[A]] = subspaces(s).flatMap(x => paths(x).flatMap(subpaths))
+  /** true AST size: space nodes + path nodes, nested spaces included */
+  def size[A](s: ZSpace[A]): Int = subspaces(s).size + allPaths(s).size
+  /** no Grounded node anywhere: the expression has no host callback whose effects or failure could be
+   *  observed, so evaluating it fewer times or in another order cannot change anything */
+  def pure[A](s: ZSpace[A]): Boolean =
+    subspaces(s).forall { case _: ZSpace.GroundedPS[A] | _: ZSpace.GroundedSS[A] => false; case _ => true } &&
+      allPaths(s).forall(pure(_))
+  def pure[A](p: ZPath[A]): Boolean = subpaths(p).forall {
+    case _: ZPath.GroundedPP[A] | _: ZPath.GroundedSP[A] => false
+    case _ => true }
 
   /** every NAME a program uses — routine names, path refs and space mentions, bound or free — so a
    *  translator can generate names that capture nothing and overwrite no routine */
@@ -284,40 +305,78 @@ object BitRepr extends PathRepr[Bit, BigInt]:
     val c = (x >> (lx - m)).compare(y >> (ly - m))
     if c != 0 then c else Integer.compare(lx, ly)
 
-/** an IMMUTABLE byte array with value equality and unsigned lexicographic order.  The storage is
- *  private and never escapes: the public constructor copies its argument and `bytes` returns a
- *  copy, so a path stored in a hashed set can never change its hash.  `ByteRepr` builds paths from
- *  arrays it has just allocated through the package-private `owned`, skipping the defensive copy. */
-final class ByteArr private (private val a: Array[Byte]):
-  def length: Int = a.length
-  def apply(i: Int): Byte = a(i)
-  def bytes: Array[Byte] = a.clone()
+/** an IMMUTABLE byte string with value equality and unsigned lexicographic order: the window
+ *  `[off, off + len)` of a backing buffer.  The window's bytes are never written after construction:
+ *  the public constructor copies its argument and `bytes` returns a copy, so a path stored in a hashed
+ *  set never changes its hash.  Sharing keeps the reference evaluator linear on long paths:
+ *    - `uncons` / `dropPrefix` return sub-windows of the same buffer (no copy);
+ *    - `concat(x, y)` APPENDS in place when x ends at the buffer's high-water mark (the buffer's bytes
+ *      beyond it belong to nobody), else copies into a fresh buffer with doubled capacity — so a
+ *      scanner growing its prefix one byte at a time costs amortized O(1) per byte, not O(length).
+ *  This is pure representation sharing: no symbol boundary or other metadata is stored. */
+final class ByteArr private (private val buf: ByteArr.Buf, private val off: Int, val length: Int):
+  def apply(i: Int): Byte = buf.a(off + i)
+  def bytes: Array[Byte] = java.util.Arrays.copyOfRange(buf.a, off, off + length)
   override def equals(o: Any): Boolean = o match
-    case b: ByteArr => java.util.Arrays.equals(a, b.a)
+    case b: ByteArr => length == b.length && java.util.Arrays.equals(buf.a, off, off + length, b.buf.a, b.off, b.off + length)
     case _ => false
-  override val hashCode: Int = java.util.Arrays.hashCode(a)
-  override def toString: String = a.map(b => f"${b & 0xff}%02x").mkString("ByteArr(", " ", ")")
+  // computed on first use (a scanner's intermediate prefixes are never hashed); racy-benign like String
+  private var h = 0
+  override def hashCode: Int =
+    if h == 0 then
+      var x = 1; var i = off; val e = off + length; val a = buf.a
+      while i < e do { x = 31 * x + a(i); i += 1 }
+      h = x
+    h
+  override def toString: String = bytes.map(b => f"${b & 0xff}%02x").mkString("ByteArr(", " ", ")")
 object ByteArr:
-  def apply(a: Array[Byte]): ByteArr = new ByteArr(a.clone())
-  private[morkl] def owned(a: Array[Byte]): ByteArr = new ByteArr(a)
-  private[morkl] def raw(b: ByteArr): Array[Byte] = b.a
+  /** a backing buffer; `used` is the high-water mark: bytes at or past it are owned by no ByteArr */
+  private[morkl] final class Buf(var a: Array[Byte], var used: Int)
+  def apply(a: Array[Byte]): ByteArr = owned(a.clone())
+  private[morkl] def owned(a: Array[Byte]): ByteArr = new ByteArr(Buf(a, a.length), 0, a.length)
+  private[morkl] def slice(x: ByteArr, from: Int, until: Int): ByteArr = new ByteArr(x.buf, x.off + from, until - from)
+  private[morkl] def compare(x: ByteArr, y: ByteArr): Int =
+    java.util.Arrays.compareUnsigned(x.buf.a, x.off, x.off + x.length, y.buf.a, y.off, y.off + y.length)
+  private[morkl] def startsWith(x: ByteArr, p: ByteArr): Boolean =
+    x.length >= p.length && java.util.Arrays.equals(x.buf.a, x.off, x.off + p.length, p.buf.a, p.off, p.off + p.length)
+  private[morkl] def concat(x: ByteArr, y: ByteArr): ByteArr =
+    if y.length == 0 then x
+    else if x.length == 0 then y
+    else
+      val b = x.buf
+      b.synchronized {
+        val end = x.off + x.length
+        if end == b.used && end + y.length <= b.a.length then
+          System.arraycopy(y.buf.a, y.off, b.a, end, y.length); b.used = end + y.length
+          new ByteArr(b, x.off, x.length + y.length)
+        else if end == b.used then
+          // grow the shared buffer: the old window stays valid in the old array, new appends go to the new one
+          val na = java.util.Arrays.copyOf(b.a, math.max(16, math.max(2 * b.a.length, end + y.length)))
+          System.arraycopy(y.buf.a, y.off, na, end, y.length)
+          val nb = Buf(na, end + y.length)
+          b.used = Int.MaxValue      // the old buffer is frozen: x's window there is still readable
+          new ByteArr(nb, x.off, x.length + y.length)
+        else
+          val n = x.length + y.length
+          val na = new Array[Byte](math.max(16, 2 * n))
+          System.arraycopy(b.a, x.off, na, 0, x.length); System.arraycopy(y.buf.a, y.off, na, x.length, y.length)
+          new ByteArr(Buf(na, n), 0, n)
+      }
 
-/** Zippy_bytes reference: a path is a byte array, a space a Set[ByteArr]. */
+/** Zippy_bytes reference: a path is a byte string, a space a Set[ByteArr]. */
 object ByteRepr extends PathRepr[Byte, ByteArr]:
-  import ByteArr.{owned, raw}
+  import ByteArr.owned
   val empty: ByteArr = owned(Array.emptyByteArray)
   def fromAtoms(v: Vector[Byte]): ByteArr = owned(v.toArray)
-  def toAtoms(r: ByteArr): Vector[Byte] = raw(r).toVector
-  def concat(x: ByteArr, y: ByteArr): ByteArr = owned(raw(x) ++ raw(y))
-  def startsWith(x: ByteArr, p: ByteArr): Boolean =
-    val xa = raw(x); val pa = raw(p)
-    xa.length >= pa.length && java.util.Arrays.equals(xa, 0, pa.length, pa, 0, pa.length)
-  def dropPrefix(x: ByteArr, p: ByteArr): ByteArr = owned(raw(x).drop(p.length))
+  def toAtoms(r: ByteArr): Vector[Byte] = r.bytes.toVector
+  def concat(x: ByteArr, y: ByteArr): ByteArr = ByteArr.concat(x, y)
+  def startsWith(x: ByteArr, p: ByteArr): Boolean = ByteArr.startsWith(x, p)
+  def dropPrefix(x: ByteArr, p: ByteArr): ByteArr = ByteArr.slice(x, p.length, x.length)
+  private val atoms = Array.tabulate(256)(i => owned(Array(i.toByte)))
   def uncons(x: ByteArr): Option[(ByteArr, ByteArr)] =
-    val xa = raw(x)
-    if xa.isEmpty then None else Some((owned(Array(xa(0))), owned(xa.drop(1))))
+    if x.length == 0 then None else Some((atoms(x(0) & 0xff), ByteArr.slice(x, 1, x.length)))
   def length(x: ByteArr): Int = x.length
-  def compare(x: ByteArr, y: ByteArr): Int = java.util.Arrays.compareUnsigned(raw(x), raw(y))
+  def compare(x: ByteArr, y: ByteArr): Int = ByteArr.compare(x, y)
 
 /** Zippy_symbols over vectors (the `ZSpace[String]` twin of `eval`, used to check `ZSym` and as an oracle) */
 final class VecRepr[A](using ord: Ordering[A]) extends PathRepr[A, Vector[A]]:
@@ -356,28 +415,73 @@ final class ZEval[A, R](val repr: PathRepr[A, R], routines: Map[RoutinePtr, ZRou
   private def bindP(pc: PC, k: PathRef, v: R): PC = { hint(k, v); if k.s == "_" then pc else pc.updated(k, v) }
   private def bindS(sc: SC, k: SpaceMention, v: Set[R]): SC = if k.s == "_" then sc else sc.updated(k, v)
 
-  // A Literal denotes one constant set: it is built once per evaluator, and large literal sets get a
-  // sorted index so prefix queries (Restriction / Unwrap by a few prefixes — the shape of a recoding
-  // table lookup) are a binary search instead of a scan.  Pure evaluator caching: same results.
-  private val literals = java.util.IdentityHashMap[ZSpace.Literal[A], Set[R]]()
-  private val indexed = java.util.IdentityHashMap[Set[R], Array[AnyRef]]()
+  // INDEXING (pure evaluator caching, same results).  A large set that is queried by prefix or sliced
+  // in order gets a sorted index (a persistent TreeSet keyed by set identity).  Subtraction and
+  // Raffination of a few elements from an indexed set carry the index over (O(k log n)), so a loop that
+  // repeatedly takes the least element / removes a group / unwraps one prefix of a fixed input (the
+  // shape of every generated Fold) costs O(log n) per step, not a scan.
+  // LIFETIME.  Caches for the literals of the evaluator's ROUTINES live as long as the evaluator (they are
+  // part of the compiled program, reused warm across frames); every other cache — main-program literals
+  // and set indexes — lives for ONE top-level `apply` / `path` call, so discarded programs leave nothing.
+  import scala.collection.immutable.TreeSet
+  private val routineLits: java.util.IdentityHashMap[ZSpace.Literal[A], Set[R]] =
+    val m = java.util.IdentityHashMap[ZSpace.Literal[A], Set[R]]()
+    routines.valuesIterator.flatMap(r => ZOps.subspaces(r.body)).foreach { case l: ZSpace.Literal[A] => m.put(l, null); case _ => () }
+    m
+  private val routineIdx = java.util.IdentityHashMap[Set[R], TreeSet[R]]()
+  private var runLits = java.util.IdentityHashMap[ZSpace.Literal[A], Set[R]]()
+  private var runIdx = java.util.IdentityHashMap[Set[R], TreeSet[R]]()
+  private var depth = 0
+  /** entries currently cached (persistent, per-run): the retention checks read this */
+  def cacheSizes: (Int, Int) = (routineLits.size + routineIdx.size, runLits.size + runIdx.size)
+  private def run[T](f: => T): T =
+    depth += 1
+    try f finally { depth -= 1; if depth == 0 then { runLits = java.util.IdentityHashMap(); runIdx = java.util.IdentityHashMap() } }
   private def literal(l: ZSpace.Literal[A]): Set[R] =
-    var v = literals.get(l)
+    val persistent = routineLits.containsKey(l)
+    val m = if persistent then routineLits else runLits
+    var v = m.get(l)
     if v == null then
-      v = l.p.map(repr.fromAtoms); literals.put(l, v)
-      if v.size > 32 then indexed.put(v, v.toArray[Any].map(_.asInstanceOf[AnyRef]).sortWith((x, y) => repr.compare(x.asInstanceOf[R], y.asInstanceOf[R]) < 0))
+      v = l.p.map(repr.fromAtoms); m.put(l, v)
+      if v.size > 32 then (if persistent then routineIdx else runIdx).put(v, TreeSet.from(v))
     v
+  private def idxOf(s: Set[R]): TreeSet[R] = { val t = runIdx.get(s); if t != null then t else routineIdx.get(s) }
+  private def indexed(s: Set[R]): Boolean = idxOf(s) != null
+  private def sortedOf(s: Set[R]): TreeSet[R] =
+    var t = idxOf(s)
+    if t == null then { t = TreeSet.from(s); runIdx.put(s, t) }
+    t
+  private def note(s: Set[R], t: TreeSet[R]): Set[R] = { if s.size > 32 && !indexed(s) then runIdx.put(s, t); s }
+  /** worth indexing: already indexed, or large enough that a sort amortizes over repeated queries */
+  private def big(s: Set[R]): Boolean = indexed(s) || s.size > 32
   /** the elements of `s` starting with prefix `p` (extensions of p are contiguous in canonical order) */
   private def withPrefix(s: Set[R], p: R): Iterator[R] =
-    val ix = indexed.get(s)
-    if ix == null then s.iterator.filter(repr.startsWith(_, p))
-    else
-      var lo = 0; var hi = ix.length
-      while lo < hi do { val m = (lo + hi) >>> 1; if repr.compare(ix(m).asInstanceOf[R], p) < 0 then lo = m + 1 else hi = m }
-      ix.iterator.drop(lo).map(_.asInstanceOf[R]).takeWhile(repr.startsWith(_, p))
+    if big(s) then sortedOf(s).iteratorFrom(p).takeWhile(repr.startsWith(_, p))
+    else s.iterator.filter(repr.startsWith(_, p))
   private def restrict(xs: Set[R], ps: Set[R]): Set[R] =
-    if indexed.containsKey(xs) && ps.size * 8 < xs.size then ps.iterator.flatMap(withPrefix(xs, _)).toSet
+    if big(xs) && ps.size * 8 < xs.size then ps.iterator.flatMap(withPrefix(xs, _)).toSet
     else xs.filter(e => ps.exists(p => repr.startsWith(e, p)))
+  private def subtract(xs: Set[R], ys: Set[R]): Set[R] =
+    val r = xs removedAll ys
+    if indexed(xs) && (r ne xs) && ys.size * 8 < xs.size then note(r, sortedOf(xs) removedAll ys) else r
+  private def raffinate(xs: Set[R], ps: Set[R]): Set[R] =
+    if big(xs) && ps.size * 8 < xs.size then
+      val gone = ps.iterator.flatMap(withPrefix(xs, _)).toSet
+      if gone.isEmpty then xs else note(xs removedAll gone, sortedOf(xs) removedAll gone)
+    else xs.filterNot(e => ps.exists(p => repr.startsWith(e, p)))
+  /** union: insert the smaller set into the larger */
+  private def unite(a: Set[R], b: Set[R]): Set[R] = if a.size >= b.size then a concat b else b concat a
+  private def range(v: Set[R], lo: Int, hi: Int): Set[R] =
+    val (l, h) = RangeBounds.normalize(v.size, lo, hi)
+    if h <= l then Set.empty
+    else if l == 0 && h == v.size then v
+    else if big(v) then
+      val t = sortedOf(v)
+      if h - l == 1 && l == 0 then Set(t.head) else if h - l == 1 && h == v.size then Set(t.last)
+      else t.iterator.slice(l, h).toSet
+    else if h - l == 1 && l == 0 then Set(v.min)                 // one-element slices: a scan, not a sort
+    else if h - l == 1 && h == v.size then Set(v.max)
+    else v.toVector.sorted.slice(l, h).toSet
 
   /** stack-safe sequencing: every recursive evaluation goes through `TailCalls`, so deep generated
    *  recursion (fold loops, scanners over long codes) runs in constant JVM stack */
@@ -388,8 +492,8 @@ final class ZEval[A, R](val repr: PathRepr[A, R], routines: Map[RoutinePtr, ZRou
   private def mapT[X, Y](xs: Vector[X])(f: X => TailRec[Y]): TailRec[Vector[Y]] =
     foldT(xs.iterator, Vector.empty[Y])((acc, x) => f(x).map(acc :+ _))
 
-  def path(x: ZPath[A], pc: PC = Map.empty, sc: SC = Map.empty): R = pathT(x, pc, sc).result
-  def apply(s: ZSpace[A], pc: PC = Map.empty, sc: SC = Map.empty): Set[R] = ev(s, pc, sc).result
+  def path(x: ZPath[A], pc: PC = Map.empty, sc: SC = Map.empty): R = run(pathT(x, pc, sc).result)
+  def apply(s: ZSpace[A], pc: PC = Map.empty, sc: SC = Map.empty): Set[R] = run(ev(s, pc, sc).result)
 
   private def pathT(x: ZPath[A], pc: PC, sc: SC): TailRec[R] = x match
     case ZPath.Deref(pr) => done(pc.getOrElse(pr, throw RuntimeException(s"$pr path ref not resolved")))
@@ -431,11 +535,11 @@ final class ZEval[A, R](val repr: PathRepr[A, R], routines: Map[RoutinePtr, ZRou
       case ZSpace.Mention(v) => done(sc.getOrElse(v, throw RuntimeException(s"$v space mention not resolved")))
       case ZSpace.Singleton(p) => tailcall(pathT(p, pc, sc)).map(Set(_))
       case l: ZSpace.Literal[A] => done(literal(l))
-      case ZSpace.Union(x, y) => bin(x, y)(_ union _)
+      case ZSpace.Union(x, y) => bin(x, y)(unite)
       case ZSpace.Intersection(x, y) => bin(x, y)(_ intersect _)
-      case ZSpace.Subtraction(x, y) => bin(x, y)(_ removedAll _)
+      case ZSpace.Subtraction(x, y) => bin(x, y)(subtract)
       case ZSpace.Restriction(x, y) => bin(x, y)(restrict)
-      case ZSpace.Raffination(x, y) => bin(x, y)((xs, ps) => xs.filterNot(e => ps.exists(p => repr.startsWith(e, p))))
+      case ZSpace.Raffination(x, y) => bin(x, y)(raffinate)
       case ZSpace.Composition(x, y) => bin(x, y)((xs, ys) => for a <- xs; b <- ys yield repr.concat(a, b))
       case ZSpace.Wrap(src, p) => for pv <- tailcall(pathT(p, pc, sc)); v <- rec(src) yield v.map(repr.concat(pv, _))
       case ZSpace.Unwrap(src, p) => for pv <- tailcall(pathT(p, pc, sc)); v <- rec(src) yield withPrefix(v, pv).map(repr.dropPrefix(_, pv)).toSet
@@ -464,15 +568,7 @@ final class ZEval[A, R](val repr: PathRepr[A, R], routines: Map[RoutinePtr, ZRou
         yield res._2
       case ZSpace.GroundedPS(p, f) => tailcall(pathT(p, pc, sc)).map(v => f(repr.toAtoms(v)).map(repr.fromAtoms))
       case ZSpace.GroundedSS(q, f) => rec(q).map(v => f(v.map(repr.toAtoms)).map(repr.fromAtoms))
-      case ZSpace.Range(x, lo, hi) =>
-        rec(x).map { v =>
-          val (l, h) = RangeBounds.normalize(v.size, lo, hi)
-          if h <= l then Set.empty
-          else if l == 0 && h == v.size then v
-          else if h - l == 1 && l == 0 then Set(v.min)                 // one-element slices: a scan, not a sort
-          else if h - l == 1 && h == v.size then Set(v.max)
-          else v.toVector.sorted.slice(l, h).toSet
-        }
+      case ZSpace.Range(x, lo, hi) => rec(x).map(range(_, lo, hi))
 
 object ZEval:
   def bits(rs: Iterable[ZRoutine[Bit]] = Nil, checkHints: Boolean = false) = ZEval(BitRepr, rs.map(r => r.name -> r).toMap, checkHints)
@@ -570,8 +666,14 @@ object Codes:
   final class FibInterner(val idBound: Int, val snapshot: Option[Vector[String]] = None) extends Code[String, Bit]:
     require(idBound >= 1)
     val name = "fib-interner"
+    private val admissible = snapshot.map(_.toSet)
     def enc(a: String) =
-      val id = Interner.intern(a)
+      // the boundary checks run BEFORE interning: a rejected symbol leaves the interner unchanged
+      for v <- admissible if !v(a) do throw IllegalArgumentException(s"$name: '$a' outside the frozen vocabulary")
+      val known = Interner.lookup(a)
+      if known < 0 && Interner.size >= idBound then
+        throw IllegalArgumentException(s"$name: '$a' is not interned and the next id ${Interner.size} >= bound $idBound")
+      val id = if known >= 0 then known else Interner.intern(a)
       if id >= idBound then throw IllegalArgumentException(s"$name: '$a' has interner id $id >= bound $idBound")
       fibonacci(id + 1)
     def dec(c: Vector[Bit]) =
@@ -630,7 +732,10 @@ object Codes:
    *  `ITrie` keys on.  Stable across programs; not order-preserving, so `Range`/`Fold` are rejected. */
   final class InternerIds4(val snapshot: Option[Vector[String]]) extends Code[String, Byte]:
     val name = "interner-4"
-    def enc(a: String) = be4(Interner.intern(a))
+    private val admissible = snapshot.map(_.toSet)
+    def enc(a: String) =
+      for v <- admissible if !v(a) do throw IllegalArgumentException(s"$name: '$a' outside the frozen vocabulary")
+      be4(Interner.intern(a))
     def dec(c: Vector[Byte]) = Interner.unintern(unbe4(c))
     val automaton = Fixed4
     override def fixedLength = Some(4)
@@ -683,7 +788,8 @@ object Codes:
  *  fixed-length codes unroll into nested Iterations; codes with a known `maxCodeLength` L are
  *  specialized by depth into a recursion-free DAG of states × L routines (budget `depthBudget`);
  *  otherwise one recursive routine per automaton state. */
-final class CodedTranslation[A, B](val code: Code[A, B], reserved: Set[String], depthBudget: Int = 4096):
+final class CodedTranslation[A, B](val code: Code[A, B], reserved: Set[String], depthBudget: Int = 4096,
+                                  pureRoutine: RoutinePtr => Boolean = (_: RoutinePtr) => false):
   private val out = collection.mutable.LinkedHashMap.empty[RoutinePtr, ZRoutine[B]]
   private var fresh = 0
   private def nm(base: String): String =
@@ -775,12 +881,15 @@ final class CodedTranslation[A, B](val code: Code[A, B], reserved: Set[String], 
       if unit then ZSpace.TailsIntersection(space(x)) else space(tailsIntersection(x))
     case f @ ZSpace.Fold(src, i, a, h, r, t, u) =>
       if unit then ZSpace.Fold(space(src), path(i), ref(a), ref(h), r, space(t), path(u))
-      // the accumulator is never bound (`_`): the fold is a union over groups, order-free
-      else if a.s == "_" then space(ZSpace.Iteration(src, h, r, t))
+      // ORDER-FREE SHORTCUTS, only when nothing can observe the difference: the template (and every
+      // routine it calls) and the erased initial/update have no Grounded callback.  A callback's effects,
+      // evaluation count, order and failures are part of the source semantics, so impure folds keep the
+      // full sequenced lowering below (initial once, then body and update per group in canonical order).
+      // the accumulator is never bound (`_`): the fold is a union over groups
+      else if a.s == "_" && pureT(t) && ZOps.pure(i) && ZOps.pure(u) then space(ZSpace.Iteration(src, h, r, t))
       // the accumulator never changes (u = a, not shadowed by the head): bind it once, iterate
-      else if u == ZPath.Deref(a) && (h.s == "_" || h != a) then space(constantFold(src, i, a, h, r, t))
-      else if code.orderPreserving then space(fold(f))
-      else projectedFold(f)
+      else if u == ZPath.Deref(a) && (h.s == "_" || h != a) && pureT(t) then space(constantFold(src, i, a, h, r, t))
+      else sequencedFold(f)
 
   /** Fold(src, i, a, h, r, t, a) = (λ a. Iteration(src, h, r, t))(i), with src evaluated outside a's scope */
   private def constantFold(src: ZSpace[A], i: ZPath[A], a: PathRef, h: PathRef, r: SpaceMention, t: ZSpace[A]): ZSpace[A] =
@@ -808,37 +917,22 @@ final class CodedTranslation[A, B](val code: Code[A, B], reserved: Set[String], 
     routine(ZRoutine(name, Vector(), Vector(xm), ZSpace.Call(inner, Vector(), Vector(ZSpace.Mention(xm), tu))))
     ZSpace.Call(name, Vector(), Vector(x))
 
-  /** Fold as recursion over the canonically-first head group: take the least non-empty path
-   *  (Range(·,1,2)), iterate it to bind its head h, run the template on group h, recurse on the
-   *  remaining groups with the updated accumulator.  Group order = canonical order = `Fold`'s order. */
-  private def fold(f: ZSpace.Fold[A]): ZSpace[A] =
-    val ZSpace.Fold(src, initial, acc, h, rest, t, u) = f
-    val (fp0, fm0) = ZOps.free(ZSpace.Union(t, ZSpace.Singleton(u)))
-    val fp = (fp0 -- Set(acc, h).filter(_.s != "_")).toVector.sortBy(_.s)
-    val fm = (fm0 -- Set(rest).filter(_.s != "_")).toVector.sortBy(_.s)
-    val loop = RoutinePtr(nm("fold")); val step = RoutinePtr(nm("fold_step"))
-    val accR = PathRef(nm("acc")); val hR = PathRef(nm("h")); val ss = SpaceMention(nm("s"))
-    val fpA = fp.map(ZPath.Deref[A](_)); val fmA = fm.map(ZSpace.Mention[A](_))
-    val nonEmptyPaths = ZSpace.Subtraction[A](ZSpace.Mention(ss), ZSpace.Singleton(ZPath.Constant(Vector())))
-    routine(ZRoutine(loop, accR +: fp, ss +: fm,
-      ZSpace.Iteration(ZSpace.Range(nonEmptyPaths, 1, 2), hR, SpaceMention(nm("ignored")),
-        ZSpace.Call(step, Vector(ZPath.Deref(accR), ZPath.Deref(hR)) ++ fpA,
-          Vector(ZSpace.Unwrap(ZSpace.Mention(ss), ZPath.Deref(hR)), ZSpace.Mention(ss)) ++ fmA))))
-    // formals (acc, h): later formals win, so the head shadows the accumulator exactly as Fold binds them
-    val hS = formalP(h)
-    routine(ZRoutine(step, Vector(formalP(acc), hS) ++ fp, Vector(formalS(rest), ss) ++ fm,
-      ZSpace.Union(t, ZSpace.Call(loop, u +: fpA,
-        ZSpace.Raffination(ZSpace.Mention(ss), ZSpace.Singleton(ZPath.Deref(hS))) +: fmA))))
-    ZSpace.Call(loop, initial +: fpA, src +: fmA)
+  /** a template is pure if it has no Grounded node and calls only pure routines */
+  private def pureT(t: ZSpace[A]): Boolean =
+    ZOps.pure(t) && ZOps.subspaces(t).forall { case ZSpace.Call(rp, _, _) => pureRoutine(rp); case _ => true }
 
-  /** Fold under a code without symbol order (stable interner ids).  The HEADS of the source are
-   *  recoded ONCE into the order projection; the loop takes the least projected head (a minimum scan),
-   *  recodes that one head back, binds it with the code's decoder and runs the step on the source group
-   *  Unwrap(src, h) — so recoding work is linear in the number of groups.  Steps and shadowing are as
-   *  in `fold`: formals (acc, h) with the head winning, `_` binders fresh. */
-  private def projectedFold(f: ZSpace.Fold[A]): ZSpace[B] =
+  /** THE Fold lowering, for every code.  The source is evaluated once; its complete HEADS are extracted
+   *  once (and, for a code without symbol order, recoded once into the order projection); the loop takes
+   *  the least remaining head (Range(heads, 1, 2)), decodes it back to bind h, runs the step on the group
+   *  Unwrap(src, h) of the fixed source, and recurses on heads \ {least}.  Every step is a prefix query
+   *  on a fixed set or a removal from the heads set — the reference evaluator indexes both, so a fold
+   *  over n groups costs O(n log n) bulk work.  Steps and shadowing: formals (acc, h) with the head
+   *  winning, `_` binders fresh.  initial is evaluated once, before src, even when there are no groups. */
+  private def sequencedFold(f: ZSpace.Fold[A]): ZSpace[B] =
     val ZSpace.Fold(src, initial, acc, h, rest, t, u) = f
-    projection("Fold")
+    if !code.orderPreserving then projection("Fold")
+    def toOrder(x: ZSpace[B]) = if code.orderPreserving then x else recode(true, x)
+    def fromOrder(x: ZSpace[B]) = if code.orderPreserving then x else recode(false, x)
     val (fp0, fm0) = ZOps.free(ZSpace.Union(t, ZSpace.Singleton(u)))
     val fp = (fp0 -- Set(acc, h).filter(_.s != "_")).toVector.sortBy(_.s)
     val fm = (fm0 -- Set(rest).filter(_.s != "_")).toVector.sortBy(_.s)
@@ -848,12 +942,12 @@ final class CodedTranslation[A, B](val code: Code[A, B], reserved: Set[String], 
     val hsm = SpaceMention(nm("heads")); val hsRest = SpaceMention(nm("heads_rest")); val srcm = SpaceMention(nm("src"))
     val least = ZSpace.Range(ZSpace.Mention[B](hsm), 1, 2)
     emit(ZRoutine(loop, accR +: fpT, Vector(hsm, srcm) ++ fm,
-      decode(code, recode(false, least), accR +: fpT, Vector(hsm, srcm) ++ fm, (hp, _) =>
+      decode(code, fromOrder(least), accR +: fpT, Vector(hsm, srcm) ++ fm, (hp, _) =>
         ZSpace.Call(step, Vector(ZPath.Deref(accR), hp) ++ fpB,
           Vector(ZSpace.Unwrap(ZSpace.Mention(srcm), hp), ZSpace.Subtraction(ZSpace.Mention(hsm), least), ZSpace.Mention(srcm)) ++ fmB))))
     val heads = decode(code, ZSpace.Mention(xm), Vector(), Vector(), (hp, _) => ZSpace.Singleton(hp))
     emit(ZRoutine(entry, accR +: fpT, xm +: fm,
-      ZSpace.Call(loop, ZPath.Deref[B](accR) +: fpB, Vector(recode(true, heads), ZSpace.Mention(xm)) ++ fmB)))
+      ZSpace.Call(loop, ZPath.Deref[B](accR) +: fpB, Vector(toOrder(heads), ZSpace.Mention(xm)) ++ fmB)))
     val fpA = fp.map(ZPath.Deref[A](_)); val fmA = fm.map(ZSpace.Mention[A](_))
     routine(ZRoutine(step, Vector(formalP(acc), formalP(h)) ++ fp, Vector(formalS(rest), hsRest, srcm) ++ fm,
       ZSpace.Union(t, ZSpace.Call(loop, u +: fpA, Vector(ZSpace.Mention[A](hsRest), ZSpace.Mention[A](srcm)) ++ fmA))))
@@ -935,7 +1029,15 @@ object CodedTranslation:
       val admissible = vocab.toSet
       val outside = (ZOps.constants(main) ++ routines.iterator.flatMap(r => ZOps.constants(r.body))).flatten.filterNot(admissible).toSet
       require(outside.isEmpty, s"${code.name}: program constants outside the frozen vocabulary: ${outside.take(5).mkString(", ")}")
-    val t = new CodedTranslation(code, reserved, depthBudget)
+    // a routine is pure if its body has no Grounded node and it calls only pure routines (greatest fixpoint)
+    val table = routines.map(r => r.name -> r).toMap
+    var impure = table.keySet.filterNot(n => ZOps.pure(table(n).body))
+    var grown = true
+    while grown do
+      val next = impure ++ table.keySet.filter(n => ZOps.subspaces(table(n).body).exists {
+        case ZSpace.Call(rp, _, _) => impure(rp) || !table.contains(rp); case _ => false })
+      grown = next.size > impure.size; impure = next
+    val t = new CodedTranslation(code, reserved, depthBudget, rp => table.contains(rp) && !impure(rp))
     routines.foreach(t.routine)
     val m = t.space(main)
     (m, t.routines)

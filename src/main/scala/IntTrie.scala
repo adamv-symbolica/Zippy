@@ -18,6 +18,9 @@ object Interner:
       else { val id = fromId.size; fromId.add(p); toId.put(p, Integer.valueOf(id)); id }
     }
   def unintern(id: Int): PathItem = fromId.get(id)
+  /** the id of `p` if it is already interned, else -1 — never interns (for bounded encoders that must
+   *  fail without changing the interner) */
+  def lookup(p: PathItem): Int = { val e = toId.get(p); if e == null then -1 else e.intValue }
   def internPath(items: List[PathItem]): List[Int] = items.map(intern)
   def uninternPath(ids: List[Int]): List[PathItem] = ids.map(unintern)
   def size: Int = fromId.size
