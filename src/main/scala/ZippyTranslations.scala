@@ -4,17 +4,21 @@ package morkl
 object ZippyTranslations:
   private def symbolProgram[B](entry: Space, interner: PathItemInterner,
       routines: Map[RoutinePtr, Routine], make: PathItemInterner => WordEncoding[PathValue, B],
-      unrollBounded: Boolean): (WordEncoding[PathValue, B], WordProgram[B]) =
+      unrollBounded: Boolean, orderedVocabulary: Option[Iterable[PathItem]] = None): (WordEncoding[PathValue, B], WordProgram[B]) =
+    val admitted = orderedVocabulary.map(_.toSet)
+    def registerValue(v: PathValue): Unit =
+      admitted.foreach(items => require(v.items.forall(items.contains), "program constant outside frozen vocabulary"))
+      interner.encode(v)
     // Register all syntactic constants before closing the compilation alphabet.
     // Open input and callback-produced symbols must also be registered by the caller.
     def registerPath(p: Path): Path = p match
-      case Path.Constant(v) => interner.encode(v); p
+      case Path.Constant(v) => registerValue(v); p
       case _ => p
     subs(entry)(ppre = { case p @ Path.Constant(_) => registerPath(p) })
     routines.values.foreach(r => subs(r.body)(ppre = { case p @ Path.Constant(_) => registerPath(p) }))
     // Literals do not contain Path.Constant nodes.
     def registerLiteral(s: Space): Space = s match
-      case Space.Literal(v) => v.paths.foreach(interner.encode); s
+      case Space.Literal(v) => v.paths.foreach(registerValue); s
       case _ => s
     subs(entry)(spre = { case s @ Space.Literal(_) => registerLiteral(s) })
     routines.values.foreach(r => subs(r.body)(spre = { case s @ Space.Literal(_) => registerLiteral(s) }))
@@ -27,7 +31,7 @@ object ZippyTranslations:
       routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true,
       orderedVocabulary: Option[Iterable[PathItem]] = None, maxAdmissibleId: Option[Int] = None):
       (WordEncoding[PathValue, BigInt], WordProgram[BigInt]) =
-    symbolProgram(entry, interner, routines, i => WordEncodings.internedSymbolsToBits(i, orderedVocabulary, maxAdmissibleId), unrollBounded)
+    symbolProgram(entry, interner, routines, i => WordEncodings.internedSymbolsToBits(i, orderedVocabulary, maxAdmissibleId), unrollBounded, orderedVocabulary)
 
   def stringsToBytes(entry: Space, interner: PathItemInterner = new PathItemInterner,
       routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true):
@@ -38,7 +42,7 @@ object ZippyTranslations:
       routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true,
       orderedVocabulary: Option[Iterable[PathItem]] = None):
       (WordEncoding[PathValue, BytePathValue], WordProgram[BytePathValue]) =
-    symbolProgram(entry, interner, routines, i => WordEncodings.internedSymbolsToBytes(i, orderedVocabulary), unrollBounded)
+    symbolProgram(entry, interner, routines, i => WordEncodings.internedSymbolsToBytes(i, orderedVocabulary), unrollBounded, orderedVocabulary)
 
   def sortedDictionaryToBits(entry: Space, interner: PathItemInterner = new PathItemInterner,
       routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = true):

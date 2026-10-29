@@ -89,6 +89,8 @@ object WordEncodingBenchmarks:
         val bound = code.maxCodeLength.get
         assert(program.routines.size <= 2 * bound + 1)
       sizes("open-fib", open); sizes("snapshot-fib", bits); sizes("snapshot-id4", bytes)
+      measure(s"iteration/source/$n")(morkl.eval(iteration)(using PathContext.emptyMap,
+        SpaceContextMap(Map(x -> values)), PartialFunction.empty))
       val bitTime = coded(s"iteration/open-fib/$n", open, iteration, values)
       val snapshotTime = coded(s"iteration/snapshot-fib/$n", bits, iteration, values)
       val byteTime = coded(s"iteration/snapshot-id4/$n", bytes, iteration, values)

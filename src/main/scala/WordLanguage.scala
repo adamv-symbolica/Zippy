@@ -207,7 +207,7 @@ object WordEvaluator:
     var currentSpace = expression
     var currentPath: WordPath[P] = WordPath.Constant(ops.empty)
     var currentPC = paths
-    var currentSC = spaces.view.mapValues(v => WordSpaceValue(store.from(v.paths))).toMap
+    var currentSC = Map.empty[SpaceMention, WordSpaceValue[P]]
     var spaceValue = store.empty
     var pathValue = ops.empty
     var mode = 0 // 0: space, 1: path, 2: resume
@@ -255,6 +255,7 @@ object WordEvaluator:
 
     var finished = false
     try
+      currentSC = spaces.view.mapValues(v => WordSpaceValue(store.from(v.paths))).toMap
       while !finished do
         if mode == 2 then
           if pending.isEmpty then finished = true else pending.removeLast()()

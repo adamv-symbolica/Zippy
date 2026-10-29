@@ -8,18 +8,18 @@ private[morkl] object WordSyntax:
     def without(ps: PathRef*): Free = copy(paths = paths -- ps.map(_.s))
     def withoutSpace(ss: SpaceMention*): Free = copy(spaces = spaces -- ss.map(_.s))
   val empty: Free = Free(Map.empty, Map.empty)
-  private case class Analysis(free: Free, names: Set[String], nodes: Long = 0):
-    def ++(other: Analysis): Analysis = Analysis(free ++ other.free, names ++ other.names, nodes + other.nodes)
+  private case class Analysis(free: Free, names: Set[String], nodes: Long = 0, pure: Boolean = true, calls: Set[RoutinePtr] = Set.empty):
+    def ++(other: Analysis): Analysis = Analysis(free ++ other.free, names ++ other.names, nodes + other.nodes, pure && other.pure, calls ++ other.calls)
     def bind(ps: Vector[PathRef] = Vector.empty, ss: Vector[SpaceMention] = Vector.empty): Analysis =
-      Analysis(free.without(ps.filterNot(_.s == "_")*).withoutSpace(ss.filterNot(_.s == "_")*), names ++ ps.map(_.s) ++ ss.map(_.s), nodes)
+      Analysis(free.without(ps.filterNot(_.s == "_")*).withoutSpace(ss.filterNot(_.s == "_")*), names ++ ps.map(_.s) ++ ss.map(_.s), nodes, pure, calls)
   private val zero = Analysis(empty, Set.empty)
   private def paths[P](p: WordPath[P]): Analysis =
     val result = p match
       case WordPath.Deref(r) => Analysis(Free(Map(r.s -> r), Map.empty), Set(r.s))
       case WordPath.Constant(_) => zero
       case WordPath.Concat(l, r) => paths(l) ++ paths(r)
-      case WordPath.GroundedPP(p, _) => paths(p)
-      case WordPath.GroundedSP(s, _) => analyze(s)
+      case WordPath.GroundedPP(p, _) => paths(p).copy(pure = false)
+      case WordPath.GroundedSP(s, _) => analyze(s).copy(pure = false)
     result.copy(nodes = result.nodes + 1)
   /** One exhaustive, binder-aware walk supplies both capture analysis and all
     * reserved names. Adding a constructor cannot silently omit it from either.
@@ -28,7 +28,7 @@ private[morkl] object WordSyntax:
     import WordSpace.*
     val result = s match
         case Empty() | Literal(_) => zero
-        case Call(r, ps, ss) => Analysis(empty, Set(r.s)) ++ ps.map(paths).foldLeft(zero)(_ ++ _) ++ ss.map(analyze).foldLeft(zero)(_ ++ _)
+        case Call(r, ps, ss) => Analysis(empty, Set(r.s), calls = Set(r)) ++ ps.map(paths).foldLeft(zero)(_ ++ _) ++ ss.map(analyze).foldLeft(zero)(_ ++ _)
         case Mention(m) => Analysis(Free(Map.empty, Map(m.s -> m)), Set(m.s))
         case Singleton(p) => paths(p)
         case Union(x, y) => analyze(x) ++ analyze(y)
@@ -47,14 +47,18 @@ private[morkl] object WordSyntax:
         case PrefixClosure(src) => analyze(src)
         case SuffixClosure(src) => analyze(src)
         case TailsClosure(src) => analyze(src)
-        case GroundedPS(p, _) => paths(p)
-        case GroundedSS(s, _) => analyze(s)
+        case GroundedPS(p, _) => paths(p).copy(pure = false)
+        case GroundedSS(s, _) => analyze(s).copy(pure = false)
         case Range(s, _, _) => analyze(s)
     result.copy(nodes = result.nodes + 1)
   def free[P](s: WordSpace[P]): Free = analyze(s).free
   def path[P](p: WordPath[P]): Free = paths(p).free
   def names[P](s: WordSpace[P]): Set[String] = analyze(s).names
   def nodes[P](s: WordSpace[P]): Long = analyze(s).nodes
+  def purity[P](s: WordSpace[P]): (Boolean, Set[RoutinePtr]) =
+    val a = analyze(s); a.pure -> a.calls
+  def pathPurity[P](p: WordPath[P]): (Boolean, Set[RoutinePtr]) =
+    val a = paths(p); a.pure -> a.calls
 
 /** A syntax-to-syntax compiler. All boundary recognition, closure traversal,
   * ordering repair and fold sequencing use the original algebra and routines.
@@ -67,6 +71,19 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
   private var used = Set.empty[String]
   private var serial = 0
   private var decoderBudget = 512
+  private var sourceRoutines = Map.empty[RoutinePtr, WordRoutine[A]]
+  private def pure(analysis: (Boolean, Set[RoutinePtr])): Boolean =
+    val pending = mutable.Stack(analysis)
+    val seen = mutable.Set.empty[RoutinePtr]
+    while pending.nonEmpty do
+      val (localPure, calls) = pending.pop()
+      if !localPure then return false
+      for r <- calls if seen.add(r) do
+        val body = definitions.get(r).map(r => WordSyntax.purity(r.body))
+          .orElse(sourceRoutines.get(r).map(r => WordSyntax.purity(r.body)))
+        if body.isEmpty then return false
+        pending.push(body.get)
+    true
   private def fresh(tag: String): String =
     var name = ""
     while name.isEmpty || used(name) do
@@ -102,6 +119,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
 
   def compile(entry: WordSpace[A], routines: Map[RoutinePtr, WordRoutine[A]] = Map.empty): WordProgram[B] =
     require(definitions.isEmpty, "a compiler instance is single-use")
+    sourceRoutines = routines
     used = WordSyntax.names(entry) ++ routines.valuesIterator.flatMap(r =>
       WordSyntax.names(r.body) ++ r.refs.map(_.s) ++ r.mentions.map(_.s) + r.name.s).toSet
     val result = space(WordReferenceHints.tag(entry))
@@ -296,16 +314,28 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
     Call(entry, cps.map(deref), src +: css.map(mention))
 
   private def fold(src: WordSpace[B], initial: WordPath[B], acc: PathRef, h: PathRef,
-                   t: SpaceMention, body: WordSpace[B], update: WordPath[B]): WordSpace[B] =
+                   t: SpaceMention, body: WordSpace[B], update: WordPath[B], ignoredAccumulator: Boolean = false): WordSpace[B] =
     if encoding.shape == WordCodeShape.Fixed(1) && encoding.preservesOrder then
       return Fold(src, initial, acc, h.known(1), t, body, update)
     val free = (WordSyntax.free(body) ++ WordSyntax.path(update)).without(acc, h).withoutSpace(t)
     val cps = free.paths.values.toVector.sortBy(_.s); val css = free.spaces.values.toVector.sortBy(_.s)
-    if update == deref(acc) then
+    if update == deref(acc) && pure(WordSyntax.purity(body)) then
       val name = rp("fold_invariant"); val input = sm("fold_input")
       definitions(name) = WordRoutine(name, acc +: cps, input +: css,
         iterate(mention(input), h, t, body))
       return Call(name, initial +: cps.map(deref), src +: css.map(mention))
+    if ignoredAccumulator && pure(WordSyntax.purity(body)) && pure(WordSyntax.pathPurity(update)) then
+      // The accumulator is unobservable, but its initializer and every update
+      // still run. Stage body before update with ordinary call-by-value calls.
+      val outer = rp("fold_ignored"); val input = sm("fold_input")
+      val afterBody = rp("fold_after_body"); val ignoreUpdate = rp("fold_ignore_update")
+      val value = sm("fold_value"); val discarded = pr("discarded_update")
+      definitions(ignoreUpdate) = WordRoutine(ignoreUpdate, Vector(discarded), Vector(value), mention(value))
+      definitions(afterBody) = WordRoutine(afterBody, h +: cps, Vector(value, t) ++ css,
+        Call(ignoreUpdate, Vector(update), Vector(mention(value))))
+      val each = Call(afterBody, deref(h) +: cps.map(deref), Vector(body, mention(t)) ++ css.map(mention))
+      definitions(outer) = WordRoutine(outer, acc +: cps, input +: css, iterate(mention(input), h, t, each))
+      return Call(outer, initial +: cps.map(deref), src +: css.map(mention))
     require(encoding.preservesOrder || encoding.orderedDigits.nonEmpty, "Fold requires a frozen orderedVocabulary for literal interner IDs")
     val loop = rp("fold"); val input = sm("fold_input"); val heads = sm("fold_heads")
     val selected = pr("selected"); val ignored = sm("selected_tail")
@@ -345,7 +375,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
       val acc = if a.s == "_" then pr("ignored_acc") else encodedRef(a)
       val head = if h.s == "_" then pr("ignored_head") else encodedRef(h.known(1))
       val tail = if t.s == "_" then sm("ignored_tail") else t
-      fold(space(src), path(i), acc, head, tail, space(b), path(u))
+      fold(space(src), path(i), acc, head, tail, space(b), path(u), a.s == "_")
     case Fixpoint(i, v, step) => Fixpoint(space(i), v, space(step))
     case Wrap(src, p) => Wrap(space(src), path(p))
     case Unwrap(src, p) => Unwrap(space(src), path(p))
