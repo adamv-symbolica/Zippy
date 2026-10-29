@@ -11,7 +11,7 @@ private[morkl] object WordSyntax:
   private case class Analysis(free: Free, names: Set[String], nodes: Long = 0):
     def ++(other: Analysis): Analysis = Analysis(free ++ other.free, names ++ other.names, nodes + other.nodes)
     def bind(ps: Vector[PathRef] = Vector.empty, ss: Vector[SpaceMention] = Vector.empty): Analysis =
-      Analysis(free.without(ps*).withoutSpace(ss*), names ++ ps.map(_.s) ++ ss.map(_.s), nodes)
+      Analysis(free.without(ps.filterNot(_.s == "_")*).withoutSpace(ss.filterNot(_.s == "_")*), names ++ ps.map(_.s) ++ ss.map(_.s), nodes)
   private val zero = Analysis(empty, Set.empty)
   private def paths[P](p: WordPath[P]): Analysis =
     val result = p match
@@ -56,45 +56,6 @@ private[morkl] object WordSyntax:
   def names[P](s: WordSpace[P]): Set[String] = analyze(s).names
   def nodes[P](s: WordSpace[P]): Long = analyze(s).nodes
 
-  /** Replace only free occurrences. Nested binders can shadow the names being
-    * specialized, so a plain structural dereference replacement is unsound.
-    */
-  def substitute[P](s: WordSpace[P], ps: Map[String, WordPath[P]], ss: Map[String, WordSpace[P]]): WordSpace[P] =
-    import WordSpace.*
-    def path(p: WordPath[P]): WordPath[P] = p match
-      case WordPath.Deref(r) => ps.getOrElse(r.s, p)
-      case WordPath.Constant(_) => p
-      case WordPath.Concat(l, r) => WordPath.Concat(path(l), path(r))
-      case WordPath.GroundedPP(p, f) => WordPath.GroundedPP(path(p), f)
-      case WordPath.GroundedSP(s, f) => WordPath.GroundedSP(rec(s), f)
-    def rec(s: WordSpace[P]): WordSpace[P] = substitute(s, ps, ss)
-    s match
-      case Empty() | Literal(_) => s
-      case Mention(m) => ss.getOrElse(m.s, s)
-      case Call(r, p, s) => Call(r, p.map(path), s.map(rec))
-      case Singleton(p) => Singleton(path(p))
-      case Union(l, r) => Union(rec(l), rec(r))
-      case Intersection(l, r) => Intersection(rec(l), rec(r))
-      case Subtraction(l, r) => Subtraction(rec(l), rec(r))
-      case Restriction(l, r) => Restriction(rec(l), rec(r))
-      case Raffination(l, r) => Raffination(rec(l), rec(r))
-      case Composition(l, r) => Composition(rec(l), rec(r))
-      case Iteration(src, h, t, b) => Iteration(rec(src), h, t, substitute(b, ps - h.s, ss - t.s))
-      case Fold(src, i, a, h, t, b, u) =>
-        val inner = substitute(Singleton(u), ps -- Vector(a.s, h.s), ss - t.s).asInstanceOf[Singleton[P]].p
-        Fold(rec(src), path(i), a, h, t, substitute(b, ps -- Vector(a.s, h.s), ss - t.s), inner)
-      case Fixpoint(i, v, step) => Fixpoint(rec(i), v, substitute(step, ps, ss - v.s))
-      case Wrap(s, p) => Wrap(rec(s), path(p))
-      case Unwrap(s, p) => Unwrap(rec(s), path(p))
-      case TailsUnion(s) => TailsUnion(rec(s))
-      case TailsIntersection(s) => TailsIntersection(rec(s))
-      case PrefixClosure(s) => PrefixClosure(rec(s))
-      case SuffixClosure(s) => SuffixClosure(rec(s))
-      case TailsClosure(s) => TailsClosure(rec(s))
-      case GroundedPS(p, f) => GroundedPS(path(p), f)
-      case GroundedSS(s, f) => GroundedSS(rec(s), f)
-      case Range(s, a, b) => Range(rec(s), a, b)
-
 /** A syntax-to-syntax compiler. All boundary recognition, closure traversal,
   * ordering repair and fold sequencing use the original algebra and routines.
   * Host adapters occur only where the source already had a grounded callback.
@@ -132,7 +93,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
   // Every dispatch test is empty or a singleton nonempty word. Iteration binds
   // control flow to the filtered input, including on eager target backends.
   private def guard(test: WordSpace[B], body: WordSpace[B]): WordSpace[B] =
-    Iteration(test, pr("dispatch"), sm("dispatch"), body)
+    Iteration(test, PathRef("_"), SpaceMention("_"), body)
   private def encodedRef(p: PathRef): PathRef = encoding.shape match
     case WordCodeShape.Fixed(width) if p.lengthHint >= 0 => p.known(Math.multiplyExact(p.lengthHint, width))
     case _ if p.maxLengthHint >= 0 && encoding.maxCodeLength.nonEmpty =>
@@ -175,7 +136,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
     def finish(prefix: WordPath[B], tail: WordSpace[B]): WordSpace[B] =
       Call(leaf, prefix +: cps.map(deref), tail +: css.map(mention))
     // Small closed alphabets specialize the actual code trie, not a graph of
-    // calls for every (state, depth). Constant complete heads need no lifting.
+    // calls for every (state, depth). Leaves share one lifted continuation.
     if unrollBounded && code.shape == WordCodeShape.Fibonacci && code.orderedDigits.nonEmpty && code.orderedDigits.size <= 32 then
       val words = code.orderedDigits.map(code.code)
       def descend(input: WordSpace[B], candidates: Vector[Vector[Int]], depth: Int): WordSpace[B] =
@@ -222,22 +183,21 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
           cache.getOrElseUpdate(key, {
             val name = rp("scan")
             cache(key) = name
-            val digit = pr("digit").known(1); val rest = sm("digits")
-            val nextPrefix = WordPath.Concat(deref(prefix), deref(digit))
-            def next(state: Boolean): WordSpace[B] =
-              if bounded && depth + 1 >= limit.get then Empty()
-              else Call(scanner(state, depth + 1), nextPrefix +: cps.map(deref), mention(rest) +: css.map(mention))
-            def isDigit(n: Int): WordSpace[B] = Intersection(Singleton(deref(digit)), Literal(WordSpaceValue(Set(target.fromDigits(Vector(n))))))
+            def arm(n: Int, keep: Boolean, state: Boolean, complete: Boolean): WordSpace[B] =
+              val digit = pr("digit").known(1); val rest = sm("digits")
+              val accepted = Literal(WordSpaceValue(Set(target.fromDigits(Vector(n)))))
+              val selected = if keep then Restriction(mention(remaining), accepted) else Raffination(mention(remaining), accepted)
+              val nextPrefix = WordPath.Concat(deref(prefix), deref(digit))
+              val continuation =
+                if complete then finish(nextPrefix, mention(rest))
+                else if bounded && depth + 1 >= limit.get then Empty()
+                else Call(scanner(state, depth + 1), nextPrefix +: cps.map(deref), mention(rest) +: css.map(mention))
+              Iteration(selected, digit, rest, continuation)
             val branch = shape match
-              case WordCodeShape.Fibonacci =>
-                Union(guard(isDigit(0), next(false)), guard(isDigit(1), if previousOne then finish(nextPrefix, mention(rest)) else next(true)))
-              case WordCodeShape.Terminated(b) =>
-                val terminal = isDigit(b)
-                Union(guard(terminal, finish(nextPrefix, mention(rest))),
-                  guard(Subtraction(Singleton(deref(digit)), terminal), next(false)))
+              case WordCodeShape.Fibonacci => Union(arm(0, true, false, false), arm(1, true, true, previousOne))
+              case WordCodeShape.Terminated(b) => Union(arm(b, true, false, true), arm(b, false, false, false))
               case _ => throw IllegalStateException("fixed scanner dispatched as variable")
-            definitions(name) = WordRoutine(name, prefix +: cps, remaining +: css,
-              Iteration(mention(remaining), digit, rest, branch))
+            definitions(name) = WordRoutine(name, prefix +: cps, remaining +: css, branch)
             name
           })
         Call(scanner(false, 0), constant(target.empty) +: cps.map(deref), src +: css.map(mention))

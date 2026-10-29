@@ -81,11 +81,17 @@ final class BytePathValue private (private val data: Array[Byte]):
   private[morkl] def compare(that: BytePathValue): Int = Arrays.compareUnsigned(data, that.data)
   private[morkl] def startsWith(that: BytePathValue): Boolean =
     length >= that.length && Arrays.equals(data, 0, that.length, that.data, 0, that.length)
+  private[morkl] def firstUnsigned: Int = data(0) & 255
   private[morkl] def concat(that: BytePathValue): BytePathValue =
+    if length == 0 then return that
+    if that.length == 0 then return this
     val result = Arrays.copyOf(data, length + that.length)
     System.arraycopy(that.data, 0, result, length, that.length)
     new BytePathValue(result)
-  private[morkl] def slice(lo: Int, hi: Int): BytePathValue = new BytePathValue(Arrays.copyOfRange(data, lo, hi))
+  private[morkl] def slice(lo: Int, hi: Int): BytePathValue =
+    if lo == 0 && hi == length then this
+    else if lo == hi then BytePathValue.empty
+    else new BytePathValue(Arrays.copyOfRange(data, lo, hi))
 
 object BytePathValue:
   def apply(bytes: Array[Byte]): BytePathValue = new BytePathValue(bytes.clone())
@@ -108,8 +114,9 @@ object ByteWords extends WordOps[BytePathValue]:
   override def concat(p: BytePathValue, q: BytePathValue): BytePathValue = p.concat(q)
   override def take(p: BytePathValue, n: Int): BytePathValue = p.slice(0, n.max(0).min(p.length))
   override def drop(p: BytePathValue, n: Int): BytePathValue = p.slice(n.max(0).min(p.length), p.length)
+  private lazy val atoms = Vector.tabulate(256)(n => BytePathValue(Array(n.toByte)))
   override def split(p: BytePathValue): Option[(BytePathValue, BytePathValue)] =
-    if p.length == 0 then None else Some(take(p, 1) -> drop(p, 1))
+    if p.length == 0 then None else Some(atoms(p.firstUnsigned) -> drop(p, 1))
 
 case class WordSpaceValue[P](paths: Set[P])
 
@@ -154,7 +161,7 @@ object WordSpace:
 
 case class WordRoutine[P](name: RoutinePtr, refs: Vector[PathRef], mentions: Vector[SpaceMention], body: WordSpace[P])
 case class WordProgram[P](entry: WordSpace[P], routines: Map[RoutinePtr, WordRoutine[P]]):
-  def nodeCount: Long = WordSyntax.nodes(entry) + routines.valuesIterator.map(r => WordSyntax.nodes(r.body)).sum
+  lazy val nodeCount: Long = WordSyntax.nodes(entry) + routines.valuesIterator.map(r => WordSyntax.nodes(r.body)).sum
   def eval(paths: Map[PathRef, P] = Map.empty[PathRef, P], spaces: Map[SpaceMention, WordSpaceValue[P]] = Map.empty[SpaceMention, WordSpaceValue[P]],
            stats: Option[WordEvaluationStats] = None, validateHints: Boolean = false)(using ops: WordOps[P]): WordSpaceValue[P] =
     WordEvaluator.eval(entry, paths, spaces, routines, stats, validateHints)
@@ -179,7 +186,7 @@ object WordEvaluator:
       val cached = literalCache.get(values)
       if cached != null then cached
       else
-        val result = store.from(values)
+        val result = store.literal(values)
         literalCache.put(values, result)
         result
     type PC = Map[PathRef, P]
@@ -255,12 +262,14 @@ object WordEvaluator:
         case Unwrap(s, p) => for prefix <- path(p, pc, sc); values <- rec(s)
           yield store.unwrap(values, prefix)
         case Iteration(s, h, t, body) => rec(s).flatMap { values =>
-          val groups = store.groups(values)
-          if groups.isEmpty then done(store.empty)
-          else if groups.size == 1 then
-            val (head, tail) = groups.head
+          val groups = if h.s == "_" && t.s == "_" && values.size == 1 then None else Some(store.groups(values))
+          if groups.isEmpty then
+            if ops.length(values.head) > 0 then run(body, pc, sc) else done(store.empty)
+          else if groups.get.isEmpty then done(store.empty)
+          else if groups.get.size == 1 then
+            val (head, tail) = groups.get.head
             run(body, bindPath(pc, h, head), bindSpace(sc, t, tail))
-          else traverse(groups)((head, tail) => run(body, bindPath(pc, h, head), bindSpace(sc, t, tail))).map(_.foldLeft(store.empty)(store.union))
+          else traverse(groups.get)((head, tail) => run(body, bindPath(pc, h, head), bindSpace(sc, t, tail))).map(_.foldLeft(store.empty)(store.union))
         }
         case Fold(s, initial, acc, h, t, body, update) =>
           for

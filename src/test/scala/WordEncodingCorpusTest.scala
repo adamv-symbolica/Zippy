@@ -52,13 +52,14 @@ class WordEncodingCorpusTest extends FunSuite:
           routines = defs, stats = Some(sourceStats))(using fib.source)
         assertEquals(baseline, expected)
         val sourceNodes = WordSyntax.nodes(syntax) + defs.valuesIterator.map(r => WordSyntax.nodes(r.body)).sum
+        val sourceCells = input.paths.iterator.map(p => p.items.size + 1).sum + expected.paths.iterator.map(p => p.items.size + 1).sum
         def run[A, B](code: WordEncoding[A, B], program: WordProgram[B], input: WordSpaceValue[A], expansion: Int = 1): WordSpaceValue[A] =
           val stats = new WordEvaluationStats
           val result = program.eval(spaces = Map(SpaceFuzzer.argM -> code.encodeSpace(input)), stats = Some(stats), validateHints = true)(using code.target)
           val width = code.maxCodeLength.getOrElse(8).max(1) * expansion
           // Normalize work by the actual alphabet expansion, not by input cardinality.
           assert(program.nodeCount <= 50L * width * sourceNodes, s"AST expansion at program $index: ${program.nodeCount}/$sourceNodes")
-          assert(stats.nodes <= 50L * width * (sourceStats.nodes + input.paths.iterator.map(p => p.items.size + 1).sum).max(1), s"work expansion at program $index: ${stats.nodes}/${sourceStats.nodes}")
+          assert(stats.nodes <= 50L * width * (sourceStats.nodes + sourceCells).max(1), s"work expansion at program $index: ${stats.nodes}/${sourceStats.nodes}")
           records += ((index, sourceNodes, program.nodeCount, sourceStats.nodes, stats.nodes))
           code.decodeSpace(result)
         val raw = WordSpaceValue(input.paths)

@@ -6,6 +6,7 @@ import scala.collection.immutable.{AbstractSet, IntMap}
   * the child mask is derived from its actual children, never symbol metadata.
   */
 final case class ByteTrie private (terminal: Boolean, children: IntMap[ByteTrie]):
+  require(children.forall((b, child) => b >= 0 && b < 256 && !child.isEmpty), "invalid byte-trie child")
   lazy val childMask: BigInt = children.keysIterator.foldLeft(BigInt(0))(_.setBit(_))
   private var cachedCount = -1
   def pathCount: Int =
@@ -134,6 +135,7 @@ private[morkl] object ByteTrieBackend extends WordSetBackend[BytePathValue](Byte
     case t: ByteTrieSet => t.trie
     case _ => ByteTrie.fromPaths(values)
   private def set(t: ByteTrie): Set[BytePathValue] = new ByteTrieSet(t)
+  override def literal(values: Set[BytePathValue]): Set[BytePathValue] = from(values)
   override def from(values: Iterable[BytePathValue]): Set[BytePathValue] = values match
     case t: ByteTrieSet => t
     case _ => set(ByteTrie.fromPaths(values))

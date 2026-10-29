@@ -6,11 +6,21 @@ import scala.collection.immutable.{SortedSet, TreeSet}
   * or side metadata on encoded paths. The reference remains a set of words.
   */
 class WordSetBackend[P](val ops: WordOps[P]):
+  private val sortedCache = new java.util.IdentityHashMap[Iterable[P], Set[P]]()
+  def literal(values: Set[P]): Set[P] = values
   def from(values: Iterable[P]): Set[P] = values match
     case sorted: TreeSet[P @unchecked] if sorted.ordering eq ops.ordering => sorted
-    case _ => TreeSet.from(values)(using ops.ordering)
-  def empty: Set[P] = from(Vector.empty)
-  def union(a: Set[P], b: Set[P]): Set[P] = if a.size < b.size then from(b ++ a) else from(a ++ b)
+    case _ =>
+      val cached = sortedCache.get(values)
+      if cached != null then cached
+      else
+        val result = TreeSet.from(values)(using ops.ordering)
+        if values.knownSize > 8 then sortedCache.put(values, result)
+        result
+  lazy val empty: Set[P] = from(Vector.empty)
+  def union(a: Set[P], b: Set[P]): Set[P] =
+    if a.isEmpty then b else if b.isEmpty then a
+    else if a.size < b.size then from(b ++ a) else from(a ++ b)
   def intersect(a: Set[P], b: Set[P]): Set[P] =
     if a.size == 1 then if b(a.head) then a else empty
     else from(a intersect b)
