@@ -45,9 +45,9 @@ private[morkl] object WordSyntax:
   /** Includes bound names, so generated names cannot capture nested binders. */
   def names[P](s: WordSpace[P]): Set[String] =
     import WordSpace.*
-    val own = free(s).paths.keySet ++ free(s).spaces.keySet
-    val nested: Set[String] = s match
+    s match
       case Call(r, ps, ss) => Set(r.s) ++ ss.flatMap(names) ++ ps.flatMap(pathNames)
+      case Mention(m) => Set(m.s)
       case Singleton(p) => pathNames(p)
       case Union(x, y) => names(x) ++ names(y)
       case Intersection(x, y) => names(x) ++ names(y)
@@ -69,7 +69,6 @@ private[morkl] object WordSyntax:
       case GroundedSS(s, _) => names(s)
       case Range(s, _, _) => names(s)
       case _ => Set.empty
-    own ++ nested
   def pathNames[P](p: WordPath[P]): Set[String] = p match
     case WordPath.Deref(r) => Set(r.s)
     case WordPath.Constant(_) => Set.empty

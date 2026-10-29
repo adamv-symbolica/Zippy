@@ -77,7 +77,7 @@ case class WordSpaceValue[P](paths: Set[P])
 
 enum WordPath[P]:
   case Deref(pr: PathRef)
-  case Constant(value: P)
+  case Constant(pi: P)
   case Concat(l: WordPath[P], r: WordPath[P])
   case GroundedPP(p: WordPath[P], f: P => P)
   case GroundedSP(p: WordSpace[P], f: WordSpaceValue[P] => P)
@@ -87,7 +87,7 @@ enum WordSpace[P]:
   case Call(r: RoutinePtr, refs: Vector[WordPath[P]], mentions: Vector[WordSpace[P]])
   case Mention(variable: SpaceMention)
   case Singleton(p: WordPath[P])
-  case Literal(value: WordSpaceValue[P])
+  case Literal(p: WordSpaceValue[P])
   case Union(x: WordSpace[P], y: WordSpace[P])
   case Intersection(x: WordSpace[P], y: WordSpace[P])
   case Subtraction(x: WordSpace[P], y: WordSpace[P])
@@ -144,13 +144,15 @@ object WordEvaluator:
         case Call(r, ps, ss) =>
           val routine = routines(r)
           require(ps.size == routine.refs.size && ss.size == routine.mentions.size, s"arity mismatch: ${r.s}")
-          val nextPC = routine.refs.zip(ps.map(path)).toMap
-          val nextSC = routine.mentions.zip(ss.map(x => WordSpaceValue(rec(x)))).toMap
+          val pathValues = ps.map(path)
+          val spaceValues = ss.map(x => WordSpaceValue(rec(x)))
+          val nextPC = routine.refs.zip(pathValues).toMap
+          val nextSC = routine.mentions.zip(spaceValues).toMap
           // Preserve the reference symbol evaluator's absorbing direct self-call.
           routine.body match
             case Union(left, Call(next, nextPS, nextSS)) if next == r && nextPS == ps && nextSS == ss &&
-                nextPS.zip(ps).forall((p, q) => run(Singleton(p), nextPC, nextSC) == Set(path(q))) &&
-                nextSS.zip(ss).forall((p, q) => run(p, nextPC, nextSC) == rec(q)) =>
+                nextPS.zip(pathValues).forall((p, q) => run(Singleton(p), nextPC, nextSC) == Set(q)) &&
+                nextSS.zip(spaceValues).forall((p, q) => run(p, nextPC, nextSC) == q.paths) =>
               run(left, nextPC, nextSC)
             case _ => run(routine.body, nextPC, nextSC)
         case Mention(m) => sc(m).paths
@@ -203,6 +205,9 @@ object WordEvaluator:
 
 type BitPathValue = BigInt
 object BitPathValue:
+  def apply(word: BigInt): BigInt =
+    require(word > 0, "a bit word must have a leading length delimiter")
+    word
   def apply(bits: Iterable[Boolean]): BigInt = BitWords.fromDigits(bits.iterator.map(b => if b then 1 else 0).toVector)
   def fromDigits(bits: Iterable[Int]): BigInt = BitWords.fromDigits(bits)
   val empty: BigInt = BitWords.empty
@@ -217,7 +222,10 @@ object BitSpace:
   val Empty: BitSpace = WordSpace.Empty()
 type BitSpaceValue = WordSpaceValue[BigInt]
 object BitSpaceValue:
-  def apply(paths: Set[BigInt]): BitSpaceValue = WordSpaceValue(paths)
+  def apply(paths: Set[BigInt]): BitSpaceValue =
+    require(paths.forall(_ > 0), "bit words must have leading length delimiters")
+    WordSpaceValue(paths)
+  def unapply(value: BitSpaceValue): Some[Set[BigInt]] = Some(value.paths)
 type BitRoutine = WordRoutine[BigInt]
 object BitRoutine:
   def apply(name: RoutinePtr, refs: Vector[PathRef], mentions: Vector[SpaceMention], body: BitSpace): BitRoutine =
@@ -233,6 +241,7 @@ object ByteSpace:
 type ByteSpaceValue = WordSpaceValue[BytePathValue]
 object ByteSpaceValue:
   def apply(paths: Set[BytePathValue]): ByteSpaceValue = WordSpaceValue(paths)
+  def unapply(value: ByteSpaceValue): Some[Set[BytePathValue]] = Some(value.paths)
 type ByteRoutine = WordRoutine[BytePathValue]
 object ByteRoutine:
   def apply(name: RoutinePtr, refs: Vector[PathRef], mentions: Vector[SpaceMention], body: ByteSpace): ByteRoutine =

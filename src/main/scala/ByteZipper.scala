@@ -28,4 +28,5 @@ case class ByteZipper(space: ByteSpaceValue, root: BytePathValue = ByteWords.emp
     copy(path = ByteWords.take(path, path.length - moved)) -> moved
   def descendIndexedByte(index: Int): Option[(ByteZipper, Int)] =
     require(index >= 0)
-    (0 until 256).iterator.filter(childMask.testBit).drop(index).nextOption().map(b => descendByte(b) -> b)
+    val mask = childMask
+    (0 until 256).iterator.filter(mask.testBit).drop(index).nextOption().map(b => descendByte(b) -> b)
