@@ -1,0 +1,767 @@
+{
+  "success": true,
+  "checked": 108,
+  "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+  "results": [
+    {
+      "source": "programs/01-aunt-reference/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.521,
+      "error": ""
+    },
+    {
+      "source": "programs/01-aunt-reference/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.542,
+      "error": ""
+    },
+    {
+      "source": "programs/01-aunt-reference/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.524,
+      "error": ""
+    },
+    {
+      "source": "programs/02-aunt-process-sc-static-family/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.519,
+      "error": ""
+    },
+    {
+      "source": "programs/02-aunt-process-sc-static-family/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.277,
+      "error": ""
+    },
+    {
+      "source": "programs/02-aunt-process-sc-static-family/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.265,
+      "error": ""
+    },
+    {
+      "source": "programs/03-aunt-synthetic-reference-60-people/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.257,
+      "error": ""
+    },
+    {
+      "source": "programs/03-aunt-synthetic-reference-60-people/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.291,
+      "error": ""
+    },
+    {
+      "source": "programs/03-aunt-synthetic-reference-60-people/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.254,
+      "error": ""
+    },
+    {
+      "source": "programs/04-aunt-royal92-reference-royal92-simple-metta-fallback/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.248,
+      "error": ""
+    },
+    {
+      "source": "programs/04-aunt-royal92-reference-royal92-simple-metta-fallback/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.278,
+      "error": ""
+    },
+    {
+      "source": "programs/04-aunt-royal92-reference-royal92-simple-metta-fallback/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.258,
+      "error": ""
+    },
+    {
+      "source": "programs/05-aunt-synthetic-process-sc-static-family-24-people/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.262,
+      "error": ""
+    },
+    {
+      "source": "programs/05-aunt-synthetic-process-sc-static-family-24-people/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.289,
+      "error": ""
+    },
+    {
+      "source": "programs/05-aunt-synthetic-process-sc-static-family-24-people/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.264,
+      "error": ""
+    },
+    {
+      "source": "programs/06-graph-two-hop-reference-90-chain/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.245,
+      "error": ""
+    },
+    {
+      "source": "programs/06-graph-two-hop-reference-90-chain/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.293,
+      "error": ""
+    },
+    {
+      "source": "programs/06-graph-two-hop-reference-90-chain/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.255,
+      "error": ""
+    },
+    {
+      "source": "programs/07-graph-mutual-reference-90-chain/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.234,
+      "error": ""
+    },
+    {
+      "source": "programs/07-graph-mutual-reference-90-chain/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.274,
+      "error": ""
+    },
+    {
+      "source": "programs/07-graph-mutual-reference-90-chain/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.259,
+      "error": ""
+    },
+    {
+      "source": "programs/08-scc-paper-divide-and-conquer/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.25,
+      "error": ""
+    },
+    {
+      "source": "programs/08-scc-paper-divide-and-conquer/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.296,
+      "error": ""
+    },
+    {
+      "source": "programs/08-scc-paper-divide-and-conquer/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.254,
+      "error": ""
+    },
+    {
+      "source": "programs/09-datalog-semi-naive-reference-24-chain/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.25,
+      "error": ""
+    },
+    {
+      "source": "programs/09-datalog-semi-naive-reference-24-chain/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.354,
+      "error": ""
+    },
+    {
+      "source": "programs/09-datalog-semi-naive-reference-24-chain/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.261,
+      "error": ""
+    },
+    {
+      "source": "programs/10-datalog-semi-naive-process-sc-24-chain/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.245,
+      "error": ""
+    },
+    {
+      "source": "programs/10-datalog-semi-naive-process-sc-24-chain/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.309,
+      "error": ""
+    },
+    {
+      "source": "programs/10-datalog-semi-naive-process-sc-24-chain/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.255,
+      "error": ""
+    },
+    {
+      "source": "programs/11-life-reference-random-24x24/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.253,
+      "error": ""
+    },
+    {
+      "source": "programs/11-life-reference-random-24x24/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.421,
+      "error": ""
+    },
+    {
+      "source": "programs/11-life-reference-random-24x24/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.283,
+      "error": ""
+    },
+    {
+      "source": "programs/12-life-compile-pass-random-24x24/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.265,
+      "error": ""
+    },
+    {
+      "source": "programs/12-life-compile-pass-random-24x24/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.39,
+      "error": ""
+    },
+    {
+      "source": "programs/12-life-compile-pass-random-24x24/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.263,
+      "error": ""
+    },
+    {
+      "source": "programs/13-life-compile-pass-random-24x24-initial-literal/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.233,
+      "error": ""
+    },
+    {
+      "source": "programs/13-life-compile-pass-random-24x24-initial-literal/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.229,
+      "error": ""
+    },
+    {
+      "source": "programs/13-life-compile-pass-random-24x24-initial-literal/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.232,
+      "error": ""
+    },
+    {
+      "source": "programs/14-temperature-noaa-committed-slice/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.234,
+      "error": ""
+    },
+    {
+      "source": "programs/14-temperature-noaa-committed-slice/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.236,
+      "error": ""
+    },
+    {
+      "source": "programs/14-temperature-noaa-committed-slice/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.238,
+      "error": ""
+    },
+    {
+      "source": "programs/15-temperature-synthetic-32x64/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.236,
+      "error": ""
+    },
+    {
+      "source": "programs/15-temperature-synthetic-32x64/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.234,
+      "error": ""
+    },
+    {
+      "source": "programs/15-temperature-synthetic-32x64/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.236,
+      "error": ""
+    },
+    {
+      "source": "programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.267,
+      "error": ""
+    },
+    {
+      "source": "programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.423,
+      "error": ""
+    },
+    {
+      "source": "programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.276,
+      "error": ""
+    },
+    {
+      "source": "programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.231,
+      "error": ""
+    },
+    {
+      "source": "programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.239,
+      "error": ""
+    },
+    {
+      "source": "programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.243,
+      "error": ""
+    },
+    {
+      "source": "programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.291,
+      "error": ""
+    },
+    {
+      "source": "programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/bits.cpp",
+      "exitCode": 0,
+      "seconds": 1.264,
+      "error": ""
+    },
+    {
+      "source": "programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.341,
+      "error": ""
+    },
+    {
+      "source": "programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.281,
+      "error": ""
+    },
+    {
+      "source": "programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.271,
+      "error": ""
+    },
+    {
+      "source": "programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.262,
+      "error": ""
+    },
+    {
+      "source": "programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.317,
+      "error": ""
+    },
+    {
+      "source": "programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/bits.cpp",
+      "exitCode": 0,
+      "seconds": 4.469,
+      "error": ""
+    },
+    {
+      "source": "programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.472,
+      "error": ""
+    },
+    {
+      "source": "programs/21-n-queens-morkl-8x8-source/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.248,
+      "error": ""
+    },
+    {
+      "source": "programs/21-n-queens-morkl-8x8-source/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.618,
+      "error": ""
+    },
+    {
+      "source": "programs/21-n-queens-morkl-8x8-source/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.285,
+      "error": ""
+    },
+    {
+      "source": "programs/22-n-queens-morkl-8x8-compile-pass/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.232,
+      "error": ""
+    },
+    {
+      "source": "programs/22-n-queens-morkl-8x8-compile-pass/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.242,
+      "error": ""
+    },
+    {
+      "source": "programs/22-n-queens-morkl-8x8-compile-pass/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.242,
+      "error": ""
+    },
+    {
+      "source": "large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.239,
+      "error": ""
+    },
+    {
+      "source": "large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.307,
+      "error": ""
+    },
+    {
+      "source": "large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.263,
+      "error": ""
+    },
+    {
+      "source": "large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.277,
+      "error": ""
+    },
+    {
+      "source": "large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.328,
+      "error": ""
+    },
+    {
+      "source": "large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.272,
+      "error": ""
+    },
+    {
+      "source": "large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.242,
+      "error": ""
+    },
+    {
+      "source": "large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.299,
+      "error": ""
+    },
+    {
+      "source": "large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.252,
+      "error": ""
+    },
+    {
+      "source": "large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.248,
+      "error": ""
+    },
+    {
+      "source": "large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.246,
+      "error": ""
+    },
+    {
+      "source": "large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.243,
+      "error": ""
+    },
+    {
+      "source": "large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.235,
+      "error": ""
+    },
+    {
+      "source": "large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.25,
+      "error": ""
+    },
+    {
+      "source": "large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.245,
+      "error": ""
+    },
+    {
+      "source": "large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.239,
+      "error": ""
+    },
+    {
+      "source": "large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.231,
+      "error": ""
+    },
+    {
+      "source": "large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.24,
+      "error": ""
+    },
+    {
+      "source": "large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.242,
+      "error": ""
+    },
+    {
+      "source": "large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.232,
+      "error": ""
+    },
+    {
+      "source": "large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.233,
+      "error": ""
+    },
+    {
+      "source": "large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.234,
+      "error": ""
+    },
+    {
+      "source": "large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.237,
+      "error": ""
+    },
+    {
+      "source": "large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.237,
+      "error": ""
+    },
+    {
+      "source": "large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.238,
+      "error": ""
+    },
+    {
+      "source": "large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.234,
+      "error": ""
+    },
+    {
+      "source": "large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.237,
+      "error": ""
+    },
+    {
+      "source": "large/32-aunt-query-over-large-generated-family-one-queried-person-9-generations-x-80-people-2720-facts/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.249,
+      "error": ""
+    },
+    {
+      "source": "large/32-aunt-query-over-large-generated-family-one-queried-person-9-generations-x-80-people-2720-facts/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.312,
+      "error": ""
+    },
+    {
+      "source": "large/32-aunt-query-over-large-generated-family-one-queried-person-9-generations-x-80-people-2720-facts/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.268,
+      "error": ""
+    },
+    {
+      "source": "large/33-aunt-query-over-large-generated-family-one-queried-person-11-generations-x-160-people-6720-facts/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.259,
+      "error": ""
+    },
+    {
+      "source": "large/33-aunt-query-over-large-generated-family-one-queried-person-11-generations-x-160-people-6720-facts/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.306,
+      "error": ""
+    },
+    {
+      "source": "large/33-aunt-query-over-large-generated-family-one-queried-person-11-generations-x-160-people-6720-facts/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.255,
+      "error": ""
+    },
+    {
+      "source": "large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.248,
+      "error": ""
+    },
+    {
+      "source": "large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.298,
+      "error": ""
+    },
+    {
+      "source": "large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.257,
+      "error": ""
+    },
+    {
+      "source": "large/35-semi-naive-datalog-over-generated-chain-graph-40-nodes-79-edge-facts/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.248,
+      "error": ""
+    },
+    {
+      "source": "large/35-semi-naive-datalog-over-generated-chain-graph-40-nodes-79-edge-facts/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.38,
+      "error": ""
+    },
+    {
+      "source": "large/35-semi-naive-datalog-over-generated-chain-graph-40-nodes-79-edge-facts/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.266,
+      "error": ""
+    },
+    {
+      "source": "large/36-semi-naive-datalog-over-generated-chain-graph-80-nodes-159-edge-facts/symbols.cpp",
+      "exitCode": 0,
+      "seconds": 0.253,
+      "error": ""
+    },
+    {
+      "source": "large/36-semi-naive-datalog-over-generated-chain-graph-80-nodes-159-edge-facts/bits.cpp",
+      "exitCode": 0,
+      "seconds": 0.375,
+      "error": ""
+    },
+    {
+      "source": "large/36-semi-naive-datalog-over-generated-chain-graph-80-nodes-159-edge-facts/bytes.cpp",
+      "exitCode": 0,
+      "seconds": 0.249,
+      "error": ""
+    }
+  ],
+  "sourceSHA256": {
+    "programs/01-aunt-reference/symbols.cpp": "a1f54ecb1be6cde9ca0dc24fcf5bed5cb65a63ed0d864cfd2b1bdc20f5d8bb27",
+    "programs/01-aunt-reference/bits.cpp": "629880637d5c5f1e2734b54dfbc5f75356bbb0f215b6d61449d3e99c285fa20c",
+    "programs/01-aunt-reference/bytes.cpp": "92ce337b278bdaaab746a4758e3406101abc89635db20b1e31f246f21dd0a5f7",
+    "programs/02-aunt-process-sc-static-family/symbols.cpp": "e2ba9ca4aa15d3478067ce45e30cdd3f614773dab1a4cd550a95d63cf1fba8b5",
+    "programs/02-aunt-process-sc-static-family/bits.cpp": "277c7d144e5df0706bd1d5486013768d00a401e181327bee83779adc52620d09",
+    "programs/02-aunt-process-sc-static-family/bytes.cpp": "aebd0845b005b5d3c736bd46616d9740e75d0154dbf754f4cf1642c696fa485a",
+    "programs/03-aunt-synthetic-reference-60-people/symbols.cpp": "a1f54ecb1be6cde9ca0dc24fcf5bed5cb65a63ed0d864cfd2b1bdc20f5d8bb27",
+    "programs/03-aunt-synthetic-reference-60-people/bits.cpp": "478a3c7001d34463cb1b2a8cdbb9e71be7f4195dfc92e7689318f6a034520fa3",
+    "programs/03-aunt-synthetic-reference-60-people/bytes.cpp": "cb7b7a3bea88929f8ec709334399d43c087c91c0e674cb5c441a9271523a07f4",
+    "programs/04-aunt-royal92-reference-royal92-simple-metta-fallback/symbols.cpp": "a1f54ecb1be6cde9ca0dc24fcf5bed5cb65a63ed0d864cfd2b1bdc20f5d8bb27",
+    "programs/04-aunt-royal92-reference-royal92-simple-metta-fallback/bits.cpp": "629880637d5c5f1e2734b54dfbc5f75356bbb0f215b6d61449d3e99c285fa20c",
+    "programs/04-aunt-royal92-reference-royal92-simple-metta-fallback/bytes.cpp": "92ce337b278bdaaab746a4758e3406101abc89635db20b1e31f246f21dd0a5f7",
+    "programs/05-aunt-synthetic-process-sc-static-family-24-people/symbols.cpp": "518fbbd880a52ed5abf507ba837a1936083613c99fe7bbf75f945a6138dc0d3f",
+    "programs/05-aunt-synthetic-process-sc-static-family-24-people/bits.cpp": "54206093741914c510b8baa7a593922bb0b97d076d6a1430158f6440671c7539",
+    "programs/05-aunt-synthetic-process-sc-static-family-24-people/bytes.cpp": "18d5446583a8edd5eb670151321c5245d9f3c3522fa60a0000735285fee2d9e5",
+    "programs/06-graph-two-hop-reference-90-chain/symbols.cpp": "55eec1316f5c781260d38cdd4a91c500bff760d6a8dac513e08d6dfb7caec1ea",
+    "programs/06-graph-two-hop-reference-90-chain/bits.cpp": "9b07c91e7c3322ccd23a58c21e2d4421a420951da39ecac6a2f75a82da962a6b",
+    "programs/06-graph-two-hop-reference-90-chain/bytes.cpp": "fbee6566c883bd24373ff518c49d68548b1980f59f0b0a763b78a7a851c28fd8",
+    "programs/07-graph-mutual-reference-90-chain/symbols.cpp": "77b3ea5457aad30872f085a4cddff77b95564363e533d36519f67a822b5baa18",
+    "programs/07-graph-mutual-reference-90-chain/bits.cpp": "b83c03aae18e8b345a454bd3739473a655170affc2cbd0793fddc313d6283a04",
+    "programs/07-graph-mutual-reference-90-chain/bytes.cpp": "66e728e21148acc888ddf81179854c29ed77488570814a6d3b29d59d71a1de71",
+    "programs/08-scc-paper-divide-and-conquer/symbols.cpp": "a675e5d247ecb2839d741bdd6235f1df418fc9fd779e9c9726743cfc074c7f06",
+    "programs/08-scc-paper-divide-and-conquer/bits.cpp": "76bce6040a5bd749850abe3fe138a4c9d332d2038f840a950ee6b0f7a2124479",
+    "programs/08-scc-paper-divide-and-conquer/bytes.cpp": "862ff84358811edf9723de40f3e0d7ac5d4a61f7b30c3212ca8c849686953abd",
+    "programs/09-datalog-semi-naive-reference-24-chain/symbols.cpp": "ecb2d34d198031d0490b9877be1c1fff5c53edb575ac0194085b546928bba079",
+    "programs/09-datalog-semi-naive-reference-24-chain/bits.cpp": "681e439fafa8fdbcb898939376a9ac59b7217db4782b60f7afafd08a04ec1b9d",
+    "programs/09-datalog-semi-naive-reference-24-chain/bytes.cpp": "2bf88372a830bf0c9aee0a57901fd9d9242dffad200ce176420725330c370594",
+    "programs/10-datalog-semi-naive-process-sc-24-chain/symbols.cpp": "75bb226ff42ec18b4e8829df47b6b5eb02ea4cee4716e0840dbe6679106a6000",
+    "programs/10-datalog-semi-naive-process-sc-24-chain/bits.cpp": "751d3fb33f46cf33fd045906c9e4c00557498cc1cfe1e11493d9bc37f9d8b9f2",
+    "programs/10-datalog-semi-naive-process-sc-24-chain/bytes.cpp": "0e82819b7d7c99488e64a205b19d0755669557ae0e2cf5e6a184a9047a301427",
+    "programs/11-life-reference-random-24x24/symbols.cpp": "4339009d360bcb7b8fd8634a4b443c73922fa9f2f26f276dc7190da381553cfa",
+    "programs/11-life-reference-random-24x24/bits.cpp": "322db2a36b57de2f0c356ec0be9e99488db361d2f823d4f86cfd9559bfb6f91f",
+    "programs/11-life-reference-random-24x24/bytes.cpp": "4808be7d5a47d1ecf79bb809b44a6e0a8410e54917c80505a16c9b19823d095f",
+    "programs/12-life-compile-pass-random-24x24/symbols.cpp": "1f584753bb6a756fe7e8da0c91b7595e6e2df147f9354dbf3ed582faf229d813",
+    "programs/12-life-compile-pass-random-24x24/bits.cpp": "0e79ec14ade9bd34900fdd225ecef01eaf3e6fe9a1daedc54250a8ffc2f7f642",
+    "programs/12-life-compile-pass-random-24x24/bytes.cpp": "ca75457a5cf8140d01ab1a475bd6b2ff893e6f8a87ec04ae6867a1d3508ed3f3",
+    "programs/13-life-compile-pass-random-24x24-initial-literal/symbols.cpp": "3117e49864cece152d5b92354e8802c5ad5efd34ff711a012e0efb1dd419e353",
+    "programs/13-life-compile-pass-random-24x24-initial-literal/bits.cpp": "a07262fefb3034115e6e5e4d8f2dbae1df5bf0140d2b9a7105e31b21c63997a6",
+    "programs/13-life-compile-pass-random-24x24-initial-literal/bytes.cpp": "a9dbd3eec175b36201470930d039b4183d5fabc4f7ff512c1f93b5b148df6cdf",
+    "programs/14-temperature-noaa-committed-slice/symbols.cpp": "798172343d3207adfd3f1313518f55d09538e1ee38d453f6d143f2b7e5d3fda8",
+    "programs/14-temperature-noaa-committed-slice/bits.cpp": "9383c31d48440d67f5a247b442beb423a4bc3972b2cd4db8953272fa0328f3b3",
+    "programs/14-temperature-noaa-committed-slice/bytes.cpp": "a5123972fce993e3fce105edc62276feefb4ec5c729f97fbf06ae9621ce2556e",
+    "programs/15-temperature-synthetic-32x64/symbols.cpp": "bdf85c3bcd32b6318da840e30603bbe7a0da007d675aff402fdfb0bd49daf43c",
+    "programs/15-temperature-synthetic-32x64/bits.cpp": "89ae802ca22260940e1873ffe4d5aec8bc85ad7ebcbcedb7282afc03d6f49fde",
+    "programs/15-temperature-synthetic-32x64/bytes.cpp": "d8b25beff6cb137efa2453b43f22ce19a5560c80d9412810efd0a9bc99f1ee27",
+    "programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/symbols.cpp": "f74fcf376cfbd3eef5779b4f98cbc111a406d43d1d2520c66efb40e9ba685eda",
+    "programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/bits.cpp": "3c6bb0434092907de5038a568a2dedc28a09b344afcff97fda87cb4b439b7807",
+    "programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/bytes.cpp": "56f852f13a928ed9b5c002480da1d29f02897331c933cf3a2af8ec53eb85cbce",
+    "programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/symbols.cpp": "1ce4efc288c9e72901d610c32e64ff2c61571706f15f72a65e08eae9f762896d",
+    "programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/bits.cpp": "6b44b3ad5e8f13c674fd3b1b02a431d7940bc90e213581882fd5d6fb81352ade",
+    "programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/bytes.cpp": "f46b9645fe0573ba01c39d5788687324d51b4e1d6a7939fc67212e7a5a835a1a",
+    "programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/symbols.cpp": "a6d7c6c8b6de61d2848e067640d34f16c4330f68c37ceb20ebaae52a96aaa81b",
+    "programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/bits.cpp": "a85578b753e9bf0c8958d1bee4953eae0b1760434b06a651363e78c7c2bfd754",
+    "programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/bytes.cpp": "135509a4be35fc3af51c9447e7da572d6fde3662afd885d459ade5fc33526a03",
+    "programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/symbols.cpp": "cabac3c58d7b3e015da6ed32f6c492c0ecee7de6480cff1e1f0ac8a0df516828",
+    "programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/bits.cpp": "b5ccbaebff11b1baa4ffdbae0d5158715f393ce24845bc94cbc788174b7472e5",
+    "programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/bytes.cpp": "d54b1a4087a89d052d178b76b9f0f850018479dc15db175a31df347db9a6e30e",
+    "programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/symbols.cpp": "726bff5783d47d1dcdedc0f00a9a1a9ecde4445b4c9416595e67a72d61158008",
+    "programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/bits.cpp": "ac1712f63002961ac0c266afe1c7768a9539028ed98fe1359e6491113e4e8a62",
+    "programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/bytes.cpp": "a0e13b161a7defc7e6f2a1c945b664d9656adea995a86fb520bbf4a6cdf6ca6d",
+    "programs/21-n-queens-morkl-8x8-source/symbols.cpp": "b46d05d6c11d064c8d566e1774e79f8ab159194de08975132e56205c236577d9",
+    "programs/21-n-queens-morkl-8x8-source/bits.cpp": "57351ce762c65eb8dfd4f622f28bb11a6930187b4b2f6ef9f04145f86ca9890e",
+    "programs/21-n-queens-morkl-8x8-source/bytes.cpp": "93689f249a852dde97e49d7da1d6790cbdc476a3b4e4e513c4928e7fa55ea906",
+    "programs/22-n-queens-morkl-8x8-compile-pass/symbols.cpp": "318a1055bdb9ec105de7ecc47fdf181c7549f60c4998a156e6aeee8d4a0603f4",
+    "programs/22-n-queens-morkl-8x8-compile-pass/bits.cpp": "bde98ff7cf4c5892298a7d8d53eca260342c2a6797da6ba2a8d819b439ee1ef5",
+    "programs/22-n-queens-morkl-8x8-compile-pass/bytes.cpp": "fd15b59de0a260a663b98116a47d1ea24bbeec2c4d2b96a2b0c7d3e67e9d0841",
+    "large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/symbols.cpp": "55eec1316f5c781260d38cdd4a91c500bff760d6a8dac513e08d6dfb7caec1ea",
+    "large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/bits.cpp": "d6f1601687bb1b13b6473c2ebaf850ed573309bd6bc197b035117eb088f59934",
+    "large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/bytes.cpp": "ba18e2499714e3906c05a57df236c95a38dffd7d86ce7ab1ab52090306f32b15",
+    "large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/symbols.cpp": "55eec1316f5c781260d38cdd4a91c500bff760d6a8dac513e08d6dfb7caec1ea",
+    "large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/bits.cpp": "4b7da0a718f6aff8d83de7925f0e3f8dd5e640e653074c4d2ad2781b76a73417",
+    "large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/bytes.cpp": "9e1c5b495e02443d3da822b8e91e0f952969b00828cabea1565db6e7ee7572c7",
+    "large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/symbols.cpp": "55eec1316f5c781260d38cdd4a91c500bff760d6a8dac513e08d6dfb7caec1ea",
+    "large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/bits.cpp": "56deb39d610ad69409b8a242536c3d47d4117d074b609e05cd328e9c236dbd3c",
+    "large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/bytes.cpp": "73f9a80cba5be54f459fdde1f0c2e66cf8744ec9b12a0747e1b03c174b910e30",
+    "large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/symbols.cpp": "d31150e321f1b426cdba92b1ae844cdf561bf14f1aec00bd9d26ca5bd8606d52",
+    "large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bits.cpp": "1c5ff1e5fe19f935d96ab539fdf22a6f445735d38625ac812e924986c6314115",
+    "large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bytes.cpp": "1c5ff1e5fe19f935d96ab539fdf22a6f445735d38625ac812e924986c6314115",
+    "large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/symbols.cpp": "d31150e321f1b426cdba92b1ae844cdf561bf14f1aec00bd9d26ca5bd8606d52",
+    "large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bits.cpp": "1c5ff1e5fe19f935d96ab539fdf22a6f445735d38625ac812e924986c6314115",
+    "large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bytes.cpp": "1c5ff1e5fe19f935d96ab539fdf22a6f445735d38625ac812e924986c6314115",
+    "large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/symbols.cpp": "d31150e321f1b426cdba92b1ae844cdf561bf14f1aec00bd9d26ca5bd8606d52",
+    "large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bits.cpp": "1c5ff1e5fe19f935d96ab539fdf22a6f445735d38625ac812e924986c6314115",
+    "large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bytes.cpp": "1c5ff1e5fe19f935d96ab539fdf22a6f445735d38625ac812e924986c6314115",
+    "large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/symbols.cpp": "226be2b4c0d3f457bb6e9bb716d08f436343f8f4eb207f7608d8777932ee4fce",
+    "large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bits.cpp": "6a8f40622f1a2861b051a339b2de40052ab0707b50df7d87c87e424edf8fc16a",
+    "large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bytes.cpp": "6a8f40622f1a2861b051a339b2de40052ab0707b50df7d87c87e424edf8fc16a",
+    "large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/symbols.cpp": "226be2b4c0d3f457bb6e9bb716d08f436343f8f4eb207f7608d8777932ee4fce",
+    "large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bits.cpp": "6a8f40622f1a2861b051a339b2de40052ab0707b50df7d87c87e424edf8fc16a",
+    "large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bytes.cpp": "6a8f40622f1a2861b051a339b2de40052ab0707b50df7d87c87e424edf8fc16a",
+    "large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/symbols.cpp": "226be2b4c0d3f457bb6e9bb716d08f436343f8f4eb207f7608d8777932ee4fce",
+    "large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bits.cpp": "6a8f40622f1a2861b051a339b2de40052ab0707b50df7d87c87e424edf8fc16a",
+    "large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bytes.cpp": "6a8f40622f1a2861b051a339b2de40052ab0707b50df7d87c87e424edf8fc16a",
+    "large/32-aunt-query-over-large-generated-family-one-queried-person-9-generations-x-80-people-2720-facts/symbols.cpp": "a1f54ecb1be6cde9ca0dc24fcf5bed5cb65a63ed0d864cfd2b1bdc20f5d8bb27",
+    "large/32-aunt-query-over-large-generated-family-one-queried-person-9-generations-x-80-people-2720-facts/bits.cpp": "3c293fff9c8e5950e3992ce481dd37119f86eafde49b8c6deb10361288bb67c4",
+    "large/32-aunt-query-over-large-generated-family-one-queried-person-9-generations-x-80-people-2720-facts/bytes.cpp": "a412d72781bc7203cef5d0e3ddcb979ec315d2895fa56b7a6ae359d5f9ca095c",
+    "large/33-aunt-query-over-large-generated-family-one-queried-person-11-generations-x-160-people-6720-facts/symbols.cpp": "a1f54ecb1be6cde9ca0dc24fcf5bed5cb65a63ed0d864cfd2b1bdc20f5d8bb27",
+    "large/33-aunt-query-over-large-generated-family-one-queried-person-11-generations-x-160-people-6720-facts/bits.cpp": "b1218ea06d412ba7844e8b4bd79d4b4750da9b38b17f6230eb5616805d76b3d1",
+    "large/33-aunt-query-over-large-generated-family-one-queried-person-11-generations-x-160-people-6720-facts/bytes.cpp": "b05b77282ed8e4fc67f2be8c45539112773efe6e33cb46a08744785bf060496a",
+    "large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/symbols.cpp": "a675e5d247ecb2839d741bdd6235f1df418fc9fd779e9c9726743cfc074c7f06",
+    "large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/bits.cpp": "76bce6040a5bd749850abe3fe138a4c9d332d2038f840a950ee6b0f7a2124479",
+    "large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/bytes.cpp": "862ff84358811edf9723de40f3e0d7ac5d4a61f7b30c3212ca8c849686953abd",
+    "large/35-semi-naive-datalog-over-generated-chain-graph-40-nodes-79-edge-facts/symbols.cpp": "b1923dc65b1c2fa1fcd89ddd871cc04f055c913b6ae52e5f7baa16968197a8bd",
+    "large/35-semi-naive-datalog-over-generated-chain-graph-40-nodes-79-edge-facts/bits.cpp": "b9ff13e8592be18634902ad7d4e0aaebfece5253c996e874d8d04751dd379fcc",
+    "large/35-semi-naive-datalog-over-generated-chain-graph-40-nodes-79-edge-facts/bytes.cpp": "fc576ce4677b734e60f0dcc11a602c9c8a0a06f5376d0fc109b0c5477eab6fe7",
+    "large/36-semi-naive-datalog-over-generated-chain-graph-80-nodes-159-edge-facts/symbols.cpp": "b1923dc65b1c2fa1fcd89ddd871cc04f055c913b6ae52e5f7baa16968197a8bd",
+    "large/36-semi-naive-datalog-over-generated-chain-graph-80-nodes-159-edge-facts/bits.cpp": "25a35995ab436214265b4b49cb0c39e2f8362ac5f9bcf7349ca1cb1f9728a0f3",
+    "large/36-semi-naive-datalog-over-generated-chain-graph-80-nodes-159-edge-facts/bytes.cpp": "04bf4ce10249dcccafde8d8d9d968e751985cf6dffa861429572c52f1ba207ca"
+  },
+  "inputFixturesChecked": 108,
+  "crossDialectInputEquivalences": 36
+}

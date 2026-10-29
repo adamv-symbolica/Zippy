@@ -1,0 +1,2 @@
+family,name,dialect,paths,reference_ms,samples,checked
+programs,"temperature/NOAA committed slice",bits,12,0.055914,5,exact

@@ -198,6 +198,8 @@ row is timed.
 
 See:
 
+- [Cornerstone results by example, all evaluators and C++ dialects](docs/cornerstone-benchmarks/README.md)
+- [Compiled cornerstone sources for manual review](docs/compiled-cornerstones/README.md)
 - [`TRIE_RUNTIME.md`](docs/TRIE_RUNTIME.md)
 - [`TRIE_BENCHMARKS.md`](docs/TRIE_BENCHMARKS.md)
 - [`ZIPPER_ALGEBRA_BENCHMARKS.md`](docs/ZIPPER_ALGEBRA_BENCHMARKS.md)

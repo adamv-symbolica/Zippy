@@ -1,0 +1,22 @@
+{
+  "created_at": "2026-10-29T12:52:04.150855Z",
+  "data_volume_gib": null,
+  "error": null,
+  "expires_at": "2026-10-29T13:52:04.150855Z",
+  "id": "nd-01m63vfbewnmhze4vatxxp81qv",
+  "name": "zippy-cornerstone-review",
+  "os": "ubuntu",
+  "owner": "adam.vandervorst@symbolica.ai",
+  "profile": "cpu-h4d-xlarge",
+  "ready_at": "2026-10-29T12:53:24.423356Z",
+  "region": "asia-southeast1",
+  "starts_at": null,
+  "status": "terminated",
+  "storage": "none",
+  "tailscale": {
+    "hostname": "nd-01m63vfbewnmhze4vatxxp81qv",
+    "ipv4": "100.80.59.108",
+    "ssh_user": "ubuntu"
+  },
+  "terminated_at": "2026-10-29T13:00:43.494709Z"
+}

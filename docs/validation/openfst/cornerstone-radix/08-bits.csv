@@ -1,0 +1,2 @@
+family,name,dialect,paths,reference_ms,samples,checked
+programs,"datalog semi-naive/reference 24-chain",bits,300,1167.758626,1,exact

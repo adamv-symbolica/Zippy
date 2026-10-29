@@ -1,0 +1,12 @@
+{
+  "primaryVariants": 22,
+  "largeVariants": 14,
+  "cppSources": 108,
+  "evaluatorRows": 290,
+  "omittedEvaluatorRows": 3,
+  "exactNativeResults": 108,
+  "sourceHashesVerified": 77,
+  "exactRadixReferenceResults": 44,
+  "sourceBytes": 53352997,
+  "hostCallbackArtifacts": 0
+}

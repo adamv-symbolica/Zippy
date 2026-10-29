@@ -1,0 +1,23 @@
+benchmark,variant,prep compile ms,graph compile ms,total compile ms,compile/run,compile+ROG execT ms,lower+inline ms,source pass ms,const-fold eval ms,const-fold evalTrie ms,const-fold evalZ ms,const-fold execT ms,const-fold eval calls,const-fold evalTrie calls,const-fold evalZ calls,const-fold execT calls,graph transpile ms,graph optimize ms,source pass attempts,graph pass steps,budget ms sum,note
+aunt,reference,n/a,4.822,4.822,15.55 x,5.132,0.101,0.748,0.000,0.000,0.000,0.000,0,0,0,0,0.175,1.765,38,6,30000,graph compile + optimized callees
+aunt,process-sc static family,49.000,1.600,50.600,313.64 x,50.761,0.097,0.377,0.003,0.000,0.000,0.000,5,0,0,0,0.061,0.674,19,6,60000,process SC setup; graph compile + optimized callees
+aunt synthetic,reference 60 people,n/a,2.080,2.080,1.81 x,3.227,0.041,0.511,0.000,0.000,0.000,0.000,0,0,0,0,0.113,1.034,38,6,30000,graph compile + optimized callees
+aunt royal92,reference royal92_simple.metta fallback,n/a,2.260,2.260,22.22 x,2.361,0.041,0.414,0.000,0.000,0.000,0.000,0,0,0,0,0.336,1.052,38,6,30000,graph compile + optimized callees
+aunt synthetic,process-sc static family 24 people,7.975,1.881,9.856,40.33 x,10.100,0.057,0.501,0.003,0.000,0.000,0.000,5,0,0,0,0.126,0.895,19,6,60000,process SC setup; graph compile + optimized callees
+graph two-hop,reference 90-chain,n/a,1.942,1.942,2.27 x,2.797,0.022,0.262,0.048,0.000,0.000,0.000,2,0,0,0,0.046,1.190,57,9,30000,graph compile + optimized callees
+graph mutual,reference 90-chain,n/a,1.665,1.665,6.08 x,1.939,0.022,0.117,0.000,0.000,0.000,0.000,0,0,0,0,0.040,1.057,38,9,30000,graph compile + optimized callees
+scc,paper divide-and-conquer,n/a,19.240,19.240,32.15 x,19.839,0.502,10.476,0.583,0.000,0.000,0.000,146,0,0,0,0.892,3.748,133,12,90000,graph compile + optimized callees
+datalog semi-naive,reference 24-chain,n/a,11.681,11.681,n/a,11.683,0.073,10.648,0.273,9.152,0.000,0.000,9,1,0,0,0.006,0.166,38,3,30000,graph compile + optimized callees
+datalog semi-naive,process-sc 24-chain,66.772,8.253,75.025,26.86 x,77.818,0.083,1.232,0.011,0.000,0.000,0.000,10,0,0,0,0.278,5.359,38,12,90000,process SC setup; graph compile + optimized callees
+life,reference random 24x24,n/a,3517.848,3517.848,541.04 x,3524.350,0.361,3194.640,0.420,0.000,0.000,0.000,1384,0,0,0,2.344,317.189,114,12,60000,graph compile + optimized callees
+life,compile-pass random 24x24,82.949,20.125,103.074,n/a,103.075,1.937,51.512,19.948,0.000,0.000,0.000,114,0,0,0,1.624,34.827,95,12,60000,compile-pass setup; graph compile + optimized callees
+life,compile-pass random 24x24 initial literal,94.583,0.328,94.912,n/a,94.913,0.342,92.504,85.953,0.000,0.000,0.000,73,0,0,0,0.015,0.456,57,6,60000,compile-pass setup with initial grid literal; graph compile + optimized callees
+temperature,NOAA committed slice,n/a,0.282,0.282,29.10 x,0.292,0.019,0.051,0.006,0.000,0.000,0.000,5,0,0,0,0.004,0.059,38,3,30000,graph compile + optimized callees
+temperature,synthetic 32x64,n/a,0.171,0.171,15.15 x,0.182,0.008,0.039,0.007,0.000,0.000,0.000,5,0,0,0,0.004,0.041,38,3,30000,graph compile + optimized callees
+sliding puzzle,2x2 pure source full frontier step,n/a,3.029,3.029,n/a,3.030,0.115,2.065,1.274,0.000,0.000,0.000,65,0,0,0,0.002,0.080,38,3,30000,graph compile + optimized callees
+sliding puzzle,2x2 pure compile-pass full frontier step,10.074,0.281,10.355,n/a,10.356,0.267,9.347,4.106,0.000,0.000,0.000,66,0,0,0,0.004,0.085,57,3,60000,compile-pass setup; graph compile + optimized callees
+sliding puzzle,3x3 pure source depth-8 step,n/a,43.114,43.114,n/a,43.116,0.114,41.603,38.883,0.000,0.000,0.000,176,0,0,0,0.003,0.089,38,3,30000,graph compile + optimized callees
+sliding puzzle,3x3 pure compile-pass depth-8 step,109.211,0.346,109.558,n/a,109.559,0.683,107.532,93.028,0.000,0.000,0.000,177,0,0,0,0.002,0.102,57,3,60000,compile-pass setup; graph compile + optimized callees
+sliding puzzle,4x4 pure source depth-5 step,n/a,73.933,73.933,n/a,73.940,0.386,70.462,56.715,0.000,0.000,0.000,341,0,0,0,0.004,0.212,38,3,30000,graph compile + optimized callees
+n-queens,MORKL 8x8 source,n/a,405.657,405.657,n/a,405.658,0.181,404.048,399.310,0.000,0.000,0.000,130,0,0,0,0.004,0.146,38,3,30000,graph compile + optimized callees
+n-queens,MORKL 8x8 compile-pass,527.446,0.370,527.815,n/a,527.816,0.654,526.057,514.805,0.000,0.000,0.000,131,0,0,0,0.024,0.089,57,3,60000,compile-pass setup; graph compile + optimized callees

@@ -1,0 +1,21 @@
+benchmark,backend,compile ms,source pass ms,const-fold total ms,speedup vs reference,eval ms,evalTrie ms,evalZ ms,execT ms,eval calls,evalTrie calls,evalZ calls,execT calls,total calls
+life compile-pass random 24x24 initial literal,Reference,25.779,25.044,22.578,1.00 x,22.578,0.000,0.000,0.000,72,0,0,0,72
+sliding puzzle 3x3 pure compile-pass depth-8 step,Reference,38.906,38.559,35.844,1.00 x,35.844,0.000,0.000,0.000,176,0,0,0,176
+n-queens MORKL 8x8 source graph compile,Reference,388.331,387.239,382.181,1.00 x,382.181,0.000,0.000,0.000,130,0,0,0,130
+n-queens MORKL 8x8 compile-pass,Reference,394.489,394.169,388.953,1.00 x,388.953,0.000,0.000,0.000,130,0,0,0,130
+life compile-pass random 24x24 initial literal,Trie,292.580,291.871,289.469,0.08 x,0.000,289.469,0.000,0.000,0,72,0,0,72
+sliding puzzle 3x3 pure compile-pass depth-8 step,Trie,228.907,228.440,225.662,0.16 x,0.000,225.662,0.000,0.000,0,176,0,0,176
+n-queens MORKL 8x8 source graph compile,Trie,723.541,722.473,717.194,0.53 x,0.000,717.194,0.000,0.000,0,130,0,0,130
+n-queens MORKL 8x8 compile-pass,Trie,606.273,605.953,600.825,0.65 x,0.000,600.825,0.000,0.000,0,130,0,0,130
+life compile-pass random 24x24 initial literal,Zipper,270.581,269.866,267.674,0.08 x,0.000,0.000,267.674,0.000,0,0,72,0,72
+sliding puzzle 3x3 pure compile-pass depth-8 step,Zipper,524.391,523.978,521.483,0.07 x,0.000,0.000,521.483,0.000,0,0,176,0,176
+n-queens MORKL 8x8 source graph compile,Zipper,1111.440,1110.418,1105.064,0.35 x,0.000,0.000,1105.064,0.000,0,0,130,0,130
+n-queens MORKL 8x8 compile-pass,Zipper,917.887,917.576,912.728,0.43 x,0.000,0.000,912.728,0.000,0,0,130,0,130
+life compile-pass random 24x24 initial literal,ExecT,16.298,15.773,13.756,1.64 x,0.000,0.000,0.000,13.756,0,0,0,72,72
+sliding puzzle 3x3 pure compile-pass depth-8 step,ExecT,58.462,58.052,55.678,0.64 x,0.000,0.000,0.000,55.678,0,0,0,176,176
+n-queens MORKL 8x8 source graph compile,ExecT,199.528,198.566,193.680,1.97 x,0.000,0.000,0.000,193.680,0,0,0,130,130
+n-queens MORKL 8x8 compile-pass,ExecT,241.872,241.588,236.515,1.64 x,0.000,0.000,0.000,236.515,0,0,0,130,130
+life compile-pass random 24x24 initial literal,Hybrid,11.961,11.329,9.169,2.46 x,1.912,0.000,0.000,7.257,70,0,0,2,72
+sliding puzzle 3x3 pure compile-pass depth-8 step,Hybrid,42.382,42.010,39.346,0.91 x,39.346,0.000,0.000,0.000,176,0,0,0,176
+n-queens MORKL 8x8 source graph compile,Hybrid,399.497,398.485,392.838,0.97 x,392.838,0.000,0.000,0.000,130,0,0,0,130
+n-queens MORKL 8x8 compile-pass,Hybrid,380.343,380.096,375.256,1.04 x,375.256,0.000,0.000,0.000,130,0,0,0,130

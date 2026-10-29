@@ -1,0 +1,2 @@
+family,name,dialect,paths,reference_ms,samples,checked
+programs,"sliding puzzle/2x2 pure compile-pass full frontier step",bits,12,0.002945,5,exact

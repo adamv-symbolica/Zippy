@@ -1,0 +1,323 @@
+{
+  "success": true,
+  "completed": 44,
+  "total": 44,
+  "startedUTC": "2026-10-29T12:55:49.731600+00:00",
+  "finishedUTC": "2026-10-29T12:57:00.447834+00:00",
+  "workers": 4,
+  "heap": "128g",
+  "timeoutSeconds": 600,
+  "hostname": "nd-01m63vfbewnmhze4vatxxp81qv",
+  "cpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           52 bits physical, 57 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  192\nOn-line CPU(s) list:                     0-191\nVendor ID:                               AuthenticAMD\nModel name:                              AMD EPYC 9B45\nCPU family:                              26\nModel:                                   2\nThread(s) per core:                      1\nCore(s) per socket:                      96\nSocket(s):                               2\nStepping:                                1\nBogoMIPS:                                5391.90\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ht syscall nx mmxext fxsr_opt pdpe1gb rdtscp lm constant_tsc rep_good nopl xtopology nonstop_tsc cpuid extd_apicid tsc_known_freq pni pclmulqdq monitor ssse3 fma cx16 pcid sse4_1 sse4_2 x2apic movbe popcnt aes xsave avx f16c rdrand hypervisor lahf_lm cmp_legacy cr8_legacy abm sse4a misalignsse 3dnowprefetch osvw topoext mwaitx ssbd ibrs ibpb stibp ibrs_enhanced vmmcall fsgsbase tsc_adjust bmi1 avx2 smep bmi2 invpcid avx512f avx512dq rdseed adx smap avx512ifma clflushopt clwb avx512cd sha_ni avx512bw avx512vl xsaveopt xsavec xgetbv1 xsaves avx_vnni avx512_bf16 clzero xsaveerptr wbnoinvd arat avx512vbmi umip pku ospke avx512_vbmi2 gfni vaes vpclmulqdq avx512_vnni avx512_bitalg avx512_vpopcntdq rdpid movdiri movdir64b avx512_vp2intersect flush_l1d\nHypervisor vendor:                       KVM\nVirtualization type:                     full\nL1d cache:                               9 MiB (192 instances)\nL1i cache:                               6 MiB (192 instances)\nL2 cache:                                192 MiB (192 instances)\nL3 cache:                                768 MiB (24 instances)\nNUMA node(s):                            2\nNUMA node0 CPU(s):                       0-95\nNUMA node1 CPU(s):                       96-191\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Not affected\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Mitigation; IBPB on VMEXIT only\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Enhanced / Automatic IBRS; IBPB conditional; STIBP disabled; PBRSB-eIBRS Not affected; BHI Not affected\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Not affected\n",
+  "java": "openjdk version \"21.0.12.1\" 2026-08-18\nOpenJDK Runtime Environment (build 21.0.12.1+1-1-24.04.4-Ubuntu)\nOpenJDK 64-Bit Server VM (build 21.0.12.1+1-1-24.04.4-Ubuntu, mixed mode, sharing)\n",
+  "runs": [
+    {
+      "index": 0,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 1.717,
+      "csv": "00-bits.csv"
+    },
+    {
+      "index": 0,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 1.667,
+      "csv": "00-bytes.csv"
+    },
+    {
+      "index": 1,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 1.717,
+      "csv": "01-bits.csv"
+    },
+    {
+      "index": 1,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 1.717,
+      "csv": "01-bytes.csv"
+    },
+    {
+      "index": 2,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 1.867,
+      "csv": "02-bits.csv"
+    },
+    {
+      "index": 2,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 2.018,
+      "csv": "02-bytes.csv"
+    },
+    {
+      "index": 3,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 1.667,
+      "csv": "03-bits.csv"
+    },
+    {
+      "index": 3,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 1.666,
+      "csv": "03-bytes.csv"
+    },
+    {
+      "index": 4,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 1.767,
+      "csv": "04-bits.csv"
+    },
+    {
+      "index": 4,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 1.767,
+      "csv": "04-bytes.csv"
+    },
+    {
+      "index": 5,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 1.967,
+      "csv": "05-bits.csv"
+    },
+    {
+      "index": 5,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 2.017,
+      "csv": "05-bytes.csv"
+    },
+    {
+      "index": 6,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 1.867,
+      "csv": "06-bits.csv"
+    },
+    {
+      "index": 6,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 1.967,
+      "csv": "06-bytes.csv"
+    },
+    {
+      "index": 7,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 1.767,
+      "csv": "07-bits.csv"
+    },
+    {
+      "index": 7,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 1.767,
+      "csv": "07-bytes.csv"
+    },
+    {
+      "index": 8,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 5.422,
+      "csv": "08-bits.csv"
+    },
+    {
+      "index": 8,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 11.13,
+      "csv": "08-bytes.csv"
+    },
+    {
+      "index": 9,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 4.571,
+      "csv": "09-bits.csv"
+    },
+    {
+      "index": 9,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 9.378,
+      "csv": "09-bytes.csv"
+    },
+    {
+      "index": 10,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 7.525,
+      "csv": "10-bits.csv"
+    },
+    {
+      "index": 10,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 8.277,
+      "csv": "10-bytes.csv"
+    },
+    {
+      "index": 11,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 6.924,
+      "csv": "11-bits.csv"
+    },
+    {
+      "index": 11,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 7.976,
+      "csv": "11-bytes.csv"
+    },
+    {
+      "index": 12,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 1.666,
+      "csv": "12-bits.csv"
+    },
+    {
+      "index": 12,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 1.666,
+      "csv": "12-bytes.csv"
+    },
+    {
+      "index": 13,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 1.616,
+      "csv": "13-bits.csv"
+    },
+    {
+      "index": 13,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 1.716,
+      "csv": "13-bytes.csv"
+    },
+    {
+      "index": 14,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 1.766,
+      "csv": "14-bits.csv"
+    },
+    {
+      "index": 14,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 2.117,
+      "csv": "14-bytes.csv"
+    },
+    {
+      "index": 15,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 2.167,
+      "csv": "15-bits.csv"
+    },
+    {
+      "index": 15,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 1.967,
+      "csv": "15-bytes.csv"
+    },
+    {
+      "index": 16,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 1.666,
+      "csv": "16-bits.csv"
+    },
+    {
+      "index": 16,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 1.717,
+      "csv": "16-bytes.csv"
+    },
+    {
+      "index": 17,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 25.651,
+      "csv": "17-bits.csv"
+    },
+    {
+      "index": 17,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 13.488,
+      "csv": "17-bytes.csv"
+    },
+    {
+      "index": 18,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 1.717,
+      "csv": "18-bits.csv"
+    },
+    {
+      "index": 18,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 1.717,
+      "csv": "18-bytes.csv"
+    },
+    {
+      "index": 19,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 40.974,
+      "csv": "19-bits.csv"
+    },
+    {
+      "index": 19,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 20.748,
+      "csv": "19-bytes.csv"
+    },
+    {
+      "index": 20,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 8.783,
+      "csv": "20-bits.csv"
+    },
+    {
+      "index": 20,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 22.061,
+      "csv": "20-bytes.csv"
+    },
+    {
+      "index": 21,
+      "dialect": "bits",
+      "exitCode": 0,
+      "seconds": 1.666,
+      "csv": "21-bits.csv"
+    },
+    {
+      "index": 21,
+      "dialect": "bytes",
+      "exitCode": 0,
+      "seconds": 1.817,
+      "csv": "21-bytes.csv"
+    }
+  ]
+}
