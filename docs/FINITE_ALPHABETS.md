@@ -138,7 +138,7 @@ facts. Automatic unrolling is enabled by default. Fibonacci alphabets of at
 most 32 symbols inline their actual code trie with constant complete heads,
 without introducing scanner or body routines. Larger alphabets use the
 recursive scanner, retaining its codeword bound. Terminated string encodings
-with a bound of at most 32 bytes inline nested iterations and retain a single
+with a bound of at most 32 encoded bytes (including the terminator) inline nested iterations and retain a single
 body routine. Unbounded/longer strings stay recursive. Set
 `unrollBounded = false` to disable these policies. The interned-byte entry
 point exposes the same option; fixed-width scans always expand to their known
