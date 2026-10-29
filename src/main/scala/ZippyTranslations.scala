@@ -31,7 +31,7 @@ object ZippyTranslations:
   def stringsToBytes(entry: Space, interner: PathItemInterner = new PathItemInterner,
       routines: Map[RoutinePtr, Routine] = Map.empty, unrollBounded: Boolean = false):
       (WordEncoding[PathValue, BytePathValue], WordProgram[BytePathValue]) =
-    symbolProgram(entry, interner, routines, WordEncodings.stringSymbolsToBytes, unrollBounded)
+    symbolProgram(entry, interner, routines, i => WordEncodings.stringSymbolsToBytes(i), unrollBounded)
 
   def internedStringsToBytes(entry: Space, interner: PathItemInterner = new PathItemInterner,
       routines: Map[RoutinePtr, Routine] = Map.empty):

@@ -22,7 +22,7 @@ object WordReferenceHints:
       case Restriction(l, r) => Restriction(space(l, env), space(r, env))
       case Raffination(l, r) => Raffination(space(l, env), space(r, env))
       case Composition(l, r) => Composition(space(l, env), space(r, env))
-      case Iteration(src, h, t, b) => Iteration(space(src, env), h.known(1), t, space(b, env.updated(h.s, h.known(1))))
+      case Iteration(src, h, t, b) => Iteration(space(src, env), h.known(1), t, space(b, if h.s == "_" then env else env.updated(h.s, h.known(1))))
       case Fold(src, i, a, h, t, b, u) =>
         val inner = (env - a.s).updated(h.s, h.known(1))
         Fold(space(src, env), path(i, env), a, h.known(1), t, space(b, inner), path(u, inner))
@@ -38,3 +38,13 @@ object WordReferenceHints:
       case GroundedSS(s, f) => GroundedSS(space(s, env), f)
       case Range(s, start, end) => Range(space(s, env), start, end)
     space(expression, parameters.map(r => r.s -> r).toMap)
+
+object WordPathLength:
+  /** A sound upper bound, not an assertion that every encoded symbol has the
+    * maximum length. This distinction matters for variable Fibonacci codes.
+    */
+  def upper[P](p: WordPath[P])(using ops: WordOps[P]): Option[BigInt] = p match
+    case WordPath.Deref(r) => Option.when(r.maxLengthHint >= 0)(BigInt(r.maxLengthHint))
+    case WordPath.Constant(p) => Some(BigInt(ops.length(p)))
+    case WordPath.Concat(l, r) => for a <- upper(l); b <- upper(r) yield a + b
+    case WordPath.GroundedPP(_, _) | WordPath.GroundedSP(_, _) => None

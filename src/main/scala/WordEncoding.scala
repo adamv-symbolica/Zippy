@@ -14,7 +14,7 @@ enum WordCodeShape:
 final case class WordEncoding[A, B](source: WordOps[A], target: WordOps[B],
     code: Int => Vector[Int], decodeDigit: Vector[Int] => Int,
     shape: WordCodeShape, maxCodeLength: Option[Int],
-    orderedDigits: Vector[Int], preservesOrder: Boolean):
+    orderedDigits: Vector[Int], preservesOrder: Boolean, utf8StringOrder: Boolean = false):
   def encode(p: A): B = target.fromDigits(source.digits(p).flatMap(code))
   def decode(p: B): A =
     val ds = target.digits(p)
@@ -106,24 +106,45 @@ object WordEncodings:
       ds => { require(ds.size == 4 && ds.head < 128); ds.foldLeft(0)((n, b) => (n << 8) | b) },
       WordCodeShape.Fixed(4), Some(4), order, false)
 
-  def stringSymbolsToBytes(interner: PathItemInterner): WordEncoding[PathValue, BytePathValue] =
+  def stringSymbolsToBytes(interner: PathItemInterner, maxSymbolBytes: Option[Int] = None): WordEncoding[PathValue, BytePathValue] =
+    require(maxSymbolBytes.forall(n => n >= 0 && n < Int.MaxValue), "invalid string-symbol byte bound")
     val (ops, order) = symbols(interner)
     def utf8(id: Int): Vector[Int] =
       val text = interner.decodeItem(id).show
-      require(!text.contains('\u0000'), "NUL is reserved as the string-symbol terminator")
       val encoder = StandardCharsets.UTF_8.newEncoder().onMalformedInput(CodingErrorAction.REPORT)
       val buffer = encoder.encode(CharBuffer.wrap(text))
       val bytes = new Array[Byte](buffer.remaining()); buffer.get(bytes)
-      bytes.iterator.map(_ & 255).toVector :+ 0
-    val codes = order.map(id => id -> utf8(id)).toMap
-    WordEncoding(ops, ByteWords, checkedCode(order.toSet, codes.apply),
+      // Escape NUL and the escape byte in-band, leaving NUL exclusively as
+      // the terminator. This is also order preserving: NUL -> 1,1; SOH -> 1,2.
+      val result = bytes.iterator.flatMap { raw =>
+        (raw & 255) match
+          case 0 => Vector(1, 1)
+          case 1 => Vector(1, 2)
+          case b => Vector(b)
+      }.toVector :+ 0
+      require(maxSymbolBytes.forall(result.size - 1 <= _), "string symbol exceeds its declared byte bound")
+      result
+    order.foreach(utf8) // Validate any already interned strings, including malformed UTF-16.
+    WordEncoding(ops, ByteWords, utf8,
       ds =>
         require(ds.nonEmpty && ds.last == 0)
+        val payload = ds.dropRight(1)
+        val bytes = Vector.newBuilder[Byte]
+        var index = 0
+        while index < payload.size do
+          if payload(index) == 1 then
+            require(index + 1 < payload.size && (payload(index + 1) == 1 || payload(index + 1) == 2), "invalid string escape")
+            bytes += (payload(index + 1) - 1).toByte
+            index += 2
+          else
+            require(payload(index) != 0, "interior string terminator")
+            bytes += payload(index).toByte
+            index += 1
         val decoder = StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
-        val text = decoder.decode(ByteBuffer.wrap(ds.dropRight(1).map(_.toByte).toArray)).toString
+        val text = decoder.decode(ByteBuffer.wrap(bytes.result().toArray)).toString
         interner.intern(PathItem(text)),
-      WordCodeShape.Terminated(0), codes.valuesIterator.map(_.size).maxOption,
-      order, false)
+      WordCodeShape.Terminated(0), maxSymbolBytes.map(n => Math.addExact(n, 1)),
+      order, false, utf8StringOrder = true)
 
   def bitsToSymbols(falseSymbol: PathItem = PathItem("false"), trueSymbol: PathItem = PathItem("true")):
       WordEncoding[BigInt, PathValue] =
@@ -131,7 +152,7 @@ object WordEncodings:
     val interner = new PathItemInterner
     interner.intern(falseSymbol); interner.intern(trueSymbol)
     WordEncoding(BitWords, new SymbolWords(interner), b => Vector(b), _.head,
-      WordCodeShape.Fixed(1), Some(1), Vector(0, 1), false)
+      WordCodeShape.Fixed(1), Some(1), Vector(0, 1), falseSymbol.show.compareTo(trueSymbol.show) < 0)
 
   def bytesToSymbols(symbol: Int => PathItem = n => PathItem(f"byte_$n%03d")):
       WordEncoding[BytePathValue, PathValue] =
@@ -140,4 +161,4 @@ object WordEncodings:
     require(items.distinct.size == 256, "byte injection needs 256 distinct symbols")
     items.foreach(interner.intern)
     WordEncoding(ByteWords, new SymbolWords(interner), b => Vector(b), _.head,
-      WordCodeShape.Fixed(1), Some(1), (0 until 256).toVector, false)
+      WordCodeShape.Fixed(1), Some(1), (0 until 256).toVector, items.map(_.show) == items.map(_.show).sorted)

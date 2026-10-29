@@ -134,6 +134,7 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
     */
   private def iterate(src: WordSpace[B], h: PathRef, t: SpaceMention, body: WordSpace[B],
                       code: WordEncoding[A, B] = encoding): WordSpace[B] =
+    if code.shape == WordCodeShape.Fixed(1) then return Iteration(src, h.known(1), t, body)
     val free = WordSyntax.free(body).without(h).withoutSpace(t)
     val cps = free.paths.values.toVector.sortBy(_.s)
     val css = free.spaces.values.toVector.sortBy(_.s)
@@ -187,10 +188,15 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
         Call(scanner(false, 0), constant(target.empty) +: cps.map(deref), src +: css.map(mention))
 
   private def tails(src: WordSpace[B]): WordSpace[B] =
+    if encoding.shape == WordCodeShape.Fixed(1) then return TailsUnion(src)
     val h = pr("head"); val t = sm("tail")
     iterate(src, h, t, mention(t))
 
   private def closure(src: WordSpace[B], kind: String): WordSpace[B] =
+    if encoding.shape == WordCodeShape.Fixed(1) then return kind match
+      case "prefix" => PrefixClosure(src)
+      case "suffix" => SuffixClosure(src)
+      case "tails" => TailsClosure(src)
     val name = rp(kind); val input = sm("closure_input")
     val h = pr("head"); val t = sm("tail")
     val recurse = Call(name, Vector.empty, Vector(mention(t)))
@@ -229,14 +235,43 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
       Composition(mapped, Call(name, Vector.empty, Vector(mention(t)))), from)
     definitions(name) = WordRoutine(name, Vector.empty, Vector(input), Union(Intersection(mention(input), epsilon), step))
     name
-  private lazy val toOrder: RoutinePtr = recoder(encoding, orderCode)
-  private lazy val fromOrder: RoutinePtr = recoder(orderCode, encoding)
+  /** UTF-8 order differs from JVM UTF-16 string order only at supplementary
+    * scalars: F0..F4 must sort after ED 9F.. and before EE. Insert ED before
+    * those lead bytes. ED F0..F4 cannot occur in valid UTF-8, so this is an
+    * injective, reversible byte transducer, with no symbol dictionary.
+    */
+  private def utf8OrderRecoder(inverse: Boolean): RoutinePtr =
+    val name = rp("utf8_order"); val input = sm("utf8_input")
+    val h = pr("utf8_byte").known(1); val t = sm("utf8_tail")
+    val lead = Literal(WordSpaceValue((0xF0 to 0xF4).map(n => target.fromDigits(Vector(n))).toSet))
+    val ed = Singleton(constant(target.fromDigits(Vector(0xED))))
+    def recurse(s: WordSpace[B]): WordSpace[B] = Call(name, Vector.empty, Vector(s))
+    val head = Singleton(deref(h))
+    val step =
+      if !inverse then
+        Union(guard(Intersection(head, lead), Wrap(recurse(mention(t)), WordPath.Concat(constant(target.fromDigits(Vector(0xED))), deref(h)))),
+          guard(Subtraction(head, lead), Wrap(recurse(mention(t)), deref(h))))
+      else
+        val next = pr("utf8_next").known(1); val rest = sm("utf8_rest")
+        val nextHead = Singleton(deref(next))
+        val afterED = Iteration(mention(t), next, rest,
+          Union(guard(Intersection(nextHead, lead), Wrap(recurse(mention(rest)), deref(next))),
+            guard(Subtraction(nextHead, lead), Wrap(recurse(mention(rest)), WordPath.Concat(deref(h), deref(next))))))
+        Union(guard(Intersection(head, ed), afterED),
+          guard(Subtraction(head, ed), Wrap(recurse(mention(t)), deref(h))))
+    definitions(name) = WordRoutine(name, Vector.empty, Vector(input),
+      Union(Intersection(mention(input), epsilon), Iteration(mention(input), h, t, step)))
+    name
+  private lazy val toOrder: RoutinePtr = if encoding.utf8StringOrder then utf8OrderRecoder(false) else recoder(encoding, orderCode)
+  private lazy val fromOrder: RoutinePtr = if encoding.utf8StringOrder then utf8OrderRecoder(true) else recoder(orderCode, encoding)
   private def orderedRange(src: WordSpace[B], start: Int, end: Int): WordSpace[B] =
     if encoding.preservesOrder then Range(src, start, end)
     else Call(fromOrder, Vector.empty, Vector(Range(Call(toOrder, Vector.empty, Vector(src)), start, end)))
 
   private def fold(src: WordSpace[B], initial: WordPath[B], acc: PathRef, h: PathRef,
                    t: SpaceMention, body: WordSpace[B], update: WordPath[B]): WordSpace[B] =
+    if encoding.shape == WordCodeShape.Fixed(1) && encoding.preservesOrder then
+      return Fold(src, initial, acc, h.known(1), t, body, update)
     val free = (WordSyntax.free(body) ++ WordSyntax.path(update)).without(acc, h).withoutSpace(t)
     val cps = free.paths.values.toVector.sortBy(_.s); val css = free.spaces.values.toVector.sortBy(_.s)
     val loop = rp("fold"); val input = sm("fold_input")
@@ -264,12 +299,20 @@ final class WordCompiler[A, B](encoding: WordEncoding[A, B], unrollBounded: Bool
     case Restriction(x, y) => Restriction(space(x), space(y))
     case Raffination(x, y) => Raffination(space(x), space(y))
     case Composition(x, y) => Composition(space(x), space(y))
-    case Iteration(src, h, t, b) => iterate(space(src), encodedRef(h.known(1)), t, space(b))
-    case Fold(src, i, a, h, t, b, u) => fold(space(src), path(i), encodedRef(a), encodedRef(h.known(1)), t, space(b), path(u))
+    case Iteration(src, h, t, b) =>
+      val head = if h.s == "_" then pr("ignored_head") else encodedRef(h.known(1))
+      val tail = if t.s == "_" then sm("ignored_tail") else t
+      iterate(space(src), head, tail, space(b))
+    case Fold(src, i, a, h, t, b, u) =>
+      val acc = if a.s == "_" then pr("ignored_acc") else encodedRef(a)
+      val head = if h.s == "_" then pr("ignored_head") else encodedRef(h.known(1))
+      val tail = if t.s == "_" then sm("ignored_tail") else t
+      fold(space(src), path(i), acc, head, tail, space(b), path(u))
     case Fixpoint(i, v, step) => Fixpoint(space(i), v, space(step))
     case Wrap(src, p) => Wrap(space(src), path(p))
     case Unwrap(src, p) => Unwrap(space(src), path(p))
     case TailsUnion(src) => tails(space(src))
+    case TailsIntersection(src) if encoding.shape == WordCodeShape.Fixed(1) => TailsIntersection(space(src))
     case TailsIntersection(src) =>
       val source = space(src)
       val all = tails(source); val h = pr("head"); val t = sm("tail")

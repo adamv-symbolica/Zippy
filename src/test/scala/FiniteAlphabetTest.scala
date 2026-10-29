@@ -195,12 +195,200 @@ class FiniteAlphabetTest extends FunSuite:
     assertEquals(injection.decodeSpace(WordSpaceValue(result.paths)), Zippy_bits.eval(bitExpr))
   }
 
-  test("NUL string terminator rejects ambiguous symbols, but empty and Unicode symbols roundtrip") {
+  test("NUL string termination escapes embedded NUL and escape bytes without collisions") {
     val i = interner()
     val code = WordEncodings.stringSymbolsToBytes(i)
     source.paths.foreach(v => assertEquals(code.decode(code.encode(v)), v))
-    val bad = new PathItemInterner; bad.intern(PathItem("a\u0000b"))
-    intercept[IllegalArgumentException](WordEncodings.stringSymbolsToBytes(bad))
+    Vector(p("a\u0000b"), p("\u0000"), p("\u0001"), p("", ""), p("\u0000", "\u0001")).foreach { value =>
+      assertEquals(code.decode(code.encode(value)), value)
+    }
+    intercept[IllegalArgumentException](code.decode(ByteWords.fromDigits(Vector(1, 3, 0))))
     val malformed = new PathItemInterner; malformed.intern(PathItem("\uD800"))
     intercept[java.nio.charset.CharacterCodingException](WordEncodings.stringSymbolsToBytes(malformed))
+  }
+
+  test("open string encoding preserves JVM order without a compilation dictionary") {
+    val code = WordEncodings.stringSymbolsToBytes(new PathItemInterner)
+    val program = code.compile(SymbolWordLanguage.space(Space.Range(Space.Mention(x), 0, 7)))
+    // Register these only after compilation. D7FF, supplementary scalars and E000
+    // straddle the UTF-16/UTF-8 ordering disagreement.
+    val strings = Vector("", "\u0000", "\u0001", "a", "aa", "é", "\uD7FF", "\uE000", "\uFFFF", "😀", "𐀀", "􏿿")
+    val input = SpaceValue(strings.map(s => p(s)).toSet ++ Set(p("a", ""), p("a", "a"), p()))
+    val expected = morkl.eval(Space.Range(lit(input), 0, 7))
+    val actual = program.eval(spaces = Map(x -> code.encodeSpace(WordSpaceValue(input.paths))))(using ByteWords)
+    assertEquals(code.decodeSpace(actual).paths, expected.paths)
+    val foldExpr = Space.Fold(Space.Mention(x), epsilon, a, h, t,
+      Space.Singleton(Path.Concat(Path.Deref(a), Path.Deref(h))), Path.Concat(Path.Deref(a), Path.Deref(h)))
+    val folded = code.compile(SymbolWordLanguage.space(foldExpr))
+    val foldExpected = morkl.eval(foldExpr)(using PathContext.emptyMap, SpaceContextMap(Map(x -> input)), PartialFunction.empty)
+    assertEquals(code.decodeSpace(folded.eval(spaces = Map(x -> code.encodeSpace(WordSpaceValue(input.paths))))(using ByteWords)).paths, foldExpected.paths)
+  }
+
+  test("all 256 unsigned bytes survive Head, iteration, range and symbol injection") {
+    val values = ByteSpaceValue((0 until 256).flatMap { b =>
+      Vector(ByteWords.fromDigits(Vector(b)), ByteWords.fromDigits(Vector(b, 255 - b, 0)))
+    }.toSet + ByteWords.empty)
+    val src: ByteSpace = ByteSpace.Literal(values)
+    val programs = Vector[ByteSpace](ByteSpace.Head(src), ByteSpace.TailsUnion(src), ByteSpace.Range(src, -12, 0),
+      ByteSpace.Iteration(src, h, t, ByteSpace.Wrap(ByteSpace.Mention(t), BytePath.Deref(h))))
+    programs.foreach { expr =>
+      val expected = Zippy_bytes.eval(expr)
+      val bits = ZippyTranslations.bytesToBits(expr)
+      assertEquals(WordEncodings.bytesToBits.decodeSpace(bits.eval()(using BitWords)), expected)
+      val (code, symbols) = ZippyTranslations.bytesToSymbols(expr, symbol = n => PathItem(f"sym_${255 - n}%03d"))
+      val result = symbols.eval()
+      assertEquals(code.decodeSpace(WordSpaceValue(result.paths)), expected)
+      assert(result.paths.flatMap(_.items).subsetOf((0 until 256).map(n => PathItem(f"sym_${255 - n}%03d")).toSet))
+    }
+  }
+
+  test("path bounds drive finite scanner unrolling without becoming exact lengths") {
+    val code = WordEncodings.internedSymbolsToBits(interner())
+    val expr = SymbolWordLanguage.space(Space.Iteration(input, h, t, Space.Singleton(Path.Deref(h))))
+    val recursive = code.compile(expr)
+    val unrolled = code.compile(expr, unrollBounded = true)
+    def cyclic(program: WordProgram[BigInt]): Boolean =
+      def calls(s: BitSpace): Set[RoutinePtr] =
+        s match
+          case WordSpace.Call(r, _, ss) => Set(r) ++ ss.flatMap(calls)
+          case WordSpace.Iteration(src, _, _, body) => calls(src) ++ calls(body)
+          case WordSpace.Union(l, r) => calls(l) ++ calls(r)
+          case WordSpace.Intersection(l, r) => calls(l) ++ calls(r)
+          case WordSpace.Subtraction(l, r) => calls(l) ++ calls(r)
+          case WordSpace.Composition(l, r) => calls(l) ++ calls(r)
+          case WordSpace.Range(s, _, _) => calls(s)
+          case _ => Set.empty
+      val edges = program.routines.view.mapValues(r => calls(r.body)).toMap
+      def visit(r: RoutinePtr, active: Set[RoutinePtr]): Boolean =
+        active(r) || edges.getOrElse(r, Set.empty).exists(n => visit(n, active + r))
+      edges.keys.exists(r => visit(r, Set.empty))
+    assert(cyclic(recursive))
+    assert(!cyclic(unrolled))
+    val symbolBound = recursive.routines.values.find(_.refs.headOption.exists(_.s == h.s)).get.refs.head
+    assertEquals(symbolBound.lengthHint, -1)
+    assertEquals(symbolBound.maxLengthHint, code.maxCodeLength.get)
+    assertEquals(WordPathLength.upper(BitPath.Deref(symbolBound))(using BitWords), code.maxCodeLength.map(BigInt(_)))
+    val ref = PathRef("two_symbols").known(2)
+    val boundProgram = code.compile(WordSpace.Singleton(WordPath.Deref(ref)))
+    assertEquals(WordPathLength.upper(boundProgram.entry.asInstanceOf[WordSpace.Singleton[BigInt]].p)(using BitWords), code.maxCodeLength.map(n => BigInt(n * 2)))
+    val byte = WordEncodings.bytesToBits.compile(ByteSpace.Singleton(BytePath.Deref(ref)))
+    assertEquals(WordPathLength.upper(byte.entry.asInstanceOf[WordSpace.Singleton[BigInt]].p)(using BitWords), Some(BigInt(16)))
+    val boundedStrings = WordEncodings.stringSymbolsToBytes(interner(), maxSymbolBytes = Some(4))
+    checkSymbols(boundedStrings, true)
+  }
+
+  test("seeded dependent programs commute with all symbol encodings") {
+    val rng = new scala.util.Random(0x7a69707079L)
+    val bits = WordEncodings.internedSymbolsToBits(interner())
+    val strings = WordEncodings.stringSymbolsToBytes(interner())
+    val interned = WordEncodings.internedSymbolsToBytes(interner())
+    def generate(depth: Int): Space =
+      if depth == 0 then rng.nextInt(4) match
+        case 0 => input
+        case 1 => lit(other)
+        case 2 => Space.Singleton(Path.Deref(outer))
+        case _ => Space.Empty
+      else
+        def child = generate(depth - 1)
+        rng.nextInt(19) match
+          case 0 => Space.Union(child, child)
+          case 1 => Space.Intersection(child, child)
+          case 2 => Space.Subtraction(child, child)
+          case 3 => Space.Restriction(child, child)
+          case 4 => Space.Raffination(child, child)
+          case 5 => Space.Composition(child, child)
+          case 6 => Space.Wrap(child, one)
+          case 7 => Space.Unwrap(child, one)
+          case 8 => Space.TailsUnion(child)
+          case 9 => Space.TailsIntersection(child)
+          case 10 => Space.PrefixClosure(child)
+          case 11 => Space.SuffixClosure(child)
+          case 12 => Space.TailsClosure(child)
+          case 13 => Space.Range(child, rng.nextInt(7) - 3, rng.nextInt(7) - 3)
+          case 14 => Space.Iteration(child, h, t, Space.Wrap(Space.Mention(t), Path.Deref(h)))
+          case 15 => Space.Iteration(child, h, t, Space.Union(Space.Mention(t), Space.Singleton(Path.Concat(Path.Deref(outer), Path.Deref(h)))))
+          case 16 => Space.Fold(child, epsilon, a, h, t, Space.Union(Space.Singleton(Path.Deref(a)), Space.Mention(t)), Path.Concat(Path.Deref(a), Path.Deref(h)))
+          case 17 => Space.Fixpoint(child, t, Space.TailsUnion(Space.Mention(t)))
+          case _ => Space.Iteration(child, h, t, Space.Iteration(Space.Mention(t), PathRef("inner"), SpaceMention("inner_tail"), Space.Singleton(Path.Deref(h))))
+    def check[B](code: WordEncoding[PathValue, B], expr: Space, expected: SpaceValue, input: SpaceValue, index: Int): Unit =
+      val compiled = code.compile(SymbolWordLanguage.space(expr), unrollBounded = index % 2 == 0)
+      assertEquals(callbackCount(compiled), 0)
+      val result = compiled.eval(Map(outer -> code.encode(p("z", "a"))),
+        Map(x -> code.encodeSpace(WordSpaceValue(input.paths))))(using code.target)
+      assertEquals(code.decodeSpace(result).paths, expected.paths, s"seeded case $index: ${expr.show}")
+    for index <- 0 until 160 do
+      val expr = generate(3)
+      val inputValue = SpaceValue(source.paths.filter(_ => rng.nextBoolean()))
+      val expected = morkl.eval(expr)(using PathContextMap(Map(outer -> p("z", "a"))), SpaceContextMap(Map(x -> inputValue)), PartialFunction.empty)
+      check(bits, expr, expected, inputValue, index)
+      check(strings, expr, expected, inputValue, index)
+      check(interned, expr, expected, inputValue, index)
+  }
+
+  test("translations compose and generated names avoid source binders") {
+    val collision = PathRef("__zippy_prefix_0")
+    val rest = SpaceMention("__zippy_remaining_1")
+    val freePath = PathRef("__zippy_digit_2")
+    val expr = Space.Iteration(lit(source), collision, rest,
+      Space.Union(Space.Wrap(Space.Mention(rest), Path.Deref(collision)), Space.Singleton(Path.Deref(freePath))))
+    val (code, bytes) = ZippyTranslations.stringsToBytes(expr)
+    val bits = WordEncodings.bytesToBits.compile(bytes.entry, bytes.routines)
+    val paths = Map(freePath -> p("a"))
+    val expected = morkl.eval(expr)(using PathContextMap(paths), SpaceContextMap(Map.empty), PartialFunction.empty)
+    val actual = bits.eval(paths.view.mapValues(v => WordEncodings.bytesToBits.encode(code.encode(v))).toMap)(using BitWords)
+    assertEquals(code.decodeSpace(WordEncodings.bytesToBits.decodeSpace(actual)).paths, expected.paths)
+  }
+
+  test("ignored binders retain outer underscore bindings") {
+    val ignored = PathRef("_")
+    val ignoredSpace = SpaceMention("_")
+    val expr = Space.Iteration(lit(source), ignored, ignoredSpace,
+      Space.Union(Space.Singleton(Path.Deref(ignored)), Space.Mention(ignoredSpace)))
+    val pc = Map(ignored -> p("a")); val sc = Map(ignoredSpace -> other)
+    val expected = morkl.eval(expr)(using PathContextMap(pc), SpaceContextMap(sc), PartialFunction.empty)
+    val (code, program) = ZippyTranslations.symbolsToBits(expr)
+    val result = program.eval(pc.view.mapValues(code.encode).toMap,
+      sc.view.mapValues(v => code.encodeSpace(WordSpaceValue(v.paths))).toMap)(using BitWords)
+    assertEquals(code.decodeSpace(result).paths, expected.paths)
+  }
+
+  test("byte zipper follows rooted PathMapModel cursor semantics, including absent focuses") {
+    def b(xs: Int*): BytePathValue = ByteWords.fromDigits(xs)
+    val space = ByteSpaceValue(Set(b(), b(8), b(8, 0), b(8, 0, 255), b(8, 200), b(9)))
+    val root = ByteZipper(space, root = b(8))
+    assert(root.atRoot && root.isVal && root.pathExists)
+    assertEquals(root.makeMap.paths, Set(b(), b(0), b(0, 255), b(200)))
+    assertEquals(root.focusNode.paths, Set(b(0), b(0, 255), b(200)))
+    assertEquals(root.childMask, BigInt(1).setBit(200))
+    assertEquals(root.childCount, 2)
+    val (second, byte) = root.descendIndexedByte(1).get
+    assertEquals(byte, 200)
+    assertEquals(second.focusByte, Some(200))
+    assert(second.isVal)
+    val absent = second.moveToPath(b(0, 254))
+    assert(!absent.pathExists && !absent.isVal)
+    assertEquals(absent.focus, b(8, 0, 254))
+    val (ascended, count) = absent.ascend(100)
+    assertEquals(count, 2)
+    assertEquals(ascended, root)
+    assertEquals(root.ascend(1), root -> 0)
+  }
+
+  test("mutual recursion and absorbing direct self calls retain reference behavior") {
+    val left = RoutinePtr("mutual_left"); val right = RoutinePtr("mutual_right")
+    val formal = SpaceMention("mutual_input")
+    def r(name: RoutinePtr, next: RoutinePtr): Routine = Routine(name, Vector.empty, Vector(formal),
+      Space.Union(Space.Mention(formal), Space.Iteration(Space.Mention(formal), h, t,
+        Space.Call(next, Vector.empty, Vector(Space.Mention(t))))))
+    val routines = Map(left -> r(left, right), right -> r(right, left))
+    val entry = Space.Call(left, Vector.empty, Vector(lit(source)))
+    val expected = morkl.eval(entry)(using PathContext.emptyMap, SpaceContextMap(Map.empty), routines)
+    val (code, program) = ZippyTranslations.symbolsToBits(entry, routines = routines)
+    assertEquals(code.decodeSpace(program.eval()(using BitWords)).paths, expected.paths)
+    val self = RoutinePtr("absorb_self")
+    val call = Space.Call(self, Vector.empty, Vector(input))
+    val routine = Routine(self, Vector.empty, Vector(x), Space.Union(Space.Singleton(one), call))
+    val (selfCode, selfProgram) = ZippyTranslations.symbolsToBits(call, interner(), Map(self -> routine))
+    val actual = selfProgram.eval(spaces = Map(x -> selfCode.encodeSpace(WordSpaceValue(source.paths))))(using BitWords)
+    assertEquals(selfCode.decodeSpace(actual).paths, Set(p("a")))
   }

@@ -125,6 +125,10 @@ object WordEvaluator:
               routines: Map[RoutinePtr, WordRoutine[P]] = Map.empty[RoutinePtr, WordRoutine[P]])(using ops: WordOps[P]): WordSpaceValue[P] =
     import WordSpace.*
     import ops.ordering
+    def bindPath(pc: Map[PathRef, P], r: PathRef, p: P): Map[PathRef, P] =
+      if r.s == "_" then pc else pc.updated(r, p)
+    def bindSpace(sc: Map[SpaceMention, WordSpaceValue[P]], r: SpaceMention, s: WordSpaceValue[P]): Map[SpaceMention, WordSpaceValue[P]] =
+      if r.s == "_" then sc else sc.updated(r, s)
     def run(s: WordSpace[P], pc: Map[PathRef, P], sc: Map[SpaceMention, WordSpaceValue[P]]): Set[P] =
       def path(p: WordPath[P]): P = p match
         case WordPath.Deref(r) => pc(r)
@@ -140,7 +144,15 @@ object WordEvaluator:
         case Call(r, ps, ss) =>
           val routine = routines(r)
           require(ps.size == routine.refs.size && ss.size == routine.mentions.size, s"arity mismatch: ${r.s}")
-          run(routine.body, routine.refs.zip(ps.map(path)).toMap, routine.mentions.zip(ss.map(x => WordSpaceValue(rec(x)))).toMap)
+          val nextPC = routine.refs.zip(ps.map(path)).toMap
+          val nextSC = routine.mentions.zip(ss.map(x => WordSpaceValue(rec(x)))).toMap
+          // Preserve the reference symbol evaluator's absorbing direct self-call.
+          routine.body match
+            case Union(left, Call(next, nextPS, nextSS)) if next == r && nextPS == ps && nextSS == ss &&
+                nextPS.zip(ps).forall((p, q) => run(Singleton(p), nextPC, nextSC) == Set(path(q))) &&
+                nextSS.zip(ss).forall((p, q) => run(p, nextPC, nextSC) == rec(q)) =>
+              run(left, nextPC, nextSC)
+            case _ => run(routine.body, nextPC, nextSC)
         case Mention(m) => sc(m).paths
         case Singleton(p) => Set(path(p))
         case Literal(v) => v.paths
@@ -157,13 +169,13 @@ object WordEvaluator:
           val prefix = path(p)
           rec(s).filter(ops.startsWith(_, prefix)).map(ops.drop(_, ops.length(prefix)))
         case Iteration(s, h, t, body) =>
-          groups(s).flatMap((a, b) => run(body, pc.updated(h, a), sc.updated(t, WordSpaceValue(b)))).toSet
+          groups(s).flatMap((a, b) => run(body, bindPath(pc, h, a), bindSpace(sc, t, WordSpaceValue(b)))).toSet
         case Fold(s, initial, acc, h, t, body, update) =>
           var a = path(initial)
           val out = Set.newBuilder[P]
           groups(s).sortBy(_._1).foreach { (head, tail) =>
-            val nextPC = pc.updated(acc, a).updated(h, head)
-            val nextSC = sc.updated(t, WordSpaceValue(tail))
+            val nextPC = bindPath(bindPath(pc, acc, a), h, head)
+            val nextSC = bindSpace(sc, t, WordSpaceValue(tail))
             out ++= run(body, nextPC, nextSC)
             a = run(Singleton(update), nextPC, nextSC).head
           }
@@ -172,7 +184,7 @@ object WordEvaluator:
           var current = rec(initial)
           var done = false
           while !done do
-            val next = current union run(step, pc, sc.updated(variable, WordSpaceValue(current)))
+            val next = current union run(step, pc, bindSpace(sc, variable, WordSpaceValue(current)))
             done = next == current
             current = next
           current
@@ -189,6 +201,12 @@ object WordEvaluator:
           values.slice(lo, hi).toSet
     WordSpaceValue(run(expression, paths, spaces))
 
+type BitPathValue = BigInt
+object BitPathValue:
+  def apply(bits: Iterable[Boolean]): BigInt = BitWords.fromDigits(bits.iterator.map(b => if b then 1 else 0).toVector)
+  def fromDigits(bits: Iterable[Int]): BigInt = BitWords.fromDigits(bits)
+  val empty: BigInt = BitWords.empty
+
 type BitPath = WordPath[BigInt]
 object BitPath:
   export WordPath.{Deref, Constant, Concat, GroundedPP, GroundedSP}
@@ -201,6 +219,9 @@ type BitSpaceValue = WordSpaceValue[BigInt]
 object BitSpaceValue:
   def apply(paths: Set[BigInt]): BitSpaceValue = WordSpaceValue(paths)
 type BitRoutine = WordRoutine[BigInt]
+object BitRoutine:
+  def apply(name: RoutinePtr, refs: Vector[PathRef], mentions: Vector[SpaceMention], body: BitSpace): BitRoutine =
+    WordRoutine(name, refs, mentions, body)
 type BytePath = WordPath[BytePathValue]
 object BytePath:
   export WordPath.{Deref, Constant, Concat, GroundedPP, GroundedSP}
@@ -213,14 +234,39 @@ type ByteSpaceValue = WordSpaceValue[BytePathValue]
 object ByteSpaceValue:
   def apply(paths: Set[BytePathValue]): ByteSpaceValue = WordSpaceValue(paths)
 type ByteRoutine = WordRoutine[BytePathValue]
+object ByteRoutine:
+  def apply(name: RoutinePtr, refs: Vector[PathRef], mentions: Vector[SpaceMention], body: ByteSpace): ByteRoutine =
+    WordRoutine(name, refs, mentions, body)
 
 object Zippy_bits:
+  type Path = BitPath
+  val Path = BitPath
+  type Space = BitSpace
+  val Space = BitSpace
+  type PathValue = BitPathValue
+  val PathValue = BitPathValue
+  type SpaceValue = BitSpaceValue
+  val SpaceValue = BitSpaceValue
+  type Routine = BitRoutine
+  val Routine = BitRoutine
+  val maxHeadSize = 2
   given WordOps[BigInt] = BitWords
   def eval(s: BitSpace, paths: Map[PathRef, BigInt] = Map.empty, spaces: Map[SpaceMention, BitSpaceValue] = Map.empty,
            routines: Map[RoutinePtr, BitRoutine] = Map.empty): BitSpaceValue = WordEvaluator.eval(s, paths, spaces, routines)
   def headMask(value: BitSpaceValue): Int = value.paths.iterator.flatMap(BitWords.split).foldLeft(0)((m, p) => m | (1 << BitWords.digits(p._1).head))
 
 object Zippy_bytes:
+  type Path = BytePath
+  val Path = BytePath
+  type Space = ByteSpace
+  val Space = ByteSpace
+  type PathValue = BytePathValue
+  val PathValue = BytePathValue
+  type SpaceValue = ByteSpaceValue
+  val SpaceValue = ByteSpaceValue
+  type Routine = ByteRoutine
+  val Routine = ByteRoutine
+  val maxHeadSize = 256
   given WordOps[BytePathValue] = ByteWords
   def eval(s: ByteSpace, paths: Map[PathRef, BytePathValue] = Map.empty, spaces: Map[SpaceMention, ByteSpaceValue] = Map.empty,
            routines: Map[RoutinePtr, ByteRoutine] = Map.empty): ByteSpaceValue = WordEvaluator.eval(s, paths, spaces, routines)
