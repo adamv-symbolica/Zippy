@@ -48,6 +48,7 @@ object TranslationAudit:
       current.set(state)
       try
         val expected = work
+        val audited = ExecutorCostMeter.measure {
         state.replay = true
         val expression = Symbols.fromSpace(s)
         val free = FreeVariables.space(expression)
@@ -93,6 +94,8 @@ object TranslationAudit:
         symbols(bytes, Codes.bytesToSymbols, "bytes -> 256 symbols")
         observations.incrementAndGet()
         expected
+        }
+        audited._1
       catch
         case error: Throwable =>
           System.err.println(s"Translation audit failed after ${comparisons.get()} comparisons: ${s.show}")

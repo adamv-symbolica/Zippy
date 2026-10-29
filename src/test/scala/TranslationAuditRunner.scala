@@ -12,6 +12,7 @@ import scala.concurrent.duration.*
   * the ordinary MUnit runner remains the normal correctness/timing gate. */
 @main def translationAuditSuite(): Unit =
   val filter = Option(System.getProperty("morkl.translationAudit.filter")).getOrElse("")
+  val startAt = Option(System.getProperty("morkl.translationAudit.startAt")).getOrElse("")
   require(TranslationAudit.enabled, "run with -Dmorkl.translationAudit=true")
   val root = Paths.get(classOf[FiniteAlphabetTest].getProtectionDomain.getCodeSource.getLocation.toURI)
   val stream = Files.walk(root)
@@ -20,7 +21,7 @@ import scala.concurrent.duration.*
     finally stream.close()
   var tests = 0
   var ignored = 0
-  for name <- classes if name.startsWith("morkl.") && (filter.isEmpty || name.contains(filter)) do
+  for name <- classes if name.startsWith("morkl.") && name >= startAt && (filter.isEmpty || name.contains(filter)) do
     val cls = Class.forName(name, false, classOf[FiniteAlphabetTest].getClassLoader)
     if classOf[munit.FunSuite].isAssignableFrom(cls) && !Modifier.isAbstract(cls.getModifiers) then
       val suite = cls.getDeclaredConstructor().newInstance().asInstanceOf[munit.FunSuite]
