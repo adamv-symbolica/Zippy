@@ -806,7 +806,9 @@ class RecursiveOpGraph(var root: Node[(Int, Int)],
   def level: Int = parent.fold(0)(_.level + 1)
   def show: String = s"${root.show}\n" + nodes.zipWithIndex.map((n_g, i) => n_g.fold(
     n => s"$i ${n.show}",
-    g => s"$i ${g.show.split('\n').head}\n" ++ g.show.split('\n').tail.map(l => s"  $l").mkString("\n")
+    g =>
+      val lines=g.show.split('\n')
+      s"$i ${lines.head}\n" ++ lines.tail.map(l => s"  $l").mkString("\n")
   )).mkString("\n")
   def storeLiteral(value: SpaceValue): String =
     val id = literalPool.length
