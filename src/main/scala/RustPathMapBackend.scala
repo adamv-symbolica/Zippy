@@ -51,19 +51,24 @@ object RustPathMapBackend:
     new Compiled(code,prepared.compiled,emissionNanos=System.nanoTime()-start)
 
   private def translationUnit(programs: Vector[Compiled]): String =
-    val modules=programs.zipWithIndex.map { (p,i)=>
+    def modules(inlineKernels: Boolean)=programs.zipWithIndex.map { (p,i)=>
       val grounded=(0 until p.callbackCount).map { id=>
         val body=p.nativeFunctions.getOrElse(id,s"c.callback_space($id,argument)")
         s"#[inline] fn grounded_$id(c: &mut Context, argument: &Space) -> Space { $body }"
       }.mkString("\n")
-      s"mod program_$i { use super::*;\n${p.code}\n$grounded\n}"
+      val code=if inlineKernels then raw"\b(?:map|view)(?:_(?:map|view))?_kernels::".r.replaceAllIn(p.code,"") else p.code
+      s"mod program_$i { use super::*;\n$code\n$grounded\n}"
     }.mkString("\n")
     val dispatch=programs.indices.map(i=>s"$i => program_$i::entry(c,e),").mkString("\n")
-    s"""#![allow(unused_imports,unused_variables,unused_mut,unused_parens,dead_code)]
+    def source(inlineKernels: Boolean)=s"""#![allow(unused_imports,unused_variables,unused_mut,unused_parens,dead_code)]
        |use zippy_pathmap::*;
-       |$modules
+       |${modules(inlineKernels)}
        |fn main() { run(|id,c,e| match id { $dispatch _ => panic!("unknown program") }); }
        |""".stripMargin
+    val inlined=source(true)
+    // Small level-3 units can inline the typed adapters normally. Large or
+    // explicitly unoptimized units call concrete kernels compiled at level 3.
+    if optimizationFor(inlined)==3 then inlined else source(false)
 
   final class Session private (val programs: Vector[Compiled], native: OpenFstBackend.Session) extends AutoCloseable:
     def eval(id: Int, p: Compiled)(paths: Map[PathRef,BytePathValue], spaces: Map[SpaceMention,Set[BytePathValue]]): Set[BytePathValue] =
@@ -125,8 +130,10 @@ object RustPathMapBackend:
   def optimizationFor(source: String): Int =
     val requested=Integer.getInteger("morkl.pathmap.optimize",3).intValue()
     require(requested>=0 && requested<=3,"Rust opt-level must be 0..3")
-    val cap=if source.length>2000000 then Integer.getInteger("morkl.pathmap.largeOptimize",0).intValue()
-      else if source.length>500000 then Integer.getInteger("morkl.pathmap.mediumOptimize",1).intValue()
+    // Namespace qualification adds text without adding MIR/LLVM work.
+    val size=raw"\b(?:map|view)(?:_(?:map|view))?_kernels::".r.replaceAllIn(source,"").length
+    val cap=if size>2000000 then Integer.getInteger("morkl.pathmap.largeOptimize",0).intValue()
+      else if size>500000 then Integer.getInteger("morkl.pathmap.mediumOptimize",1).intValue()
       else 3
     requested.min(cap)
   def build(source: String): FilePath =
