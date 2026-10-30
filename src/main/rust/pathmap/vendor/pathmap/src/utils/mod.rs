@@ -1,0 +1,1206 @@
+
+use std::ops::{Bound, Range, RangeBounds, RangeInclusive};
+
+use crate::ring::*;
+
+pub mod ints;
+
+pub mod debug;
+
+/// Use `fast_slice_utils` directly.  We don't want to maintain this re-export from pathmap
+//GOAT, remove this re-export when nothing downstream is going to break
+#[deprecated]
+pub use fast_slice_utils::find_prefix_overlap;
+
+/// A 256-bit type containing a bit for every possible value in a byte
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct ByteMask(pub [u64; 4]);
+
+/// Alternate formatter for displaying a [`ByteMask`] as binary instead of as a set of byte indices.
+#[derive(Clone, Copy)]
+pub struct ByteMaskBinaryFmt(ByteMask);
+
+impl ByteMask {
+    pub const EMPTY: ByteMask = Self([0u64; 4]);
+    pub const FULL: ByteMask = Self([!0u64; 4]);
+
+    const SUBSET: [ByteMask; 256] = const {
+        let mut bm = [[0u64; 4]; 256];
+        let mut i = 0;
+        while i < 256 {
+            let mut j = 0;
+            while j < 256 {
+                if i & j == j { bm[i][j / 64] |= 1 << (j % 64) }
+                j += 1;
+            }
+            i += 1;
+        }
+        unsafe { std::mem::transmute(bm) }
+    };
+
+    /// Nth row of the sierpinsky triangle
+    pub fn subset(b: u8) -> Self {
+        Self::SUBSET[b as usize]
+    }
+
+    /// Create a new empty ByteMask
+    #[inline]
+    pub const fn new() -> Self {
+        Self::EMPTY
+    }
+
+    /// Constructs a `ByteMask` with all bits in the given range set.
+    ///
+    /// The range is interpreted over the interval `[0, 256)` and supports all
+    /// standard Rust range syntaxes via [`RangeBounds<u8>`], including:
+    ///
+    /// - `a..b` (half-open)
+    /// - `a..=b` (inclusive)
+    /// - `..b`, `a..`, and `..` (unbounded)
+    ///
+    /// # Semantics
+    ///
+    /// The resulting mask has all bits set for indices within the specified range,
+    /// and all other bits cleared. Internally, the 256-bit mask is represented as
+    /// four `u64` words in little-endian order (i.e., lower indices correspond to
+    /// lower words and lower bit positions).
+    ///
+    /// If the normalized range is empty (i.e., `start >= end`), the empty mask
+    /// (`ByteMask::EMPTY`) is returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use pathmap::utils::ByteMask;
+    /// let m = ByteMask::from_range(10..70);
+    /// // sets bits 10 through 69
+    ///
+    /// let full = ByteMask::from_range(..);
+    /// // sets all 256 bits
+    ///
+    /// let single = ByteMask::from_range(42..=42);
+    /// // sets only bit 42
+    /// ```
+    #[inline]
+    pub fn from_range<R: RangeBounds<u8>>(range: R) -> Self {
+        let start = match range.start_bound() {
+            Bound::Included(&s) => s as usize,
+            Bound::Excluded(&s) => s as usize + 1,
+            Bound::Unbounded => 0,
+        };
+
+        let end = match range.end_bound() {
+            Bound::Included(&e) => e as usize + 1,
+            Bound::Excluded(&e) => e as usize,
+            Bound::Unbounded => 256,
+        };
+
+        if start >= end {
+            return ByteMask::EMPTY
+        }
+
+        let mut mask = [0u64; 4];
+        let end_idx = end - 1;
+
+        let start_word = start >> 6;
+        let end_word = end_idx >> 6;
+
+        let start_bit = start & 0x3F;
+        let end_bit = end_idx & 0x3F;
+
+        if start_word == end_word {
+            let len = end_bit - start_bit + 1;
+            mask[start_word] = (u64::MAX >> (64 - len)) << start_bit;
+        } else {
+            // first partial word
+            mask[start_word] = (!0u64) << start_bit;
+
+            // fully covered words
+            for w in mask.iter_mut().take(end_word).skip(start_word + 1) {
+                *w = !0u64;
+            }
+
+            // last partial word
+            mask[end_word] = u64::MAX >> (63 - end_bit);
+        }
+
+        ByteMask(mask)
+    }
+
+    /// Unwraps the `ByteMask` type to yield the inner array
+    #[inline]
+    pub fn into_inner(self) -> [u64; 4] {
+        self.0
+    }
+    /// Create an iterator over every byte, in ascending order
+    ///
+    /// DEVELOPER NOTE: This iterator owns a copy of the 256-bit mask and clears bits as it advances.
+    /// A cursor design that borrows the `ByteMask` is possible, reducing iterator state from the 32-byte mask plus word
+    /// cursor down to a mask reference and the cursor padded to a word.
+    /// However, because the borrowed cursor cannot clear the source mask, each `next` call has to rebuild
+    /// a shifted word mask to hide already-visited bits.  Benchmarks showed that fixed per-item cost more
+    /// than doubled iteration overhead when the current owned iterator fits in registers.
+    #[inline]
+    pub fn iter(&self) -> ByteMaskIter {
+        ByteMaskIter::from(self.0)
+    }
+
+    /// Create an iterator over contiguous ranges of set bits, in ascending order
+    #[inline]
+    pub fn range_iter(&self) -> ByteMaskRangeIter {
+        ByteMaskRangeIter::from(self.0)
+    }
+
+    /// Returns a wrapper that renders this mask as 256 bits of binary text.
+    #[inline]
+    pub fn fmt_binary(&self) -> ByteMaskBinaryFmt {
+        ByteMaskBinaryFmt(self.clone())
+    }
+
+    /// Returns how many set bits precede the requested bit
+    #[inline]
+    pub fn index_of(&self, byte: u8) -> u8 {
+        if byte == 0 {
+            return 0;
+        }
+        let mut count = 0;
+        let mut active;
+        let mask = !0u64 >> (63 - ((byte - 1) & 0b00111111));
+        active = self.0[0];
+        'unroll: {
+            if byte <= 0x40 { break 'unroll }
+            count += active.count_ones();
+            active = self.0[1];
+            if byte <= 0x80 { break 'unroll }
+            count += active.count_ones();
+            active = self.0[2];
+            if byte <= 0xc0 { break 'unroll }
+            count += active.count_ones();
+            active = self.0[3];
+        }
+        count += (active & mask).count_ones();
+        count as u8
+    }
+
+    /// Returns the byte corresponding to the `nth` set bit in the mask, counting forwards or backwards
+    ///
+    /// GOAT TODO Optimization: There should be a code path for `idx > 8` where we do a binary search instead of just scanning linearly
+    pub fn indexed_bit<const FORWARD: bool>(&self, idx: usize) -> Option<u8> {
+        let mut i = if FORWARD { 0 } else { 3 };
+        let mut m = self.0[i];
+        let mut c = 0;
+        let mut c_ahead = m.count_ones() as usize;
+        loop {
+            if idx < c_ahead { break; }
+            if FORWARD {
+                i += 1;
+                if i > 3 { return None }
+            } else {
+                if i == 0 { return None }
+                i -= 1;
+            }
+            m = self.0[i];
+            c = c_ahead;
+            c_ahead += m.count_ones() as usize;
+        }
+
+        let mut loc;
+        if !FORWARD {
+            loc = 63 - m.leading_zeros();
+            while c < idx {
+                m ^= 1u64 << loc;
+                loc = 63 - m.leading_zeros();
+                c += 1;
+            }
+        } else {
+            loc = m.trailing_zeros();
+            while c < idx {
+                m ^= 1u64 << loc;
+                loc = m.trailing_zeros();
+                c += 1;
+            }
+        }
+
+        let byte = i << 6 | (loc as usize);
+        // println!("{:#066b}", self.focus.mask[i]);
+        // println!("{i} {loc} {byte}");
+        debug_assert!(self.test_bit(byte as u8));
+
+        Some(byte as u8)
+    }
+
+    /// Returns the bit in the mask corresponding to the next highest bit above `byte`, or `None`
+    /// if `byte` was at or above the highest set bit in the mask
+    #[inline]
+    pub fn next_bit(&self, byte: u8) -> Option<u8> {
+        if byte == 255 {
+            return None
+        }
+        let byte = byte + 1;
+        let word_idx = byte >> 6;
+        let mod_idx = byte & 0x3F;
+        let mut mask = !0u64 << mod_idx;
+        if word_idx == 0 {
+            let cnt = (self.0[0] & mask).trailing_zeros() as u8;
+            if cnt < 64 {
+                return Some(cnt)
+            }
+            mask = !0u64;
+        }
+        if word_idx < 2 {
+            let cnt = (self.0[1] & mask).trailing_zeros() as u8;
+            if cnt < 64 {
+                return Some(64 + cnt)
+            }
+            if word_idx == 1 {
+                mask = !0u64;
+            }
+        }
+        if word_idx < 3 {
+            let cnt = (self.0[2] & mask).trailing_zeros() as u8;
+            if cnt < 64 {
+                return Some(128 + cnt)
+            }
+            if word_idx == 2 {
+                mask = !0u64;
+            }
+        }
+        let cnt = (self.0[3] & mask).trailing_zeros() as u8;
+        if cnt < 64 {
+            return Some(192 + cnt)
+        }
+        None
+    }
+
+    /// Returns the bit in the mask corresponding to the previous bit below `byte`, or `None`
+    /// if `byte` was at or below the lowest set bit in the mask
+    #[inline]
+    pub fn prev_bit(&self, byte: u8) -> Option<u8> {
+        if byte == 0 {
+            return None
+        }
+        let byte = byte - 1;
+        let word_idx = byte >> 6;
+        let mod_idx = byte & 0x3F;
+        let mut mask = !0u64 >> (63 - mod_idx);
+        if word_idx == 3 {
+            let cnt = (self.0[3] & mask).leading_zeros() as u8;
+            if cnt < 64 {
+                return Some(255 - cnt)
+            }
+            mask = !0u64;
+        }
+        if word_idx > 1 {
+            let cnt = (self.0[2] & mask).leading_zeros() as u8;
+            if cnt < 64 {
+                return Some(191 - cnt)
+            }
+            if word_idx == 2 {
+                mask = !0u64;
+            }
+        }
+        if word_idx > 0 {
+            let cnt = (self.0[1] & mask).leading_zeros() as u8;
+            if cnt < 64 {
+                return Some(127 - cnt)
+            }
+            if word_idx == 1 {
+                mask = !0u64;
+            }
+        }
+        let cnt = (self.0[0] & mask).leading_zeros() as u8;
+        if cnt < 64 {
+            return Some(63 - cnt)
+        }
+        None
+    }
+
+    /// turns on bits in inclusive range `start..=end`
+    #[inline(always)]
+    pub const fn set_inclusive_bit_range(&mut self, range: RangeInclusive<u8>) {
+        let b = BlockRange::new(*range.start(), *range.end());
+
+        self.0[0] |= b.u64_block(0);
+        self.0[1] |= b.u64_block(1);
+        self.0[2] |= b.u64_block(2);
+        self.0[3] |= b.u64_block(3);
+    }
+    /// turns off bits in inclusive range `start..=end`
+    #[inline(always)]
+    pub const fn clear_inclusive_bit_range(&mut self, range: RangeInclusive<u8>) {
+        let b = BlockRange::new(*range.start(), *range.end());
+
+        self.0[0] &= !b.u64_block(0);
+        self.0[1] &= !b.u64_block(1);
+        self.0[2] &= !b.u64_block(2);
+        self.0[3] &= !b.u64_block(3);
+    }
+    /// flips all bits in inclusive range `start..=end`
+    #[inline(always)]
+    pub const fn toggle_inclusive_bit_range(&mut self, range: RangeInclusive<u8>) {
+        let b = BlockRange::new(*range.start(), *range.end());
+
+        self.0[0] ^= b.u64_block(0);
+        self.0[1] ^= b.u64_block(1);
+        self.0[2] ^= b.u64_block(2);
+        self.0[3] ^= b.u64_block(3);
+    }
+}
+
+/// Internal-only type to aid in the implementation of 
+#[derive(Clone, Copy)]
+struct BlockRange {
+    block_start : u8,
+    block_end   : u8,
+    bit_start   : u8,
+    bit_end     : u8,
+}
+impl BlockRange {
+    #[inline(always)]
+    const fn new(start : u8, end : u8) -> Self {
+        core::debug_assert!(start<=end);
+        Self {
+            block_start : start >> (u8::BITS - 2),
+            block_end   : end   >> (u8::BITS - 2),
+            bit_start   : start & (!0 >> 2),
+            bit_end     : end   & (!0 >> 2),
+        }
+    }
+    #[inline(always)]
+    const fn u64_block(self, n : u8) -> u64 {
+        core::debug_assert!(n < 0b100);
+        let Self { block_start, block_end, bit_start, bit_end } = self;
+        if n < block_start || n > block_end {
+            0
+        } else {
+            let lo = if n == block_start { bit_start } else { 0 };
+            let hi = if n == block_end   { bit_end   } else { 63 };
+            (!0u64 << lo) & (!0u64 >> (63 - hi))
+        }
+    }
+}
+
+impl core::fmt::Debug for ByteMask {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_set().entries(self.iter()).finish()
+    }
+}
+
+impl core::fmt::Debug for ByteMaskBinaryFmt {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        for word in self.0.0.iter().rev() {
+            write!(f, "{word:064b}")?;
+        }
+        Ok(())
+    }
+}
+
+impl core::fmt::Display for ByteMaskBinaryFmt {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut bit_count = 0usize;
+        for word in self.0.0.iter().rev() {
+            for shift in (0..64).rev() {
+                let bit = (word >> shift) & 1;
+                write!(f, "{bit}")?;
+                bit_count += 1;
+                if bit_count < 256 && bit_count % 8 == 0 {
+                    write!(f, " ")?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl BitMask for ByteMask {
+    #[inline]
+    fn count_bits(&self) -> usize { self.0.count_bits() }
+    #[inline]
+    fn is_empty_mask(&self) -> bool { self.0.is_empty_mask() }
+    #[inline]
+    fn test_bit(&self, k: u8) -> bool { self.0.test_bit(k) }
+    #[inline]
+    fn set_bit(&mut self, k: u8) { self.0.set_bit(k) }
+    #[inline]
+    fn clear_bit(&mut self, k: u8) { self.0.clear_bit(k) }
+    #[inline]
+    fn toggle_bit(&mut self, k: u8) { self.0.toggle_bit(k) }
+    #[inline]
+    fn make_empty(&mut self) {self.0.make_empty() }
+    #[inline]
+    fn or(&self, other: &Self) -> Self where Self: Sized { Self(self.0.or(&other.0)) }
+    #[inline]
+    fn and(&self, other: &Self) -> Self where Self: Sized { Self(self.0.and(&other.0)) }
+    #[inline]
+    fn xor(&self, other: &Self) -> Self where Self: Sized { Self(self.0.xor(&other.0)) }
+    #[inline]
+    fn andn(&self, other: &Self) -> Self where Self: Sized { Self(self.0.andn(&other.0)) }
+    #[inline]
+    fn not(&self) -> Self where Self: Sized { Self(self.0.not()) }
+}
+
+impl core::borrow::Borrow<[u64; 4]> for ByteMask {
+    fn borrow(&self) -> &[u64; 4] {
+        &self.0
+    }
+}
+
+impl AsRef<[u64; 4]> for ByteMask {
+    fn as_ref(&self) -> &[u64; 4] {
+        &self.0
+    }
+}
+
+impl From<u8> for ByteMask {
+    #[inline]
+    fn from(singleton_byte: u8) -> Self {
+        let mut new_mask = Self::new();
+        new_mask.set_bit(singleton_byte);
+        new_mask
+    }
+}
+
+impl From<Range<u8>> for ByteMask {
+    #[inline]
+    fn from(range: Range<u8>) -> Self {
+        Self::from_range(range)
+    }
+}
+
+impl From<RangeInclusive<u8>> for ByteMask {
+    #[inline]
+    fn from(range: RangeInclusive<u8>) -> Self {
+        Self::from_range(range)
+    }
+}
+
+impl From<[u64; 4]> for ByteMask {
+    #[inline]
+    fn from(mask: [u64; 4]) -> Self {
+        Self(mask)
+    }
+}
+
+impl From<ByteMask> for [u64; 4] {
+    #[inline]
+    fn from(mask: ByteMask) -> Self {
+        mask.0
+    }
+}
+
+#[allow(deprecated)]
+impl IntoByteMaskIter for ByteMask {
+    #[inline]
+    fn byte_mask_iter(self) -> ByteMaskIter {
+        self.0.byte_mask_iter()
+    }
+}
+
+impl FromIterator<u8> for ByteMask {
+    #[inline]
+    fn from_iter<I: IntoIterator<Item=u8>>(iter: I) -> Self {
+        let mut result = Self::new();
+        for byte in iter.into_iter() {
+            result.set_bit(byte);
+        }
+        result
+    }
+}
+
+impl PartialEq<ByteMask> for [u64; 4] {
+    #[inline]
+    fn eq(&self, other: &ByteMask) -> bool {
+        *self == other.0
+    }
+}
+
+impl PartialEq<[u64; 4]> for ByteMask {
+    #[inline]
+    fn eq(&self, other: &[u64; 4]) -> bool {
+        self.0 == *other
+    }
+}
+
+impl core::ops::BitOr for ByteMask {
+    type Output = Self;
+    #[inline]
+    fn bitor(self, other: Self) -> Self {
+        self.or(&other)
+    }
+}
+
+impl core::ops::BitOr for &ByteMask {
+    type Output = ByteMask;
+    #[inline]
+    fn bitor(self, other: Self) -> ByteMask {
+        self.or(other)
+    }
+}
+
+impl core::ops::BitOrAssign for ByteMask {
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        *self = self.or(&other)
+    }
+}
+
+impl core::ops::BitAnd for ByteMask {
+    type Output = Self;
+    #[inline]
+    fn bitand(self, other: Self) -> Self {
+        self.and(&other)
+    }
+}
+
+impl core::ops::BitAnd for &ByteMask {
+    type Output = ByteMask;
+    #[inline]
+    fn bitand(self, other: Self) -> ByteMask {
+        self.and(other)
+    }
+}
+
+impl core::ops::BitAndAssign for ByteMask {
+    #[inline]
+    fn bitand_assign(&mut self, other: Self) {
+        *self = self.and(&other)
+    }
+}
+
+impl Lattice for ByteMask {
+    #[inline]
+    fn pjoin(&self, other: &Self) -> AlgebraicResult<Self> {
+        self.0.pjoin(&other.0).map(|mask| Self(mask))
+    }
+    #[inline]
+    fn pmeet(&self, other: &Self) -> AlgebraicResult<Self> {
+        self.0.pmeet(&other.0).map(|mask| Self(mask))
+    }
+}
+
+impl DistributiveLattice for ByteMask {
+    #[inline]
+    fn psubtract(&self, other: &Self) -> AlgebraicResult<Self> where Self: Sized {
+        self.0.psubtract(&other.0).map(|mask| Self(mask))
+    }
+}
+
+//GOAT, below here is functionality implemented on arrays of u64, which ought to be generalized to additional widths
+
+/// Some useful bit-twiddling methods for working with the mask you might get from [child_mask](crate::zipper::Zipper::child_mask)
+pub trait BitMask {
+    /// Returns the number of set bits in `mask`
+    fn count_bits(&self) -> usize;
+
+    /// Returns `true` if all bits in `mask` are clear, otherwise returns `false`
+    fn is_empty_mask(&self) -> bool;
+
+    /// Returns `true` if the `k`th bit in `mask` is set, otherwise returns `false`
+    fn test_bit(&self, k: u8) -> bool;
+
+    /// Sets the `k`th bit in mask
+    fn set_bit(&mut self, k: u8);
+
+    /// Clears the `k`th bit in mask
+    fn clear_bit(&mut self, k: u8);
+
+    /// Flips the specified bit from 1 to 0 or from 0 to 1
+    fn toggle_bit(&mut self, k: u8);
+
+    /// Clears all bits in the mask, restoring it to an empty mask
+    fn make_empty(&mut self);
+
+    /// Returns the bitwise `or` of the two masks
+    ///
+    /// |        |`other=0`|`other=1`
+    /// |--------|---------|---------
+    /// |`self=0`|    0    |    1
+    /// |`self=1`|    1    |    1
+    ///
+    fn or(&self, other: &Self) -> Self where Self: Sized;
+
+    /// Returns the bitwise `and` of the two masks
+    ///
+    /// |        |`other=0`|`other=1`
+    /// |--------|---------|---------
+    /// |`self=0`|    0    |    0
+    /// |`self=1`|    0    |    1
+    ///
+    fn and(&self, other: &Self) -> Self where Self: Sized;
+
+    /// Returns the bitwise `xor` of the two masks
+    ///
+    /// |        |`other=0`|`other=1`
+    /// |--------|---------|---------
+    /// |`self=0`|    0    |    1
+    /// |`self=1`|    1    |    0
+    ///
+    fn xor(&self, other: &Self) -> Self where Self: Sized;
+
+    /// Returns the bitwise `andn` (sometimes called the conditional) of the two masks
+    ///
+    /// |        |`other=0`|`other=1`
+    /// |--------|---------|---------
+    /// |`self=0`|    0    |    0
+    /// |`self=1`|    1    |    0
+    ///
+    fn andn(&self, other: &Self) -> Self where Self: Sized;
+
+    /// Returns the bitwise `not` of the mask
+    fn not(&self) -> Self where Self: Sized;
+}
+
+impl BitMask for [u64; 4] {
+    #[inline]
+    fn count_bits(&self) -> usize {
+        return (self[0].count_ones() + self[1].count_ones() + self[2].count_ones() + self[3].count_ones()) as usize;
+    }
+    #[inline]
+    fn is_empty_mask(&self) -> bool {
+        self[0] == 0 && self[1] == 0 && self[2] == 0 && self[3] == 0
+    }
+    #[inline]
+    fn test_bit(&self, k: u8) -> bool {
+        let idx = ((k & 0b11000000) >> 6) as usize;
+        let bit_i = k & 0b00111111;
+        debug_assert!(idx < 4);
+        self[idx] & (1 << bit_i) > 0
+    }
+    #[inline]
+    fn set_bit(&mut self, k: u8) {
+        let idx = (k / 64) as usize;
+        self[idx] |= 1 << (k % 64);
+    }
+    #[inline]
+    fn clear_bit(&mut self, k: u8) {
+        let idx = (k / 64) as usize;
+        self[idx] &= !(1 << (k % 64));
+    }
+    #[inline]
+    fn toggle_bit(&mut self, k: u8) {
+        let idx = (k / 64) as usize;
+        self[idx] ^= 1 << (k % 64);
+    }
+    #[inline]
+    fn make_empty(&mut self) {
+        *self = [0; 4];
+    }
+    #[inline]
+    fn or(&self, other: &Self) -> Self where Self: Sized {
+        [self[0] | other[0], self[1] | other[1], self[2] | other[2], self[3] | other[3]]
+    }
+    #[inline]
+    fn and(&self, other: &Self) -> Self where Self: Sized {
+        [self[0] & other[0], self[1] & other[1], self[2] & other[2], self[3] & other[3]]
+    }
+    #[inline]
+    fn xor(&self, other: &Self) -> Self where Self: Sized {
+        [self[0] ^ other[0], self[1] ^ other[1], self[2] ^ other[2], self[3] ^ other[3]]
+    }
+    #[inline]
+    fn andn(&self, other: &Self) -> Self where Self: Sized {
+        [self[0] & !other[0], self[1] & !other[1], self[2] & !other[2], self[3] & !other[3]]
+    }
+    #[inline]
+    fn not(&self) -> Self where Self: Sized {
+        [!self[0], !self[1], !self[2], !self[3]]
+    }
+}
+
+/// An iterator to visit each byte in a byte mask in ascending order.  Useful for working with the mask
+/// as you might get from [child_mask](crate::zipper::Zipper::child_mask)
+pub struct ByteMaskIter {
+    i: u8,
+    mask: [u64; 4],
+}
+
+crate::impl_name_only_debug!(
+    impl core::fmt::Debug for ByteMaskIter
+);
+
+/// An iterator to visit contiguous ranges of set bytes in ascending order.
+pub struct ByteMaskRangeIter {
+    i: u8,
+    mask: [u64; 4],
+}
+
+crate::impl_name_only_debug!(
+    impl core::fmt::Debug for ByteMaskRangeIter
+);
+
+/// Iterate over a [u64; 4].  Deprecated in favor [`ByteMask`]
+#[deprecated]
+pub trait IntoByteMaskIter {
+    fn byte_mask_iter(self) -> ByteMaskIter;
+}
+
+#[allow(deprecated)]
+impl IntoByteMaskIter for [u64; 4] {
+    fn byte_mask_iter(self) -> ByteMaskIter {
+        ByteMaskIter::from(self)
+    }
+}
+
+#[allow(deprecated)]
+impl IntoByteMaskIter for &[u64; 4] {
+    fn byte_mask_iter(self) -> ByteMaskIter {
+        ByteMaskIter::from(*self)
+    }
+}
+
+impl From<[u64; 4]> for ByteMaskIter {
+    fn from(mask: [u64; 4]) -> Self {
+        Self::new(ByteMask(mask))
+    }
+}
+
+impl From<ByteMask> for ByteMaskIter {
+    fn from(mask: ByteMask) -> Self {
+        Self::new(mask)
+    }
+}
+
+impl From<[u64; 4]> for ByteMaskRangeIter {
+    fn from(mask: [u64; 4]) -> Self {
+        Self::new(ByteMask(mask))
+    }
+}
+
+impl From<ByteMask> for ByteMaskRangeIter {
+    fn from(mask: ByteMask) -> Self {
+        Self::new(mask)
+    }
+}
+
+impl ByteMaskIter {
+    pub fn new(mask: ByteMask) -> Self {
+        Self { i: 0, mask: mask.0 }
+    }
+}
+
+impl ByteMaskRangeIter {
+    pub fn new(mask: ByteMask) -> Self {
+        Self { i: 0, mask: mask.0 }
+    }
+}
+
+impl Iterator for ByteMaskIter {
+    type Item = u8;
+
+    #[inline]
+    fn next(&mut self) -> Option<u8> {
+        loop {
+            let w = &mut self.mask[self.i as usize];
+            if *w != 0 {
+                let wi = w.trailing_zeros() as u8;
+                *w ^= 1u64 << wi;
+                let index = self.i*64 + wi;
+                return Some(index)
+            } else if self.i < 3 {
+                self.i += 1;
+            } else {
+                return None
+            }
+        }
+    }
+}
+
+impl Iterator for ByteMaskRangeIter {
+    type Item = RangeInclusive<u8>;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        // Skip empty words until we find the first set bit of the next range.
+        let start_bit;
+        let start = loop {
+            let w = self.mask[self.i as usize];
+            if w != 0 {
+                start_bit = w.trailing_zeros() as u8;
+                break self.i * 64 + start_bit;
+            } else if self.i < 3 {
+                self.i += 1;
+            } else {
+                return None;
+            }
+        };
+
+        let run_len = (self.mask[self.i as usize] >> start_bit).trailing_ones() as u8;
+        // The range ends inside the current word, so clear just that span and return it.
+        if run_len < 64 - start_bit {
+            let clear_mask = ((1u64 << run_len) - 1) << start_bit;
+            self.mask[self.i as usize] &= !clear_mask;
+            return Some(start..=(start + run_len - 1));
+        }
+
+        // The range consumes the rest of the current word, so clear it before advancing.
+        self.mask[self.i as usize] = 0;
+
+        //Find the end of the range
+        while self.i < 3 {
+            self.i += 1;
+            let next_word = self.mask[self.i as usize];
+
+            // The range covers this entire next word, so clear it and continue forward.
+            if next_word == u64::MAX {
+                self.mask[self.i as usize] = 0;
+                continue;
+            }
+
+            let next_run_len = next_word.trailing_ones() as u8;
+            // The next word starts with a zero bit, so the range ended at the prior word boundary.
+            if next_run_len == 0 {
+                return Some(start..=((self.i - 1) * 64 + 63));
+            }
+
+            // The range ends inside the prefix of the next word, so clear that prefix and return it.
+            self.mask[self.i as usize] &= !((1u64 << next_run_len) - 1);
+            return Some(start..=(self.i * 64 + next_run_len - 1));
+        }
+
+        // The range runs through the end of the mask after clearing every fully covered word.
+        Some(start..=(self.i * 64 + 63))
+    }
+}
+
+//GOAT, This needs to be generalized to bit sets of other widths
+impl Lattice for [u64; 4] {
+    #[inline]
+    fn pjoin(&self, other: &Self) -> AlgebraicResult<Self> {
+        let result = [self[0] | other[0], self[1] | other[1], self[2] | other[2], self[3] | other[3]];
+        bitmask_algebraic_result(result, self, other)
+    }
+    #[inline]
+    fn pmeet(&self, other: &Self) -> AlgebraicResult<Self> {
+        let result = [self[0] & other[0], self[1] & other[1], self[2] & other[2], self[3] & other[3]];
+        bitmask_algebraic_result(result, self, other)
+    }
+}
+
+//GOAT, This should be generalized to bit sets of other widths
+impl DistributiveLattice for [u64; 4] {
+    #[inline]
+    fn psubtract(&self, other: &Self) -> AlgebraicResult<Self> where Self: Sized {
+        let result = [self[0] & !other[0], self[1] & !other[1], self[2] & !other[2], self[3] & !other[3]];
+        bitmask_algebraic_result(result, self, other)
+    }
+}
+
+/// Internal function to compose AlgebraicResult after algebraic operation
+#[inline]
+fn bitmask_algebraic_result(result: [u64; 4], self_mask: &[u64; 4], other_mask: &[u64; 4]) -> AlgebraicResult<[u64; 4]> {
+    if result.is_empty_mask() {
+        return AlgebraicResult::None
+    }
+    let mut mask = 0;
+    if result == *self_mask {
+        mask  = SELF_IDENT;
+    }
+    if result == *other_mask {
+        mask |= COUNTER_IDENT;
+    }
+    if mask > 0 {
+        return AlgebraicResult::Identity(mask)
+    } else {
+        AlgebraicResult::Element(result)
+    }
+}
+
+/// Returns a new empty mask
+#[inline]
+#[deprecated]
+pub const fn empty_mask() -> [u64; 4] {
+    [0; 4]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bit_utils_test() {
+        let mut mask = ByteMask::EMPTY;
+        assert_eq!(mask.count_bits(), 0);
+        assert_eq!(mask.is_empty_mask(), true);
+
+        mask.set_bit(b'C');
+        mask.set_bit(b'a');
+        mask.set_bit(b't');
+        assert_eq!(mask.is_empty_mask(), false);
+        assert_eq!(mask.count_bits(), 3);
+
+        mask.set_bit(b'C');
+        mask.set_bit(b'a');
+        mask.set_bit(b'n');
+        assert_eq!(mask.count_bits(), 4);
+
+        mask.clear_bit(b't');
+        assert_eq!(mask.test_bit(b'n'), true);
+        assert_eq!(mask.test_bit(b't'), false);
+    }
+
+    #[test]
+    fn next_bit_test() {
+        fn do_test(test_mask: ByteMask) {
+            let set_bits: Vec<u8> = (0..=255).into_iter().filter(|i| test_mask.test_bit(*i)).collect();
+
+            let mut i = 0;
+            let mut cnt = test_mask.test_bit(0) as usize;
+            while let Some(next_bit) = test_mask.next_bit(i) {
+                assert!(test_mask.test_bit(next_bit));
+                i = next_bit;
+                cnt += 1;
+            }
+            assert_eq!(cnt, set_bits.len());
+
+            let mut i = 255;
+            let mut cnt = test_mask.test_bit(255) as usize;
+            while let Some(prev_bit) = test_mask.prev_bit(i) {
+                assert!(test_mask.test_bit(prev_bit));
+                i = prev_bit;
+                cnt += 1;
+            }
+            assert_eq!(cnt, set_bits.len());
+        }
+        do_test(ByteMask::from([
+            0b1010010010010010010010000000000000000000000000000000000000010101u64,
+            0b0000000000000000000000000000000000000000100000000000000000000000u64,
+            0b0000000000000000000000000000000000000000000000000000000000000000u64,
+            0b1001000000000000000000000000000000000000000000000000000000000001u64,
+        ]));
+        do_test(ByteMask::from([
+            0b0000000000000000000000000000000000000000000000000000000000000000u64,
+            0b0000000000000000000000000000000000000000100000000000000000000000u64,
+            0b0000000000000000000000000000000000000000000000000000000000000000u64,
+            0b1001000000000000000000000000000000000000000000000000000000000001u64,
+        ]));
+        do_test(ByteMask::from(ByteMask::FULL));
+    }
+
+    #[test]
+    fn next_bit_test2() {
+        let mut test_mask = ByteMask::EMPTY;
+        test_mask.set_bit(39);
+        test_mask.set_bit(97);
+        test_mask.set_bit(117);
+
+        assert_eq!(Some(39), test_mask.next_bit(0));
+        assert_eq!(Some(97), test_mask.next_bit(39));
+        assert_eq!(Some(117), test_mask.next_bit(97));
+        assert_eq!(None, test_mask.next_bit(117));
+    }
+
+    #[test]
+    fn bit_siblings_test() {
+        let x = 0b0000000000000000000000000000000000000100001001100000000000000010u64;
+        let i = 0b0000000000000000000000000000000000000000000001000000000000000000u64;
+        let p = 0b0000000000000000000000000000000000000000001000000000000000000000u64;
+        let n = 0b0000000000000000000000000000000000000000000000100000000000000000u64;
+        let f = 0b0000000000000000000000000000000000000100000000000000000000000000u64;
+        let l = 0b0000000000000000000000000000000000000000000000000000000000000010u64;
+        let mask = ByteMask::from([x, 0, 0, 0]);
+        let bit_i = i.trailing_zeros() as u8;
+        assert_eq!(i, 1u64 << bit_i);
+        assert_ne!(i & x, 0);
+
+        // Existing-child lookup within one mask word, including both ends.
+        assert_eq!(mask.prev_bit(bit_i), Some(n.trailing_zeros() as u8));
+        assert_eq!(mask.next_bit(bit_i), Some(p.trailing_zeros() as u8));
+        assert_eq!(mask.prev_bit(l.trailing_zeros() as u8), None);
+        assert_eq!(mask.next_bit(f.trailing_zeros() as u8), None);
+
+        // Missing-focus lookup and sibling lookup across every mask-word boundary.
+        let mut mask = ByteMask::EMPTY;
+        for byte in [10, 20, 70, 130, 200] {
+            mask.set_bit(byte);
+        }
+        assert_eq!(mask.prev_bit(64), Some(20));
+        assert_eq!(mask.next_bit(63), Some(70));
+        assert_eq!(mask.prev_bit(130), Some(70));
+        assert_eq!(mask.next_bit(70), Some(130));
+        assert_eq!(mask.prev_bit(200), Some(130));
+        assert_eq!(mask.next_bit(130), Some(200));
+    }
+
+    #[test]
+    fn from_range_test() {
+        assert_eq!(ByteMask::from_range(10..70), ByteMask::from([
+            0b1111111111111111111111111111111111111111111111111111110000000000u64,
+            0b0000000000000000000000000000000000000000000000000000000000111111u64,
+            0b0000000000000000000000000000000000000000000000000000000000000000u64,
+            0b0000000000000000000000000000000000000000000000000000000000000000u64,
+        ]));
+    assert_eq!(ByteMask::from_range(..), ByteMask::FULL);
+    assert_eq!(ByteMask::from_range(..=127), ByteMask::from([
+            0b1111111111111111111111111111111111111111111111111111111111111111u64,
+            0b1111111111111111111111111111111111111111111111111111111111111111u64,
+            0b0000000000000000000000000000000000000000000000000000000000000000u64,
+            0b0000000000000000000000000000000000000000000000000000000000000000u64,
+        ]));
+        assert_eq!(ByteMask::from_range(10..), ByteMask::from([
+            0b1111111111111111111111111111111111111111111111111111110000000000u64,
+            0b1111111111111111111111111111111111111111111111111111111111111111u64,
+            0b1111111111111111111111111111111111111111111111111111111111111111u64,
+            0b1111111111111111111111111111111111111111111111111111111111111111u64,
+        ]));
+        assert_eq!(ByteMask::from_range(0..0), ByteMask::EMPTY);
+        assert_eq!(ByteMask::from_range(0..=0), ByteMask::from(0));
+        assert_eq!(ByteMask::from_range(255..255), ByteMask::EMPTY);
+        assert_eq!(ByteMask::from_range(255..=255), ByteMask::from(255));
+    }
+
+    #[test]
+    fn range_iter_test() {
+        fn next_once(mask: ByteMask) -> Option<RangeInclusive<u8>> {
+            let mut iter = mask.range_iter();
+            iter.next()
+        }
+
+        // Returns from the short in-word path.
+        assert_eq!(next_once(ByteMask::from(10..12)), Some(10..=11));
+
+        // Returns at a word boundary when the next word starts with zero.
+        assert_eq!(next_once(ByteMask::from(62..=63)), Some(62..=63));
+
+        // Returns from the next-word prefix path.
+        assert_eq!(next_once(ByteMask::from(62..=66)), Some(62..=66));
+
+        // Returns from the full-word continuation path after spanning a whole intermediate word.
+        assert_eq!(next_once(ByteMask::from(62..=130)), Some(62..=130));
+
+        // Returns from the end-of-mask path.
+        assert_eq!(next_once(ByteMask::from(250..=255)), Some(250..=255));
+
+        // Iterates multiple disjoint ranges in ascending order.
+        let mask = ByteMask::from(0..=3)
+            | ByteMask::from(10..12)
+            | ByteMask::from(64..=64)
+            | ByteMask::from(126..=130)
+            | ByteMask::from(255..=255);
+        let ranges: Vec<RangeInclusive<u8>> = mask.range_iter().collect();
+        assert_eq!(ranges, vec![0..=3, 10..=11, 64..=64, 126..=130, 255..=255]);
+
+        // Span multiple words
+        let mask = ByteMask::from(2..=4)
+            | ByteMask::from(30..220);
+        let ranges: Vec<RangeInclusive<u8>> = mask.range_iter().collect();
+        assert_eq!(ranges, vec![2..=4, 30..=219]);
+
+        // Empty mask
+        let mut iter = ByteMask::EMPTY.range_iter();
+        assert_eq!(iter.next(), None);
+
+        // Full mask
+        let mut iter = ByteMask::FULL.range_iter();
+        assert_eq!(iter.next(), Some(0..=255));
+    }
+
+    #[test]
+    fn byte_mask_construction_and_formatting() {
+        assert_eq!(ByteMask::new(), ByteMask::EMPTY);
+        assert_eq!(ByteMask::from(42), ByteMask::from_range(42..=42));
+        assert_eq!(ByteMask::from(10..12), ByteMask::from_range(10..12));
+        assert_eq!(ByteMask::from(10..=11), ByteMask::from_range(10..=11));
+        assert_eq!(ByteMask::from([1, 2, 3, 4]).into_inner(), [1, 2, 3, 4]);
+        assert_eq!(<[u64; 4]>::from(ByteMask::from([1, 2, 3, 4])), [1, 2, 3, 4]);
+
+        let mask: ByteMask = [0, 64, 255].into_iter().collect();
+        assert_eq!(mask, [1, 1, 0, 1u64 << 63]);
+        assert_eq!(mask.as_ref(), &[1, 1, 0, 1u64 << 63]);
+        assert_eq!(core::borrow::Borrow::<[u64; 4]>::borrow(&mask), &[1, 1, 0, 1u64 << 63]);
+        assert_eq!(format!("{mask:?}"), "{0, 64, 255}");
+        assert_eq!(format!("{:?}", mask.fmt_binary()).len(), 256);
+        assert_eq!(format!("{}", mask.fmt_binary()).len(), 287);
+
+        let subset = ByteMask::subset(0b1010_0110);
+        for byte in 0..=255 {
+            assert_eq!(subset.test_bit(byte), byte & 0b1010_0110 == byte);
+        }
+    }
+
+    #[test]
+    fn byte_mask_bitwise_operations_and_assignments() {
+        let left = ByteMask::from_iter([0, 64, 128, 192]);
+        let right = ByteMask::from_iter([64, 65, 192, 255]);
+
+        assert_eq!(left.or(&right), ByteMask::from_iter([0, 64, 65, 128, 192, 255]));
+        assert_eq!(left.and(&right), ByteMask::from_iter([64, 192]));
+        assert_eq!(left.xor(&right), ByteMask::from_iter([0, 65, 128, 255]));
+        assert_eq!(left.andn(&right), ByteMask::from_iter([0, 128]));
+        assert_eq!(left.not().and(&left), ByteMask::EMPTY);
+        assert_eq!(left | right, left.or(&right));
+        assert_eq!(&left | &right, left.or(&right));
+        assert_eq!(&left & &right, left.and(&right));
+
+        let mut assigned = left;
+        assigned |= right;
+        assert_eq!(assigned, left.or(&right));
+        assigned &= right;
+        assert_eq!(assigned, right);
+        assigned.toggle_bit(65);
+        assert!(!assigned.test_bit(65));
+        assigned.toggle_bit(65);
+        assert!(assigned.test_bit(65));
+        assigned.make_empty();
+        assert_eq!(assigned, ByteMask::EMPTY);
+    }
+
+    #[test]
+    fn byte_mask_iteration_and_indexing() {
+        let mask = ByteMask::from_iter([0, 2, 63, 64, 130, 255]);
+        assert_eq!(mask.iter().collect::<Vec<_>>(), vec![0, 2, 63, 64, 130, 255]);
+        #[allow(deprecated)]
+        let deprecated_iter = mask.byte_mask_iter();
+        assert_eq!(deprecated_iter.collect::<Vec<_>>(), vec![0, 2, 63, 64, 130, 255]);
+        assert_eq!(mask.index_of(0), 0);
+        assert_eq!(mask.index_of(64), 3);
+        assert_eq!(mask.index_of(255), 5);
+        assert_eq!(mask.indexed_bit::<true>(0), Some(0));
+        assert_eq!(mask.indexed_bit::<true>(5), Some(255));
+        assert_eq!(mask.indexed_bit::<true>(6), None);
+        assert_eq!(mask.indexed_bit::<false>(0), Some(255));
+        assert_eq!(mask.indexed_bit::<false>(5), Some(0));
+        assert_eq!(mask.indexed_bit::<false>(6), None);
+    }
+
+    #[test]
+    fn byte_mask_lattice_operations() {
+        let left = ByteMask::from_iter([1, 2]);
+        let right = ByteMask::from_iter([2, 3]);
+        assert_eq!(left.pjoin(&right), AlgebraicResult::Element(ByteMask::from_iter([1, 2, 3])));
+        assert_eq!(left.pmeet(&right), AlgebraicResult::Element(ByteMask::from(2)));
+        assert_eq!(left.psubtract(&right), AlgebraicResult::Element(ByteMask::from(1)));
+        assert_eq!(left.psubtract(&left), AlgebraicResult::None);
+    }
+
+    #[test]fn byte_mask_inclusive_range_test() {
+
+        fn test_single_range(b : &mut ByteMask, start : u8, end : u8) {
+            b.clear_inclusive_bit_range(0..=u8::MAX);
+            b.set_inclusive_bit_range(start..=end);
+            let mut i = 0;
+            for (mask_b, range_b) in b.iter().zip(start..=end) {
+                core::assert_eq!(mask_b, range_b);
+                i += 1;
+            }
+            core::debug_assert_eq!(i, (end as usize - start as usize + 1));
+            b.clear_inclusive_bit_range(start..=end);
+            core::assert!(b.iter().next().is_none());
+        }
+        let mut b = ByteMask::from([0;4]);
+        test_single_range(&mut b, b'a', b'z');
+        test_single_range(&mut b, b'A', b'Z');
+        test_single_range(&mut b, b'0', b'9');
+        test_single_range(&mut b, 0, 255);
+
+        b.clear_inclusive_bit_range(0..=255);
+
+        b.set_inclusive_bit_range(0..=99);
+        b.set_inclusive_bit_range(201..=255);
+        b.toggle_inclusive_bit_range(0..=200);
+
+        for (mask_byte,range_byte) in b.iter().zip(100..=255) {
+            core::assert_eq!(mask_byte,range_byte);
+        }
+    }
+}

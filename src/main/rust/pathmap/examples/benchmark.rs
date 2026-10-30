@@ -21,6 +21,33 @@ fn measure(name: &str, size: usize, f: impl Fn() -> Space) {
     samples.sort_unstable();
     println!("{name},{size},{expected},{},{}", samples[2], repeats);
 }
+fn measure_predicate(name: &str, size: usize, f: impl Fn() -> bool) {
+    let expected = f();
+    for _ in 0..10 {
+        black_box(f());
+    }
+    let start = Instant::now();
+    for _ in 0..100 {
+        black_box(f());
+    }
+    let first = (start.elapsed().as_nanos() / 100).max(1);
+    let repeats = (10_000_000 / first).clamp(1, 32768) as u32;
+    let mut samples = [0; 5];
+    for sample in &mut samples {
+        let start = Instant::now();
+        for _ in 0..repeats {
+            assert_eq!(black_box(f()), expected);
+        }
+        *sample = start.elapsed().as_nanos() / repeats as u128;
+    }
+    samples.sort_unstable();
+    println!(
+        "{name},{size},{},{},{}",
+        u8::from(expected),
+        samples[2],
+        repeats
+    );
+}
 fn main() {
     println!("operation,size,paths,nanos,repeats");
     for size in [16usize, 64, 256, 1024, 4096, 16384] {
@@ -38,6 +65,22 @@ fn main() {
             disjoint.set_val_at(concat_path(&[255], &p), ());
         }
         let suffix = singleton(&[4]).join(&singleton(&[5]));
+        let independently_built = enumerate(&a).fold(Space::new(), |mut m, p| {
+            m.set_val_at(p, ());
+            m
+        });
+        let shared = a.clone();
+        for (kind, right) in [
+            ("shared", &shared),
+            ("independent", &independently_built),
+            ("subset", &b),
+            ("disjoint", &disjoint),
+        ] {
+            measure_predicate(&format!("equal-{kind}"), size, || equal(&a, right));
+            measure_predicate(&format!("equal-differences-{kind}"), size, || {
+                a.subtract(right).is_empty() && right.subtract(&a).is_empty()
+            });
+        }
         measure("union-subset", size, || unite(&a, &b));
         measure("union-disjoint", size, || unite(&a, &disjoint));
         measure("intersection-subset", size, || intersect(&a, &b));
@@ -55,28 +98,28 @@ fn main() {
         measure("suffix-closure", size, || suffix_closure(&a, false));
         measure("tails-closure", size, || suffix_closure(&a, true));
         measure("head", size, || head_space(&a));
-        measure("range-first", size, || range(&a, 0, 10));
-        measure("range-last", size, || range(&a, -10, 0));
-        measure("range-interior", size, || range(&a, 3, -3));
+        measure("range-first", size, || range_const::<0, 10>(&a));
+        measure("range-last", size, || range_const::<-10, 0>(&a));
+        measure("range-interior", size, || range_const::<3, -3>(&a));
         measure("iter-reconstruct", size, || {
             let mut out = Space::new();
             let mut z = a.read_zipper();
             for byte in z.child_mask().iter() {
                 z.descend_to_byte(byte);
-                let tail = z.make_map();
-                z.ascend(1);
+                let tail = z.fork_read_zipper();
                 out.join_into(wrap(&tail, &[byte]));
+                drop(tail);
+                z.ascend(1);
             }
             out
         });
         measure("fixpoint-tails", size, || {
             let mut current = a.clone();
             loop {
-                let next = unite(&current, &tails_union(&current));
-                if equal(&current, &next) {
+                let step = tails_union(&current);
+                if !current.join_into(step).is_element() {
                     break current;
                 }
-                current = next;
             }
         });
     }

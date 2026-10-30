@@ -1,0 +1,163 @@
+
+use crate::zipper::*;
+use crate::utils::ByteMask;
+
+/// A [`Zipper`] type that moves over a completely empty trie
+#[derive(Clone, Default)]
+pub struct EmptyZipper {
+    path_start_idx: usize,
+    path: Vec<u8> //NOTE: we could init this lazily and take a borrowed path, but I can't see a use case where that would matter
+}
+
+impl EmptyZipper {
+    /// Returns a new `EmptyZipper` starting at the root
+    pub fn new() -> Self {
+        Self::default()
+    }
+    /// Returns a new `EmptyZipper` with the provided [`root_prefix_path`](ZipperAbsolutePath::root_prefix_path)
+    pub fn new_at_path<K: AsRef<[u8]>>(path: K) -> Self {
+        let path = path.as_ref();
+        Self {
+            path_start_idx: path.len(),
+            path: path.to_vec(),
+        }
+    }
+}
+
+impl Zipper for EmptyZipper {
+    fn path_exists(&self) -> bool { false }
+    fn is_val(&self) -> bool { false }
+    fn child_count(&self) -> usize { 0 }
+    fn child_mask(&self) -> ByteMask { ByteMask::EMPTY }
+}
+
+impl ZipperMoving for EmptyZipper {
+    #[inline] fn depth(&self) -> usize { self.path.len() - self.path_start_idx }
+    #[inline]
+    fn focus_byte(&self) -> Option<u8> { self.path.last().cloned() }
+    fn reset(&mut self) { self.path.truncate(self.path_start_idx) }
+    fn val_count(&self) -> usize { 0 }
+    fn descend_to<K: AsRef<[u8]>>(&mut self, k: K) {
+        self.path.extend_from_slice(k.as_ref());
+    }
+    fn descend_to_byte(&mut self, k: u8) {
+        self.path.push(k);
+    }
+    fn descend_indexed_byte(&mut self, _idx: usize) -> Option<u8> { None }
+    fn descend_first_byte(&mut self) -> Option<u8> { None }
+    fn descend_until_observed<Obs: PathObserver>(&mut self, _obs: &mut Obs) -> bool { false }
+    fn ascend(&mut self, steps: usize) -> usize {
+        let available = self.path.len() - self.path_start_idx;
+        let ascended = steps.min(available);
+        self.path.truncate(self.path.len() - ascended);
+        ascended
+    }
+    fn ascend_byte(&mut self) -> bool {
+        if self.path.len() > self.path_start_idx {
+            self.path.pop();
+            true
+        } else {
+            false
+        }
+    }
+    fn ascend_until(&mut self) -> usize {
+        let ascended = self.path.len() - self.path_start_idx;
+        self.reset();
+        ascended
+    }
+    fn ascend_until_branch(&mut self) -> usize {
+        self.ascend_until()
+    }
+    fn to_next_sibling_byte(&mut self) -> Option<u8> { None }
+    fn to_prev_sibling_byte(&mut self) -> Option<u8> { None }
+}
+
+impl ZipperPath for EmptyZipper {
+    fn path(&self) -> &[u8] { &self.path[self.path_start_idx..] }
+}
+
+impl ZipperAbsolutePath for EmptyZipper {
+    fn origin_path(&self) -> &[u8] { &self.path }
+    fn root_prefix_path(&self) -> &[u8] { &self.path[..self.path_start_idx] }
+}
+
+impl ZipperIteration for EmptyZipper {
+    fn to_next_val_observed<Obs: PathObserver>(&mut self, _obs: &mut Obs) -> bool { false }
+    fn descend_last_path_observed<Obs: PathObserver>(&mut self, _obs: &mut Obs) -> bool { false }
+    fn descend_first_k_path_observed<Obs: PathObserver>(&mut self, _k: usize, _obs: &mut Obs) -> bool { false }
+    fn to_next_k_path_observed<Obs: PathObserver>(&mut self, k: usize, obs: &mut Obs) -> bool {
+        let ascended = self.ascend(k);
+        obs.ascend(ascended);
+        false
+    }
+}
+
+impl<V> ZipperValues<V> for EmptyZipper {
+    fn val(&self) -> Option<&V> { None }
+}
+
+impl<V> ZipperValuesAt<V> for EmptyZipper {
+    fn val_at<K: AsRef<[u8]>>(&self, _path: K) -> Option<&V> { None }
+}
+
+impl<V> ZipperForking<V> for EmptyZipper {
+    type ReadZipperT<'a> = EmptyZipper;
+    fn fork_read_zipper<'a>(&'a self) -> Self::ReadZipperT<'a> { Self::new_at_path(self.origin_path()) }
+}
+
+impl<'a, V: Clone + Send + Sync> ZipperReadOnlyValues<'a, V> for EmptyZipper {
+    fn get_val(&self) -> Option<&'a V> { None }
+    fn get_val_at<K: AsRef<[u8]>>(&self, _path: K) -> Option<&'a V> { None }
+}
+
+impl<'a, V: Clone + Send + Sync> ZipperReadOnlyConditionalValues<'a, V> for EmptyZipper {
+    type WitnessT = ();
+    fn witness<'w>(&self) -> Self::WitnessT { () }
+    fn get_val_with_witness<'w>(&self, _witness: &'w Self::WitnessT) -> Option<&'w V> where 'a: 'w { None }
+}
+
+impl<'a, V: Clone + Send + Sync> ZipperReadOnlyIteration<'a, V> for EmptyZipper {
+    fn to_next_get_val_observed<Obs: PathObserver>(&mut self, _obs: &mut Obs) -> Option<&'a V> { None }
+}
+
+impl<'a, V: Clone + Send + Sync> ZipperReadOnlyConditionalIteration<'a, V> for EmptyZipper {
+    fn to_next_get_val_with_witness_observed<'w, Obs: PathObserver>(&mut self, _witness: &'w Self::WitnessT, _obs: &mut Obs) -> Option<&'w V> where 'a: 'w { None }
+}
+
+impl ZipperPathBuffer for EmptyZipper {
+    unsafe fn origin_path_assert_len(&self, len: usize) -> &[u8] {
+        assert!(len <= self.path.capacity());
+        unsafe{ core::slice::from_raw_parts(self.path.as_ptr(), len) }
+    }
+    fn prepare_buffers(&mut self) {
+        self.reserve_buffers(EXPECTED_PATH_LEN, 0)
+    }
+    fn reserve_buffers(&mut self, path_len: usize, _stack_depth: usize) {
+        self.path.reserve(path_len)
+    }
+}
+
+crate::impl_name_only_debug!(
+    impl core::fmt::Debug for EmptyZipper
+);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_next_k_path_rewinds_and_reports_movement() {
+        let mut z = EmptyZipper::new_at_path(b"root.");
+        z.descend_to(b"abc");
+        let mut observed = z.path().to_vec();
+
+        assert!(!z.to_next_k_path_observed(2, &mut observed));
+        assert_eq!(z.path(), b"a");
+        assert_eq!(observed, z.path());
+        assert_eq!(z.root_prefix_path(), b"root.");
+
+        assert!(!z.to_next_k_path_observed(5, &mut observed));
+        assert_eq!(z.path(), b"");
+        assert_eq!(observed, z.path());
+    }
+}

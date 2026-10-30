@@ -34,6 +34,27 @@ class RustPathMapBackendTest extends FunSuite:
   }
 
   if java.lang.Boolean.getBoolean("morkl.pathmap.test") then
+    test("helper chains inline together with callers and opaque fixpoints preserve callback counts") {
+      val refs=Vector(PathRef("prefix")); val ss=Vector(SpaceMention("source"))
+      val names=Vector("outer","middle","leaf").map(RoutinePtr(_))
+      val leaf=Zippy_bytes.Routine(names(2),refs,ss,S.Unwrap(S.Wrap(S.Mention(ss.head),P.Deref(refs.head)),P.Deref(refs.head)))
+      val middle=leaf.copy(name=names(1),body=S.Call(names(2),refs.map(P.Deref(_)),ss.map(S.Mention(_))))
+      val outer=middle.copy(name=names(0),body=S.Call(names(1),refs.map(P.Deref(_)),ss.map(S.Mention(_))))
+      val defs=Vector(outer,middle,leaf).map(r=>r.name->r).toMap
+      val p=RustPathMapBackend.bytes(S.Call(names.head,Vector(Zippy_bytes.digit(128)),Vector(input)),defs)
+      assert(!p.graphDescription.contains("Call["),p.graphDescription)
+      assertEquals(p.eval(spaces=Map(x->values)),values)
+      var callbacks=0
+      val step=S.GroundedSS(S.Mention(t),s=>{callbacks+=1;s})
+      val fixed=S.Fixpoint(input,t,step)
+      val native=RustPathMapBackend.bytes(fixed)
+      for v<-Vector(values,Set.empty[BytePathValue],Set(BytePathValue()),Set(BytePathValue(0,1,255))) do
+        callbacks=0
+        val expected=Zippy_bytes.eval(fixed,spaceArgs=Map(x->Zippy_bytes.SpaceValue(v))).paths
+        val count=callbacks; callbacks=0
+        assertEquals(native.eval(spaces=Map(x->v)),expected)
+        assertEquals(callbacks,count)
+    }
     test("an existing optimized executor graph compiles without an expression round trip") {
       val ref=SpaceMention("graph-input")
       val prefix=Path.Constant(PathValue(List(PathItem("#digit:000"),PathItem("#digit:255"))))

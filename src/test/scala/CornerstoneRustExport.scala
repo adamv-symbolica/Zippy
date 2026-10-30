@@ -58,7 +58,7 @@ object CornerstoneRustExport:
       emit("bytes-interned",RustPathMapBackend.bytes(bytes.program.entry,bytes.program.routines),work.context.m.view.mapValues(v=>bytes.encode(v).paths).toMap)
       emit("bytes-strings",RustPathMapBackend.bytes(strings.program.entry,strings.program.routines),work.context.m.view.mapValues(v=>strings.encode(v).paths).toMap)
       emit("bits-bytes",RustPathMapBackend.bytes(injected.entry,injected.routines),work.context.m.view.mapValues(v=>bits.encode(v).paths.map(bitCodec.encode)).toMap)
-    for relative<-Vector("Cargo.toml","Cargo.lock","src/lib.rs",".cargo/config.toml") do
+    for relative<-RustPathMapBackend.runtimeFiles do
       val target=output.resolve("runtime").resolve(relative)
       write(target,Files.readString(Paths.get("src/main/rust/pathmap").resolve(relative)))
     write(output.resolve("manifest.json"),s"{\"workloads\":${all.size},\"artifacts\":[${records.mkString(",\n")}]}\n")

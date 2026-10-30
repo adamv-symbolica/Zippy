@@ -1,0 +1,490 @@
+commit 4a399a3a038bccc8aa53b9c1613f9dbf4ed94ff1
+Author:     adamv-symbolica <adam.vandervorst@symbolica.ai>
+AuthorDate: Fri Oct 30 12:21:44 2026 +0000
+Commit:     adamv-symbolica <adam.vandervorst@symbolica.ai>
+CommitDate: Fri Oct 30 12:21:44 2026 +0000
+
+    Make restrict of a dense node by a list/tiny node visit only the restrictor's branches
+    
+    `prestrict_abstract` scanned every child of the (up to 256 wide) dense
+    `self` node and asked the list or tiny `other` node about each one, so a
+    restriction by a sparse map cost O(width of the LHS) per node it passed
+    through.  It now intersects `self`'s mask with `other`'s branch mask and
+    visits only the overlap, which is at most 2 bytes.  `TinyRefNode` gets a
+    real `node_branches_mask` to supply that mask.
+    
+    Adds benches/restrict.rs, sweeping LHS/RHS branching, depth below the
+    cut-off on either side, cut-off depth, overlap, and LHS/RHS size.
+    LHS branching 256 goes from 554 to 47 µs (flat in branching now), and a
+    1M key random LHS restricted by 64 keys from 37 to 3.8 µs.
+    
+    Adds an oracle test restricting wide maps by a few of their own paths,
+    cut short, extended, diverging, or whole, through `restrict`,
+    `WriteZipper::restrict` (including its status), and `restricting`.
+    
+    Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+diff --git a/Cargo.toml b/Cargo.toml
+index 0d2a884..8b9d32c 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -142,6 +142,10 @@ harness = false
+ name = "prune"
+ harness = false
+ 
++[[bench]]
++name = "restrict"
++harness = false
++
+ [[bench]]
+ name = "act_paths"
+ harness = false
+diff --git a/benches/restrict.rs b/benches/restrict.rs
+new file mode 100644
+index 0000000..e277ac6
+--- /dev/null
++++ b/benches/restrict.rs
+@@ -0,0 +1,179 @@
++//! Asymptotic scaling of `restrict`
++//!
++//! `restrict(L, R)` keeps every path of `L` that has a prefix leading to a value in `R`.  It only
++//! needs to walk the structure `L` and `R` have in common, and it can stop at each of `R`'s values
++//! because everything in `L` below that point is kept as-is.  So the cost should be governed by `R`
++//! and by the overlap, not by how big, deep or wide `L` is.
++//!
++//! Each benchmark sweeps a single parameter with the others held fixed.
++//!
++//! "Spine" tries are built from `SPINES` pseudo-random paths that start with distinct bytes.  An
++//! `R` is made by putting values on the spines at the cut-off depth.  `L` gets `branching - 1`
++//! sibling leaves at every node along each spine, which makes the nodes a restriction has to pass
++//! through as wide as we want without changing which paths the restriction follows.
++//!
++//! "Random" tries are uniform random keys, where `R` is half prefixes of `L`'s keys and half fresh
++//! keys that diverge from `L` after the first few bytes.
++
++use divan::{Bencher, Divan, black_box};
++use pathmap::PathMap;
++use pathmap::zipper::*;
++use rand::{Rng, SeedableRng, rngs::StdRng};
++
++fn main() {
++    Divan::from_args().main();
++}
++
++const SPINES: usize = 64;
++
++/// The `i`th spine, `len` bytes long
++fn spine(i: usize, len: usize) -> Vec<u8> {
++    let mut rng = StdRng::seed_from_u64(i as u64);
++    let mut path = Vec::with_capacity(len);
++    path.push((i * (256 / SPINES)) as u8);
++    path.extend((1..len).map(|_| rng.random::<u8>()));
++    path
++}
++
++/// Puts a value at the end of each path, plus `branching - 1` sibling leaves next to each step of
++/// each path, from depth 1 to `sibling_depth`.  Sibling bytes are the step byte plus `1..branching`,
++/// so paths can diverge from the spines with `step ^ 0x80` without landing on a sibling if
++/// `branching <= 128`
++fn bushy_trie(paths: &[Vec<u8>], sibling_depth: usize, branching: usize) -> PathMap<u64> {
++    let mut map = PathMap::new();
++    for path in paths {
++        map.set_val_at(path, 0);
++        for depth in 1..sibling_depth.min(path.len()) {
++            let mut sibling = path[..=depth].to_vec();
++            for t in 1..branching {
++                sibling[depth] = path[depth].wrapping_add(t as u8);
++                map.set_val_at(&sibling, 0);
++            }
++        }
++    }
++    map
++}
++
++fn spines(len: usize) -> Vec<Vec<u8>> {
++    (0..SPINES).map(|i| spine(i, len)).collect()
++}
++
++/// Width of `L`'s nodes along the restricted paths.  Ideally flat
++///
++/// `L`: spines of depth 32, siblings at every step.  `R`: values on the spines at depth 16
++#[divan::bench(args = [1, 2, 4, 16, 64, 256])]
++fn lhs_branching(bencher: Bencher, branching: usize) {
++    let l = bushy_trie(&spines(32), 32, branching);
++    let r = bushy_trie(&spines(16), 0, 1);
++    bencher.bench_local(|| black_box(&l).restrict(black_box(&r)));
++}
++
++/// How much of `L` hangs below `R`'s values.  Ideally flat
++///
++/// `L`: spines of the given depth, 16 wide at every step.  `R`: values on the spines at depth 8
++#[divan::bench(args = [8, 32, 128, 512])]
++fn lhs_depth_below_cutoff(bencher: Bencher, depth: usize) {
++    let l = bushy_trie(&spines(depth), depth, 16);
++    let r = bushy_trie(&spines(8), 0, 1);
++    bencher.bench_local(|| black_box(&l).restrict(black_box(&r)));
++}
++
++/// Depth of `R`'s values, i.e. how far the restriction descends.  Ideally linear
++///
++/// `L`: spines of depth 128, 16 wide at every step.  `R`: values on the spines at the given depth
++#[divan::bench(args = [1, 4, 16, 64, 128])]
++fn cutoff_depth(bencher: Bencher, cutoff: usize) {
++    let l = bushy_trie(&spines(128), 128, 16);
++    let r = bushy_trie(&spines(cutoff), 0, 1);
++    bencher.bench_local(|| black_box(&l).restrict(black_box(&r)));
++}
++
++/// Width of `R`'s nodes, none of whose siblings exist in `L`.  Ideally flat
++///
++/// `L`: bare spines of depth 32.  `R`: values on the spines at depth 16, siblings at every step
++#[divan::bench(args = [1, 2, 4, 16, 64, 256])]
++fn rhs_branching(bencher: Bencher, branching: usize) {
++    let l = bushy_trie(&spines(32), 0, 1);
++    let r = bushy_trie(&spines(16), 16, branching);
++    bencher.bench_local(|| black_box(&l).restrict(black_box(&r)));
++}
++
++/// How far `R` continues below its first value on each path.  Ideally flat
++///
++/// `L`: spines of depth 32, 16 wide at every step.  `R`: values on the spines at depth 8 and at
++/// the given depth
++#[divan::bench(args = [8, 32, 128, 512])]
++fn rhs_depth_below_cutoff(bencher: Bencher, depth: usize) {
++    let l = bushy_trie(&spines(32), 32, 16);
++    let mut r = bushy_trie(&spines(depth), 0, 1);
++    for path in spines(8) {
++        r.set_val_at(&path, 0);
++    }
++    bencher.bench_local(|| black_box(&l).restrict(black_box(&r)));
++}
++
++/// Percentage of `R`'s paths that are in `L`; the others leave `L` half way down.  Ideally linear
++///
++/// `L`: spines of depth 32, 16 wide at every step.  `R`: values at depth 16
++#[divan::bench(args = [0, 25, 50, 75, 100])]
++fn overlap_percent(bencher: Bencher, percent: usize) {
++    let l = bushy_trie(&spines(32), 32, 16);
++    let r_paths: Vec<Vec<u8>> = spines(16).into_iter().enumerate().map(|(i, mut path)| {
++        if i * 100 >= percent * SPINES {
++            path[8] ^= 0x80;
++        }
++        path
++    }).collect();
++    let r = bushy_trie(&r_paths, 0, 1);
++    bencher.bench_local(|| black_box(&l).restrict(black_box(&r)));
++}
++
++fn random_keys(rng: &mut StdRng, n: usize, len: usize) -> Vec<Vec<u8>> {
++    (0..n).map(|_| (0..len).map(|_| rng.random::<u8>()).collect()).collect()
++}
++
++/// Half of the `R` keys cut off `L` keys after 4 bytes, the other half are fresh 8 byte keys
++fn random_pair(lhs_size: usize, rhs_size: usize) -> (PathMap<u64>, PathMap<u64>) {
++    let mut rng = StdRng::seed_from_u64(1);
++    let l_keys = random_keys(&mut rng, lhs_size, 8);
++    let mut r_keys = random_keys(&mut rng, rhs_size / 2, 8);
++    r_keys.extend((0..rhs_size - rhs_size / 2).map(|_| l_keys[rng.random_range(0..lhs_size)][..4].to_vec()));
++    (l_keys.iter().map(|k| (k, 0)).collect(), r_keys.iter().map(|k| (k, 0)).collect())
++}
++
++/// Size of a random `L` restricted by 64 keys.  Ideally ~flat (only the trie depth grows)
++#[divan::bench(args = [1_000, 10_000, 100_000, 1_000_000])]
++fn random_lhs_size(bencher: Bencher, lhs_size: usize) {
++    let (l, r) = random_pair(lhs_size, 64);
++    bencher.bench_local(|| black_box(&l).restrict(black_box(&r)));
++}
++
++/// Size of a random `R` restricting 100k keys.  Ideally ~linear
++#[divan::bench(args = [16, 256, 4_096, 65_536])]
++fn random_rhs_size(bencher: Bencher, rhs_size: usize) {
++    let (l, r) = random_pair(100_000, rhs_size);
++    bencher.bench_local(|| black_box(&l).restrict(black_box(&r)));
++}
++
++/// [lhs_branching], through [WriteZipper::restrict] at a focus below the root
++#[divan::bench(args = [1, 2, 4, 16, 64, 256])]
++fn zipper_restrict_lhs_branching(bencher: Bencher, branching: usize) {
++    let mut l = PathMap::new();
++    l.write_zipper_at_path(b"focus").graft_map(bushy_trie(&spines(32), 32, branching));
++    let r = bushy_trie(&spines(16), 0, 1);
++    bencher.with_inputs(|| l.clone()).bench_local_refs(|l| {
++        let mut wz = l.write_zipper_at_path(b"focus");
++        black_box(wz.restrict(&black_box(&r).read_zipper()))
++    });
++}
++
++/// [lhs_branching] with the roles swapped through [WriteZipper::restricting]: the zipper holds the
++/// stems and the (wide) source is restricted by them
++#[divan::bench(args = [1, 2, 4, 16, 64, 256])]
++fn zipper_restricting_src_branching(bencher: Bencher, branching: usize) {
++    let src = bushy_trie(&spines(32), 32, branching);
++    let stems = bushy_trie(&spines(16), 0, 1);
++    bencher.with_inputs(|| stems.clone()).bench_local_refs(|stems| {
++        black_box(stems.write_zipper().restricting(&black_box(&src).read_zipper()))
++    });
++}
+diff --git a/src/dense_byte_node.rs b/src/dense_byte_node.rs
+index c80f90f..0b7602c 100644
+--- a/src/dense_byte_node.rs
++++ b/src/dense_byte_node.rs
+@@ -490,61 +490,62 @@ impl<V: Clone + Send + Sync, A: Allocator, Cf: CoFree<V=V, A=A>> ByteNode<Cf, A>
+     }
+ 
+     /// Internal method to restrict using nodes of an abstract type
+-    fn prestrict_abstract(&self, other: &dyn TrieNode<V, A>) -> AlgebraicResult<TrieNodeODRc<V, A>> where V: Clone {
+-        let mut is_identity = true;
+-        let mut new_node = Self::new_in(self.alloc.clone());
+-
+-        //Go over each populated entry in the node
+-        self.for_each_item(|self_node, key_byte, cf_idx| {
+-            if other.node_contains_partial_key(&[key_byte]) {
+-                let cf = unsafe{ self_node.values.get_unchecked(cf_idx) };
+-
+-                //If there is a comparable value in other, keep the whole cf
+-                if let Some(_) = other.node_get_val(&[key_byte]) {
+-                    new_node.mask.set_bit(key_byte);
+-                    new_node.values.push(cf.clone());
+-                } else {
++    ///
++    /// `other_mask` holds the first byte of each of `other`'s keys.  Only those bytes can survive, so
++    /// only those are visited, keeping the cost proportional to the narrow `other` node instead of to
++    /// the width of `self`
++    fn prestrict_abstract(&self, other: &dyn TrieNode<V, A>, other_mask: ByteMask) -> AlgebraicResult<TrieNodeODRc<V, A>> where V: Clone {
++        let overlap = self.mask & other_mask;
++        //Restrict is non-commutative: dropping any of `self`'s branches changes the result
++        let mut is_identity = overlap == self.mask;
++        let mut new_node = Self::with_capacity_in(overlap.count_bits(), self.alloc.clone());
++
++        for key_byte in overlap.iter() {
++            let cf = self.get(key_byte).unwrap();
++
++            //If there is a comparable value in other, keep the whole cf
++            if let Some(_) = other.node_get_val(&[key_byte]) {
++                new_node.mask.set_bit(key_byte);
++                new_node.values.push(cf.clone());
++            } else {
+ 
+-                    //Dropping this value changes the destination
+-                    if cf.val().is_some() {
+-                        is_identity = false;
+-                    }
++                //Dropping this value changes the destination
++                if cf.val().is_some() {
++                    is_identity = false;
++                }
+ 
+-                    //If there is an onward link in the CF and other node, continue the restriction recursively
+-                    if let Some(self_child) = cf.rec() {
+-                        let other_child = other.get_node_at_key(&[key_byte]);
+-                        match other_child.try_as_tagged() {
+-                            Some(other_child) => {
+-                                let mut new_cf = Cf::new(None, None);
+-                                match self_child.as_tagged().prestrict_dyn(other_child) {
+-                                    AlgebraicResult::None => { is_identity = false; }
+-                                    AlgebraicResult::Identity(mask) => {
+-                                        debug_assert_eq!(mask, SELF_IDENT); //restrict is not commutative
+-                                        new_cf.set_rec(self_child.clone());
+-                                    },
+-                                    AlgebraicResult::Element(e) => {
+-                                        is_identity = false;
+-                                        new_cf.set_rec(e);
+-                                    },
+-                                }
+-                                if new_cf.has_rec() {
+-                                    new_node.mask.set_bit(key_byte);
+-                                    new_node.values.push(new_cf);
+-                                }
+-                            },
+-                            None => {
+-                                is_identity = false;
++                //If there is an onward link in the CF and other node, continue the restriction recursively
++                if let Some(self_child) = cf.rec() {
++                    let other_child = other.get_node_at_key(&[key_byte]);
++                    match other_child.try_as_tagged() {
++                        Some(other_child) => {
++                            let mut new_cf = Cf::new(None, None);
++                            match self_child.as_tagged().prestrict_dyn(other_child) {
++                                AlgebraicResult::None => { is_identity = false; }
++                                AlgebraicResult::Identity(mask) => {
++                                    debug_assert_eq!(mask, SELF_IDENT); //restrict is not commutative
++                                    new_cf.set_rec(self_child.clone());
++                                },
++                                AlgebraicResult::Element(e) => {
++                                    is_identity = false;
++                                    new_cf.set_rec(e);
++                                },
++                            }
++                            if new_cf.has_rec() {
++                                new_node.mask.set_bit(key_byte);
++                                new_node.values.push(new_cf);
+                             }
++                        },
++                        None => {
++                            is_identity = false;
+                         }
+-                    } else {
+-                        //The target slot is dangling and the restrictor has no value here: drop it
+-                        is_identity = false;
+                     }
++                } else {
++                    //The target slot is dangling and the restrictor has no value here: drop it
++                    is_identity = false;
+                 }
+-            } else {
+-                is_identity = false;
+             }
+-        });
++        }
+         if new_node.is_empty() {
+             AlgebraicResult::None
+         } else {
+@@ -1508,11 +1509,11 @@ impl<V: Clone + Send + Sync, A: Allocator, Cf: CoFree<V=V, A=A>> TrieNode<V, A>
+             },
+             LINE_LIST_NODE_TAG => {
+                 let other_list_node = unsafe { other.as_list_unchecked() };
+-                self.prestrict_abstract(other_list_node)
++                self.prestrict_abstract(other_list_node, other_list_node.node_branches_mask(&[]))
+             },
+             #[cfg(feature = "bridge_nodes")]
+             TaggedNodeRef::BridgeNode(other_bridge_node) => {
+-                self.prestrict_abstract(other_bridge_node)
++                self.prestrict_abstract(other_bridge_node, ByteMask::FULL)
+             },
+             CELL_BYTE_NODE_TAG => {
+                 let other_byte_node = unsafe { other.as_cell_unchecked() };
+@@ -1520,7 +1521,7 @@ impl<V: Clone + Send + Sync, A: Allocator, Cf: CoFree<V=V, A=A>> TrieNode<V, A>
+             },
+             TINY_REF_NODE_TAG => {
+                 let tiny_node = unsafe { other.as_tiny_unchecked() };
+-                self.prestrict_abstract(tiny_node)
++                self.prestrict_abstract(tiny_node, tiny_node.node_branches_mask(&[]))
+             },
+             EMPTY_NODE_TAG => AlgebraicResult::None,
+             _ => unsafe{ unreachable_unchecked() }
+diff --git a/src/tiny_node.rs b/src/tiny_node.rs
+index 1792949..3d3ecb1 100644
+--- a/src/tiny_node.rs
++++ b/src/tiny_node.rs
+@@ -257,8 +257,13 @@ impl<'a, V: Clone + Send + Sync, A: Allocator> TrieNode<V, A> for TinyRefNode<'a
+     fn count_branches(&self, _key: &[u8]) -> usize {
+         panic!();
+     }
+-    fn node_branches_mask(&self, _key: &[u8]) -> ByteMask {
+-        panic!();
++    fn node_branches_mask(&self, key: &[u8]) -> ByteMask {
++        let node_key = self.key();
++        if node_key.len() > key.len() && starts_with(node_key, key) {
++            ByteMask::from(node_key[key.len()])
++        } else {
++            ByteMask::EMPTY
++        }
+     }
+     fn prior_branch_key<'key>(&self, _key: &'key [u8]) -> &'key [u8] {
+         panic!();
+diff --git a/tests/pathmap_algebra_differential.rs b/tests/pathmap_algebra_differential.rs
+index 502c5d1..1f0a2d6 100644
+--- a/tests/pathmap_algebra_differential.rs
++++ b/tests/pathmap_algebra_differential.rs
+@@ -1,6 +1,8 @@
+ use std::collections::BTreeSet;
+ 
+ use pathmap::PathMap;
++use pathmap::ring::AlgebraicStatus;
++use pathmap::zipper::*;
+ 
+ type KeySet = BTreeSet<Vec<u8>>;
+ 
+@@ -61,6 +63,49 @@ fn prefix_heavy_set(seed: u64, salt: u64) -> KeySet {
+     keys
+ }
+ 
++/// Keys under a narrow top, so the upper levels of the trie are dense nodes, holding values and
++/// onward links side by side
++fn wide_set(seed: u64, salt: u64) -> KeySet {
++    let mut state = seed ^ salt;
++    let mut keys = KeySet::new();
++    for _ in 0..FIXED_WIDTH_KEYS * 2 {
++        let length = 1 + (next_u64(&mut state) % 6) as usize;
++        keys.insert((0..length).map(|position| {
++            let byte = (next_u64(&mut state) >> 32) as u8;
++            match position {
++                0 => byte % 4,
++                1 => byte % 32,
++                _ => byte,
++            }
++        }).collect());
++    }
++    keys
++}
++
++/// One to three paths of `left`, each cut short, run past its end, cut short and then diverging,
++/// or left whole.  Being sparse, the restrictor has list or tiny nodes where `left` has dense ones
++fn sparse_restrictor(left: &KeySet, seed: u64) -> KeySet {
++    let mut state = seed;
++    let left: Vec<&Vec<u8>> = left.iter().collect();
++    let mut keys = KeySet::new();
++    for _ in 0..1 + next_u64(&mut state) % 3 {
++        let mut key = left[(next_u64(&mut state) % left.len() as u64) as usize].clone();
++        let cut = 1 + (next_u64(&mut state) % key.len() as u64) as usize;
++        match next_u64(&mut state) % 4 {
++            0 => key.truncate(cut),
++            1 => key.extend_from_slice(&[0x5a, 0xa5]),
++            2 => {
++                key.truncate(cut);
++                key[cut - 1] ^= 0x80;
++                key.push(0x5a);
++            },
++            _ => {},
++        }
++        keys.insert(key);
++    }
++    keys
++}
++
+ fn map_from_set(keys: &KeySet) -> PathMap<()> {
+     let mut map = PathMap::new();
+     for key in keys {
+@@ -252,3 +297,42 @@ fn restrict_matches_btreeset_oracle() {
+         }
+     }
+ }
++
++/// A dense node restricted by a list or tiny node only visits the restrictor's branches.  Check that
++/// skipping the rest of the dense node keeps both the result and the `Identity` status right, also
++/// through `restricting`, which swaps the roles
++#[test]
++fn wide_restricted_by_sparse_matches_btreeset_oracle() {
++    #[cfg(not(miri))]
++    const SEEDS: u64 = 512;
++    #[cfg(miri)]
++    const SEEDS: u64 = 2;
++
++    for seed in 0..SEEDS {
++        let left = wide_set(seed, 0x3c6e_f372_fe94_f82b);
++        let right = sparse_restrictor(&left, seed);
++        let expected = restrict_oracle(&left, &right);
++        let left_map = map_from_set(&left);
++        let mut right_map = map_from_set(&right);
++        //A dangling path validates nothing, even running along a path of `left`
++        right_map.create_path(left.iter().nth(seed as usize % left.len()).unwrap());
++
++        assert_eq!(set_from_map(&left_map.restrict(&right_map)), expected, "restrict seed {seed}");
++
++        let mut restricted = left_map.clone();
++        let status = restricted.write_zipper().restrict(&right_map.read_zipper());
++        assert_eq!(set_from_map(&restricted), expected, "WriteZipper::restrict seed {seed}");
++        let expected_status = if expected.is_empty() {
++            AlgebraicStatus::None
++        } else if expected == left {
++            AlgebraicStatus::Identity
++        } else {
++            AlgebraicStatus::Element
++        };
++        assert_eq!(status, expected_status, "WriteZipper::restrict status seed {seed}");
++
++        let mut stems = right_map.clone();
++        assert!(stems.write_zipper().restricting(&left_map.read_zipper()));
++        assert_eq!(set_from_map(&stems), expected, "WriteZipper::restricting seed {seed}");
++    }
++}

@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/Adam-Vandervorst/PathMap",
+  "base": "f3e442ed19025582aced71c598a0359b3b469e45",
+  "applied": [
+    "4a399a3a038bccc8aa53b9c1613f9dbf4ed94ff1"
+  ],
+  "notes": "Unmodified source and derive crate from PR #171 with PR #172 cherry-picked. Cargo manifest omits upstream benchmark/example targets and benchmark-only dev dependencies. No combined upstream revision exists."
+}

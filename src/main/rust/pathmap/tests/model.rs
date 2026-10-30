@@ -1,3 +1,4 @@
+use num_bigint::BigUint;
 use std::collections::BTreeSet;
 use zippy_pathmap::*;
 type Set = BTreeSet<Vec<u8>>;
@@ -42,6 +43,35 @@ fn algebra_against_independent_path_sets() {
         let b = generate();
         let am = map(&a);
         let bm = map(&b);
+        let av = am.read_zipper();
+        let bv = bm.read_zipper();
+        assert!(equal(&av, &am));
+        for (borrowed, owned) in [
+            (unite(&av, &bv), unite(&am, &bm)),
+            (intersect(&av, &bv), intersect(&am, &bm)),
+            (subtract(&av, &bv), subtract(&am, &bm)),
+            (restrict_to(&av, &bv), restrict_to(&am, &bm)),
+            (raffine(&av, &bv), raffine(&am, &bm)),
+            (compose(&av, &bv), compose(&am, &bm)),
+            (prefix_closure(&av), prefix_closure(&am)),
+            (suffix_closure(&av, true), suffix_closure(&am, true)),
+            (range_const::<0, 5>(&av), range(&am, 0, 5)),
+        ] {
+            assert!(equal(&borrowed, &owned));
+        }
+        assert_eq!(equal(&am, &bm), a == b);
+        assert!(equal(&am, &am.clone()));
+        let mut reversed = Space::new();
+        for p in a.iter().rev() {
+            reversed.set_val_at(p, ());
+        }
+        assert!(equal(&am, &reversed));
+        // Equal languages can have different physical nodes after deletion.
+        reversed.set_val_at([255, 255, 255], ());
+        reversed
+            .write_zipper_at_path(&[255, 255, 255])
+            .remove_val(true);
+        assert!(equal(&am, &reversed));
         let terminated = a
             .iter()
             .filter_map(|p| p.iter().position(|b| *b == 0).map(|i| p[..=i].to_vec()))
@@ -139,6 +169,23 @@ fn algebra_against_independent_path_sets() {
             );
         }
         let v = a.iter().cloned().collect::<Vec<_>>();
+        macro_rules! specialized {
+            ($lo:expr,$hi:expr) => {
+                assert!(equal(
+                    &range_const::<{ $lo }, { $hi }>(&am),
+                    &range(&am, $lo, $hi)
+                ));
+            };
+        }
+        specialized!(0, 0);
+        specialized!(0, 1);
+        specialized!(0, 10);
+        specialized!(1, 2);
+        specialized!(2, 0);
+        specialized!(3, 8);
+        specialized!(-1, 0);
+        specialized!(-10, 0);
+        specialized!(i32::MIN, 0);
         for (lo, hi) in [
             (0, 0),
             (0, 1),
@@ -183,9 +230,48 @@ fn compact_products_have_exact_unbounded_cardinality_and_ranges() {
         a = compose(&a, &factor);
     }
     assert_eq!(count(&a).to_string(), "1208925819614629174706176");
+    let mut independently_built = singleton(&[]);
+    for _ in 0..80 {
+        independently_built = compose(&independently_built, &factor);
+    }
+    assert!(equal(&a, &independently_built));
+    independently_built.set_val_at([], ());
+    assert!(!equal(&a, &independently_built));
+    independently_built.write_zipper().remove_val(true);
+    independently_built.set_val_at([0; 79], ());
+    assert!(!equal(&a, &independently_built));
     same(range(&a, -1, 0), [vec![255; 80]].into());
     same(range(&a, 0, 1), [vec![0; 80]].into());
+    same(range_const::<0, 1>(&a), [vec![0; 80]].into());
+    same(range_const::<-1, 0>(&a), [vec![255; 80]].into());
+    assert_eq!(count(&range_const::<0, 1000>(&a)), BigUint::from(1000u32));
+    assert_eq!(count(&range_const::<-1000, 0>(&a)), BigUint::from(1000u32));
     assert_eq!(count(&range(&a, 2, -1)), count(&a) - 2u32);
+    // Every internal prefix is valued and shared. The focus terminal is stored
+    // outside its node and must participate separately in comparison/count keys.
+    let closed = prefix_closure(&a);
+    let independent_closed = prefix_closure(&a);
+    assert!(equal(&closed, &independent_closed));
+    assert_eq!(count(&closed), (BigUint::from(1u32) << 81) - 2u32);
+    assert!(equal(&prefix_closure(&closed), &closed));
+    let two = compose(&factor, &factor);
+    let mut grouped = singleton(&[]);
+    for _ in 0..40 {
+        grouped = compose(&grouped, &two);
+    }
+    assert!(equal(&a, &grouped));
+    // Suffix union uses native algebra; this bounded case covers overlapping
+    // accepted lengths without assuming that native algebra minimizes its DAG.
+    let mut bounded = singleton(&[]);
+    for _ in 0..12 {
+        bounded = compose(&bounded, &factor);
+    }
+    let suffixes = suffix_closure(&bounded, true);
+    assert_eq!(count(&suffixes), (BigUint::from(1u32) << 13) - 1u32);
+    assert!(equal(
+        &range_const::<0, 1000>(&closed),
+        &range(&closed, 0, 1000)
+    ));
 }
 
 #[test]
@@ -221,8 +307,14 @@ fn proven_codeword_selectors_preserve_ordinal_order() {
             &first_fibonacci(&a, 200, 13, false),
             &first_listed(&a, &codes, false)
         ));
-        assert_eq!(ordered_fibonacci(&a, 200, 13, false), selected);
-        assert_eq!(ordered_listed(&a, &codes, false), selected);
+        assert_eq!(
+            ordered_fibonacci(&a, 200, 13, false).collect::<Vec<_>>(),
+            selected
+        );
+        assert_eq!(
+            ordered_listed(&a, &codes, false).collect::<Vec<_>>(),
+            selected
+        );
         let with_tail = compose(&a, &singleton(&[255]));
         assert!(equal(
             &first_fibonacci(&with_tail, 200, 13, true),
@@ -231,11 +323,27 @@ fn proven_codeword_selectors_preserve_ordinal_order() {
         assert!(first_fibonacci(&with_tail, 200, 13, false).is_empty());
         let allowed = map(&codes.iter().map(|p| p.to_vec()).collect());
         let lexical = set.iter().cloned().map(Path::from).collect::<Vec<_>>();
-        assert_eq!(ordered_fibonacci(&with_tail, 200, 13, true), selected);
-        assert_eq!(ordered_listed(&with_tail, &codes, true), selected);
-        assert_eq!(ordered_matching(&a, &allowed, false), lexical);
-        assert_eq!(ordered_matching(&with_tail, &allowed, true), lexical);
-        assert!(ordered_matching(&with_tail, &allowed, false).is_empty());
+        assert_eq!(
+            ordered_fibonacci(&with_tail, 200, 13, true).collect::<Vec<_>>(),
+            selected
+        );
+        assert_eq!(
+            ordered_listed(&with_tail, &codes, true).collect::<Vec<_>>(),
+            selected
+        );
+        assert_eq!(
+            ordered_matching(&a, &allowed, false).collect::<Vec<_>>(),
+            lexical
+        );
+        assert_eq!(
+            ordered_matching(&with_tail, &allowed, true).collect::<Vec<_>>(),
+            lexical
+        );
+        assert!(
+            ordered_matching(&with_tail, &allowed, false)
+                .collect::<Vec<_>>()
+                .is_empty()
+        );
         let expected = set.iter().next().map_or(Space::new(), |p| singleton(p));
         assert!(equal(
             &first_matching(&with_tail, &allowed, true),

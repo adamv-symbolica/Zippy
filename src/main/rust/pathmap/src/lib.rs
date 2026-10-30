@@ -2,6 +2,7 @@
 //! instruction, environment, or encoding-boundary metadata lives in a space.
 use num_bigint::BigUint;
 use num_traits::{One, Zero};
+use pathmap::utils::BitMask;
 use pathmap::{PathMap, morphisms::Catamorphism};
 pub use pathmap::{ring::Lattice, zipper::*};
 use std::io::{self, Write};
@@ -9,6 +10,123 @@ use std::time::Instant;
 
 pub type Space = PathMap<()>;
 pub type Path = smallvec::SmallVec<[u8; 8]>;
+pub type View<'a, 'p> = ReadZipperUntracked<'a, 'p, ()>;
+
+/// Statically dispatched borrowed input. A loop tail is a read zipper; an owned
+/// map is materialized only for an output or an ordinary function boundary.
+pub trait ReadSpace {
+    #[inline]
+    fn read_zipper(&self) -> View<'_, '_>;
+    #[inline]
+    fn as_map(&self) -> Option<&Space> {
+        None
+    }
+    #[inline]
+    fn make_space(&self) -> Space {
+        self.read_zipper().make_map()
+    }
+    #[inline]
+    fn read_zipper_at_path(&self, path: impl AsRef<[u8]>) -> View<'_, '_> {
+        let mut z = self.read_zipper();
+        z.descend_to(path);
+        z
+    }
+    #[inline]
+    fn is_empty(&self) -> bool {
+        let z = self.read_zipper();
+        !z.is_val() && z.child_count() == 0
+    }
+    #[inline]
+    fn join(&self, other: &impl ReadSpace) -> Space {
+        if let (Some(a), Some(b)) = (self.as_map(), other.as_map()) {
+            return a.join(b);
+        }
+        let mut out = self.make_space();
+        out.write_zipper().join_into(&other.read_zipper());
+        out
+    }
+    #[inline]
+    fn meet(&self, other: &impl ReadSpace) -> Space {
+        if let (Some(a), Some(b)) = (self.as_map(), other.as_map()) {
+            return a.meet(b);
+        }
+        let mut out = self.make_space();
+        out.write_zipper().meet_into(&other.read_zipper(), true);
+        out
+    }
+    #[inline]
+    fn subtract(&self, other: &impl ReadSpace) -> Space {
+        if let (Some(a), Some(b)) = (self.as_map(), other.as_map()) {
+            return a.subtract(b);
+        }
+        let mut out = self.make_space();
+        out.write_zipper().subtract_into(&other.read_zipper(), true);
+        out
+    }
+    #[inline]
+    fn restrict(&self, other: &impl ReadSpace) -> Space {
+        if let (Some(a), Some(b)) = (self.as_map(), other.as_map()) {
+            return a.restrict(b);
+        }
+        let mut out = self.make_space();
+        out.write_zipper().restrict(&other.read_zipper());
+        out
+    }
+}
+impl ReadSpace for Space {
+    #[inline]
+    fn read_zipper(&self) -> View<'_, '_> {
+        Space::read_zipper(self)
+    }
+    #[inline]
+    fn as_map(&self) -> Option<&Space> {
+        Some(self)
+    }
+    #[inline]
+    fn make_space(&self) -> Space {
+        self.clone()
+    }
+}
+impl ReadSpace for View<'_, '_> {
+    #[inline]
+    fn read_zipper(&self) -> View<'_, '_> {
+        self.fork_read_zipper()
+    }
+}
+
+// PathMap intentionally withholds shared_node_id at valued focuses: the
+// terminal lives outside the shared node. For unit-valued tries we can identify
+// the branches separately and include terminal presence in a memoization key.
+// This uses public APIs and never mutates the source or allocates a new node.
+#[inline]
+fn branches_id<Z: ZipperConcrete + ZipperInfallibleSubtries<()>>(z: &Z) -> Option<u64> {
+    z.shared_node_id().or_else(|| {
+        if !z.is_val() || !z.is_shared() || z.child_count() == 0 {
+            return None;
+        }
+        let mut branches = z.make_map();
+        branches.remove_val_at([], false);
+        branches.read_zipper().shared_node_id()
+    })
+}
+#[inline]
+fn memo_key<Z: ZipperConcrete + ZipperInfallibleSubtries<()>>(z: &Z) -> Option<(u64, bool)> {
+    branches_id(z).map(|id| (id, z.is_val()))
+}
+
+type Anchor = (u64, usize);
+type Position = (u64, Path, bool);
+#[inline]
+fn anchor<Z: ZipperConcrete + ZipperInfallibleSubtries<()> + ZipperPath>(
+    z: &Z,
+    previous: Option<Anchor>,
+) -> Option<Anchor> {
+    branches_id(z).map(|id| (id, z.path().len())).or(previous)
+}
+#[inline]
+fn position(z: &impl ZipperPath, at: Anchor) -> Position {
+    (at.0, Path::from_slice(&z.path()[at.1..]), z.is_val())
+}
 
 #[inline]
 pub fn singleton(p: &[u8]) -> Space {
@@ -24,33 +142,33 @@ pub fn concat_path(a: &[u8], b: &[u8]) -> Path {
     out
 }
 #[inline]
-pub fn unite(a: &Space, b: &Space) -> Space {
+pub fn unite(a: &impl ReadSpace, b: &impl ReadSpace) -> Space {
     a.join(b)
 }
 #[inline]
-pub fn intersect(a: &Space, b: &Space) -> Space {
+pub fn intersect(a: &impl ReadSpace, b: &impl ReadSpace) -> Space {
     a.meet(b)
 }
 #[inline]
-pub fn subtract(a: &Space, b: &Space) -> Space {
+pub fn subtract(a: &impl ReadSpace, b: &impl ReadSpace) -> Space {
     a.subtract(b)
 }
 #[inline]
-pub fn restrict_to(a: &Space, b: &Space) -> Space {
+pub fn restrict_to(a: &impl ReadSpace, b: &impl ReadSpace) -> Space {
     a.restrict(b)
 }
 #[inline]
-pub fn raffine(a: &Space, b: &Space) -> Space {
+pub fn raffine(a: &impl ReadSpace, b: &impl ReadSpace) -> Space {
     let mut prefix = b.read_zipper();
     if prefix.is_val() {
         return Space::new();
     }
     if !prefix.to_next_val() {
-        return a.clone();
+        return a.make_space();
     }
     let path = Path::from_slice(prefix.path());
     if !prefix.to_next_val() {
-        let mut out = a.clone();
+        let mut out = a.make_space();
         let mut w = out.write_zipper();
         w.descend_to(&path);
         w.remove_subtrie(true);
@@ -60,47 +178,137 @@ pub fn raffine(a: &Space, b: &Space) -> Space {
     a.subtract(&a.restrict(b))
 }
 #[inline]
-pub fn equal(a: &Space, b: &Space) -> bool {
-    // Algebra recognizes shared subtries; it does not enumerate paths.
-    a.subtract(b).is_empty() && b.subtract(a).is_empty()
+pub fn equal(a: &impl ReadSpace, b: &impl ReadSpace) -> bool {
+    if a.as_map()
+        .zip(b.as_map())
+        .is_some_and(|(a, b)| std::ptr::eq(a, b))
+    {
+        return true;
+    }
+    // Exact lockstep comparison without constructing a union or differences.
+    // Track offsets within shared nodes too: the two tries need not have the
+    // same physical node boundaries or the same compressed representation.
+    struct Frame {
+        children: pathmap::utils::ByteMaskIter,
+        left: Option<Anchor>,
+        right: Option<Anchor>,
+    }
+    let mut left = a.read_zipper();
+    let mut right = b.read_zipper();
+    let mut la = None;
+    let mut ra = None;
+    let mut parents: smallvec::SmallVec<[Frame; 32]> = smallvec::SmallVec::new();
+    let mut seen = std::collections::HashSet::new();
+    loop {
+        if left.is_val() != right.is_val() {
+            return false;
+        }
+        la = anchor(&left, la);
+        ra = anchor(&right, ra);
+        let same_node = la
+            .zip(ra)
+            .is_some_and(|(l, r)| l.0 == r.0 && left.path()[l.1..] == right.path()[r.1..]);
+        let lm = left.child_mask();
+        let rm = right.child_mask();
+        let repeated = if !same_node && lm.count_bits() > 1 {
+            la.zip(ra)
+                .is_some_and(|(l, r)| !seen.insert((position(&left, l), position(&right, r))))
+        } else {
+            false
+        };
+        if !same_node && !repeated {
+            if lm != rm {
+                // Dangling nonterminal paths are not accepted words.
+                for byte in lm.andn(&rm).iter() {
+                    let mut z = left.fork_read_zipper();
+                    z.descend_to_byte(byte);
+                    if z.is_val() || z.to_next_val() {
+                        return false;
+                    }
+                }
+                for byte in rm.andn(&lm).iter() {
+                    let mut z = right.fork_read_zipper();
+                    z.descend_to_byte(byte);
+                    if z.is_val() || z.to_next_val() {
+                        return false;
+                    }
+                }
+            }
+            let mut children = (lm & rm).iter();
+            if let Some(byte) = children.next() {
+                parents.push(Frame {
+                    children,
+                    left: la,
+                    right: ra,
+                });
+                left.descend_to_byte(byte);
+                right.descend_to_byte(byte);
+                continue;
+            }
+        }
+        loop {
+            let Some(parent) = parents.last_mut() else {
+                return true;
+            };
+            left.ascend(1);
+            right.ascend(1);
+            la = parent.left;
+            ra = parent.right;
+            if let Some(byte) = parent.children.next() {
+                left.descend_to_byte(byte);
+                right.descend_to_byte(byte);
+                break;
+            }
+            parents.pop();
+        }
+    }
 }
 #[inline]
-pub fn wrap(a: &Space, p: &[u8]) -> Space {
+pub fn wrap(a: &impl ReadSpace, p: &[u8]) -> Space {
     if a.is_empty() || p.is_empty() {
-        return a.clone();
+        return a.make_space();
     }
-    let mut out = a.clone();
+    let mut out = a.make_space();
     out.write_zipper().insert_prefix(p);
     out
 }
 #[inline]
-pub fn unwrap(a: &Space, p: &[u8]) -> Space {
+pub fn unwrap(a: &impl ReadSpace, p: &[u8]) -> Space {
     if p.is_empty() {
-        return a.clone();
+        return a.make_space();
     }
     a.read_zipper_at_path(p).make_map()
 }
 #[inline]
-pub fn tails_union(a: &Space) -> Space {
-    let mut out = a.clone();
+pub fn tails_union(a: &impl ReadSpace) -> Space {
+    let mut out = a.make_space();
     out.write_zipper().join_k_path_into(1, true);
     out
 }
 #[inline]
-pub fn tails_intersection(a: &Space) -> Space {
-    let mut out = a.clone();
+pub fn tails_intersection(a: &impl ReadSpace) -> Space {
+    let mut out = a.make_space();
     out.write_zipper().meet_k_path_into(1, true);
     out
 }
 #[inline]
-pub fn has_head(a: &Space) -> bool {
+pub fn has_head(a: &impl ReadSpace) -> bool {
     a.read_zipper().child_count() != 0
 }
-pub fn head_space(a: &Space) -> Space {
+pub fn head_space(a: &impl ReadSpace) -> Space {
+    static ALPHABET: std::sync::LazyLock<Space> = std::sync::LazyLock::new(|| {
+        let mut map = Space::new();
+        for byte in 0..=255u8 {
+            map.set_val_at([byte], ());
+        }
+        map
+    });
     let mut out = Space::new();
-    for b in a.read_zipper().child_mask().iter() {
-        out.set_val_at([b], ());
-    }
+    out.write_zipper().graft_masked_branches(
+        &ALPHABET.read_zipper(),
+        a.read_zipper().child_mask(),
+        true,
+    );
     out
 }
 
@@ -125,82 +333,121 @@ fn node(children: &mut [Space], mask: &pathmap::utils::ByteMask, value: bool) ->
     }
     out
 }
-pub fn compose(a: &Space, b: &Space) -> Space {
+pub fn compose(a: &impl ReadSpace, b: &impl ReadSpace) -> Space {
     if a.is_empty() || b.is_empty() {
         return Space::new();
     }
     a.read_zipper()
         .into_cata_jumping_cached(|mask, children, val, path| {
             let below = node(children, mask, false);
-            let joined = if val.is_some() { below.join(b) } else { below };
+            let joined = if val.is_some() {
+                unite(&below, b)
+            } else {
+                below
+            };
             wrap(&joined, path)
         })
 }
-pub fn prefix_closure(a: &Space) -> Space {
-    // Stepping adds a terminal at every productive prefix, including epsilon.
-    let mut out = a
-        .read_zipper()
-        .into_cata_cached(|mask, children: &mut [Space], val| {
-            let productive = val.is_some() || children.iter().any(|s| !s.is_empty());
-            node(children, mask, productive)
-        });
+
+// Keep input subtries borrowed and memoize every shared physical state,
+// including nodes with terminals. Suffix closure grafts the original residual
+// directly, rather than reconstructing an auxiliary original trie at each byte.
+fn closure<const PREFIX: bool>(a: &impl ReadSpace) -> Space {
+    struct Frame {
+        children: pathmap::utils::ByteMaskIter,
+        out: Space,
+        key: Option<(u64, bool)>,
+    }
+    fn frame<const P: bool>(z: &View<'_, '_>) -> Frame {
+        Frame {
+            children: z.child_mask().iter(),
+            key: memo_key(z),
+            out: if P {
+                if z.is_val() {
+                    singleton(&[])
+                } else {
+                    Space::new()
+                }
+            } else {
+                z.make_map()
+            },
+        }
+    }
+    fn accept<const P: bool>(out: &mut Space, child: Space, byte: u8) {
+        if child.is_empty() {
+            return;
+        }
+        if P {
+            out.set_val_at([], ());
+            out.write_zipper_at_path(&[byte]).graft_map(child);
+        } else {
+            out.join_into(child);
+        }
+    }
+    let mut z = a.read_zipper();
+    let mut cache = std::collections::HashMap::<(u64, bool), Space>::new();
+    let mut stack: smallvec::SmallVec<[Frame; 32]> = smallvec::smallvec![frame::<PREFIX>(&z)];
+    loop {
+        if let Some(byte) = stack.last_mut().unwrap().children.next() {
+            z.descend_to_byte(byte);
+            if let Some(child) = memo_key(&z).and_then(|key| cache.get(&key)) {
+                accept::<PREFIX>(&mut stack.last_mut().unwrap().out, child.clone(), byte);
+                z.ascend(1);
+            } else {
+                stack.push(frame::<PREFIX>(&z));
+            }
+        } else {
+            let frame = stack.pop().unwrap();
+            if let Some(key) = frame.key {
+                cache.insert(key, frame.out.clone());
+            }
+            if let Some(parent) = stack.last_mut() {
+                let byte = *z.path().last().unwrap();
+                accept::<PREFIX>(&mut parent.out, frame.out, byte);
+                z.ascend(1);
+            } else {
+                return frame.out;
+            }
+        }
+    }
+}
+pub fn prefix_closure(a: &impl ReadSpace) -> Space {
+    let mut out = closure::<true>(a);
     out.remove_val_at([], true);
     out
 }
-pub fn suffix_closure(a: &Space, include_empty: bool) -> Space {
-    let (_, mut out) =
-        a.read_zipper()
-            .into_cata_cached(|mask, children: &mut [(Space, Space)], val| {
-                let mut original = Space::new();
-                let mut suffixes = Space::new();
-                if val.is_some() {
-                    original.set_val_at([], ());
-                    suffixes.set_val_at([], ());
-                }
-                {
-                    let mut w = original.write_zipper();
-                    for (b, (child, suffix)) in mask.iter().zip(children.iter_mut()) {
-                        if !child.is_empty() {
-                            w.descend_to_byte(b);
-                            w.graft_map(child.clone());
-                            w.ascend(1);
-                        }
-                        suffixes.join_into(std::mem::take(suffix));
-                    }
-                }
-                suffixes.join_into(original.clone());
-                (original, suffixes)
-            });
+pub fn suffix_closure(a: &impl ReadSpace, include_empty: bool) -> Space {
+    let mut out = closure::<false>(a);
     if !include_empty {
         out.remove_val_at([], true);
     }
     out
 }
 
-pub fn count(a: &Space) -> BigUint {
+pub fn count(a: &impl ReadSpace) -> BigUint {
     // Observe physical node boundaries inside unary stems as well as forks.
     // A jumping cata can skip the shared suffix root in a Cartesian product,
     // then recount that suffix for every left-hand path.
     struct Frame {
         children: pathmap::utils::ByteMaskIter,
         total: BigUint,
-        id: Option<u64>,
+        id: Option<(u64, bool)>,
     }
     let mut z = a.read_zipper();
-    let mut cache = std::collections::HashMap::<u64, BigUint>::new();
-    let mut stack = vec![Frame {
+    let mut cache = std::collections::HashMap::<(u64, bool), BigUint>::new();
+    let mut stack: smallvec::SmallVec<[Frame; 32]> = smallvec::smallvec![Frame {
         children: z.child_mask().iter(),
         total: if z.is_val() {
             BigUint::one()
         } else {
             BigUint::zero()
         },
-        id: z.shared_node_id(),
+        id: memo_key(&z),
     }];
     loop {
         if let Some(b) = stack.last_mut().unwrap().children.next() {
             z.descend_to_byte(b);
-            let id = z.shared_node_id();
+            let id = memo_key(&z);
             if let Some(value) = id.and_then(|id| cache.get(&id)) {
                 stack.last_mut().unwrap().total += value;
                 z.ascend(1);
@@ -232,7 +479,7 @@ pub fn count(a: &Space) -> BigUint {
 
 /// Rank selection visits boundary branches only; whole interior subtries are
 /// grafted. BigUint bounds keep negative slices correct even above usize::MAX.
-pub fn range(a: &Space, lo: i32, hi: i32) -> Space {
+pub fn range(a: &impl ReadSpace, lo: i32, hi: i32) -> Space {
     let total = count(a);
     fn bound(v: i64, total: &BigUint) -> BigUint {
         if v < 0 {
@@ -262,9 +509,9 @@ pub fn range(a: &Space, lo: i32, hi: i32) -> Space {
     if start >= end {
         return Space::new();
     }
-    fn select(a: &Space, start: &BigUint, end: &BigUint, total: &BigUint) -> Space {
+    fn select(a: &impl ReadSpace, start: &BigUint, end: &BigUint, total: &BigUint) -> Space {
         if start.is_zero() && end == total {
-            return a.clone();
+            return a.make_space();
         }
         let mut out = Space::new();
         let z = a.read_zipper();
@@ -302,37 +549,188 @@ pub fn range(a: &Space, lo: i32, hi: i32) -> Space {
     select(a, &start, &end, &total)
 }
 
-pub fn paths_text(text: &str) -> Vec<Path> {
+// Bounded rank selection needs neither a total BigUint count nor an enumeration
+// of the selected words. Counts saturate at cap and whole subtries are grafted.
+fn limited_count<Z: ZipperMoving + ZipperConcrete + ZipperInfallibleSubtries<()>>(
+    z: &mut Z,
+    cap: u64,
+    cache: &mut std::collections::HashMap<(u64, bool), u64>,
+) -> u64 {
+    let id = memo_key(z);
+    if let Some(n) = id.and_then(|id| cache.get(&id)) {
+        return *n;
+    }
+    let mut n = u64::from(z.is_val());
+    for byte in z.child_mask().iter() {
+        z.descend_to_byte(byte);
+        n = n.saturating_add(limited_count(z, cap, cache)).min(cap);
+        z.ascend(1);
+        if n == cap {
+            break;
+        }
+    }
+    if let Some(id) = id {
+        cache.insert(id, n);
+    }
+    n
+}
+fn forward_slice<Z: ZipperMoving + ZipperConcrete + ZipperInfallibleSubtries<()>>(
+    z: &mut Z,
+    start: u64,
+    end: u64,
+    cap: u64,
+    cache: &mut std::collections::HashMap<(u64, bool), u64>,
+) -> Space {
+    let mut out = Space::new();
+    if start >= end {
+        return out;
+    }
+    let mut offset = u64::from(z.is_val());
+    if z.is_val() && start == 0 {
+        out.set_val_at([], ());
+    }
+    for byte in z.child_mask().iter() {
+        if offset >= end {
+            break;
+        }
+        z.descend_to_byte(byte);
+        let n = limited_count(z, cap, cache);
+        let stop = offset.saturating_add(n);
+        if stop > start {
+            if offset >= start && stop <= end && n < cap {
+                out.write_zipper_at_path(&[byte]).graft(z);
+            } else {
+                let selected =
+                    forward_slice(z, start.saturating_sub(offset), end - offset, cap, cache);
+                if !selected.is_empty() {
+                    out.write_zipper_at_path(&[byte]).graft_map(selected);
+                }
+            }
+        }
+        z.ascend(1);
+        offset = stop;
+    }
+    out
+}
+fn last_slice<Z: ZipperMoving + ZipperConcrete + ZipperInfallibleSubtries<()>>(
+    z: &mut Z,
+    remaining: &mut u64,
+    cap: u64,
+    cache: &mut std::collections::HashMap<(u64, bool), u64>,
+) -> Space {
+    let mut out = Space::new();
+    let mask = z.child_mask();
+    let mut byte = mask.indexed_bit::<false>(0);
+    while *remaining > 0 {
+        let Some(b) = byte else { break };
+        z.descend_to_byte(b);
+        let n = limited_count(z, cap, cache);
+        if n <= *remaining && n < cap {
+            out.write_zipper_at_path(&[b]).graft(z);
+            *remaining -= n;
+        } else {
+            let selected = last_slice(z, remaining, cap, cache);
+            if !selected.is_empty() {
+                out.write_zipper_at_path(&[b]).graft_map(selected);
+            }
+        }
+        z.ascend(1);
+        byte = mask.prev_bit(b);
+    }
+    if *remaining > 0 && z.is_val() {
+        out.set_val_at([], ());
+        *remaining -= 1;
+    }
+    out
+}
+
+/// Every generated Range has compile-time bounds. Specialize edge selections
+/// before falling back to the exact unbounded signed-rank implementation.
+#[inline]
+pub fn range_const<const LO: i32, const HI: i32>(a: &impl ReadSpace) -> Space {
+    if LO >= 0 && HI >= 0 {
+        let start = if LO > 0 { LO as u64 - 1 } else { 0 };
+        if HI == 0 {
+            if start == 0 {
+                return a.make_space();
+            }
+            let before = forward_slice(
+                &mut a.read_zipper(),
+                0,
+                start,
+                start + 1,
+                &mut Default::default(),
+            );
+            return a.subtract(&before);
+        }
+        let end = HI as u64 - u64::from(LO != 0);
+        if start >= end {
+            return Space::new();
+        }
+        if start == 0 && end == 1 {
+            let mut z = a.read_zipper();
+            return if z.is_val() || z.to_next_val() {
+                singleton(z.path())
+            } else {
+                Space::new()
+            };
+        }
+        return forward_slice(
+            &mut a.read_zipper(),
+            start,
+            end,
+            end + 1,
+            &mut Default::default(),
+        );
+    }
+    if LO < 0 && HI == 0 {
+        if LO == -1 {
+            let mut z = a.read_zipper();
+            z.descend_last_path();
+            if z.is_val() {
+                return singleton(z.path());
+            }
+            // A foreign map can contain dangling paths; the bounded fallback
+            // finds the final terminal even when its final structural path is empty.
+        }
+        let mut n = -(LO as i64) as u64;
+        let cap = n + 1;
+        return last_slice(&mut a.read_zipper(), &mut n, cap, &mut Default::default());
+    }
+    range(a, LO, HI)
+}
+
+pub fn literal_text(text: &str) -> Space {
     let mut tokens = text.split_whitespace();
     let n: usize = tokens.next().unwrap().parse().unwrap();
-    (0..n)
-        .map(|_| {
-            let k: usize = tokens.next().unwrap().parse().unwrap();
-            (0..k)
-                .map(|_| tokens.next().unwrap().parse::<u8>().unwrap())
-                .collect()
-        })
-        .collect()
-}
-pub fn literal_text(text: &str) -> Space {
     let mut out = Space::new();
-    for p in paths_text(text) {
-        out.set_val_at(p, ());
+    let mut path = Path::new();
+    for _ in 0..n {
+        path.clear();
+        let k: usize = tokens.next().unwrap().parse().unwrap();
+        path.extend((0..k).map(|_| tokens.next().unwrap().parse::<u8>().unwrap()));
+        out.set_val_at(&path, ());
     }
     out
 }
-pub fn enumerate(a: &Space) -> Vec<Path> {
-    let mut out = Vec::new();
-    let mut z = a.read_zipper();
-    if z.is_val() {
-        out.push(Path::new());
-    }
-    while z.to_next_val() {
-        out.push(Path::from_slice(z.path()));
-    }
-    out
+pub struct Paths {
+    z: ReadZipperOwned<()>,
+    first: bool,
 }
-pub fn singleton_path(a: &Space) -> Path {
+impl Iterator for Paths {
+    type Item = Path;
+    fn next(&mut self) -> Option<Path> {
+        let root = std::mem::replace(&mut self.first, false) && self.z.is_val();
+        (root || self.z.to_next_val()).then(|| Path::from_slice(self.z.path()))
+    }
+}
+pub fn enumerate(a: &impl ReadSpace) -> Paths {
+    Paths {
+        z: a.make_space().into_read_zipper([]),
+        first: true,
+    }
+}
+pub fn singleton_path(a: &impl ReadSpace) -> Path {
     let mut z = a.read_zipper();
     let p = if z.is_val() {
         Path::new()
@@ -343,263 +741,263 @@ pub fn singleton_path(a: &Space) -> Path {
     assert!(!z.to_next_val(), "grounded path returned multiple paths");
     p
 }
-pub fn first_listed(a: &Space, allowed: &[Path], prefix: bool) -> Space {
+pub fn first_listed<P: AsRef<[u8]>>(a: &impl ReadSpace, allowed: &[P], prefix: bool) -> Space {
     for p in allowed {
-        let present = if prefix {
-            !unwrap(a, p).is_empty()
-        } else {
-            a.val_at(p).is_some()
-        };
-        if present {
-            return singleton(p);
+        let z = a.read_zipper_at_path(p.as_ref());
+        if z.is_val() || (prefix && z.child_count() != 0) {
+            return singleton(p.as_ref());
         }
     }
     Space::new()
 }
-pub fn ordered_listed(a: &Space, allowed: &[Path], prefix: bool) -> Vec<Path> {
-    allowed
-        .iter()
-        .filter(|p| {
-            if prefix {
-                !unwrap(a, p).is_empty()
-            } else {
-                a.val_at(p).is_some()
-            }
-        })
-        .cloned()
-        .collect()
+pub struct ListedHeads<'a, P> {
+    source: Space,
+    allowed: std::slice::Iter<'a, P>,
+    prefix: bool,
 }
-pub fn ordered_terminated(a: &Space) -> Vec<Path> {
-    fn visit(z: &mut impl ZipperMoving, path: &mut Path, out: &mut Vec<Path>) {
-        for b in z.child_mask().iter() {
-            path.push(b);
-            if b == 0 {
-                out.push(path.clone());
-            } else {
-                z.descend_to_byte(b);
-                visit(z, path, out);
-                z.ascend(1);
+impl<P: AsRef<[u8]>> Iterator for ListedHeads<'_, P> {
+    type Item = Path;
+    fn next(&mut self) -> Option<Path> {
+        for p in self.allowed.by_ref() {
+            let z = self.source.read_zipper_at_path(p.as_ref());
+            if z.is_val() || (self.prefix && z.child_count() != 0) {
+                return Some(Path::from_slice(p.as_ref()));
             }
-            path.pop();
         }
-    }
-    let mut out = Vec::new();
-    visit(&mut a.read_zipper(), &mut Path::new(), &mut out);
-    out
-}
-pub fn first_terminated(a: &Space) -> Space {
-    fn visit(z: &mut impl ZipperMoving, path: &mut Path) -> bool {
-        for b in z.child_mask().iter() {
-            path.push(b);
-            if b == 0 {
-                return true;
-            }
-            z.descend_to_byte(b);
-            if visit(z, path) {
-                return true;
-            }
-            z.ascend(1);
-            path.pop();
-        }
-        false
-    }
-    let mut path = Path::new();
-    if visit(&mut a.read_zipper(), &mut path) {
-        singleton(&path)
-    } else {
-        Space::new()
+        None
     }
 }
-pub fn ordered_matching(a: &Space, allowed: &Space, prefix: bool) -> Vec<Path> {
-    fn visit(a: &Space, codes: &Space, prefix: bool, path: &mut Path, out: &mut Vec<Path>) {
-        if a.is_empty() {
-            return;
-        }
-        let az = a.read_zipper();
-        let cz = codes.read_zipper();
-        if cz.is_val() && (prefix || az.is_val()) {
-            out.push(path.clone());
-        }
-        for b in (az.child_mask() & cz.child_mask()).iter() {
-            path.push(b);
-            visit(&unwrap(a, &[b]), &unwrap(codes, &[b]), prefix, path, out);
-            path.pop();
-        }
-    }
-    let mut out = Vec::new();
-    visit(a, allowed, prefix, &mut Path::new(), &mut out);
-    out
-}
-pub fn first_matching(a: &Space, allowed: &Space, prefix: bool) -> Space {
-    if !prefix {
-        return range(&a.meet(allowed), 0, 1);
-    }
-    fn search(a: &Space, codes: &Space, path: &mut Path) -> bool {
-        if a.is_empty() {
-            return false;
-        }
-        let az = a.read_zipper();
-        let cz = codes.read_zipper();
-        if cz.is_val() {
-            return true;
-        }
-        let common = az.child_mask() & cz.child_mask();
-        for b in common.iter() {
-            path.push(b);
-            if search(&unwrap(a, &[b]), &unwrap(codes, &[b]), path) {
-                return true;
-            }
-            path.pop();
-        }
-        false
-    }
-    let mut path = Path::new();
-    if search(a, allowed, &mut path) {
-        singleton(&path)
-    } else {
-        Space::new()
+pub fn ordered_listed<'a, P: AsRef<[u8]> + 'a>(
+    a: &impl ReadSpace,
+    allowed: &'a [P],
+    prefix: bool,
+) -> ListedHeads<'a, P> {
+    ListedHeads {
+        source: a.make_space(),
+        allowed: allowed.iter(),
+        prefix,
     }
 }
 
-/// A proven scanner idiom: minimum ordinal Fibonacci codeword. The queue's
-/// admissible lower bound skips codewords absent from the input trie.
-pub fn first_fibonacci(a: &Space, maximum: u64, digits: usize, prefix: bool) -> Space {
-    use std::{cmp::Reverse, collections::BinaryHeap};
-    struct Work {
-        tail: Space,
-        path: Path,
-        sum: u64,
-        weight: u64,
-        next: u64,
-        previous: bool,
-        done: bool,
-    }
-    let mut work = vec![Some(Work {
-        tail: a.clone(),
-        path: Path::new(),
-        sum: 0,
-        weight: 1,
-        next: 2,
-        previous: false,
-        done: false,
-    })];
-    let mut queue = BinaryHeap::from([(Reverse(1u64), 0usize)]);
-    while let Some((Reverse(bound), index)) = queue.pop() {
-        if bound > maximum {
-            break;
-        }
-        let w = work[index].take().unwrap();
-        if w.done {
-            return singleton(&w.path);
-        }
-        if w.path.len() >= digits {
-            continue;
-        }
-        let z = w.tail.read_zipper();
-        for bit in z.child_mask().iter().filter(|b| *b < 2) {
-            let tail = unwrap(&w.tail, &[bit]);
-            if tail.is_empty() {
-                continue;
-            }
-            let mut path = w.path.clone();
-            path.push(bit);
-            let done = bit == 1 && w.previous;
-            if done && !prefix && !tail.read_zipper().is_val() {
-                continue;
-            }
-            let sum = w.sum + if bit == 1 && !done { w.weight } else { 0 };
-            let lower = if done || bit == 1 {
-                sum
-            } else {
-                sum.saturating_add(w.next)
-            };
-            if lower > maximum {
-                continue;
-            }
-            let index = work.len();
-            work.push(Some(Work {
-                tail,
-                path,
-                sum,
-                weight: w.next,
-                next: w.weight.saturating_add(w.next),
-                previous: bit == 1,
-                done,
-            }));
-            queue.push((Reverse(lower), index));
-        }
-    }
-    Space::new()
+pub struct TerminatedHeads<Z> {
+    z: Z,
+    parents: smallvec::SmallVec<[pathmap::utils::ByteMaskIter; 32]>,
 }
-
-/// Enumerate only codeword prefixes, never their potentially exponential tail
-/// languages. Used by a compiler-proven loop that removes exactly one selected
-/// prefix on every continuation, so ordinal order can be computed once.
-pub fn ordered_fibonacci(a: &Space, maximum: u64, digits: usize, prefix: bool) -> Vec<Path> {
-    struct Scan<'a> {
-        maximum: u64,
-        digits: usize,
-        prefix: bool,
-        out: &'a mut Vec<(u64, Path)>,
-    }
-    fn visit(
-        s: &Space,
-        path: &mut Path,
-        sum: u64,
-        weight: u64,
-        next: u64,
-        previous: bool,
-        scan: &mut Scan<'_>,
-    ) {
-        if path.len() >= scan.digits {
-            return;
+impl<Z: ZipperMoving + ZipperPath> TerminatedHeads<Z> {
+    fn new(z: Z) -> Self {
+        Self {
+            parents: smallvec::smallvec![z.child_mask().iter()],
+            z,
         }
-        for bit in s.read_zipper().child_mask().iter().filter(|b| *b < 2) {
-            let tail = unwrap(s, &[bit]);
-            if tail.is_empty() {
-                continue;
-            }
-            let done = bit == 1 && previous;
-            let value = sum + if bit == 1 && !done { weight } else { 0 };
-            if value > scan.maximum {
-                continue;
-            }
-            path.push(bit);
-            if done {
-                if scan.prefix || tail.read_zipper().is_val() {
-                    scan.out.push((value, path.clone()));
+    }
+}
+impl<Z: ZipperMoving + ZipperPath> Iterator for TerminatedHeads<Z> {
+    type Item = Path;
+    fn next(&mut self) -> Option<Path> {
+        while let Some(children) = self.parents.last_mut() {
+            if let Some(byte) = children.next() {
+                if byte == 0 {
+                    let mut path = Path::from_slice(self.z.path());
+                    path.push(0);
+                    return Some(path);
                 }
+                self.z.descend_to_byte(byte);
+                self.parents.push(self.z.child_mask().iter());
             } else {
-                visit(
-                    &tail,
-                    path,
-                    value,
-                    next,
-                    weight.saturating_add(next),
-                    bit == 1,
-                    scan,
-                );
+                self.parents.pop();
+                if !self.parents.is_empty() {
+                    self.z.ascend(1);
+                }
             }
-            path.pop();
+        }
+        None
+    }
+}
+pub fn ordered_terminated(a: &impl ReadSpace) -> TerminatedHeads<ReadZipperOwned<()>> {
+    TerminatedHeads::new(a.make_space().into_read_zipper([]))
+}
+pub fn first_terminated(a: &impl ReadSpace) -> Space {
+    TerminatedHeads::new(a.read_zipper())
+        .next()
+        .map_or_else(Space::new, |p| singleton(&p))
+}
+
+struct MatchFrame {
+    children: pathmap::utils::ByteMaskIter,
+    entered: bool,
+}
+pub struct MatchingHeads<A, C> {
+    source: A,
+    codes: C,
+    prefix: bool,
+    parents: smallvec::SmallVec<[MatchFrame; 32]>,
+}
+impl<A: ZipperMoving + ZipperPath, C: ZipperMoving> MatchingHeads<A, C> {
+    fn new(source: A, codes: C, prefix: bool) -> Self {
+        let frame = MatchFrame {
+            children: (source.child_mask() & codes.child_mask()).iter(),
+            entered: false,
+        };
+        Self {
+            source,
+            codes,
+            prefix,
+            parents: smallvec::smallvec![frame],
         }
     }
-    let mut out = Vec::new();
-    visit(
-        a,
-        &mut Path::new(),
-        0,
-        1,
-        2,
-        false,
-        &mut Scan {
-            maximum,
-            digits,
+}
+impl<A: ZipperMoving + ZipperPath, C: ZipperMoving> Iterator for MatchingHeads<A, C> {
+    type Item = Path;
+    fn next(&mut self) -> Option<Path> {
+        while let Some(frame) = self.parents.last_mut() {
+            if !std::mem::replace(&mut frame.entered, true)
+                && self.codes.is_val()
+                && (self.source.is_val() || (self.prefix && self.source.child_count() != 0))
+            {
+                return Some(Path::from_slice(self.source.path()));
+            }
+            if let Some(byte) = frame.children.next() {
+                self.source.descend_to_byte(byte);
+                self.codes.descend_to_byte(byte);
+                self.parents.push(MatchFrame {
+                    children: (self.source.child_mask() & self.codes.child_mask()).iter(),
+                    entered: false,
+                });
+            } else {
+                self.parents.pop();
+                if !self.parents.is_empty() {
+                    self.source.ascend(1);
+                    self.codes.ascend(1);
+                }
+            }
+        }
+        None
+    }
+}
+pub fn ordered_matching(
+    a: &impl ReadSpace,
+    allowed: &impl ReadSpace,
+    prefix: bool,
+) -> MatchingHeads<ReadZipperOwned<()>, ReadZipperOwned<()>> {
+    MatchingHeads::new(
+        a.make_space().into_read_zipper([]),
+        allowed.make_space().into_read_zipper([]),
+        prefix,
+    )
+}
+pub fn first_matching(a: &impl ReadSpace, allowed: &impl ReadSpace, prefix: bool) -> Space {
+    MatchingHeads::new(a.read_zipper(), allowed.read_zipper(), prefix)
+        .next()
+        .map_or_else(Space::new, |p| singleton(&p))
+}
+
+// The frontier contains only packed code prefixes, never tail maps or a list
+// of selected paths. A single zipper inspects the original immutable trie.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct FibWork {
+    bits: u128,
+    len: u8,
+    sum: u128,
+    weight: u128,
+    next: u128,
+    previous: bool,
+    done: bool,
+}
+pub struct FibonacciHeads<Z> {
+    z: Z,
+    maximum: u128,
+    digits: usize,
+    prefix: bool,
+    queue: std::collections::BinaryHeap<(std::cmp::Reverse<u128>, FibWork)>,
+}
+impl<Z: ZipperMoving + ZipperPath> FibonacciHeads<Z> {
+    fn new(z: Z, maximum: u64, digits: usize, prefix: bool) -> Self {
+        let mut queue = std::collections::BinaryHeap::new();
+        queue.push((
+            std::cmp::Reverse(1),
+            FibWork {
+                bits: 0,
+                len: 0,
+                sum: 0,
+                weight: 1,
+                next: 2,
+                previous: false,
+                done: false,
+            },
+        ));
+        Self {
+            z,
+            maximum: maximum as u128,
+            digits: digits.min(94),
             prefix,
-            out: &mut out,
-        },
-    );
-    out.sort_unstable_by_key(|(n, _)| *n);
-    out.into_iter().map(|(_, p)| p).collect()
+            queue,
+        }
+    }
+}
+impl<Z: ZipperMoving + ZipperPath> Iterator for FibonacciHeads<Z> {
+    type Item = Path;
+    fn next(&mut self) -> Option<Path> {
+        while let Some((std::cmp::Reverse(bound), w)) = self.queue.pop() {
+            if bound > self.maximum {
+                self.queue.clear();
+                return None;
+            }
+            if w.done {
+                return Some((0..w.len).map(|i| ((w.bits >> i) & 1) as u8).collect());
+            }
+            if w.len as usize >= self.digits {
+                continue;
+            }
+            self.z.reset();
+            for i in 0..w.len {
+                self.z.descend_to_byte(((w.bits >> i) & 1) as u8);
+            }
+            let mask = self.z.child_mask();
+            for bit in 0..=1u8 {
+                if !mask.test_bit(bit) {
+                    continue;
+                }
+                let done = bit == 1 && w.previous;
+                self.z.descend_to_byte(bit);
+                let accepted = !done || self.prefix || self.z.is_val();
+                self.z.ascend(1);
+                if !accepted {
+                    continue;
+                }
+                let sum = w.sum + if bit == 1 && !done { w.weight } else { 0 };
+                let lower = if done || bit == 1 { sum } else { sum + w.next };
+                if lower > self.maximum {
+                    continue;
+                }
+                self.queue.push((
+                    std::cmp::Reverse(lower),
+                    FibWork {
+                        bits: w.bits | ((bit as u128) << w.len),
+                        len: w.len + 1,
+                        sum,
+                        weight: w.next,
+                        next: w.weight + w.next,
+                        previous: bit == 1,
+                        done,
+                    },
+                ));
+            }
+        }
+        None
+    }
+}
+pub fn first_fibonacci(a: &impl ReadSpace, maximum: u64, digits: usize, prefix: bool) -> Space {
+    FibonacciHeads::new(a.read_zipper(), maximum, digits, prefix)
+        .next()
+        .map_or_else(Space::new, |p| singleton(&p))
+}
+pub fn ordered_fibonacci(
+    a: &impl ReadSpace,
+    maximum: u64,
+    digits: usize,
+    prefix: bool,
+) -> FibonacciHeads<ReadZipperOwned<()>> {
+    FibonacciHeads::new(a.make_space().into_read_zipper([]), maximum, digits, prefix)
 }
 
 pub struct Env {
@@ -643,10 +1041,9 @@ fn read_space(tokens: &mut std::str::SplitWhitespace<'_>) -> Space {
     }
     out
 }
-fn write_space(w: &mut impl Write, a: &Space) {
-    let ps = enumerate(a);
-    write!(w, "{}", ps.len()).unwrap();
-    for p in ps {
+fn write_space(w: &mut impl Write, a: &impl ReadSpace) {
+    write!(w, "{}", count(a)).unwrap();
+    for p in enumerate(a) {
         write!(w, " {}", p.len()).unwrap();
         for b in p {
             write!(w, " {}", u16::from(b) + 1).unwrap();

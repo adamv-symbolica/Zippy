@@ -76,6 +76,12 @@ object RustPathMapBackend:
       new Session(programs,OpenFstBackend.Session.usingExecutable(programs.map(_.wire),build(translationUnit(programs))))
 
   private def root: FilePath = Paths.get(System.getProperty("morkl.pathmap.root",".")).toAbsolutePath.normalize()
+  private[morkl] def runtimeFiles: Vector[String] =
+    val crate=root.resolve("src/main/rust/pathmap")
+    val files=Files.walk(crate.resolve("vendor"))
+    try Vector("Cargo.toml","Cargo.lock","src/lib.rs",".cargo/config.toml") ++
+      files.iterator().asScala.filter(Files.isRegularFile(_)).map(p=>crate.relativize(p).toString).toVector.sorted
+    finally files.close()
   private def cache: FilePath = Paths.get(System.getProperty("morkl.pathmap.cache",root.resolve("target/pathmap").toString))
   private def hash(text: String): String = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8)).map(b=>f"${b&255}%02x").mkString
   private def locked[A](path: FilePath)(body: => A): A =
@@ -105,8 +111,7 @@ object RustPathMapBackend:
     val version=versionProcess.inputReader(StandardCharsets.UTF_8).lines().iterator().asScala.mkString("\n")
     require(versionProcess.exitValue()==0,s"rustc version query failed: $version")
     val rustflags=System.getProperty("morkl.pathmap.rustflags","-C target-cpu=native")
-    val identity=hash(Vector("Cargo.toml","Cargo.lock","src/lib.rs",".cargo/config.toml").map(p=>
-      if Files.exists(crate.resolve(p)) then Files.readString(crate.resolve(p)) else "").mkString+rustflags+version)
+    val identity=hash(runtimeFiles.map(p=>p+"\n"+Files.readString(crate.resolve(p))).mkString+rustflags+version)
     val target=cache.resolve("runtime-"+identity)
     locked(cache.resolve("runtime-"+identity+".lock")) {
       if !Files.exists(target.resolve("release/libzippy_pathmap.rlib")) then

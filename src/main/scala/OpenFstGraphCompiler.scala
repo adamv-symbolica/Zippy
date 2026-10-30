@@ -37,6 +37,45 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
   private var preparingRoutine = RoutinePtr("")
   private var strictOpaqueArguments = false
 
+  private def routineCalls(body: Space): Set[RoutinePtr] =
+    val calls=mutable.Set.empty[RoutinePtr]
+    subs(body)(spost={case c @ Space.Call(name,_,_)=>calls+=name;c})
+    calls.toSet
+  private lazy val callEdges = module.view.mapValues(r=>routineCalls(r.body).intersect(module.keySet)).toMap
+  private lazy val cyclicRoutines: Set[RoutinePtr] = module.keySet.filter { start=>
+    val seen=mutable.Set.empty[RoutinePtr]
+    def reaches(n: RoutinePtr): Boolean = callEdges.getOrElse(n,Set.empty).exists(next=>
+      next==start || (seen.add(next) && reaches(next)))
+    reaches(start)
+  }
+  private val expandedRoutines=mutable.Map.empty[RoutinePtr,Routine]
+  private val expandedSizes=mutable.Map.empty[RoutinePtr,Int]
+  private lazy val inlineLimit=Integer.getInteger("morkl.pathmap.inlineNodes",8192).intValue().max(1)
+  private def expandedRoutine(name: RoutinePtr): Routine = expandedRoutines.getOrElseUpdate(name, {
+    val routine=module(name)
+    var estimate=Supercompiler.stats(routine.body).totalNodes.toLong
+    val replacements=mutable.Map.empty[RoutinePtr,Routine]
+    if estimate<=inlineLimit then
+      val counts=mutable.Map.empty[RoutinePtr,Int]
+      subs(routine.body)(spost={case c @ Space.Call(p,_,_)=>counts(p)=counts.getOrElse(p,0)+1;c})
+      for helper<-callEdges.getOrElse(name,Set.empty).diff(cyclicRoutines).toVector.sortBy(_.s) do
+        val expanded=expandedRoutine(helper)
+        val cost=expandedSizes(helper).toLong*counts(helper)
+        if estimate+cost<=inlineLimit then
+          replacements(helper)=expanded;estimate+=cost
+    val result=routine.copy(body=Lower.inline(using replacements.toMap.lift.unlift)(routine.body))
+    expandedSizes(name)=Supercompiler.stats(result.body).totalNodes
+    result
+  })
+  /** Expand helper chains before substituting them into a caller. Lower.inline
+    * alone is one postorder pass and does not revisit a substituted body.
+    * Recursive edges remain native calls, preventing recursive source unrolling.
+    */
+  private def inlineContext(blocked: Set[RoutinePtr]): PartialFunction[RoutinePtr,Routine] =
+    new PartialFunction[RoutinePtr,Routine]:
+      def isDefinedAt(name: RoutinePtr): Boolean = module.contains(name) && !blocked(name)
+      def apply(name: RoutinePtr): Routine = expandedRoutine(name)
+
   /** Reuse exactly the executor lowering pipeline, without generating C++. */
   def prepare(entry: dialect.Space, routines: Map[RoutinePtr,dialect.Routine]): NativeGraphProgram[V] =
     graphOnly = true
@@ -170,7 +209,7 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
                 if epsilonTest(guard,r.mentions.head) && same==r.mentions.head && recur==name && callback!=name &&
                   nextPaths==Vector(Path.Concat(Path.Deref(r.refs.head),Path.Deref(head)))++r.refs.tail.map(Path.Deref(_)) &&
                   nextSpaces==Vector(Space.Mention(tail))++r.mentions.tail.map(Space.Mention(_)) =>
-              val context=module.filter((p,_)=>p!=preparingRoutine && p!=name).lift.unlift
+              val context=inlineContext(Set(preparingRoutine,name))
               val body=Matching.canon(if strictOpaqueArguments then terminal else Lower.inline(using context)(terminal))
               Some((r.copy(body=body),ps,ss))
             case _ => None
@@ -231,7 +270,7 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
       module.valuesIterator.exists(r => Supercompiler.backendUnsupported(r.body).nonEmpty)
     lazy val structuralLowering =
       val all = ctx.orElse[RoutinePtr,Routine] { case p if p == r.name => r }
-      val noSelf = module.filter((p,_) => p != r.name).lift.unlift
+      val noSelf = if graphOnly then inlineContext(Set(r.name)) else module.filter((p,_) => p != r.name).lift.unlift
       val body=Supercompiler.lowerFixpointCalls(r.body,all)
       // Source substitution is call-by-name: it can discard an unused strict
       // argument or move it under a guard. Keep real native call boundaries in

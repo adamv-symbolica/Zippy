@@ -1,0 +1,1060 @@
+use std::borrow::Cow;
+use fast_slice_utils::{find_prefix_overlap, starts_with};
+use crate::alloc::Allocator;
+use crate::utils::ByteMask;
+use crate::PathMap;
+use crate::trie_node::TaggedNodeRef;
+use crate::zipper::*;
+
+#[derive(Clone)]
+enum PrefixPos {
+    Prefix { valid: usize },
+    PrefixOff { valid: usize, invalid: usize },
+    Source,
+}
+
+impl PrefixPos {
+    // #[inline]
+    // fn is_prefix(&self) -> bool {
+    //     matches!(self, PrefixPos::Prefix {..})
+    // }
+    #[inline]
+    fn is_invalid(&self) -> bool {
+        matches!(self, PrefixPos::PrefixOff {..})
+    }
+    #[inline]
+    fn is_source(&self) -> bool {
+        matches!(self, PrefixPos::Source)
+    }
+    #[inline]
+    fn prefixed_depth(&self) -> Option<usize> {
+        match self {
+            PrefixPos::Prefix { valid } => Some(*valid),
+            PrefixPos::PrefixOff { valid, invalid } => Some(*valid + *invalid),
+            PrefixPos::Source => None,
+        }
+    }
+}
+
+/// A [Zipper] type that wrapps another `Zipper`, and allows an arbitrary path to prepend the
+/// wrapped zipper's space
+///
+/// ```
+/// use pathmap::{PathMap, zipper::*};
+///
+/// let map: PathMap<()> = [(b"A", ()), (b"B", ())].into_iter().collect();
+/// let mut rz = PrefixZipper::new(b"origin.prefix.", map.read_zipper());
+/// rz.set_root_prefix_path(b"origin.").unwrap();
+///
+/// rz.descend_to(b"prefix.A");
+/// assert_eq!(rz.path_exists(), true);
+/// assert_eq!(rz.origin_path(), b"origin.prefix.A");
+/// assert_eq!(rz.path(), b"prefix.A");
+/// assert_eq!(rz.root_prefix_path(), b"origin.");
+/// ```
+#[derive(Clone)]
+pub struct PrefixZipper<'prefix, Z> {
+    path: Vec<u8>,
+    source: Z,
+    prefix: Cow<'prefix, [u8]>,
+    origin_depth: usize,
+    position: PrefixPos,
+}
+
+impl<'prefix, Z>  PrefixZipper<'prefix, Z>
+    where
+        Z: ZipperMoving
+{
+    /// Creates a new `PrefixZipper` wrapping the supplied `source` zipper and prepending the
+    /// supplied `prefix`
+    pub fn new<P>(prefix: P, mut source: Z) -> Self
+        where P: Into<Cow<'prefix, [u8]>>
+    {
+        let prefix = prefix.into();
+        source.reset();
+        let position = if prefix.is_empty() {
+            PrefixPos::Source
+        } else {
+            PrefixPos::Prefix { valid: 0 }
+        };
+        Self {
+            path: Vec::new(),
+            source,
+            prefix,
+            origin_depth: 0,
+            position,
+        }
+    }
+
+    pub fn with_origin(mut self, origin: &[u8]) -> Result<Self, &'static str> {
+        if !starts_with(&*self.prefix, origin) {
+            return Err("set_origin must be called within prefix");
+        }
+        self.origin_depth = origin.len();
+        self.reset();
+        Ok(self)
+    }
+
+    /// Sets the portion of the zipper's `prefix` to treat as the [`root_prefix_path`](ZipperAbsolutePath::root_prefix_path)
+    ///
+    /// The remaining portion of the `prefix` will be part of the [`path`](ZipperPath::path).
+    /// This method resets the zipper, and typically it is called immediately after creating the `PrefixZipper`.
+    pub fn set_root_prefix_path(&mut self, root_prefix_path: &[u8]) -> Result<(), &'static str> {
+        if !starts_with(&*self.prefix, root_prefix_path) {
+            return Err("zipper's prefix must begin with root_prefix_path");
+        }
+        self.origin_depth = root_prefix_path.len();
+        self.reset();
+        Ok(())
+    }
+
+    fn set_valid(&mut self, valid: usize) {
+        debug_assert!(valid <= self.prefix.len(), "valid prefix can't be outside prefix");
+        self.position = if valid == self.prefix.len() - self.origin_depth {
+            PrefixPos::Source
+        } else {
+            PrefixPos::Prefix { valid }
+        };
+    }
+
+    /// Descends over whatever remains of the `prefix`, leaving the focus at the source's root
+    ///
+    /// Returns `true` if the focus moved.  The descended bytes are appended to this zipper's path
+    /// buffer and reported to `obs`.  Does nothing if the focus is already within the source.
+    fn consume_prefix<Obs: PathObserver>(&mut self, obs: &mut Obs) -> bool {
+        if !self.source.path_exists() {
+            return false;
+        }
+        match self.position.prefixed_depth() {
+            Some(prefixed_depth) => {
+                let prefix_rest = &self.prefix[self.origin_depth + prefixed_depth..];
+                self.path.extend_from_slice(prefix_rest);
+                obs.descend_to(prefix_rest);
+                self.position = PrefixPos::Source;
+                true
+            },
+            None => false,
+        }
+    }
+
+    fn ascend_n(&mut self, mut steps: usize) -> Result<(), usize> {
+        if let PrefixPos::PrefixOff { valid, mut invalid } = self.position {
+            if invalid > steps {
+                invalid -= steps;
+                self.position = PrefixPos::PrefixOff { valid, invalid };
+                return Ok(());
+            }
+            steps -= invalid;
+            self.set_valid(valid.saturating_sub(steps));
+            return if let Some(remaining) = steps.checked_sub(valid) {
+                Err(remaining)
+            } else {
+                Ok(())
+            };
+        }
+        if self.position.is_source() {
+            //The source reports how far it moved, so there's no need to measure its path
+            let ascended = self.source.ascend(steps);
+            if ascended == steps {
+                return Ok(())
+            }
+            steps -= ascended;
+            self.position = PrefixPos::Prefix { valid: self.prefix.len() - self.origin_depth };
+            // Intermediate state: self.position points one off
+        }
+        if let PrefixPos::Prefix { valid } = self.position {
+            self.set_valid(valid.saturating_sub(steps));
+            return if let Some(remaining) = steps.checked_sub(valid) {
+                Err(remaining)
+            } else {
+                Ok(())
+            };
+        }
+        Err(steps)
+    }
+    fn ascend_until_n<const VAL: bool>(&mut self) -> Option<usize> {
+        if self.at_root() {
+            return None;
+        }
+        let mut ascended = 0;
+        if self.position.is_source() {
+            let moved = if VAL {
+                self.source.ascend_until()
+            } else {
+                self.source.ascend_until_branch()
+            };
+            if moved > 0 && ((VAL && self.source.is_val()) || self.source.child_count() > 1) {
+                return Some(moved);
+            }
+            //Falling through here means the source ascended all the way to its own root, so the
+            //distance it reports is the whole of the path it had descended
+            debug_assert!(self.source.at_root());
+            ascended += moved;
+            let valid = self.prefix.len() - self.origin_depth;
+            self.position = PrefixPos::Prefix { valid };
+        }
+        ascended += self.position.prefixed_depth()
+            .expect("we should no longer pointe at source at this point");
+        self.set_valid(0);
+        Some(ascended)
+    }
+}
+
+impl<'prefix, Z>  PrefixZipper<'prefix, Z> {
+    /// Private function to deal with `at` methods, that take paths relative to the zipper focus
+    #[inline]
+    fn adjust_lookup_path<'a>(&'a self, path: &'a [u8]) -> Option<&'a [u8]> {
+        match self.position {
+            PrefixPos::Source => Some(path),
+            PrefixPos::Prefix { valid } => {
+                let rest_prefix = &self.prefix[self.origin_depth + valid..];
+                if !starts_with(path, rest_prefix) {
+                    return None;
+                }
+                Some(&path[rest_prefix.len()..])
+            }
+            PrefixPos::PrefixOff { .. } => None,
+        }
+    }
+
+    /// Returns the path that must be descended before the PrefixZipper's focus is at the root of the inner zipper, or
+    /// `None` if the focus is no longer along the prefix path
+    #[inline]
+    pub fn prefix_path_below_focus(&self) -> Option<&[u8]> {
+        match self.position {
+            PrefixPos::Prefix { valid } => Some( &self.prefix[self.origin_depth + valid..] ),
+            PrefixPos::PrefixOff { valid: _, invalid: _ } => None,
+            PrefixPos::Source => Some(&[]),
+        }
+    }
+}
+
+impl<'prefix, Z> ZipperConcrete for PrefixZipper<'prefix, Z>
+    where
+        Z: ZipperConcrete
+{
+    fn shared_node_id(&self) -> Option<u64> {
+        match self.position {
+            PrefixPos::Source => self.source.shared_node_id(),
+            _ => None,
+        }
+    }
+    fn is_shared(&self) -> bool {
+        match self.position {
+            PrefixPos::Source => self.source.is_shared(),
+            _ => false,
+        }
+    }
+}
+
+impl<'prefix, Z, V> ZipperValues<V> for PrefixZipper<'prefix, Z>
+    where
+        Z: ZipperValues<V>
+{
+    fn val(&self) -> Option<&V> {
+        if !self.position.is_source() {
+            return None;
+        }
+        self.source.val()
+    }
+}
+
+impl<'prefix, Z, V> ZipperValuesAt<V> for PrefixZipper<'prefix, Z>
+    where
+        Z: ZipperValuesAt<V>
+{
+    fn val_at<K: AsRef<[u8]>>(&self, path: K) -> Option<&V> {
+        let path = self.adjust_lookup_path(path.as_ref())?;
+        self.source.val_at(path)
+    }
+}
+
+impl<'prefix, 'source, Z, V> ZipperReadOnlyValues<'source, V>
+    for PrefixZipper<'prefix, Z>
+    where
+        Z: ZipperReadOnlyValues<'source, V>
+{
+    fn get_val(&self) -> Option<&'source V> {
+        //NOTE: This impl mirrors `val`
+        if !self.position.is_source() {
+            return None;
+        }
+        self.source.get_val()
+    }
+    fn get_val_at<K: AsRef<[u8]>>(&self, path: K) -> Option<&'source V> {
+        let path = self.adjust_lookup_path(path.as_ref())?;
+        self.source.get_val_at(path)
+    }
+}
+
+impl<'prefix, 'source, Z, V> ZipperReadOnlyConditionalValues<'source, V>
+    for PrefixZipper<'prefix, Z>
+    where
+        Z: ZipperReadOnlyConditionalValues<'source, V>
+{
+    type WitnessT = Z::WitnessT;
+    fn witness<'w>(&self) -> Self::WitnessT { self.source.witness() }
+    fn get_val_with_witness<'w>(&self, witness: &'w Self::WitnessT) -> Option<&'w V> where 'source: 'w {
+        if !self.position.is_source() {
+            return None;
+        }
+        self.source.get_val_with_witness(witness)
+    }
+}
+
+impl<'prefix, Z> ZipperPathBuffer for PrefixZipper<'prefix, Z>
+    where Z: ZipperMoving
+{
+    unsafe fn origin_path_assert_len(&self, len: usize) -> &[u8] {
+        assert!(self.path.capacity() >= len);
+        unsafe{ core::slice::from_raw_parts(self.path.as_ptr(), len) }
+    }
+    fn prepare_buffers(&mut self) {
+        if self.path.len() < self.origin_depth {
+            self.prepare_path_buf_cold()
+        }
+        debug_assert_eq!(&self.prefix[..self.origin_depth], &self.path[..self.origin_depth]);
+    }
+    fn reserve_buffers(&mut self, path_len: usize, _stack_depth: usize) {
+        self.path.reserve(path_len);
+    }
+}
+
+impl<'prefix, Z> PrefixZipper<'prefix, Z> {
+    #[cold]
+    fn prepare_path_buf_cold(&mut self) {
+        self.path.clear();
+        self.path.extend_from_slice(&self.prefix[..self.origin_depth]);
+    }
+}
+
+impl<'prefix, Z> Zipper for PrefixZipper<'prefix, Z>
+    where
+        Z: Zipper
+{
+    fn path_exists(&self) -> bool {
+        match self.position {
+            //The source stays at its root while the focus is in the prefix, and the prefix only
+            // exists if the source's root does
+            PrefixPos::Prefix {..} => self.source.path_exists(),
+            PrefixPos::PrefixOff {..} => false,
+            PrefixPos::Source => self.source.path_exists(),
+        }
+    }
+    fn is_val(&self) -> bool {
+        match self.position {
+            PrefixPos::Source => self.source.is_val(),
+            _ => false,
+        }
+    }
+    fn child_count(&self) -> usize {
+        match self.position {
+            PrefixPos::Prefix {..} => self.source.path_exists() as usize,
+            PrefixPos::PrefixOff {..} => 0,
+            PrefixPos::Source => self.source.child_count(),
+        }
+    }
+    fn child_mask(&self) -> ByteMask {
+        match self.position {
+            PrefixPos::Prefix { valid } if self.source.path_exists() => {
+                let byte = self.prefix[self.origin_depth + valid];
+                ByteMask::from(byte)
+            },
+            PrefixPos::Prefix {..} => ByteMask::EMPTY,
+            PrefixPos::PrefixOff {..} => ByteMask::EMPTY,
+            PrefixPos::Source => self.source.child_mask(),
+        }
+    }
+}
+
+impl<'prefix, Z> ZipperMoving for PrefixZipper<'prefix, Z>
+    where
+        Z: ZipperMoving
+{
+    #[inline]
+    fn depth(&self) -> usize {
+        self.path.len() - self.origin_depth
+    }
+
+    fn at_root(&self) -> bool {
+        match self.position {
+            PrefixPos::Prefix { valid } => valid == 0,
+            PrefixPos::PrefixOff {..} => false,
+            PrefixPos::Source => self.prefix.len() <= self.origin_depth && self.source.at_root(),
+        }
+    }
+
+    #[inline]
+    fn focus_byte(&self) -> Option<u8> {
+        self.path.last().cloned()
+    }
+
+    fn reset(&mut self) {
+        self.prepare_buffers();
+        self.path.truncate(self.origin_depth);
+        debug_assert_eq!(self.path, &self.prefix[..self.origin_depth]);
+        self.source.reset();
+        self.set_valid(0);
+    }
+
+    fn val_count(&self) -> usize {
+        self.source.val_count()
+    }
+
+    fn descend_to_existing<K: AsRef<[u8]>>(&mut self, patho: K) -> usize {
+        if self.position.is_invalid() {
+            return 0;
+        }
+        let mut descended = 0;
+        let mut path = patho.as_ref();
+        if let PrefixPos::Prefix { valid } = &self.position {
+            let valid = *valid;
+            let rest_prefix = &self.prefix[self.origin_depth + valid..];
+            let overlap = if self.source.path_exists() { find_prefix_overlap(rest_prefix, path) } else { 0 };
+            path = &path[overlap..];
+            self.set_valid(valid + overlap);
+            descended += overlap;
+        }
+        if self.position.is_source() {
+            descended += self.source.descend_to_existing(path);
+        }
+        self.path.extend_from_slice(&patho.as_ref()[..descended]);
+        descended
+    }
+
+    fn descend_to<K: AsRef<[u8]>>(&mut self, path: K) {
+        let mut path = path.as_ref();
+        let existing = self.descend_to_existing(path);
+        path = &path[existing..];
+        if path.is_empty() {
+            return;
+        }
+        self.path.extend_from_slice(&path);
+        self.position = match self.position {
+            PrefixPos::Prefix { valid } =>
+                PrefixPos::PrefixOff { valid, invalid: path.len() },
+            PrefixPos::PrefixOff { valid, invalid } =>
+                PrefixPos::PrefixOff { valid, invalid: invalid + path.len() },
+            PrefixPos::Source => {
+                self.source.descend_to(path);
+                PrefixPos::Source
+            },
+        };
+    }
+
+    #[inline]
+    fn descend_to_byte(&mut self, k: u8) {
+        self.descend_to([k])
+    }
+
+    fn descend_indexed_byte(&mut self, child_idx: usize) -> Option<u8> {
+        let mask = self.child_mask();
+        let byte = mask.indexed_bit::<true>(child_idx)?;
+        self.descend_to_byte(byte);
+        debug_assert!(self.path_exists());
+        Some(byte)
+    }
+
+    #[inline]
+    fn descend_first_byte(&mut self) -> Option<u8> {
+        self.descend_indexed_byte(0)
+    }
+
+    fn descend_until_observed<Obs: PathObserver>(&mut self, obs: &mut Obs) -> bool {
+        if self.position.is_invalid() {
+            return false;
+        }
+        //Consuming the remainder of the prefix is itself a movement, so it must be reflected in the
+        // return value even when the source zipper can't descend any further
+        let descended_prefix = self.consume_prefix(obs);
+        //Fan the descended bytes out to our own path buffer as well as the caller's observer
+        descended_prefix | self.source.descend_until_observed(&mut (&mut self.path, &mut *obs))
+    }
+
+    #[inline]
+    fn to_next_sibling_byte(&mut self) -> Option<u8> {
+        if !self.position.is_source() {
+            return None;
+        }
+        let byte = self.source.to_next_sibling_byte()?;
+        *self.path.last_mut().unwrap() = byte;
+        Some(byte)
+    }
+
+    #[inline]
+    fn to_prev_sibling_byte(&mut self) -> Option<u8> {
+        if !self.position.is_source() {
+            return None;
+        }
+        let byte = self.source.to_prev_sibling_byte()?;
+        *self.path.last_mut().unwrap() = byte;
+        Some(byte)
+    }
+    fn ascend(&mut self, steps: usize) -> usize {
+        let ascended = match self.ascend_n(steps) {
+            Err(remaining) => steps - remaining,
+            Ok(()) => steps,
+        };
+        self.path.truncate(self.path.len() - ascended);
+        ascended
+    }
+    #[inline]
+    fn ascend_byte(&mut self) -> bool {
+        self.ascend(1) == 1
+    }
+    #[inline]
+    fn ascend_until(&mut self) -> usize {
+        let Some(ascended) = self.ascend_until_n::<true>() else {
+            return 0;
+        };
+        self.path.truncate(self.path.len() - ascended);
+        ascended
+    }
+    #[inline]
+    fn ascend_until_branch(&mut self) -> usize {
+        let Some(ascended) = self.ascend_until_n::<false>() else {
+            return 0;
+        };
+        self.path.truncate(self.path.len() - ascended);
+        ascended
+    }
+}
+
+impl<'prefix, Z> ZipperPath for PrefixZipper<'prefix, Z>
+    where Z: ZipperMoving
+{
+    #[inline]
+    fn path(&self) -> &[u8] {
+        &self.path[self.origin_depth..]
+    }
+}
+
+/// An interface for a [Zipper] to support accessing the full path buffer used to create the zipper
+impl<'prefix, Z> ZipperAbsolutePath for PrefixZipper<'prefix, Z>
+    where Z: ZipperAbsolutePath
+{
+    fn origin_path(&self) -> &[u8] {
+        &self.path
+    }
+    fn root_prefix_path(&self) -> &[u8] {
+        &self.path[..self.origin_depth]
+    }
+}
+
+impl<'prefix, Z> ZipperIteration for PrefixZipper<'prefix, Z>
+    where Z: ZipperIteration
+{
+    fn to_next_val_observed<Obs: PathObserver>(&mut self, obs: &mut Obs) -> bool {
+        if self.position.is_invalid() {
+            return false;
+        }
+        //Values only exist within the source, and the source's own root may hold one, so the prefix
+        //is consumed without descending any further before handing off
+        self.consume_prefix(obs);
+        self.source.to_next_val_observed(&mut (&mut self.path, &mut *obs))
+    }
+
+    fn descend_last_path_observed<Obs: PathObserver>(&mut self, obs: &mut Obs) -> bool {
+        if self.position.is_invalid() {
+            return false;
+        }
+        //As in `descend_until`, consuming the prefix is movement in its own right
+        let descended_prefix = self.consume_prefix(obs);
+        descended_prefix | self.source.descend_last_path_observed(&mut (&mut self.path, &mut *obs))
+    }
+
+    fn descend_first_k_path_observed<Obs: PathObserver>(&mut self, k: usize, obs: &mut Obs) -> bool {
+        if k == 0 {
+            return false;
+        }
+        if self.position.is_invalid() || !self.source.path_exists() {
+            return false;
+        }
+        //The prefix is a single forced path, so the bytes it contributes always exist and never
+        //branch.  Descend as much of `k` as the prefix covers, then ask the source for the rest.
+        let prefix_rest = match self.position.prefixed_depth() {
+            Some(prefixed_depth) => self.prefix.len() - self.origin_depth - prefixed_depth,
+            None => 0,
+        };
+        if k <= prefix_rest {
+            let taken = &self.prefix[self.path.len()..self.path.len() + k];
+            self.path.extend_from_slice(taken);
+            obs.descend_to(taken);
+            self.set_valid(self.path.len() - self.origin_depth);
+            return true
+        }
+        self.consume_prefix(obs);
+        if self.source.descend_first_k_path_observed(k - prefix_rest, &mut (&mut self.path, &mut *obs)) {
+            true
+        } else {
+            self.ascend(prefix_rest);
+            obs.ascend(prefix_rest);
+            false
+        }
+    }
+
+    fn to_next_k_path_observed<Obs: PathObserver>(&mut self, k: usize, obs: &mut Obs) -> bool {
+        let depth = self.depth();
+        if depth < k {
+            self.reset();
+            obs.ascend(depth);
+            return false;
+        }
+        if self.position.is_invalid() {
+            self.ascend(k);
+            obs.ascend(k);
+            return false;
+        }
+        //Only the portion of `k` inside the source can have alternatives to step to, so `k` is
+        //clamped to the source's depth.  Iterating at the clamped depth visits exactly the same
+        //positions, because the prefix above it is a single forced path.
+        let source_depth = self.source.depth();
+        if source_depth == 0 {
+            //Entirely within the prefix, which offers no alternatives
+            let ascended = self.ascend(k);
+            debug_assert_eq!(ascended, k);
+            obs.ascend(k);
+            return false
+        }
+        let clamped = k.min(source_depth);
+        if self.source.to_next_k_path_observed(clamped, &mut (&mut self.path, &mut *obs)) {
+            true
+        } else {
+            //The source rewound to its root; ascend the rest of `k` back up through the prefix
+            let remaining = k - clamped;
+            if remaining > 0 {
+                self.ascend(remaining);
+                obs.ascend(remaining);
+            }
+            false
+        }
+    }
+}
+
+//The default impl is built on `to_next_val`, which is implemented natively above, so it picks up
+//that implementation without needing its own
+impl<'prefix, 'a, V, Z> ZipperReadOnlyIteration<'a, V> for PrefixZipper<'prefix, Z> where Z: ZipperReadOnlyIteration<'a, V>, Self: ZipperReadOnlyValues<'a, V> + ZipperIteration { }
+
+impl<'prefix, 'a, V, Z> ZipperReadOnlyConditionalIteration<'a, V> for PrefixZipper<'prefix, Z> where Z: ZipperReadOnlyConditionalIteration<'a, V>, Self: ZipperReadOnlyConditionalValues<'a, V, WitnessT = Z::WitnessT> + ZipperIteration { }
+
+impl<'prefix, Z, V> ZipperForking<V> for PrefixZipper<'prefix, Z>
+    where
+        Z: ZipperIteration + ZipperForking<V>
+{
+    type ReadZipperT<'a> = PrefixZipper<'prefix, Z::ReadZipperT<'a>> where Self: 'a;
+    fn fork_read_zipper<'a>(&'a self) -> <Self as ZipperForking<V>>::ReadZipperT<'a> {
+        PrefixZipper {
+            path: Vec::new(),
+            position: PrefixPos::Prefix { valid: 0 },
+            source: self.source.fork_read_zipper(),
+            prefix: self.prefix.clone(),
+            origin_depth: 0,
+        }
+    }
+}
+
+//GOAT, Remove the 'static bound on V and A, as soon as we redo the interior of ReadZipperOwned.
+// See GOAT comment above ReadZipperOwned struct definition
+impl<'prefix, 'a, V: Clone + Send + Sync + Unpin + 'static, Z, A: Allocator + 'static> zipper_priv::ZipperReadOnlyPriv<'a, V, A> for PrefixZipper<'prefix, Z>
+    where
+        Z: zipper_priv::ZipperReadOnlyPriv<'a, V, A>,
+        Self: ZipperSubtries<V, A>
+{
+    fn borrow_raw_parts<'z>(&'z self) -> (TaggedNodeRef<'z, V, A>, &'z [u8], Option<&'z V>) { panic!() } //Not sure how we'd implement borrow_raw_parts for a PrefixZipper, in the general case
+    fn take_core(&mut self) -> Option<read_zipper_core::ReadZipperCore<'a, 'static, V, A>> {
+        if let Some(prefix_path) = self.prefix_path_below_focus() {
+            if prefix_path.len() > 0 {
+                let temp_map = self.try_make_map();
+                return temp_map.and_then(|map| {
+                    let mut owned_z: ReadZipperOwned<V, A> = map.into_read_zipper(b"");
+                    owned_z.take_core()
+                })
+            } else {
+                self.source.take_core()
+            }
+        } else {
+            self.source.take_core()
+        }
+    }
+}
+
+impl<'prefix, V: Clone + Send + Sync + Unpin, Z, A: Allocator> ZipperSubtries<V, A> for PrefixZipper<'prefix, Z>
+    where
+        Z: ZipperSubtries<V, A>
+{
+    fn native_subtries(&self) -> bool { self.source.native_subtries() }
+    fn try_make_map(&self) -> Option<PathMap<V, A>> {
+        if !self.native_subtries() {
+            return None
+        }
+        let leaf_map = self.source.try_make_map();
+        match self.prefix_path_below_focus() {
+            Some(prefix_path) => {
+                if prefix_path.len() > 0 {
+                    let mut new_map = PathMap::new_in(self.source.alloc());
+                    let mut wz = new_map.write_zipper_at_path(prefix_path);
+                    let leaf_map = match leaf_map {
+                        Some(map) => map,
+                        None => PathMap::new_in(self.source.alloc())
+                    };
+                    wz.graft_map(leaf_map);
+                    Some(new_map)
+                } else {
+                    leaf_map
+                }
+            },
+            None => {
+                leaf_map
+            }
+        }
+    }
+    fn trie_ref(&self) -> Option<TrieRef<'_, V, A>> {
+        if !self.native_subtries() {
+            return None
+        }
+        if let Some(prefix_path) = self.prefix_path_below_focus() {
+            if prefix_path.len() > 0 {
+                return self.try_make_map().map(|temp_map| TrieRef::from(temp_map))
+            } else {
+                return self.source.trie_ref()
+            }
+        } else {
+            Some(TrieRefOwned::new_invalid_in(self.source.alloc()).into())
+        }
+    }
+    fn alloc(&self) -> A { self.source.alloc() }
+}
+
+impl<'prefix, V: Clone + Send + Sync + Unpin, Z, A: Allocator> ZipperInfallibleSubtries<V, A> for PrefixZipper<'prefix, Z>
+    where
+        Z: ZipperInfallibleSubtries<V, A> + ZipperSubtries<V, A>
+{
+    fn make_map(&self) -> PathMap<V, A> {
+        let leaf_map = self.source.make_map();
+        match self.prefix_path_below_focus() {
+            Some(prefix_path) => {
+                if prefix_path.len() > 0 {
+                    let mut new_map = PathMap::new_in(leaf_map.alloc.clone());
+                    let mut wz = new_map.write_zipper_at_path(prefix_path);
+                    wz.graft_map(leaf_map);
+                    new_map
+                } else {
+                    leaf_map
+                }
+            },
+            None => {
+                leaf_map
+            }
+        }
+    }
+    fn get_trie_ref(&self) -> TrieRef<'_, V, A> {
+        if let Some(prefix_path) = self.prefix_path_below_focus() {
+            if prefix_path.len() > 0 {
+                let temp_map = self.make_map();
+                return TrieRef::from(temp_map)
+            } else {
+                return self.source.get_trie_ref()
+            }
+        } else {
+            TrieRefOwned::new_invalid_in(self.source.alloc()).into()
+        }
+    }
+    fn get_focus(&self) -> OpaqueAbstractNodeRef<'_, V, A> { self.source.get_focus() }
+    fn get_focus_at<K: AsRef<[u8]>>(&self, path: K) -> OpaqueAbstractNodeRef<'_, V, A> { self.source.get_focus_at(path) }
+    fn try_borrow_focus(&self) -> Option<OpaqueTrieNodeRef<'_, V, A>> { self.source.try_borrow_focus() }
+}
+
+impl<'prefix, 'a, V: Clone + Send + Sync + 'a, Z, A: Allocator + 'a> ZipperReadOnlySubtries<'a, V, A> for PrefixZipper<'prefix, Z> where Z: ZipperReadOnlySubtries<'a, V, A>, Self: zipper_priv::ZipperReadOnlyPriv<'a, V, A> + ZipperSubtries<V, A> {
+    type TrieRefT = <Z as ZipperReadOnlySubtries<'a, V, A>>::TrieRefT;
+    fn trie_ref_at_path<K: AsRef<[u8]>>(&self, path: K) -> Self::TrieRefT { self.source.trie_ref_at_path(path) }
+}
+
+crate::zipper::impl_zipper_debug!(
+    impl<Z> core::fmt::Debug for PrefixZipper<'_, Z>
+        where Z: ZipperAbsolutePath
+);
+
+#[cfg(test)]
+mod tests {
+    use super::PrefixZipper;
+    use crate::trie_map::PathMap;
+    use crate::zipper::Zipper;
+    use crate::zipper::ZipperMoving;
+    use crate::zipper::ZipperAbsolutePath;
+    use crate::zipper::ZipperIteration;
+    use crate::zipper::ZipperPath;
+    use crate::zipper::ZipperReadOnlyValues;
+    use crate::zipper::ZipperValuesAt;
+
+    //The whole prefix is the root prefix, so these run the shared suites against a `PrefixZipper`
+    //whose focus begins in the source
+    crate::zipper::zipper_moving_tests::zipper_moving_tests!(prefix_zipper,
+        |keys: &[&[u8]]| {
+            keys.iter().map(|k| (k, ())).collect::<PathMap<()>>()
+        },
+        |btm: &mut PathMap<()>, path: &[u8]| -> _ {
+            let mut z = PrefixZipper::new(path.to_vec(), btm.read_zipper_at_path(path));
+            z.set_root_prefix_path(path).unwrap();
+            z
+        }
+    );
+
+    crate::zipper::zipper_iteration_tests::zipper_iteration_tests!(prefix_zipper,
+        |keys: &[&[u8]]| {
+            keys.iter().map(|k| (k, ())).collect::<PathMap<()>>()
+        },
+        |btm: &mut PathMap<()>, path: &[u8]| -> _ {
+            let mut z = PrefixZipper::new(path.to_vec(), btm.read_zipper_at_path(path));
+            z.set_root_prefix_path(path).unwrap();
+            z
+        }
+    );
+
+    /// Iteration when part of the `prefix` lies below the zipper's root, so the focus starts inside
+    /// the prefix and the methods must cross the seam into the source
+    #[test]
+    fn prefix_zipper_iter_across_seam() {
+        let keys: &[&[u8]] = &[b"pre.fix.aa", b"pre.fix.ab", b"pre.fix.b"];
+        let btm: PathMap<()> = keys.iter().map(|k| (k, ())).collect();
+
+        let make = || {
+            let mut z = PrefixZipper::new(b"pre.fix.".to_vec(), btm.read_zipper_at_path(b"pre.fix."));
+            //Only `pre.` is the root prefix, so `fix.` remains part of the zipper's own path
+            z.set_root_prefix_path(b"pre.").unwrap();
+            z
+        };
+
+        //`to_next_val` must traverse the rest of the prefix before reaching source values
+        let mut z = make();
+        let mut obs = Vec::<u8>::new();
+        let mut found = vec![];
+        while z.to_next_val_observed(&mut obs) {
+            assert_eq!(&obs[..], z.path(), "observer diverged from path");
+            found.push(z.path().to_vec());
+        }
+        assert_eq!(found, vec![b"fix.aa".to_vec(), b"fix.ab".to_vec(), b"fix.b".to_vec()]);
+
+        //`descend_last_path` crosses the seam and lands on the last path by sort order
+        let mut z = make();
+        let mut obs = Vec::<u8>::new();
+        assert!(z.descend_last_path_observed(&mut obs));
+        assert_eq!(z.path(), b"fix.b");
+        assert_eq!(&obs[..], z.path());
+
+        //k_path where `k` spans the seam: 5 bytes covers `fix.` plus one source byte
+        let mut z = make();
+        let mut obs = Vec::<u8>::new();
+        assert!(z.descend_first_k_path_observed(5, &mut obs));
+        assert_eq!(z.path(), b"fix.a");
+        assert_eq!(&obs[..], z.path());
+        assert!(z.to_next_k_path_observed(5, &mut obs));
+        assert_eq!(z.path(), b"fix.b");
+        assert_eq!(&obs[..], z.path());
+        assert!(!z.to_next_k_path_observed(5, &mut obs));
+        assert_eq!(z.path(), b"");
+        assert_eq!(&obs[..], z.path());
+
+        //k_path where `k` lands inside the prefix, which is a single forced path with no siblings
+        let mut z = make();
+        let mut obs = Vec::<u8>::new();
+        assert!(z.descend_first_k_path_observed(2, &mut obs));
+        assert_eq!(z.path(), b"fi");
+        assert_eq!(&obs[..], z.path());
+        assert!(!z.to_next_k_path_observed(2, &mut obs));
+        assert_eq!(z.path(), b"");
+        assert_eq!(&obs[..], z.path());
+
+        //A missing path within the prefix also rewinds to the common root.
+        let mut z = make();
+        z.descend_to(b"fix.x");
+        let mut obs = z.path().to_vec();
+        assert!(!z.to_next_k_path_observed(2, &mut obs));
+        assert_eq!(z.path(), b"fix");
+        assert_eq!(&obs[..], z.path());
+
+        //An oversized step resets the zipper to its root, including the observer.
+        assert!(!z.to_next_k_path_observed(99, &mut obs));
+        assert_eq!(z.path(), b"");
+        assert_eq!(&obs[..], z.path());
+
+        //`k` deeper than anything the source can supply, so the prefix bytes descended on the way
+        //must be rewound and the focus left where it started
+        let mut z = make();
+        let mut obs = Vec::<u8>::new();
+        assert_eq!(z.path(), b"");
+        assert!(!z.descend_first_k_path_observed(99, &mut obs));
+        assert_eq!(z.path(), b"", "a failed descent must leave the focus unmoved");
+        assert_eq!(&obs[..], z.path());
+    }
+
+    const PATHS1: &[(&[u8], u64)] = &[
+        (b"0000", 0),
+        (b"00000", 1),
+        (b"00011", 2),
+        (b"11111", 3),
+        (b"11222", 4),
+    ];
+    const PATHS2: &[(&[u8], u64)] = &[
+        (b"000", 0),
+        (b"00000", 0),
+        (b"00111", 1),
+    ];
+    const PATHS3: &[(&[u8], u64)] = &[
+        (b"", 0),
+        (b"0000", 4),
+    ];
+
+    #[test]
+    fn test_prefix_zipper1() {
+        let map = PathMap::from_iter(PATHS1.iter().map(|&x| x));
+        let mut rz = PrefixZipper::new(b"prefix", map.read_zipper());
+        rz.set_root_prefix_path(b"pre").unwrap();
+        assert_eq!(rz.descend_to_existing(b"fix00000"), 8);
+        assert!(rz.ascend_until() > 0);
+        assert_eq!(rz.path(), b"fix0000");
+        assert_eq!(rz.origin_path(), b"prefix0000");
+        assert_eq!(rz.descend_to_existing(b"0"), 1);
+        assert!(rz.ascend_until_branch() > 0);
+        assert_eq!(rz.path(), b"fix000");
+        assert!(rz.ascend_until_branch() > 0);
+        assert_eq!(rz.path(), b"fix");
+        assert!(rz.ascend_until_branch() > 0);
+        assert_eq!(rz.path(), b"");
+        assert_eq!(rz.origin_path(), b"pre");
+        assert_eq!(rz.ascend_until_branch(), 0);
+    }
+
+    #[test]
+    fn test_prefix_zipper2() {
+        let map = PathMap::from_iter(PATHS2.iter().map(|&x| x));
+        let mut rz = PrefixZipper::new(b"prefix", map.read_zipper());
+        rz.set_root_prefix_path(b"pre").unwrap();
+        assert_eq!(rz.descend_to_existing(b"fix00000"), 8);
+        assert!(rz.ascend_until() > 0);
+        assert_eq!(rz.path(), b"fix000");
+        assert_eq!(rz.origin_path(), b"prefix000");
+        assert!(rz.ascend_until() > 0);
+        assert_eq!(rz.path(), b"fix00");
+        assert!(rz.ascend_until() > 0);
+        assert_eq!(rz.path(), b"");
+        assert_eq!(rz.ascend_until(), 0);
+        assert_eq!(rz.descend_to_existing(b"fix00000"), 8);
+        assert!(rz.ascend_until_branch() > 0);
+        assert_eq!(rz.path(), b"fix00");
+        assert!(rz.ascend_until_branch() > 0);
+        assert_eq!(rz.path(), b"");
+        assert_eq!(rz.origin_path(), b"pre");
+        assert_eq!(rz.ascend_until_branch(), 0);
+    }
+
+    #[test]
+    fn prefix_zipper_val_at_test() {
+        let map = PathMap::from_iter(PATHS3.iter().map(|&x| x));
+        let mut rz = PrefixZipper::new(b"prefix", map.read_zipper());
+
+        //Validate that `val_at` and `get_val_at` do the right thing when the focus is in the wrapped zipper
+        rz.descend_to(b"prefix");
+        assert_eq!(rz.val_at(b"0000"), Some(&4));
+        assert_eq!(rz.get_val_at(b"0000"), Some(&4));
+
+        //Now make sure the right thing happens when we are coming from the prefix
+        rz.reset();
+        assert_eq!(rz.val_at(b"0000"), None);
+        assert_eq!(rz.get_val_at(b"0000"), None);
+        assert_eq!(rz.val_at(b"prefix0000"), Some(&4));
+        assert_eq!(rz.get_val_at(b"prefix0000"), Some(&4));
+        assert_eq!(rz.val_at(b"prefix"), Some(&0));
+        assert_eq!(rz.get_val_at(b"prefix"), Some(&0));
+        assert_eq!(rz.val_at(b"prefoo"), None);
+        assert_eq!(rz.get_val_at(b"prefoo"), None);
+    }
+
+    /// `descend_until` must return `true` whenever the focus moved.  When the zipper is positioned
+    /// within its prefix, consuming the remainder of the prefix *is* a movement, even when the
+    /// wrapped source zipper cannot descend any further from its own root.
+    #[test]
+    fn prefix_zipper_descend_until_within_prefix() {
+        //`PATHS1` branches at its root (between `0` and `1`), so the source zipper's `descend_until`
+        // returns `false` without moving
+        let map = PathMap::from_iter(PATHS1.iter().map(|&x| x));
+        assert!(map.read_zipper().child_count() > 1, "source must branch at its root");
+
+        let mut rz = PrefixZipper::new(b"prefix", map.read_zipper());
+        assert_eq!(rz.path(), b"");
+
+        let moved = rz.descend_until();
+
+        //The focus advanced across the whole prefix...
+        assert_eq!(rz.path(), b"prefix");
+        //...so `descend_until` must report that it moved
+        assert_eq!(moved, true);
+    }
+
+    /// A prefix in front of a source rooted at a missing path doesn't exist either
+    #[test]
+    fn prefix_zipper_over_missing_source() {
+        let mut map = PathMap::<u64>::new();
+        map.set_val_at(&[0u8], 1);
+        let mut z = PrefixZipper::new(&[0u8, 7][..], map.read_zipper_at_path(&[5u8]));
+        assert!(!z.path_exists());
+        assert_eq!(z.child_count(), 0);
+        assert_eq!(z.descend_first_byte(), None);
+        assert!(!z.to_next_step());
+        assert!(!z.to_next_val());
+        assert!(!z.descend_until());
+        assert!(!z.descend_first_k_path(1));
+        assert_eq!(z.path(), &[] as &[u8]);
+        assert_eq!(z.descend_to_existing(&[0u8, 7]), 0);
+        z.descend_to(&[0u8]);
+        assert!(!z.path_exists());
+        assert_eq!(z.descend_first_byte(), None);
+
+        //With the source present the prefix exists as before
+        let mut z = PrefixZipper::new(&[0u8, 7][..], map.read_zipper());
+        assert!(z.path_exists());
+        assert_eq!(z.descend_first_byte(), Some(0));
+        assert!(z.path_exists());
+        let mut steps = vec![];
+        z.reset();
+        while z.to_next_step() { steps.push(z.path().to_vec()); }
+        assert_eq!(steps, vec![vec![0], vec![0, 7], vec![0, 7, 0]]);
+    }
+
+    /// A fork is rooted at the focus, wherever the focus is
+    //GOAT,  re-enable this test when https://github.com/Adam-Vandervorst/PathMap/issues/96 is addressed
+    #[ignore]
+    #[test]
+    fn prefix_zipper_fork_at_focus() {
+        use crate::zipper::ZipperForking;
+        let mut map = PathMap::<u64>::new();
+        map.set_val_at(&[5u8], 1);
+        map.set_val_at(&[5u8, 6], 2);
+        fn steps<Z: ZipperMoving + ZipperPath>(z: &mut Z) -> Vec<Vec<u8>> {
+            let mut v = vec![];
+            while z.to_next_step() { v.push(z.path().to_vec()); assert!(v.len() < 16); }
+            v
+        }
+        let mut z = PrefixZipper::new(&[2u8, 3][..], map.read_zipper());
+        for (at, want) in [
+            (&[][..], vec![vec![2], vec![2, 3], vec![2, 3, 5], vec![2, 3, 5, 6]]),
+            (&[2u8][..], vec![vec![3], vec![3, 5], vec![3, 5, 6]]),
+            (&[2u8, 3, 5][..], vec![vec![6]]),
+            (&[9u8][..], vec![]),
+        ] {
+            z.reset();
+            z.descend_to(at);
+            let mut f = z.fork_read_zipper();
+            assert!(f.at_root(), "{at:?}");
+            assert_eq!(f.path_exists(), z.path_exists(), "{at:?}");
+            assert_eq!(steps(&mut f), want, "{at:?}");
+            f.descend_to(&[1u8, 1]);
+            assert_eq!(f.ascend(5), 2, "{at:?}");
+            assert!(f.at_root(), "{at:?}");
+        }
+        //An empty prefix
+        let mut z = PrefixZipper::new(&[][..], map.read_zipper());
+        z.set_root_prefix_path(&[]).unwrap();
+        let mut f = z.fork_read_zipper();
+        assert_eq!(steps(&mut f), vec![vec![5], vec![5, 6]]);
+    }
+}

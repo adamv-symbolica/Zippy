@@ -12,6 +12,10 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
   private val declarations = mutable.ArrayBuffer.empty[String]
   private val nativeBlocks = mutable.ArrayBuffer.empty[String]
   private val nativeTypes = mutable.Map.empty[String,String]
+  private def view(s: String): Boolean = nativeTypes.get(s).exists(_.startsWith("View<"))
+  private def copied(s: String): String = if view(s) then s"($s).make_space()" else s"($s).clone()"
+  private def nativeBorrow(s: String): String = if view(s) then s"&($s).make_space()" else s"&($s)"
+  private def referenceType(t: String): Boolean = t=="Path" || t=="Space" || t.startsWith("View<")
   private val identifiers = raw"\b(?:v\d+_\d+(?:_[a-zA-Z0-9_]+)?|p\d+|s\d+|loop_[ps]\d+|next_call|ordered_head)\b".r
   private val blockLimit=Integer.getInteger("morkl.pathmap.blockBytes",32000).intValue().max(512)
   private val dependencyCache=mutable.Map.empty[(RecursiveOpGraph,Int),Set[Pos]]
@@ -136,7 +140,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
     val tokens=encoded.split("\\s+").filter(_.nonEmpty).map(_.toInt).iterator
     val paths=Vector.fill(tokens.next()) {Vector.fill(tokens.next())(tokens.next()-1)}
     val allowed=if n.operation=="FirstMatching" then constant("Space",s"literal_text(\"${text(paths)}\")")
-      else constant("Vec<Path>",s"paths_text(\"${text(paths)}\")")
+      else constant("&'static [&'static [u8]]",paths.map(p=>s"&[${p.mkString(",")}]").mkString("&[",",","]"))
     allowed->prefix
 
   /** Hoist a static ordering only if continuation removes exactly the selected
@@ -311,15 +315,15 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
         if free.forall(nativeTypes.contains) then
           val helper=s"native_block_${nativeBlocks.size}"
           val replacements=free.zipWithIndex.map { (n,i)=>
-            val t=nativeTypes(n);n -> (if t=="Path"||t=="Space" then s"(*capture_$i)" else s"capture_$i")
+            val t=nativeTypes(n);n -> (if referenceType(t) then s"(*capture_$i)" else s"capture_$i")
           }.toMap
           val code=identifiers.replaceAllIn(cleaned,m=>java.util.regex.Matcher.quoteReplacement(replacements.getOrElse(m.matched,m.matched)))
-          val params=free.zipWithIndex.map((n,i)=>s"capture_$i: ${if Set("Path","Space")(nativeTypes(n)) then "&" else ""}${nativeTypes(n)}")
+          val params=free.zipWithIndex.map((n,i)=>s"capture_$i: ${if referenceType(nativeTypes(n)) then "&" else ""}${nativeTypes(n)}")
           val resultType=if live.isEmpty then "()" else if live.size==1 then nativeTypes(live.head) else live.map(nativeTypes).mkString("(",",",",)")
           val result=if live.isEmpty then "()" else if live.size==1 then s"(${live.head}).clone()" else live.map(n=>s"($n).clone()").mkString("(",",",",)")
           nativeBlocks+=s"#[inline(never)]\nfn $helper(${(Vector("c: &mut Context")++params).mkString(",")}) -> $resultType {\n$code\n$result\n}\n"
           out.setLength(chunkStart)
-          val call=s"$helper(c${free.map(n=>", "+(if Set("Path","Space")(nativeTypes(n)) then s"&$n" else n)).mkString})"
+          val call=s"$helper(c${free.map(n=>", "+(if referenceType(nativeTypes(n)) then s"&$n" else n)).mkString})"
           if live.isEmpty then line(s"$call;")
           else if live.size==1 then line(s"let ${live.head}: $resultType = $call;")
           else line(s"let ${live.mkString("(",",",",)")} = $call;")
@@ -363,9 +367,9 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
             case "Singleton" => call("singleton")
             case "Call" =>
               val invoke=if tailCall.contains(g->pos) then
-                val tuple=if ins.isEmpty then "()" else ins.map(s=>s"($s).clone()").mkString("(",",",",)")
+                val tuple=if ins.isEmpty then "()" else ins.map(copied).mkString("(",",",",)")
                 s"{ next_call = Some($tuple); Space::new() }"
-              else s"${functions(n.constant)}(c${ins.map(s=>", "+borrow(s)).mkString})"
+              else s"${functions(n.constant)}(c${ins.map(s=>", "+nativeBorrow(s)).mkString})"
               val stationary=g.level==0 && n.constant==emittingRoutine && (g.lookup(alias(g,output(g))) match
                 case Left(Node("Union",_,_,Vector(_,right))) => alias(g,right)==pos
                 case _ => false)
@@ -392,11 +396,11 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
             case "NativeHasHead" => s"if has_head(${borrow(ins.head)}) { singleton(&[]) } else { Space::new() }"
             case "NativeNonempty" => s"if (${ins.head}).is_empty() { Space::new() } else { singleton(&[]) }"
             case "Range" =>
-              val (lo,hi)=g.rangeBounds(n.constant); s"range(${borrow(ins.head)},$lo,$hi)"
+              val (lo,hi)=g.rangeBounds(n.constant); s"range_const::<{$lo},{$hi}>(${borrow(ins.head)})"
             case "GroundedPP" => s"singleton_path(&grounded_${n.constant}(c,&singleton(${borrow(ins.head)})))"
-            case "GroundedSP" => s"singleton_path(&grounded_${n.constant}(c,${borrow(ins.head)}))"
+            case "GroundedSP" => s"singleton_path(&grounded_${n.constant}(c,${nativeBorrow(ins.head)}))"
             case "GroundedPS" => s"grounded_${n.constant}(c,&singleton(${borrow(ins.head)}))"
-            case "GroundedSS" => s"grounded_${n.constant}(c,${borrow(ins.head)})"
+            case "GroundedSS" => s"grounded_${n.constant}(c,${nativeBorrow(ins.head)})"
             case "FirstFibonacci" | "FirstMatching" | "FirstListed" | "FirstTerminated" if orderedHead.contains(g->pos) => bindings=bindings.updated(pos,"ordered_head"); ""
             case "FirstTerminated" => s"first_terminated(${borrow(ins.head)})"
             case "FirstFibonacci" => s"first_fibonacci(${borrow(ins.head)},${n.constant})"
@@ -418,18 +422,20 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
               val pc=sub.root.constant.toInt
               line(s"let mut $name = Space::new();")
               input.zipWithIndex.foreach { (arg,i)=>
-                line(s"let ${name}_arg_$i: &${if i<pc then "Path" else "Space"} = ${borrow(arg)};")
+                line(s"let ${name}_arg_$i: &${if i<pc then "Path" else "Space"} = ${nativeBorrow(arg)};")
                 nativeTypes(s"${name}_arg_$i")=if i<pc then "&Path" else "&Space"
               }
               line(s"let mut ${name}_cursor = ${name}_arg_$pc.read_zipper();")
               line(s"let mut ${name}_more = ${name}_cursor.is_val() || ${name}_cursor.to_next_val();")
               line(s"while ${name}_more {")
+              line("  {")
               line(s"  let ${name}_path = concat_path(${name}_arg_0,${name}_cursor.path());")
-              line(s"  let ${name}_rest = ${name}_cursor.make_map();")
-              nativeTypes(s"${name}_path")="Path";nativeTypes(s"${name}_rest")="Space"
+              line(s"  let ${name}_rest = ${name}_cursor.fork_read_zipper();")
+              nativeTypes(s"${name}_path")="Path";nativeTypes(s"${name}_rest")="View<'_, '_>"
               val bound=input.indices.map { i=>i -> (if i==0 then s"${name}_path" else if i==pc then s"${name}_rest" else s"*${name}_arg_$i") }.toMap
               val inner=emitBlock(sub,bindings.toMap,bound,params,out,indent+"  ")
-              line(s"  $name.join_into((${inner(output(sub))}).clone());")
+              line(s"  $name.join_into(${copied(inner(output(sub)))});")
+              line("  }")
               line(s"  ${name}_more = ${name}_cursor.to_next_val();")
               line("}")
               line(s"drop(${name}_cursor);")
@@ -444,25 +450,31 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
               line(s"let mut ${name}_cursor = (${input.head}).read_zipper();")
               line(s"for ${name}_byte in ${name}_cursor.child_mask().iter() {")
               line(s"  ${name}_cursor.descend_to_byte(${name}_byte);")
-              line(s"  let ${name}_tail = ${name}_cursor.make_map();")
-              line(s"  ${name}_cursor.ascend(1);")
+              line("  {")
+              line(s"  let ${name}_tail = ${name}_cursor.fork_read_zipper();")
               line(s"  let ${name}_head = Path::from_slice(&[${name}_byte]);")
-              nativeTypes(s"${name}_head")="Path";nativeTypes(s"${name}_tail")="Space"
+              nativeTypes(s"${name}_head")="Path";nativeTypes(s"${name}_tail")="View<'_, '_>"
               val bound=if fold then Map(0->s"${name}_acc",1->s"${name}_head",2->s"${name}_tail")
                 else Map(0->s"${name}_head",1->s"${name}_tail")
               val inner=emitBlock(sub,bindings.toMap,bound,params,out,indent+"  ")
               val body=if fold then foldOutputs(sub)._1 else output(sub)
-              line(s"  $name.join_into((${inner(body)}).clone());")
+              line(s"  $name.join_into(${copied(inner(body))});")
               if fold then line(s"  ${name}_acc = (${inner(foldOutputs(sub)._2)}).clone();")
+              line("  }")
+              line(s"  ${name}_cursor.ascend(1);")
               line("}")
               line(s"drop(${name}_cursor);")
             case "Fixpoint" =>
-              line(s"let mut $name: Space = (${input.head}).clone();")
+              line(s"let mut $name: Space = ${copied(input.head)};")
               line("loop {")
               val inner=emitBlock(sub,bindings.toMap,Map(0->name),params,out,indent+"  ")
-              line(s"  let ${name}_next = unite(&$name,${borrow(inner(output(sub)))});")
-              line(s"  if equal(&${name}_next,&$name) { break; }")
-              line(s"  $name = ${name}_next;")
+              // Native status normally eliminates the equality traversal. For
+              // opaque steps retain exact callback counts even if a physical
+              // representation change conservatively reports Element.
+              if sub.nodes.indices.exists(i=>opaque(sub,i)) then
+                line(s"  let ${name}_before = $name.clone();")
+                line(s"  if !$name.join_into(${copied(inner(output(sub)))}).is_element() || equal(&$name,&${name}_before) { break; }")
+              else line(s"  if !$name.join_into(${copied(inner(output(sub)))}).is_element() { break; }")
               line("}")
             case other => throw IllegalArgumentException(s"unsupported Rust graph scope $other")
           bindings=bindings.updated(pos,name)

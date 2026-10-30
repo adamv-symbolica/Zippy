@@ -5,8 +5,8 @@ edition = "2024"
 rust-version = "1.88"
 
 [dependencies]
-# PR #171 includes focus-value consistency, pruned Zippy laws and native tails meet.
-pathmap = { git = "https://github.com/Adam-Vandervorst/PathMap", rev = "f3e442ed19025582aced71c598a0359b3b469e45", default-features = false, features = ["slim_ptrs"] }
+# PR #171 plus the PR #172 sparse restriction fix; provenance lives beside source.
+pathmap = { path = "vendor/pathmap", default-features = false, features = ["slim_ptrs"] }
 num-bigint = "0.4"
 num-traits = "0.2"
 smallvec = "1.15"
