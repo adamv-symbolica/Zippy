@@ -151,6 +151,10 @@ object RustPathMapAudit:
     val executions = Executors.newFixedThreadPool(workers,new ThreadFactory:
       def newThread(r: Runnable): Thread = {val t=Thread(r,"pathmap-native-check");t.setDaemon(true);t}
     )
+    // Bound retained compiled graphs while rustc works through large batches.
+    // An unbounded executor queue can retain the entire replay corpus and put
+    // a large JVM into repeated full collections before native checks catch up.
+    val nativeSlots=new java.util.concurrent.Semaphore(workers*2)
     println(s"PathMap audit: ${snapshot.size} cases ($symbolCases symbolic frames), $workers workers, batches of $batch")
     snapshot.zipWithIndex.grouped(batch).foreach { group => pool.submit(new Runnable:
       def run(): Unit =
@@ -172,33 +176,36 @@ object RustPathMapAudit:
           pending :+= item;bytes+=size
         }
         if pending.nonEmpty then chunks+=pending
-        chunks.foreach { chunk => executions.submit(new Runnable:
-          def run(): Unit =
-            busy.set(true)
-            var session = Option.empty[RustPathMapBackend.Session]
-            try
-              if chunk.nonEmpty then
-                session = Some(RustPathMapBackend.Session(chunk.map(_._3.program).toVector))
-                chunk.zipWithIndex.foreach { case ((c,id,value),index) =>
-                  record(s"{\"case\":$id,\"dialect\":${quote(c.dialect)},\"status\":\"start\"}")
-                  val start = System.nanoTime()
-                  try
-                    value.run(session.get,index)
-                    counts.computeIfAbsent(c.dialect,_ => AtomicLong(0)).incrementAndGet()
-                    record(s"{\"case\":$id,\"dialect\":${quote(c.dialect)},\"caller\":${quote(c.caller)},\"status\":\"pass\",\"micros\":${(System.nanoTime()-start)/1000}}")
-                  catch case e: Throwable =>
-                    failures.incrementAndGet()
-                    record(s"{\"case\":$id,\"dialect\":${quote(c.dialect)},\"caller\":${quote(c.caller)},\"status\":\"fail\",\"error\":${quote(e.toString)}}")
-                  finally
-                    val n = checks.incrementAndGet()
-                    if n % 1000 == 0 || n == snapshot.size then println(s"PathMap audit: $n/${snapshot.size}, ${failures.get()} failures")
-                }
-            catch case e: Throwable =>
-              failures.addAndGet(chunk.size)
-              checks.addAndGet(chunk.size)
-              record(s"{\"status\":\"batch-failure\",\"cases\":${chunk.map(_._2).mkString("[",",","]")},\"error\":${quote(e.toString)}}")
-            finally
-              session.foreach(_.close());busy.remove()
+        chunks.foreach { chunk =>
+          nativeSlots.acquire()
+          executions.submit(new Runnable:
+            def run(): Unit =
+              busy.set(true)
+              var session = Option.empty[RustPathMapBackend.Session]
+              try
+                if chunk.nonEmpty then
+                  session = Some(RustPathMapBackend.Session(chunk.map(_._3.program).toVector))
+                  chunk.zipWithIndex.foreach { case ((c,id,value),index) =>
+                    record(s"{\"case\":$id,\"dialect\":${quote(c.dialect)},\"status\":\"start\"}")
+                    val start = System.nanoTime()
+                    try
+                      value.run(session.get,index)
+                      counts.computeIfAbsent(c.dialect,_ => AtomicLong(0)).incrementAndGet()
+                      record(s"{\"case\":$id,\"dialect\":${quote(c.dialect)},\"caller\":${quote(c.caller)},\"status\":\"pass\",\"micros\":${(System.nanoTime()-start)/1000}}")
+                    catch case e: Throwable =>
+                      failures.incrementAndGet()
+                      record(s"{\"case\":$id,\"dialect\":${quote(c.dialect)},\"caller\":${quote(c.caller)},\"status\":\"fail\",\"error\":${quote(e.toString)}}")
+                    finally
+                      val n = checks.incrementAndGet()
+                      if n % 1000 == 0 || n == snapshot.size then println(s"PathMap audit: $n/${snapshot.size}, ${failures.get()} failures")
+                  }
+              catch case e: Throwable =>
+                failures.addAndGet(chunk.size)
+                checks.addAndGet(chunk.size)
+                record(s"{\"status\":\"batch-failure\",\"cases\":${chunk.map(_._2).mkString("[",",","]")},\"error\":${quote(e.toString)}}")
+              finally
+                try session.foreach(_.close())
+                finally {busy.remove();nativeSlots.release()}
         ) }
         busy.remove()
     ) }
