@@ -1,0 +1,2 @@
+name,variant,paths,evalZ_ms,first_ms,checked
+"n-queens","MORKL 8x8 source",92,49227.311569,60962.354332,exact

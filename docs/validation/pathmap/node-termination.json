@@ -1,0 +1,22 @@
+{
+  "created_at": "2026-10-30T02:55:41.172186Z",
+  "data_volume_gib": null,
+  "error": null,
+  "expires_at": "2026-10-30T07:55:41.172186Z",
+  "id": "nd-01m65br25631mm10gtt9dn9jzd",
+  "name": "zippy-pathmap-rust",
+  "os": "ubuntu",
+  "owner": "adam.vandervorst@symbolica.ai",
+  "profile": "cpu-h4d-xlarge",
+  "ready_at": "2026-10-30T02:56:52.291376Z",
+  "region": "asia-southeast1",
+  "starts_at": null,
+  "status": "terminated",
+  "storage": "none",
+  "tailscale": {
+    "hostname": "nd-01m65br25631mm10gtt9dn9jzd",
+    "ipv4": "100.86.35.126",
+    "ssh_user": "ubuntu"
+  },
+  "terminated_at": "2026-10-30T07:56:52.141062Z"
+}

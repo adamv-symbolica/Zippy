@@ -1,0 +1,13 @@
+family,name,dialect,paths,states,arcs,compile_ms,native_ms,reference_trie_ms,samples,checked,graph_compile_ms,graph_nodes,generated_bytes,precomputed
+cost-correlation,128,bits,16384,85,126,2.984,0.024372,34.943,5,exact,7.257,3,783,false
+cost-correlation,128,bytes,16384,17,270,5.370,0.024928,34.943,5,exact,2.479,3,783,false
+cost-correlation,128,symbols,16384,5,258,52.398,0.020268,34.943,5,exact,129.931,3,782,false
+cost-correlation,256,bits,65536,90,132,6.218,0.025808,52.997,5,exact,3.107,3,783,false
+cost-correlation,256,bytes,65536,17,526,5.997,0.044856,52.997,5,exact,2.687,3,783,false
+cost-correlation,256,symbols,65536,5,514,75.039,0.041983,52.997,5,exact,121.197,3,782,false
+cost-correlation,32,bits,1024,59,83,7.280,0.015423,31.052,5,exact,2.854,3,783,false
+cost-correlation,32,bytes,1024,17,78,3.214,0.006371,31.052,5,exact,2.701,3,783,false
+cost-correlation,32,symbols,1024,5,66,52.187,0.004073,31.052,5,exact,119.342,3,782,false
+cost-correlation,64,bits,4096,71,103,3.536,0.019597,23.911,5,exact,4.037,3,783,false
+cost-correlation,64,bytes,4096,17,142,1.994,0.012504,23.911,5,exact,2.390,3,783,false
+cost-correlation,64,symbols,4096,5,130,47.191,0.009776,23.911,5,exact,114.318,3,782,false

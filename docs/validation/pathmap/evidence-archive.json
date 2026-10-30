@@ -1,0 +1,8 @@
+{
+  "archive": "pathmap-complete-evidence.tar.gz",
+  "sha256": "8328bc2bb38248a84ced6c7dae36470cc3df66cd2f364cb1302b7549285c5f90",
+  "bytes": 1434229,
+  "files": 613,
+  "workspaceArchive": "output/pathmap-validation/pathmap-complete-evidence.tar.gz",
+  "contains": "Full final native replay ledger and logs, all benchmark shards, original reports, C++ comparisons and micro retry, reference timings, 108 export build logs, toolchains and the validated source snapshot"
+}

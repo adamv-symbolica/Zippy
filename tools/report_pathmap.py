@@ -31,6 +31,7 @@ def main():
     for a in artifacts.values():
         assert hashlib.sha256((args.bundle/a['source']).read_bytes()).hexdigest()==a['sha256']
     primary,compilation,queens=tables(args.benchmarks/'existing/trieBenchmarkReport.log')
+    comp={(r['benchmark'],r['variant']):r for r in compilation}
     large,=tables(args.benchmarks/'existing/zipperLargeBenchmarkReport.log')
     assert len(primary)==22 and len(large)==14
     zipper=json.loads((args.zipper/'summary.json').read_text())
@@ -58,10 +59,15 @@ def main():
                 assert ms!='n/a', (name,variant,evaluator)
                 row=dict(family=family,example=name,variant=variant,evaluator=evaluator,runtime_ms=ms,
                          paths=count,session_setup_ms=compile_ms,graph_compile_ms=graph_ms,
-                         source=source,rust_opt_level=level,notes=notes)
+                         source=source,rust_opt_level=level,notes=notes,
+                         scala_compile_ms=comp[name,variant]['total compile ms'] if evaluator.startswith('ROG') else '',
+                         scala_compile_run_ms=comp[name,variant]['compile+ROG execT ms'] if evaluator=='ROG execT' else '')
                 case.append(row);joined.append(row)
             for e in EVALUATORS if family=='programs' else ('evalTrie','evalZ'):
-                add(e,r[e+' ms'],r.get('graph note',r.get('note','')))
+                note={'eval Set':'reference path sets','evalTrie':'symbol trie','evalZ':'zipper evaluator'}.get(e,'')
+                if e.startswith('ROG'):
+                    note=r.get('graph note','').split('; direct evalZ')[0]
+                add(e,r[e+' ms'],note)
             if family=='programs':
                 for dialect in ('bits','bytes'):
                     ref=refs[f'{name}/{variant}',dialect]
@@ -73,6 +79,10 @@ def main():
                     n=engines[engine,family,f'{name}/{variant}',dialect]
                     assert int(n['paths'])==count and n['checked']=='exact'
                     source=artifacts[family,name,variant,dialect]['source'] if engine=='Rust PathMap' else ''
+                    if engine=='Rust PathMap':
+                        a=artifacts[family,name,variant,dialect]
+                        assert int(n['generated_bytes'])==a['bytes'] and int(n['graph_nodes'])==a['graphNodes']
+                        assert int(n['rust_opt_level'])==a['rustOptLevel'] and n['precomputed'].lower()==str(a['precomputed']).lower()
                     note=('precomputed literal' if n['precomputed'].lower()=='true' else 'optimized graph')
                     add(engine+' '+dialect,n['native_ms'],note,n['compile_ms'],n['graph_compile_ms'],source,n.get('rust_opt_level',''))
             case_groups[group(name)].append((name,variant,count,case))
@@ -91,12 +101,20 @@ def main():
                                  [(link(r),r['runtime_ms'],r['notes']) for r in case]))
             text.append(md_table(('Compiled backend','Graph/source compile ms','Session setup ms¹','Rust opt-level'),
                                  [(r['evaluator'],r['graph_compile_ms'],r['session_setup_ms'],r['rust_opt_level']) for r in case if r['session_setup_ms']]))
+            if (name,variant) in comp:
+                c=comp[name,variant]
+                text.append(md_table(('Scala graph pipeline','Prep compile ms','Graph compile ms','Total compile ms','Compile + ROG execT ms'),
+                                     [('optimized executor',c['prep compile ms'],c['graph compile ms'],c['total compile ms'],c['compile+ROG execT ms'])]))
+        if key=='n-queens':
+            text.append('Independent bitboard reference from the original report (not a Zippy evaluator):\n')
+            text.append(md_table(('Benchmark','Variant','Result','Runtime ms'),[(r['benchmark'],r['variant'],r['result'],r['ms']) for r in queens]))
         (args.output/(key+'.md')).write_text('\n'.join(text))
     intro=['# PathMap cornerstone results\n',
            'Recorded on 2026-10-30 on a Symba h4d xlarge (192 AMD EPYC Turin CPUs).\n',
            'Every cornerstone is listed separately: five Scala evaluators, two digit references, three C++ dialects, and three Rust byte encodings. Supplementary large cases retain their two Scala evaluators and all six native variants. All 398 runtime cells are measured and every native cornerstone result was checked exactly.\n',
            md_table(('Example group','Variants'),[(f'[{title}]({key}.md)',len(case_groups[key])) for key,title in GROUPS.items()]),
-           'The [complete CSV](all-evaluators.csv) includes native session setup and graph/source compiler times. The Rust review bundle contains 108 sources, graph dumps, exact inputs and independent expected results.\n',
+           'The [complete CSV](all-evaluators.csv) includes native session setup, graph/source compiler times, and Scala graph compile + execution. The [Rust review bundle](../compiled-cornerstones-rust/README.md) contains 108 sources, graph dumps, exact inputs and independent expected results. [Validation evidence](../validation/pathmap/README.md) retains all nine native benchmark families, microbenchmarks and the fourteen original evaluator reports.\n',
+           '[Translation and performance notes](performance.md) explain the main implementation choices and include the large fold and product results.\n',
            'Native timings include graph execution and exact result cardinality; compilation, input construction, protocol IO and output enumeration are excluded. Constant-folded outputs are marked. Rust kernels always use release level 3; the table records the size-based generated-code level. Session setup can hit the compilation cache and is not a cold compiler comparison.\n',
            'The full matrix ran with eight benchmark workers and four shards per family while validation used other cores. Treat small timing differences as noise. The original Scala reports, digit-reference runs and extra zipper runs have their own warmup policies; raw evidence is retained. The three source evalZ cases omitted by the legacy report were measured separately with exact checks.\n',
            '¹ Native session setup includes any compilation/cache lookup and process startup.\n']

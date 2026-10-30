@@ -1,0 +1,2 @@
+name,variant,paths,evalZ_ms,first_ms,checked
+"sliding puzzle","4x4 pure source depth-5 step",202,8635.440986,6167.774167,exact

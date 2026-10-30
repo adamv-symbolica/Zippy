@@ -1,0 +1,37 @@
+Picked up _JAVA_OPTIONS: -Dmorkl.pathmap.cache=/home/ubuntu/zippy-pathmap-cache8 -Xmx128g -Xss64m -Dmorkl.pathmap.root=/home/ubuntu/Zippy-pathmap-final9
+[constant-fold] backend Reference
+[constant-fold] backend Trie
+[constant-fold] backend Zipper
+[constant-fold] backend ExecT
+[constant-fold] backend Hybrid
+[constant-fold] backend Reference
+[constant-fold] backend Trie
+[constant-fold] backend Zipper
+[constant-fold] backend ExecT
+[constant-fold] backend Hybrid
+# Constant Fold Executor Report
+
+Focused sweep over the four previously reported long constant-fold rows. `speedup vs reference` compares total constant-fold executor time within the same focused run.
+
+| benchmark | backend | compile ms | source pass ms | const-fold total ms | speedup vs reference | eval ms | evalTrie ms | evalZ ms | execT ms | eval calls | evalTrie calls | evalZ calls | execT calls | total calls |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| life compile-pass random 24x24 initial literal | Reference | 21.764 | 20.739 | 18.514 | 1.00 x | 18.514 | 0.000 | 0.000 | 0.000 | 72 | 0 | 0 | 0 | 72 |
+| sliding puzzle 3x3 pure compile-pass depth-8 step | Reference | 35.752 | 34.783 | 30.672 | 1.00 x | 30.672 | 0.000 | 0.000 | 0.000 | 176 | 0 | 0 | 0 | 176 |
+| n-queens MORKL 8x8 source graph compile | Reference | 338.810 | 337.462 | 332.928 | 1.00 x | 332.928 | 0.000 | 0.000 | 0.000 | 130 | 0 | 0 | 0 | 130 |
+| n-queens MORKL 8x8 compile-pass | Reference | 328.790 | 328.326 | 323.915 | 1.00 x | 323.915 | 0.000 | 0.000 | 0.000 | 130 | 0 | 0 | 0 | 130 |
+| life compile-pass random 24x24 initial literal | Trie | 249.932 | 249.017 | 247.056 | 0.07 x | 0.000 | 247.056 | 0.000 | 0.000 | 0 | 72 | 0 | 0 | 72 |
+| sliding puzzle 3x3 pure compile-pass depth-8 step | Trie | 400.006 | 398.895 | 391.510 | 0.08 x | 0.000 | 391.510 | 0.000 | 0.000 | 0 | 176 | 0 | 0 | 176 |
+| n-queens MORKL 8x8 source graph compile | Trie | 685.463 | 683.484 | 677.571 | 0.49 x | 0.000 | 677.571 | 0.000 | 0.000 | 0 | 130 | 0 | 0 | 130 |
+| n-queens MORKL 8x8 compile-pass | Trie | 619.766 | 619.348 | 614.815 | 0.53 x | 0.000 | 614.815 | 0.000 | 0.000 | 0 | 130 | 0 | 0 | 130 |
+| life compile-pass random 24x24 initial literal | Zipper | 324.473 | 322.998 | 320.945 | 0.06 x | 0.000 | 0.000 | 320.945 | 0.000 | 0 | 0 | 72 | 0 | 72 |
+| sliding puzzle 3x3 pure compile-pass depth-8 step | Zipper | 531.400 | 530.289 | 527.517 | 0.06 x | 0.000 | 0.000 | 527.517 | 0.000 | 0 | 0 | 176 | 0 | 176 |
+| n-queens MORKL 8x8 source graph compile | Zipper | 1003.782 | 1002.604 | 998.234 | 0.33 x | 0.000 | 0.000 | 998.234 | 0.000 | 0 | 0 | 130 | 0 | 130 |
+| n-queens MORKL 8x8 compile-pass | Zipper | 969.528 | 969.071 | 964.949 | 0.34 x | 0.000 | 0.000 | 964.949 | 0.000 | 0 | 0 | 130 | 0 | 130 |
+| life compile-pass random 24x24 initial literal | ExecT | 18.307 | 17.603 | 15.796 | 1.17 x | 0.000 | 0.000 | 0.000 | 15.796 | 0 | 0 | 0 | 72 | 72 |
+| sliding puzzle 3x3 pure compile-pass depth-8 step | ExecT | 54.273 | 53.331 | 50.955 | 0.60 x | 0.000 | 0.000 | 0.000 | 50.955 | 0 | 0 | 0 | 176 | 176 |
+| n-queens MORKL 8x8 source graph compile | ExecT | 189.573 | 188.371 | 184.135 | 1.81 x | 0.000 | 0.000 | 0.000 | 184.135 | 0 | 0 | 0 | 130 | 130 |
+| n-queens MORKL 8x8 compile-pass | ExecT | 185.513 | 185.027 | 180.939 | 1.79 x | 0.000 | 0.000 | 0.000 | 180.939 | 0 | 0 | 0 | 130 | 130 |
+| life compile-pass random 24x24 initial literal | Hybrid | 10.194 | 9.452 | 7.690 | 2.41 x | 1.743 | 0.000 | 0.000 | 5.947 | 70 | 0 | 0 | 2 | 72 |
+| sliding puzzle 3x3 pure compile-pass depth-8 step | Hybrid | 33.776 | 32.891 | 30.408 | 1.01 x | 30.408 | 0.000 | 0.000 | 0.000 | 176 | 0 | 0 | 0 | 176 |
+| n-queens MORKL 8x8 source graph compile | Hybrid | 343.142 | 342.036 | 337.817 | 0.99 x | 337.817 | 0.000 | 0.000 | 0.000 | 130 | 0 | 0 | 0 | 130 |
+| n-queens MORKL 8x8 compile-pass | Hybrid | 326.854 | 326.461 | 322.346 | 1.00 x | 322.346 | 0.000 | 0.000 | 0.000 | 130 | 0 | 0 | 0 | 130 |

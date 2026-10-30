@@ -46,7 +46,7 @@ is removed before PathMap construction.
 | Operation | Implementation |
 |---|---|
 | Union / intersection / subtraction | PathMap `join` / `meet` / `subtract` |
-| Restriction / raffination | Native prefix restriction, and native difference from that restriction |
+| Restriction / raffination | Native prefix restriction; singleton raffination removes a subtree directly, otherwise native difference |
 | Wrap | Shared clone plus write-zipper `insert_prefix` |
 | Unwrap | Read-zipper descent plus `make_map`, sharing the residual subtree |
 | Tails union / intersection | `join_k_path_into(1, true)` / `meet_k_path_into(1, true)` |
@@ -57,6 +57,7 @@ is removed before PathMap construction.
 | Iteration / fold | Generated loops over a reusable zipper and `ByteMask`; fold accumulator is a Rust local |
 | Fixpoint | Generated inflationary union/equality loop using native algebra |
 | Routine calls | Typed Rust functions, with lexical captures resolved at graph compilation |
+| Exact cardinality | Iterative BigUint fold memoized at shared physical node boundaries, including unary stems |
 
 Composition and closures visit shared physical subtries through PathMap's
 cached folds. A product with 2^80 accepted paths remains compact; counts and
@@ -78,6 +79,28 @@ the machine stack per symbol; no continuation interpreter is introduced.
 Proven ordered head scanners use joint child-mask search
 or a bounded ordinal Fibonacci search; these are optimizations of existing
 operations and functions, not new language cases.
+
+Modules containing opaque functions retain native call boundaries during source
+lowering: call-by-name source substitution could otherwise discard an unused
+strict argument. Path-loop fusion likewise keeps a call when an actual argument
+can invoke an opaque function. Callback argument evaluation remains observable
+even when the callee ignores that argument or its input space is empty.
+
+Repeated ordered selections are hoisted out of a translated fold only when its
+graph proves that each continuation removes exactly the selected prefix.
+The codewords must be prefix-free, and a step routine that removes its current
+head must pass the selected next head back to that same parameter. Fibonacci
+and static codebook orderings are computed once. A separate structural proof
+recognizes the ordinary first-zero scanner for string symbols; incomplete
+runtime words are ignored exactly as in the source program. No encoding
+dictionary or boundary metadata is attached to input/output spaces.
+
+Large straight-line graph regions become native functions with typed reference
+arguments and live-value results. This bounds Rust MIR/drop elaboration and LLVM
+work while preserving lexical loops and direct operations. The default region
+threshold is 32,000 generated characters (`morkl.pathmap.blockBytes`). Compiler
+binding maps are persistent and dependency analysis is memoized, avoiding
+quadratic compiler allocation on deeply unrolled programs.
 
 ## Grounded operations
 
@@ -166,3 +189,8 @@ timings, or `--workers 8 --shards 4` for the full h4d throughput run.
 `exportCornerstoneRust` exports 108 complete programs for the 36 cornerstone
 and supplementary cases. `tools/check_cornerstone_rust.py` builds each source
 and compares decoded output exactly against its independent Scala trie result.
+
+The [validation evidence](validation/pathmap/README.md),
+[per-example evaluator results](pathmap-benchmarks/README.md), and
+[standalone Rust review bundle](compiled-cornerstones-rust/README.md) record the
+completed h4d run and its exact source hashes.

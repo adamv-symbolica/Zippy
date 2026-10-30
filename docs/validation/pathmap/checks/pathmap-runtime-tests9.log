@@ -1,0 +1,23 @@
+   Compiling zippy-pathmap v0.1.0 (/home/ubuntu/Zippy-pathmap-final9/src/main/rust/pathmap)
+    Finished `release` profile [optimized + debuginfo] target(s) in 3.81s
+     Running unittests src/lib.rs (target/release/deps/zippy_pathmap-e698212c332a30d5)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/model.rs (target/release/deps/model-94011be20c4ce53f)
+
+running 3 tests
+test compact_products_have_exact_unbounded_cardinality_and_ranges ... ok
+test proven_codeword_selectors_preserve_ordinal_order ... ok
+test algebra_against_independent_path_sets ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+   Doc-tests zippy_pathmap
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

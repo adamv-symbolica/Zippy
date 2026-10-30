@@ -1,0 +1,23 @@
+{
+  "testExitCode": 0,
+  "generatedOptimization": "3",
+  "largeGeneratedOptimization": "opt-level 1 above 500k characters, 0 above 2M; runtime always release opt-level 3",
+  "passedTests": 328,
+  "fullSuite": true,
+  "audit": {
+    "cases": 93708,
+    "symbolCases": 30877,
+    "digitObservations": 1079,
+    "checks": 93708,
+    "failures": 0,
+    "finished": true,
+    "passed": {
+      "bits-bytes": 30877,
+      "bits-direct": 597,
+      "bytes-direct": 480,
+      "bytes-interned": 30877,
+      "bytes-strings": 30877
+    }
+  },
+  "success": true
+}

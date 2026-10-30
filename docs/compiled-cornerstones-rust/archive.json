@@ -1,0 +1,10 @@
+{
+  "archive": "cornerstone-rust-review.tar.gz",
+  "sha256": "c2104e70be9678fb0272493877437fa906fe2b17f47a5d98d08b72dc66f007a7",
+  "bytes": 9618020,
+  "files": 438,
+  "rustSources": 108,
+  "sourceBytes": 45972273,
+  "graphDumps": 108,
+  "standalonePrograms": 108
+}

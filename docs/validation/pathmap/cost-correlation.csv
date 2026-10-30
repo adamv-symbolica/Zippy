@@ -1,0 +1,13 @@
+family,name,dialect,paths,compile_ms,native_ms,reference_trie_ms,samples,checked,graph_compile_ms,graph_nodes,generated_bytes,precomputed,rust_opt_level
+cost-correlation,128,bits-bytes,16384,1.856,0.167556,20.260,5,exact,2.151,3,611,false,3
+cost-correlation,128,bytes-interned,16384,34.598,0.060763,20.260,5,exact,77.760,3,611,false,3
+cost-correlation,128,bytes-strings,16384,2.010,0.063649,20.260,5,exact,3.220,3,611,false,3
+cost-correlation,256,bits-bytes,65536,2.378,0.345151,23.081,5,exact,2.194,3,611,false,3
+cost-correlation,256,bytes-interned,65536,37.785,0.120342,23.081,5,exact,86.989,3,611,false,3
+cost-correlation,256,bytes-strings,65536,1.642,0.125372,23.081,5,exact,2.661,3,611,false,3
+cost-correlation,32,bits-bytes,1024,2.106,0.035945,15.519,5,exact,2.357,3,611,false,3
+cost-correlation,32,bytes-interned,1024,36.272,0.015608,15.519,5,exact,75.779,3,611,false,3
+cost-correlation,32,bytes-strings,1024,1.666,0.015890,15.519,5,exact,3.469,3,611,false,3
+cost-correlation,64,bits-bytes,4096,3.399,0.076888,17.619,5,exact,2.725,3,611,false,3
+cost-correlation,64,bytes-interned,4096,34.646,0.030582,17.619,5,exact,75.050,3,611,false,3
+cost-correlation,64,bytes-strings,4096,1.679,0.032331,17.619,5,exact,2.645,3,611,false,3

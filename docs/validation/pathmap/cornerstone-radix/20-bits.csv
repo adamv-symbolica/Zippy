@@ -1,0 +1,2 @@
+family,name,dialect,paths,reference_ms,samples,checked
+programs,"n-queens/MORKL 8x8 source",bits,92,1969.337224,1,exact

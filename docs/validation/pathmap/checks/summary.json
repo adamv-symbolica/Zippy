@@ -1,0 +1,10 @@
+{
+  "scalaTests": 328,
+  "rustModelTests": 3,
+  "rustModelRandomPairs": 1200,
+  "clippyWarningsDenied": true,
+  "rustfmt": true,
+  "openfstRegressionTests": 17,
+  "overlapWithScalaSuite": 6,
+  "uniqueScalaTestsIncludingOpenfst": 339
+}

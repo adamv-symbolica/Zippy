@@ -201,6 +201,9 @@ row is timed.
 
 See:
 
+- [Rust PathMap backend, all operations and byte encodings](docs/PATHMAP_BACKEND.md)
+- [PathMap and OpenFst results by example, all evaluators](docs/pathmap-benchmarks/README.md)
+- [Standalone Rust cornerstone sources](docs/compiled-cornerstones-rust/README.md)
 - [Cornerstone results by example, all evaluators and C++ dialects](docs/cornerstone-benchmarks/README.md)
 - [Compiled cornerstone sources for manual review](docs/compiled-cornerstones/README.md)
 - [`TRIE_RUNTIME.md`](docs/TRIE_RUNTIME.md)

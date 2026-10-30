@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "completed": 1,
+  "total": 1,
+  "workers": 1,
+  "runs": [
+    {
+      "kind": "native-micro",
+      "name": "acceptor-algebra",
+      "exitCode": 0,
+      "seconds": 16.549
+    }
+  ]
+}
