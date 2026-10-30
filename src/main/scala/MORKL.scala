@@ -839,7 +839,10 @@ class RecursiveOpGraph(var root: Node[(Int, Int)],
     else if desired_level < level then parent.get.lookup(pos)
     else throw RuntimeException(s"Not in tree $pos")
   def find(pred: Node[(Int, Int)] => Boolean): Option[(Int, Int)] =
-    nodes.zipWithIndex.collectFirst{ case (x, i) if x.left.exists(pred) => level -> i } match
+    // Binder lookups normally stop at the first few nodes. Building an eager
+    // zip of a large lowered scanner for every read made graph construction
+    // quadratic and allocated entire graph-sized arrays on every lookup.
+    nodes.iterator.zipWithIndex.collectFirst{ case (x, i) if x.left.exists(pred) => level -> i } match
       case None => ()
       case Some(p) => return Some(p)
     var curr = this

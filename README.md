@@ -19,6 +19,7 @@ The project contains working implementations of:
 - matching bit and byte languages, reference backends, and all seven encoding translations (see [Bit and Byte Zippy](docs/RADIX_LANGUAGES.md));
 - an interned `IntMap` trie runtime;
 - a C++17 / OpenFst backend for symbols, bits, and bytes (see [backend usage](docs/OPENFST_BACKEND.md));
+- a Rust / PathMap compiler for byte executor graphs, including all operations and the symbol/bit-to-byte translations (see [backend usage](docs/PATHMAP_BACKEND.md));
 - a virtual zipper evaluator with focus/context movement;
 - recursive operation-graph lowering and direct trie execution;
 - source optimization and positive supercompilation;
@@ -40,6 +41,8 @@ See [Proof Status](#proof-status) and [`fallbacks.md`](docs/fallbacks.md).
 | `src/main/scala/EncodingCompiler.scala` | boundary-aware lowering using existing operations and routines |
 | `src/main/scala/OpenFstBackend.scala` | C++ transpiler, native sessions, and standalone export |
 | `src/main/cpp/` | OpenFst acceptor runtime, CMake targets, independent model tests, and microbenchmarks |
+| `src/main/scala/RustPathMapBackend.scala` | Rust compiler, native sessions, graph entry point, and grounded function bindings |
+| `src/main/rust/pathmap/` | pinned PathMap runtime, independent path-set model tests, and native benchmarks |
 | `src/main/scala/TrieSpace.scala` | interned trie representation and native algebra |
 | `src/main/scala/ZipperSpace.scala` | virtual zipper operators, traversal, context, and `execZ` |
 | `src/main/scala/Supercompiler.scala` | positive supercompiler and residualization |

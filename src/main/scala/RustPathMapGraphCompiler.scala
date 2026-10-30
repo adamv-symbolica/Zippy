@@ -11,6 +11,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
   private val constants = mutable.LinkedHashMap.empty[String,String]
   private val declarations = mutable.ArrayBuffer.empty[String]
   private val functions = program.graphs.map(_._1).zipWithIndex.map((n,i)=>n -> s"routine_$i").toMap
+  private val lifetimes = java.util.IdentityHashMap[RecursiveOpGraph,Map[Int,Vector[Pos]]]()
   private var serial = 0
   private var emittingRoutine = ""
   private def path(p: PathValue): Vector[Int] = p.items.map { item =>
@@ -127,6 +128,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
                         params: Map[(String,String),String], out: StringBuilder, indent: String,
                         selected: Option[Set[Int]] = None): Map[Pos,String] =
     val bindings = mutable.Map.from(inherited)
+    val owned = mutable.Set.empty[Pos]
     val id = serial; serial += 1
     def value(p: Pos): String = bindings.getOrElse(p, {
       val scope = owner(g,p._1)
@@ -142,6 +144,19 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
     def line(s: String): Unit = out.append(indent).append(s).append('\n')
     def borrow(s: String): String = s"&($s)"
     val wanted = selected.getOrElse(Option(demands.get(g)).map(_.toSet).getOrElse(Set.empty))
+    val releases=Option(lifetimes.get(g)).getOrElse {
+      val uses=mutable.Map.empty[Pos,Int]
+      Option(demands.get(g)).foreach(_.foreach { i =>
+        dependencies(g,i).map(alias(g,_)).filter(_._1==g.level).foreach(p=>uses(p)=uses.getOrElse(p,-1).max(i))
+      })
+      val returns=if g.root.operation=="Fold" then { val (b,u)=foldOutputs(g);Vector(b,u) } else Vector(output(g))
+      returns.map(alias(g,_)).foreach(p=>uses(p)=Int.MaxValue)
+      val result=uses.toVector.sortBy(_._1).groupMap(_._2)(_._1);lifetimes.put(g,result);result
+    }
+    def release(index: Int): Unit =
+      releases.getOrElse(index,Vector.empty).foreach { p=>
+        if owned.remove(p) then line(s"drop(${bindings(p)});")
+      }
     val regions = deferredRegions(g,wanted)
     val deferred = regions.toVector.sortBy(_._1).flatMap((owner,is)=>is.map(_->owner)).toMap
     for (entry,index) <- g.nodes.zipWithIndex if wanted(index) && !deferred.contains(index) && !bindings.contains(g.level -> index) do
@@ -152,9 +167,20 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
           val a=value(left)
           line(s"let $name: Space = if ($a).is_empty() { Space::new() } else {")
           val inner=emitBlock(g,bindings.toMap,args,params,out,indent+"  ",Some(regions(index)))
-          line(s"  compose(${borrow(a)},${borrow(inner(right))})")
+          // Shared dependencies may belong to a different guarded region. The
+          // result must still be materialized in this lexical scope unless a
+          // dominating binding is present. Do not leak this binding outside it.
+          val resolved=if inner.contains(right) then inner else
+            val selection=mutable.Set.empty[Int]
+            def collect(i: Int): Unit =
+              if !inner.contains(g.level->i) && selection.add(i) then
+                dependencies(g,i).filter(_._1==g.level).foreach(p=>collect(p._2))
+            collect(right._2)
+            emitBlock(g,inner,args,params,out,indent+"  ",Some(selection.toSet))
+          line(s"  compose(${borrow(a)},${borrow(resolved(right))})")
           line("};")
           bindings(pos)=name
+          owned+=pos
         case Left(n) =>
           val ins=n.inputs.map(value)
           def call(fn: String): String = s"$fn(${ins.map(borrow).mkString(",")})"
@@ -212,6 +238,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
           if code.nonEmpty then
             line(s"let $name: ${if n.kind=="path" then "Path" else "Space"} = $code;")
             bindings(pos)=name
+            owned+=pos
         case Right(sub) =>
           val input=sub.root.inputs.map(value)
           sub.root.operation match
@@ -234,6 +261,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
               line(s"  $name.join_into((${inner(body)}).clone());")
               if fold then line(s"  ${name}_acc = (${inner(foldOutputs(sub)._2)}).clone();")
               line("}")
+              line(s"drop(${name}_cursor);")
             case "Fixpoint" =>
               line(s"let mut $name: Space = (${input.head}).clone();")
               line("loop {")
@@ -244,6 +272,8 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
               line("}")
             case other => throw IllegalArgumentException(s"unsupported Rust graph scope $other")
           bindings(pos)=name
+          owned+=pos
+      release(index)
     bindings.toMap
 
   def compile(): String =

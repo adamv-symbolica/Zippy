@@ -159,7 +159,7 @@ object RustPathMapAudit:
           try Right((c,id,c.compile()))
           catch case e: Throwable =>
             failures.incrementAndGet(); checks.incrementAndGet()
-            record(s"{\"case\":$id,\"dialect\":${quote(c.dialect)},\"status\":\"compile-failure\",\"error\":${quote(e.toString)}}")
+            record(s"{\"case\":$id,\"dialect\":${quote(c.dialect)},\"status\":\"compile-failure\",\"error\":${quote(e.toString)},\"stack\":${quote(e.getStackTrace.take(25).mkString("\n"))}}")
             Left(e)
         }.collect {case Right(value) => value}
         val limit=Integer.getInteger("morkl.pathmapAudit.codeBytes",2000000).intValue().max(10000)

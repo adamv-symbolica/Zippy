@@ -82,6 +82,7 @@ def main():
             return 1
         entries = compiled.stdout.strip().splitlines()[-1].split(os.pathsep)
         classpath = os.pathsep.join([str(jar)] + [p for p in entries if Path(p).is_file() and Path(p) != jar])
+        (output / 'classpath.txt').write_text(classpath + '\n')
         java = str(Path(os.environ['JAVA_HOME']) / 'bin/java') if os.environ.get('JAVA_HOME') else 'java'
         base = [java, '-cp', classpath]
     else:

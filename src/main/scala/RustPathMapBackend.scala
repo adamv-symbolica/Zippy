@@ -114,18 +114,29 @@ object RustPathMapBackend:
     }
     target.resolve("release") -> identity
   }
+  /** Keep LLVM work bounded for mechanically expanded scanners. Trie kernels
+    * are always compiled at release opt-level 3 in the separate runtime crate.
+    */
+  def optimizationFor(source: String): Int =
+    val requested=Integer.getInteger("morkl.pathmap.optimize",3).intValue()
+    require(requested>=0 && requested<=3,"Rust opt-level must be 0..3")
+    val cap=if source.length>2000000 then Integer.getInteger("morkl.pathmap.largeOptimize",0).intValue()
+      else if source.length>500000 then Integer.getInteger("morkl.pathmap.mediumOptimize",1).intValue()
+      else 3
+    requested.min(cap)
   def build(source: String): FilePath =
     val (library,identity)=runtime
-    val optimization=System.getProperty("morkl.pathmap.optimize","3")
+    val optimization=optimizationFor(source)
     val flags=System.getProperty("morkl.pathmap.rustflags","-C target-cpu=native").split("\\s+").filter(_.nonEmpty).toVector
-    val key=hash(source+identity+optimization+flags.mkString(" "))
+    val units=if source.length>500000 then "16" else "1"
+    val key=hash(source+identity+optimization+units+flags.mkString(" "))
     val executable=cache.resolve(key)
     locked(cache.resolve(key+".lock")) {
       if !Files.exists(executable) then
         val rs=cache.resolve(key+".rs");Files.writeString(rs,source)
         val temporary=cache.resolve(key+".building")
         command(Vector(System.getProperty("morkl.pathmap.rustc","rustc"),"--edition=2024","--crate-name","zippy_generated",
-          "-C",s"opt-level=$optimization","-C","codegen-units=1","-L","dependency="+library.resolve("deps"),
+          "-C",s"opt-level=$optimization","-C",s"codegen-units=$units","-L","dependency="+library.resolve("deps"),
           "--extern","zippy_pathmap="+library.resolve("libzippy_pathmap.rlib"),rs.toString,"-o",temporary.toString)++flags,cache.resolve(key+".build.log"))
         Files.move(temporary,executable,StandardCopyOption.ATOMIC_MOVE)
       executable
