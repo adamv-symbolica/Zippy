@@ -10,12 +10,7 @@ fn map(s: &Set) -> Space {
     m
 }
 fn same(m: Space, s: Set) {
-    assert_eq!(
-        enumerate(&m)
-            .map(|p| p.to_vec())
-            .collect::<Set>(),
-        s
-    );
+    assert_eq!(enumerate(&m).map(|p| p.to_vec()).collect::<Set>(), s);
     assert_eq!(count(&m).to_string(), s.len().to_string());
 }
 
