@@ -32,6 +32,24 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
     case Left(n)=>n.operation=="Call" || n.operation.startsWith("Grounded") || n.inputs.exists(p=>opaque(owner(g,p._1),p._2))
     case Right(child)=>child.root.inputs.exists(p=>opaque(owner(g,p._1),p._2)) || child.nodes.indices.exists(j=>opaque(child,j)))
   private val functions = program.graphs.map(_._1).zipWithIndex.map((n,i)=>n -> s"routine_$i").toMap
+  private lazy val routineEdges=program.graphs.map { (name,graph)=>
+    def calls(g: RecursiveOpGraph): Set[String] = g.nodes.iterator.flatMap {
+      case Left(n) if n.operation=="Call"=>Iterator.single(n.constant)
+      case Right(child)=>calls(child).iterator
+      case _=>Iterator.empty
+    }.toSet
+    name->calls(graph)
+  }.toMap
+  private def inlinePathHelper(name: String,g: RecursiveOpGraph): Boolean =
+    val (paths,spaces)=program.signatures(name)
+    def nodes(g: RecursiveOpGraph): Int = g.nodes.iterator.map {
+      case Left(_)=>1
+      case Right(child)=>1+nodes(child)
+    }.sum
+    val seen=mutable.Set.empty[String]
+    def recursive(n: String): Boolean = routineEdges.getOrElse(n,Set.empty).exists(next=>next==name || (seen.add(next) && recursive(next)))
+    name!=program.root && paths.nonEmpty && paths.size<=2 && spaces.isEmpty &&
+      nodes(g)<=128 && !recursive(name)
   private val lifetimes = java.util.IdentityHashMap[RecursiveOpGraph,Map[Int,Vector[Pos]]]()
   private var serial = 0
   private var emittingRoutine = ""
@@ -509,7 +527,10 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
         val n=s"$kind$i"; if root then s"*$n.expect(\"unbound native input\")" else s"*$n"
       val params=ps.zipWithIndex.map((p,i)=>("path"->p.s)->binding("p",i)).toMap ++
         ss.zipWithIndex.map((s,i)=>("space"->s.s)->binding("s",i)).toMap
-      val out=StringBuilder(s"fn ${functions(name)}($signature) -> Space {\n")
+      // Inlining after graph lowering avoids multiplying the source language's
+      // parser loops. Small path helpers (e.g. GOL neigh) still optimize together
+      // with callers, including their constructed coordinate paths.
+      val out=StringBuilder((if inlinePathHelper(name,g) then "#[inline(always)]\n" else "")+s"fn ${functions(name)}($signature) -> Space {\n")
       if tailCall.isEmpty then
         val values=emitBlock(g,Map.empty,Map.empty,params,out,"  ")
         out.append(s"  (${values(output(g))}).clone()\n}\n").toString
