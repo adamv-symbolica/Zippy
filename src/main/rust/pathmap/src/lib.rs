@@ -15,7 +15,6 @@ pub type View<'a, 'p> = ReadZipperUntracked<'a, 'p, ()>;
 /// Statically dispatched borrowed input. A loop tail is a read zipper; an owned
 /// map is materialized only for an output or an ordinary function boundary.
 pub trait ReadSpace {
-    #[inline]
     fn read_zipper(&self) -> View<'_, '_>;
     #[inline]
     fn as_map(&self) -> Option<&Space> {
@@ -1153,24 +1152,30 @@ macro_rules! unary_kernels {
 unary_kernels!(map_kernels, Space);
 unary_kernels!(view_kernels, View<'_, '_>);
 impl TerminatedHeads<ReadZipperOwned<()>> {
+    // Concrete entry points keep iterator work optimized when generated glue
+    // uses level 0 or 1. Iterator is already implemented by the generic type.
+    #[allow(clippy::should_implement_trait)]
     #[inline(never)]
     pub fn next(&mut self) -> Option<Path> {
         <Self as Iterator>::next(self)
     }
 }
 impl FibonacciHeads<ReadZipperOwned<()>> {
+    #[allow(clippy::should_implement_trait)]
     #[inline(never)]
     pub fn next(&mut self) -> Option<Path> {
         <Self as Iterator>::next(self)
     }
 }
 impl MatchingHeads<ReadZipperOwned<()>, ReadZipperOwned<()>> {
+    #[allow(clippy::should_implement_trait)]
     #[inline(never)]
     pub fn next(&mut self) -> Option<Path> {
         <Self as Iterator>::next(self)
     }
 }
 impl<'a, 'p> ListedHeads<'a, &'p [u8]> {
+    #[allow(clippy::should_implement_trait)]
     #[inline(never)]
     pub fn next(&mut self) -> Option<Path> {
         <Self as Iterator>::next(self)
