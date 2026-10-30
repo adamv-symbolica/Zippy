@@ -93,8 +93,10 @@ def main():
         folder = output / kind
         folder.mkdir(exist_ok=True)
         start = time.monotonic()
-        def execute(command, log):
-            process = subprocess.Popen(command, cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        def execute(command, log, error_log=None):
+            process = subprocess.Popen(command, cwd=root, env=env, stdout=log,
+                                       stderr=error_log if error_log is not None else subprocess.STDOUT,
+                                       start_new_session=True)
             try:
                 return process.wait(timeout=args.seconds)
             except subprocess.TimeoutExpired:
@@ -105,7 +107,7 @@ def main():
             if kind == 'native-micro':
                 with (output / 'native-micro.csv').open('w') as csv_file:
                     code = execute(['cargo', 'run', '--release', '--locked', '--manifest-path',
-                                    str(root / 'src/main/rust/pathmap/Cargo.toml'), '--example', 'benchmark'], csv_file)
+                                    str(root / 'src/main/rust/pathmap/Cargo.toml'), '--example', 'benchmark'], csv_file, log)
             else:
                 command = base + ['morkl.' + (name if kind == 'existing' else 'rustPathMapBenchmarkReport')]
                 if kind == 'native':

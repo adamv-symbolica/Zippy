@@ -35,6 +35,7 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
   private val converted = java.util.IdentityHashMap[dialect.Space,Space]()
   private var graphOnly = false
   private var preparingRoutine = RoutinePtr("")
+  private var strictOpaqueArguments = false
 
   /** Reuse exactly the executor lowering pipeline, without generating C++. */
   def prepare(entry: dialect.Space, routines: Map[RoutinePtr,dialect.Routine]): NativeGraphProgram[V] =
@@ -66,7 +67,13 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
     val previous = converted.get(s)
     if previous != null then previous
     else
-      val result = Option(selector).flatMap(_.plan(s)) match
+      val terminated = if graphOnly then Option(selector).flatMap(_.terminatedFirst(s)) else None
+      val result = if terminated.nonEmpty then
+        val name=Iterator.iterate(s"__openfst_proven_selection_${intrinsicCalls.size}")(_+"_")
+          .map(RoutinePtr(_)).find(p=> !reservedRoutines(p) && !intrinsicCalls.contains(p)).get
+        intrinsicCalls(name)="FirstTerminated"->""
+        Space.Call(name,Vector.empty,Vector(convertSpace(terminated.get)))
+      else Option(selector).flatMap(_.plan(s)) match
         case Some(plan) =>
           val codes = plan.codes
           val fibonacci = codes.nonEmpty && codes.zipWithIndex.forall { (code,index) =>
@@ -142,6 +149,10 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
     def ps(f: PathValue => SpaceValue): String = register(ps => f(decode(ps.head)).paths.toVector.map(encoded))
     def ss(f: SpaceValue => SpaceValue): String = register(ps => f(SpaceValue(ps.map(decode).toSet)).paths.toVector.map(encoded))
     override def pathIteration(s: Space): Option[(Routine,Vector[Path],Vector[Space])] =
+      def opaqueArgument(s: Space): Boolean =
+        var found=Supercompiler.backendUnsupported(s).nonEmpty
+        subs(s)(spost={case c @ Space.Call(_,_,_)=>found=true;c})
+        found
       def epsilonTest(s: Space,ref: SpaceMention): Boolean = s match
         case Space.Intersection(Space.Mention(input),unit) => input==ref && epsilon(unit)
         case Space.Call(name,Vector(),Vector(Space.Mention(input))) if input==ref =>
@@ -150,7 +161,8 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
           }
         case _ => false
       if !graphOnly then None else s match
-        case Space.Call(name,ps,ss) if !activePathLoops(name) => module.get(name).flatMap { r =>
+        case Space.Call(name,ps,ss) if !activePathLoops(name) && (!strictOpaqueArguments ||
+            !(ss++ps.map(Space.Singleton(_))).exists(opaqueArgument)) => module.get(name).flatMap { r =>
           if r.refs.isEmpty || r.mentions.isEmpty || ps.size!=r.refs.size || ss.size!=r.mentions.size then None
           else r.body match
             case Space.Union(Space.Composition(guard,terminal @ Space.Call(callback,_,_)),
@@ -159,7 +171,7 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
                   nextPaths==Vector(Path.Concat(Path.Deref(r.refs.head),Path.Deref(head)))++r.refs.tail.map(Path.Deref(_)) &&
                   nextSpaces==Vector(Space.Mention(tail))++r.mentions.tail.map(Space.Mention(_)) =>
               val context=module.filter((p,_)=>p!=preparingRoutine && p!=name).lift.unlift
-              val body=Matching.canon(Lower.inline(using context)(terminal))
+              val body=Matching.canon(if strictOpaqueArguments then terminal else Lower.inline(using context)(terminal))
               Some((r.copy(body=body),ps,ss))
             case _ => None
         }
@@ -220,7 +232,11 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
     lazy val structuralLowering =
       val all = ctx.orElse[RoutinePtr,Routine] { case p if p == r.name => r }
       val noSelf = module.filter((p,_) => p != r.name).lift.unlift
-      r.copy(body = Matching.canon(Lower.inline(using noSelf)(Supercompiler.lowerFixpointCalls(r.body,all))))
+      val body=Supercompiler.lowerFixpointCalls(r.body,all)
+      // Source substitution is call-by-name: it can discard an unused strict
+      // argument or move it under a guard. Keep real native call boundaries in
+      // modules with opaque functions so those arguments are evaluated once.
+      r.copy(body = Matching.canon(if graphOnly && hasGrounded then body else Lower.inline(using noSelf)(body)))
     val lowered = if !hasGrounded && !oversizedProduct(r.body) then
       try structuralLowering.copy(body=Supercompiler.normalize(structuralLowering.body).space)
       catch
@@ -502,6 +518,8 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
       Routine(r.name,r.refs,r.mentions,lowered)
     }.toMap
     val body = Matching.canon(convertSpace(entry))
+    strictOpaqueArguments = graphOnly && (Supercompiler.backendUnsupported(body).nonEmpty ||
+      module.valuesIterator.exists(r=>Supercompiler.backendUnsupported(r.body).nonEmpty))
     val rootName = Iterator.iterate("__openfst_entry")(_+"_").find(n => !module.contains(RoutinePtr(n))).get
     entryName = rootName
     val allPs = Matching.freeRefsV(body);val allSs = Matching.freeMentionsV(body)

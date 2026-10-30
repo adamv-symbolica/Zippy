@@ -10,11 +10,23 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
   private val demands = java.util.IdentityHashMap[RecursiveOpGraph,mutable.BitSet]()
   private val constants = mutable.LinkedHashMap.empty[String,String]
   private val declarations = mutable.ArrayBuffer.empty[String]
+  private val nativeBlocks = mutable.ArrayBuffer.empty[String]
+  private val nativeTypes = mutable.Map.empty[String,String]
+  private val identifiers = raw"\b(?:v\d+_\d+(?:_[a-zA-Z0-9_]+)?|p\d+|s\d+|loop_[ps]\d+|next_call|ordered_head)\b".r
+  private val blockLimit=Integer.getInteger("morkl.pathmap.blockBytes",32000).intValue().max(512)
+  private val dependencyCache=mutable.Map.empty[(RecursiveOpGraph,Int),Set[Pos]]
+  private val released=mutable.Set.empty[String]
+  private val opaqueCache=mutable.Map.empty[(RecursiveOpGraph,Int),Boolean]
+  private def available(bindings: Map[Pos,String],p: Pos): Boolean = bindings.get(p).exists(n=> !released(n))
+  private def opaque(g: RecursiveOpGraph,i: Int): Boolean = opaqueCache.getOrElseUpdate(g->i,g.nodes(i) match
+    case Left(n)=>n.operation=="Call" || n.operation.startsWith("Grounded") || n.inputs.exists(p=>opaque(owner(g,p._1),p._2))
+    case Right(child)=>child.root.inputs.exists(p=>opaque(owner(g,p._1),p._2)) || child.nodes.indices.exists(j=>opaque(child,j)))
   private val functions = program.graphs.map(_._1).zipWithIndex.map((n,i)=>n -> s"routine_$i").toMap
   private val lifetimes = java.util.IdentityHashMap[RecursiveOpGraph,Map[Int,Vector[Pos]]]()
   private var serial = 0
   private var emittingRoutine = ""
   private var tailCall = Option.empty[(RecursiveOpGraph,Pos)]
+  private var orderedHead = Option.empty[(RecursiveOpGraph,Pos)]
   private def path(p: PathValue): Vector[Int] = p.items.map { item =>
     require(item.show.startsWith("#digit:"),s"non-byte graph path: ${item.show}")
     val b=item.show.substring(7).toInt; require(b>=0 && b<256); b
@@ -66,16 +78,14 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
           val (body,update) = foldOutputs(sub);mark(sub,body);mark(sub,update)
         else mark(sub,output(sub))
 
-  private def dependencies(g: RecursiveOpGraph, index: Int): Set[Pos] = g.nodes(index) match
+  private def dependencies(g: RecursiveOpGraph, index: Int): Set[Pos] = dependencyCache.getOrElseUpdate(g->index,g.nodes(index) match
     case Left(n) => n.inputs.toSet
     case Right(child) =>
       def captures(s: RecursiveOpGraph): Set[Pos] =
         val wanted = Option(demands.get(s)).getOrElse(mutable.BitSet.empty)
-        s.root.inputs.toSet ++ wanted.toSet.flatMap { i => s.nodes(i) match
-          case Left(n) => n.inputs.toSet
-          case Right(nested) => captures(nested)
-        }
+        s.root.inputs.toSet ++ wanted.toSet.flatMap(i=>dependencies(s,i))
       captures(child).filter(_._1 <= g.level)
+  )
 
   /** Prove a single tail continuation through union and single-path loops.
     * This turns translated ordered folds into native loops without a trampoline
@@ -88,7 +98,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       val original=owner(g,p._1);val pos=alias(original,p);val scope=owner(original,pos._1)
       scope.lookup(pos) match
         case Left(n) => n.operation match
-          case "Empty" | "Singleton" | "FirstMatching" | "FirstListed" | "FirstFibonacci" | "NativeHasHead" | "NativeNonempty" => true
+          case "Empty" | "Singleton" | "FirstMatching" | "FirstListed" | "FirstFibonacci" | "FirstTerminated" | "NativeHasHead" | "NativeNonempty" => true
           case "Literal" => scope.literalValue(n.constant).paths.size<=1
           case "Intersection" => n.inputs.exists(one(scope,_))
           case "Wrap" | "Unwrap" | "Subtraction" | "Restriction" | "Raffination" => one(scope,n.inputs.head)
@@ -119,6 +129,80 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
         case Right(child) if child.root.operation=="NativePathIteration" && one(scope,child.root.inputs(child.root.constant.toInt)) => tail(child,output(child))
         case _ => None
     tail(top,output(top))
+
+  private case class OrderedFold(head: Pos, space: Int, removed: Option[Int], operation: Node[Pos])
+  private def selectionConstant(n: Node[Pos]): (String,String) =
+    val Array(prefix,encoded)=n.constant.split("\\|",2): @unchecked
+    val tokens=encoded.split("\\s+").filter(_.nonEmpty).map(_.toInt).iterator
+    val paths=Vector.fill(tokens.next()) {Vector.fill(tokens.next())(tokens.next()-1)}
+    val allowed=if n.operation=="FirstMatching" then constant("Space",s"literal_text(\"${text(paths)}\")")
+      else constant("Vec<Path>",s"paths_text(\"${text(paths)}\")")
+    allowed->prefix
+
+  /** Hoist a static ordering only if continuation removes exactly the selected
+    * prefix. Prefix-free codewords make those removals independent. Also accept
+    * the step routine produced by inlining: it removes the current head before
+    * selecting the next, and must pass that next head to the same path parameter.
+    */
+  private def orderedFold(top: RecursiveOpGraph,target: (RecursiveOpGraph,Pos),paths: Vector[PathRef],
+                          spaces: Vector[SpaceMention]): Option[OrderedFold] =
+    def located(g: RecursiveOpGraph,p: Pos): (RecursiveOpGraph,Pos) =
+      val a=owner(g,p._1);val q=alias(a,p);owner(a,q._1)->q
+    def lookup(g: RecursiveOpGraph,p: Pos) = {val (s,q)=located(g,p);s.lookup(q)}
+    def origin(g: RecursiveOpGraph,p: Pos): (RecursiveOpGraph,Pos) =
+      val (s,q)=located(g,p)
+      s.lookup(q) match
+        case Left(Node("ExtractSpaceMention",_,_,_)) if s.parent.nonEmpty && s.root.operation=="NativePathIteration" && q._2>s.root.constant.toInt =>
+          origin(s.parent.get,s.root.inputs(q._2))
+        case _ => s->q
+    def loopAt(p: Pos): Option[RecursiveOpGraph] = lookup(top,p) match
+      case Right(loop) if loop.root.operation=="NativePathIteration" => Some(loop)
+      case Left(Node("Union",_,_,Vector(_,right))) => loopAt(right)
+      case _ => None
+    def prefixFree(n: Node[Pos]): Boolean =
+      if n.operation=="FirstFibonacci" || n.operation=="FirstTerminated" then true
+      else if Set("FirstMatching","FirstListed")(n.operation) then
+        val tokens=n.constant.split("\\|",2)(1).split("\\s+").filter(_.nonEmpty).map(_.toInt).iterator
+        val codes=Vector.fill(tokens.next()) {Vector.fill(tokens.next())(tokens.next())}.sorted
+        codes.sliding(2).forall(pair=>pair.size<2 || !pair(1).startsWith(pair(0)))
+      else false
+    for
+      loop<-loopAt(output(top))
+      pc=loop.root.constant.toInt
+      if lookup(top,loop.root.inputs.head) match
+        case Left(Node("Constant",p,_,_))=>top.pathValue(p).items.isEmpty
+        case _=>false
+      selected=alias(top,loop.root.inputs(pc))
+      if selected._1==top.level
+      n<-lookup(top,selected).left.toOption
+      if prefixFree(n) && n.inputs.size==1
+      input=n.inputs.head
+      shape<-(lookup(top,input) match
+        case Left(Node("ExtractSpaceMention",ref,_,_))=>Some((ref,Option.empty[Int]))
+        case Left(Node("Raffination",_,_,Vector(src,head)))=>
+          (lookup(top,src),lookup(top,head)) match
+            case (Left(Node("ExtractSpaceMention",ref,_,_)),Left(Node("Singleton",_,_,Vector(p))))=>lookup(top,p) match
+              case Left(Node("ExtractPathRef",name,_,_))=>paths.indexWhere(_.s==name) match
+                case index if index>=0=>Some((ref,Some(index)))
+                case _=>None
+              case _=>None
+            case _=>None
+        case _=>None)
+      index=spaces.indexWhere(_.s==shape._1)
+      if index>=0
+      (scope,pos)=target
+      call=scope.lookup(pos).left.toOption.get
+      next=call.inputs(paths.size+index)
+      if shape._2 match
+        case Some(pi)=>origin(scope,next)==origin(top,input) && located(scope,call.inputs(pi))==(loop->(loop.level->0))
+        case None=>
+          def removed(p: Pos): Boolean=lookup(scope,p) match
+            case Left(Node("Singleton",_,_,Vector(path)))=>located(scope,path)==(loop->(loop.level->0))
+            case _=>false
+          lookup(scope,next) match
+            case Left(Node("Raffination",_,_,Vector(src,head)))=>origin(scope,src)==origin(top,input) && removed(head)
+            case _=>false
+    yield OrderedFold(selected,index,shape._2,n)
 
   /** Place partial input reads, recursive calls and opaque callbacks inside
     * the composition guard that demands them. Exclusive regions become Rust
@@ -171,20 +255,25 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
   private def emitBlock(g: RecursiveOpGraph, inherited: Map[Pos,String], args: Map[Int,String],
                         params: Map[(String,String),String], out: StringBuilder, indent: String,
                         selected: Option[Set[Int]] = None): Map[Pos,String] =
-    val bindings = mutable.Map.from(inherited)
+    // Persistent compiler bindings share their unchanged prefix across lexical
+    // scopes. Copying a growing mutable table for every guard was quadratic.
+    var bindings = inherited
     val owned = mutable.Set.empty[Pos]
     val id = serial; serial += 1
-    def value(p: Pos): String = bindings.getOrElse(p, {
+    var chunkStart=out.length
+    var chunkNodes=0
+    var lastEmitted = -1
+    def value(p: Pos): String = bindings.get(p).filterNot(released).getOrElse {
       val scope = owner(g,p._1)
       val selection = mutable.Set.empty[Int]
       def collect(index: Int): Unit =
-        if !bindings.contains(scope.level -> index) && selection.add(index) then
+        if !available(bindings,scope.level -> index) && selection.add(index) then
           dependencies(scope,index).filter(_._1 == scope.level).foreach(q=>collect(q._2))
       collect(p._2)
       require(selection.nonEmpty,s"unbound Rust graph coordinate $p")
-      bindings ++= emitBlock(scope,bindings.toMap,if scope eq g then args else Map.empty,params,out,indent,Some(selection.toSet))
+      bindings = emitBlock(scope,bindings,if scope eq g then args else Map.empty,params,out,indent,Some(selection.toSet))
       bindings(p)
-    })
+    }
     def line(s: String): Unit = out.append(indent).append(s).append('\n')
     def borrow(s: String): String = s"&($s)"
     val wanted = selected.getOrElse(Option(demands.get(g)).map(_.toSet).getOrElse(Set.empty))
@@ -199,11 +288,46 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
     }
     def release(index: Int): Unit =
       releases.getOrElse(index,Vector.empty).foreach { p=>
-        if owned.remove(p) then line(s"drop(${bindings(p)});")
+        if !opaque(g,p._2) && owned.remove(p) then
+          val n=bindings(p);line(s"drop($n);");released+=n
       }
+    // Bound Rust's MIR/drop elaboration and LLVM work without introducing a
+    // node dispatcher or a runtime environment. Regions pass typed references
+    // and return their live SSA values. Loops remain ordinary generated loops.
+    def flush(index: Int): Unit =
+      val body=out.substring(chunkStart)
+      if body.length>=blockLimit && !body.contains("next_call") then
+        val declared=(raw"\blet\s+(?:mut\s+)?([^=;{}\n]+)=".r.findAllMatchIn(body).flatMap(m=>identifiers.findAllIn(m.group(1))) ++
+          raw"\bfor\s+(v\d+_\d+_[a-zA-Z0-9_]+)\s+in\b".r.findAllMatchIn(body).map(_.group(1))).toSet
+        val delayed=mutable.ArrayBuffer.empty[String]
+        val cleaned=raw"(?m)^\s*drop\((v\d+_\d+(?:_[a-zA-Z0-9_]+)?)\);\s*$$".r.replaceAllIn(body,m=>
+          if !declared(m.group(1)) then {delayed+=m.group(1);""} else m.matched)
+        val free=identifiers.findAllIn(cleaned).filterNot(declared).toSet.toVector.sorted
+        val dropped=raw"\bdrop\((v\d+_\d+(?:_[a-zA-Z0-9_]+)?)\)".r.findAllMatchIn(cleaned).map(_.group(1)).toSet
+        // Adaptive placement may reuse these bindings from a later guarded
+        // region even after their last direct edge. Return every still-live
+        // binding, including values computed by a dependency replay.
+        val live=bindings.valuesIterator.filter(n=>declared(n) && !released(n) && !dropped(n) && nativeTypes.get(n).exists(t=>t=="Path"||t=="Space")).toSet.toVector.sorted
+        if free.forall(nativeTypes.contains) then
+          val helper=s"native_block_${nativeBlocks.size}"
+          val replacements=free.zipWithIndex.map { (n,i)=>
+            val t=nativeTypes(n);n -> (if t=="Path"||t=="Space" then s"(*capture_$i)" else s"capture_$i")
+          }.toMap
+          val code=identifiers.replaceAllIn(cleaned,m=>java.util.regex.Matcher.quoteReplacement(replacements.getOrElse(m.matched,m.matched)))
+          val params=free.zipWithIndex.map((n,i)=>s"capture_$i: ${if Set("Path","Space")(nativeTypes(n)) then "&" else ""}${nativeTypes(n)}")
+          val resultType=if live.isEmpty then "()" else if live.size==1 then nativeTypes(live.head) else live.map(nativeTypes).mkString("(",",",",)")
+          val result=if live.isEmpty then "()" else if live.size==1 then s"(${live.head}).clone()" else live.map(n=>s"($n).clone()").mkString("(",",",",)")
+          nativeBlocks+=s"#[inline(never)]\nfn $helper(${(Vector("c: &mut Context")++params).mkString(",")}) -> $resultType {\n$code\n$result\n}\n"
+          out.setLength(chunkStart)
+          val call=s"$helper(c${free.map(n=>", "+(if Set("Path","Space")(nativeTypes(n)) then s"&$n" else n)).mkString})"
+          if live.isEmpty then line(s"$call;")
+          else if live.size==1 then line(s"let ${live.head}: $resultType = $call;")
+          else line(s"let ${live.mkString("(",",",",)")} = $call;")
+          delayed.foreach(n=>line(s"drop($n);"))
+      chunkStart=out.length;chunkNodes=0
     val regions = deferredRegions(g,wanted)
     val deferred = regions.toVector.sortBy(_._1).flatMap((owner,is)=>is.map(_->owner)).toMap
-    for (entry,index) <- g.nodes.zipWithIndex if wanted(index) && !deferred.contains(index) && !bindings.contains(g.level -> index) do
+    for (entry,index) <- g.nodes.zipWithIndex if wanted(index) && !deferred.contains(index) && !available(bindings,g.level -> index) do
       val pos = g.level -> index
       val name = s"v${id}_$index"
       entry match
@@ -214,25 +338,26 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
           // Shared dependencies may belong to a different guarded region. The
           // result must still be materialized in this lexical scope unless a
           // dominating binding is present. Do not leak this binding outside it.
-          val resolved=if inner.contains(right) then inner else
+          val resolved=if available(inner,right) then inner else
             val selection=mutable.Set.empty[Int]
             def collect(i: Int): Unit =
-              if !inner.contains(g.level->i) && selection.add(i) then
+              if !available(inner,g.level->i) && selection.add(i) then
                 dependencies(g,i).filter(_._1==g.level).foreach(p=>collect(p._2))
             collect(right._2)
             emitBlock(g,inner,args,params,out,indent+"  ",Some(selection.toSet))
           line(s"  compose(${borrow(a)},${borrow(resolved(right))})")
           line("};")
-          bindings(pos)=name
+          bindings=bindings.updated(pos,name)
+          nativeTypes(name)="Space"
           owned+=pos
         case Left(n) =>
           val ins=n.inputs.map(value)
           def call(fn: String): String = s"$fn(${ins.map(borrow).mkString(",")})"
           val code=n.operation match
-            case "ExtractPathRef" | "ExtractSpaceMention" => bindings(pos)=args.getOrElse(index,params(n.kind->n.constant)); ""
-            case "Alias" => bindings(pos)=ins.head; ""
-            case "Constant" => bindings(pos)=pathConstant(g.pathValue(n.constant)); ""
-            case "Literal" => bindings(pos)=literalConstant(g.literalValue(n.constant)); ""
+            case "ExtractPathRef" | "ExtractSpaceMention" => bindings=bindings.updated(pos,args.getOrElse(index,params(n.kind->n.constant))); ""
+            case "Alias" => bindings=bindings.updated(pos,ins.head); ""
+            case "Constant" => bindings=bindings.updated(pos,pathConstant(g.pathValue(n.constant))); ""
+            case "Literal" => bindings=bindings.updated(pos,literalConstant(g.literalValue(n.constant))); ""
             case "Empty" => "Space::new()"
             case "Concat" => call("concat_path")
             case "Singleton" => call("singleton")
@@ -272,21 +397,21 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
             case "GroundedSP" => s"singleton_path(&grounded_${n.constant}(c,${borrow(ins.head)}))"
             case "GroundedPS" => s"grounded_${n.constant}(c,&singleton(${borrow(ins.head)}))"
             case "GroundedSS" => s"grounded_${n.constant}(c,${borrow(ins.head)})"
+            case "FirstFibonacci" | "FirstMatching" | "FirstListed" | "FirstTerminated" if orderedHead.contains(g->pos) => bindings=bindings.updated(pos,"ordered_head"); ""
+            case "FirstTerminated" => s"first_terminated(${borrow(ins.head)})"
             case "FirstFibonacci" => s"first_fibonacci(${borrow(ins.head)},${n.constant})"
             case "FirstMatching" | "FirstListed" =>
-              val Array(prefix,encoded)=n.constant.split("\\|",2): @unchecked
-              val tokens=encoded.split("\\s+").filter(_.nonEmpty).map(_.toInt).iterator
-              val paths=Vector.fill(tokens.next()) {Vector.fill(tokens.next())(tokens.next()-1)}
-              val allowed=if n.operation=="FirstMatching" then constant("Space",s"literal_text(\"${text(paths)}\")")
-                else constant("Vec<Path>",s"paths_text(\"${text(paths)}\")")
+              val (allowed,prefix)=selectionConstant(n)
               val fn=if n.operation=="FirstMatching" then "first_matching" else "first_listed"
               s"$fn(${borrow(ins.head)},${borrow(allowed)},$prefix)"
             case other => throw IllegalArgumentException(s"unsupported byte Rust operation $other")
           if code.nonEmpty then
             line(s"let $name: ${if n.kind=="path" then "Path" else "Space"} = $code;")
-            bindings(pos)=name
+            bindings=bindings.updated(pos,name)
+            nativeTypes(name)=if n.kind=="path" then "Path" else "Space"
             owned+=pos
         case Right(sub) =>
+          nativeTypes(name)="Space"
           val input=sub.root.inputs.map(value)
           sub.root.operation match
             case "NativePathIteration" =>
@@ -294,12 +419,14 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
               line(s"let mut $name = Space::new();")
               input.zipWithIndex.foreach { (arg,i)=>
                 line(s"let ${name}_arg_$i: &${if i<pc then "Path" else "Space"} = ${borrow(arg)};")
+                nativeTypes(s"${name}_arg_$i")=if i<pc then "&Path" else "&Space"
               }
               line(s"let mut ${name}_cursor = ${name}_arg_$pc.read_zipper();")
               line(s"let mut ${name}_more = ${name}_cursor.is_val() || ${name}_cursor.to_next_val();")
               line(s"while ${name}_more {")
               line(s"  let ${name}_path = concat_path(${name}_arg_0,${name}_cursor.path());")
               line(s"  let ${name}_rest = ${name}_cursor.make_map();")
+              nativeTypes(s"${name}_path")="Path";nativeTypes(s"${name}_rest")="Space"
               val bound=input.indices.map { i=>i -> (if i==0 then s"${name}_path" else if i==pc then s"${name}_rest" else s"*${name}_arg_$i") }.toMap
               val inner=emitBlock(sub,bindings.toMap,bound,params,out,indent+"  ")
               line(s"  $name.join_into((${inner(output(sub))}).clone());")
@@ -309,7 +436,9 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
             case "Iteration" | "Fold" =>
               val fold=sub.root.operation=="Fold"
               line(s"let mut $name = Space::new();")
-              if fold then line(s"let mut ${name}_acc: Path = (${input(1)}).clone();")
+              if fold then
+                line(s"let mut ${name}_acc: Path = (${input(1)}).clone();")
+                nativeTypes(s"${name}_acc")="Path"
               // A single reusable cursor and a four-word ByteMask; no branch
               // vector or callback is allocated for the iterator body.
               line(s"let mut ${name}_cursor = (${input.head}).read_zipper();")
@@ -318,6 +447,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
               line(s"  let ${name}_tail = ${name}_cursor.make_map();")
               line(s"  ${name}_cursor.ascend(1);")
               line(s"  let ${name}_head = Path::from_slice(&[${name}_byte]);")
+              nativeTypes(s"${name}_head")="Path";nativeTypes(s"${name}_tail")="Space"
               val bound=if fold then Map(0->s"${name}_acc",1->s"${name}_head",2->s"${name}_tail")
                 else Map(0->s"${name}_head",1->s"${name}_tail")
               val inner=emitBlock(sub,bindings.toMap,bound,params,out,indent+"  ")
@@ -335,9 +465,14 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
               line(s"  $name = ${name}_next;")
               line("}")
             case other => throw IllegalArgumentException(s"unsupported Rust graph scope $other")
-          bindings(pos)=name
+          bindings=bindings.updated(pos,name)
+          nativeTypes(name)="Space"
           owned+=pos
       release(index)
+      lastEmitted=index
+      chunkNodes+=1
+      if out.length-chunkStart>=blockLimit || chunkNodes>=256 then flush(index)
+    flush(lastEmitted)
     bindings.toMap
 
   def compile(): String =
@@ -345,9 +480,13 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       emittingRoutine=name; mark(g,output(g))
       tailCall=tailContinuation(g,name)
       val (ps,ss)=program.signatures(name)
+      val ordering=tailCall.flatMap(t=>orderedFold(g,t,ps,ss))
+      orderedHead=ordering.map(o=>(g,o.head))
       val root=name==program.root
       val signature=(Vector("c: &mut Context") ++ ps.indices.map(i=>s"p$i: ${if root then "Option<&Path>" else "&Path"}") ++
         ss.indices.map(i=>s"s$i: ${if root then "Option<&Space>" else "&Space"}")).mkString(", ")
+      ps.indices.foreach(i=>nativeTypes(s"p$i")=if root then "Option<&Path>" else "&Path")
+      ss.indices.foreach(i=>nativeTypes(s"s$i")=if root then "Option<&Space>" else "&Space")
       def binding(kind: String, i: Int): String =
         val n=s"$kind$i"; if root then s"*$n.expect(\"unbound native input\")" else s"*$n"
       val params=ps.zipWithIndex.map((p,i)=>("path"->p.s)->binding("p",i)).toMap ++
@@ -359,9 +498,25 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       else
         val parameters=ps.indices.map(i=>s"p$i"->"Path").toVector++ss.indices.map(i=>s"s$i"->"Space")
         parameters.foreach((n,kind)=>out.append(s"  let mut loop_$n: $kind = (${binding(n.take(1),n.drop(1).toInt)}).clone();\n"))
+        parameters.foreach((n,kind)=>nativeTypes(s"loop_$n")=kind)
+        ordering.foreach { plan=>
+          val initial=plan.removed.fold(s"loop_s${plan.space}")(i=>s"raffine(&loop_s${plan.space},&singleton(&loop_p$i))")
+          val n=plan.operation
+          val selection=if n.operation=="FirstFibonacci" then s"ordered_fibonacci(&($initial),${n.constant})"
+            else if n.operation=="FirstTerminated" then s"ordered_terminated(&($initial))"
+            else
+              val (allowed,prefix)=selectionConstant(n)
+              val fn=if n.operation=="FirstMatching" then "ordered_matching" else "ordered_listed"
+              s"$fn(&($initial),&($allowed),$prefix)"
+          out.append(s"  let mut ordered_heads = $selection.into_iter();\n")
+        }
         val tuple=if parameters.isEmpty then "()" else parameters.map(_._2).mkString("(",",",",)")
         val loopParams=ps.zipWithIndex.map((p,i)=>("path"->p.s)->s"loop_p$i").toMap ++ ss.zipWithIndex.map((s,i)=>("space"->s.s)->s"loop_s$i").toMap
         out.append(s"  let mut loop_result = Space::new();\n  loop {\n    let mut next_call: Option<$tuple> = None;\n")
+        ordering.foreach { _=>
+          out.append("    let ordered_head = ordered_heads.next().map_or_else(Space::new,|p| singleton(&p));\n")
+          nativeTypes("ordered_head")="Space"
+        }
         val values=emitBlock(g,Map.empty,Map.empty,loopParams,out,"    ")
         out.append(s"    loop_result.join_into((${values(output(g))}).clone());\n")
         val pattern=if parameters.isEmpty then "()" else parameters.map((n,_)=>s"next_$n").mkString("(",",",",)")
@@ -372,5 +527,5 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
     val (ps,ss)=program.signatures(program.root)
     val entry=s"pub fn entry(c: &mut Context, e: &Env) -> Space { ${functions(program.root)}(c" +
       ps.indices.map(i=>s",e.path($i)").mkString + ss.indices.map(i=>s",e.space($i)").mkString + ") }"
-    (declarations++definitions:+entry).mkString("\n")
+    (declarations++nativeBlocks++definitions:+entry).mkString("\n")
 

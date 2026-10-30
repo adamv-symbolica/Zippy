@@ -21,8 +21,31 @@ private[morkl] final class OpenFstHeadSelection[V,L <: DigitLanguage[V]](
   private def epsilon(s: source.Space): Boolean = s match
     case S.Singleton(P.Constant(v)) => source.paths.length(v)==0
     case _ => false
+  // A second translation freshens lexical iteration binders independently in
+  // the two occurrences of a condition. Compare those conditions modulo alpha
+  // renaming; free inputs and grounded operations still have to match exactly.
+  private def sameTest(a: source.Space,b: source.Space,
+      ps: Map[PathRef,PathRef]=Map.empty,ss: Map[SpaceMention,SpaceMention]=Map.empty): Boolean =
+    def path(a: source.Path,b: source.Path): Boolean = (a,b) match
+      case (P.Deref(x),P.Deref(y)) => ps.getOrElse(x,x)==y
+      case (P.Constant(x),P.Constant(y)) => x==y
+      case (P.Concat(x,y),P.Concat(z,w)) => path(x,z)&&path(y,w)
+      case _ => false
+    def next(a: source.Space,b: source.Space)=sameTest(a,b,ps,ss)
+    (a,b) match
+      case (S.Empty,S.Empty) => true
+      case (S.Mention(x),S.Mention(y)) => ss.getOrElse(x,x)==y
+      case (S.Literal(x),S.Literal(y)) => x==y
+      case (S.Singleton(x),S.Singleton(y)) => path(x,y)
+      case (S.Union(x,y),S.Union(z,w)) => next(x,z)&&next(y,w)
+      case (S.Intersection(x,y),S.Intersection(z,w)) => next(x,z)&&next(y,w)
+      case (S.Subtraction(x,y),S.Subtraction(z,w)) => next(x,z)&&next(y,w)
+      case (S.Composition(x,y),S.Composition(z,w)) => next(x,z)&&next(y,w)
+      case (S.Iteration(x,h,t,y),S.Iteration(z,j,u,w)) =>
+        next(x,z) && sameTest(y,w,if h.s=="_" then ps else ps.updated(h,j),if t.s=="_" then ss else ss.updated(t,u))
+      case _ => a==b && ps.isEmpty && ss.isEmpty
   private def choice(s: source.Space): Option[(source.Space,source.Space,source.Space)] = s match
-    case S.Union(S.Composition(test,yes),S.Composition(S.Subtraction(eps,other),no)) if epsilon(eps) && test==other =>
+    case S.Union(S.Composition(test,yes),S.Composition(S.Subtraction(eps,other),no)) if epsilon(eps) && sameTest(test,other) =>
       test match
         case S.Union(S.Intersection(value,unit),S.Iteration(same,_,_,body)) if value==same && epsilon(unit) && epsilon(body) =>
           Some((value,yes,no))
@@ -48,6 +71,39 @@ private[morkl] final class OpenFstHeadSelection[V,L <: DigitLanguage[V]](
     case P.Constant(v) if source.paths.length(v)==0 => Some(Vector.empty)
     case P.Concat(a,b) => for x<-refs(a);y<-refs(b) yield x++y
     case _ => None
+  /** Prove the ordinary zero-terminated scanner used by ordered string folds.
+    * No assumption is made about runtime input encoding: incomplete words are
+    * ignored, and each output ends at its first zero even on malformed input.
+    */
+  def terminatedFirst(x: source.Space): Option[source.Space] =
+    def zero(test: source.Space,h: PathRef): Boolean = test match
+      case S.Intersection(S.Singleton(P.Deref(r)),S.Singleton(P.Constant(v))) => r==h && encode(v)==Vector(1)
+      case _=>false
+    def result(x: source.Space,word: Vector[String],tail: SpaceMention): Boolean = x match
+      case S.Singleton(p)=>refs(p).contains(word)
+      case S.Call(name,Vector(p),Vector(S.Mention(r))) if r==tail && refs(p).contains(word)=>routines.get(name).exists { fn=>
+        fn.refs.size==1 && fn.mentions.size==1 && (fn.body match
+          case S.Singleton(P.Deref(r))=>r==fn.refs.head
+          case _=>false)
+      }
+      case _=>false
+    def recurse(x: source.Space,word: Vector[String],tail: SpaceMention): Option[RoutinePtr] = x match
+      case S.Call(name,Vector(p),Vector(S.Mention(r))) if r==tail && refs(p).contains(word)=>Some(name)
+      case _=>None
+    x match
+      case S.Range(S.Iteration(input,h,t,body),0,1)=>choice(body).flatMap { (test,yes,no)=>
+        if h.s=="_" || t.s=="_" || !zero(test,h) || !result(yes,Vector(h.s),t) then None
+        else recurse(no,Vector(h.s),t).flatMap { name=>routines.get(name).filter { fn=>
+          fn.refs.size==1 && fn.mentions.size==1 && fn.refs.head.s!="_" && fn.mentions.head.s!="_" && (fn.body match
+            case S.Iteration(S.Mention(s),d,r,next) if s==fn.mentions.head=>choice(next).exists { (test,yes,no)=>
+              val word=Vector(fn.refs.head.s,d.s)
+              d.s!="_" && r.s!="_" && d!=fn.refs.head && r!=fn.mentions.head &&
+                zero(test,d) && result(yes,word,r) && recurse(no,word,r).contains(name)
+            }
+            case _=>false)
+        }.map(_=>input) }
+      }
+      case _=>None
   private def closedPath(p: source.Path, bound: Set[String]): Boolean = p match
     case P.Deref(r) => bound(r.s)
     case P.Constant(_) => true

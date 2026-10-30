@@ -3,6 +3,7 @@ package morkl
 import munit.FunSuite
 
 class RustPathMapBackendTest extends FunSuite:
+  override val munitTimeout = scala.concurrent.duration.Duration(180,"s")
   import Zippy_bytes.{Space as S,Path as P}
   private val x=SpaceMention("input")
   private val h=PathRef("head");private val t=SpaceMention("tail");private val acc=PathRef("acc")
@@ -108,6 +109,13 @@ class RustPathMapBackendTest extends FunSuite:
       val order=observed.toVector;observed.clear()
       assertEquals(RustPathMapBackend.bytes(expression,effects).eval(spaces=spaces),expected)
       assertEquals(observed.toVector,order)
+      var argumentCalls=0
+      val strict=S.Call(bind,Vector(P.ZERO),Vector(S.Empty,
+        S.GroundedSS(S.Mention(extra),v=>{argumentCalls+=1;v})))
+      val strictProgram=RustPathMapBackend.bytes(strict,effects)
+      assertEquals(argumentCalls,0)
+      assertEquals(strictProgram.eval(spaces=spaces),Set.empty[BytePathValue])
+      assertEquals(argumentCalls,1)
     }
     test("translated ordered folds over thousands of heads use a stack-safe native loop") {
       val input=SpaceMention("many-heads")
@@ -120,10 +128,83 @@ class RustPathMapBackendTest extends FunSuite:
       assert(p.code.contains("next_call"))
       val result=p.eval(spaces=Map(input->translated.encode(value).paths))
       assertEquals(result.map(translated.encoding.decode),value.paths)
+      val bitValues=SpaceValue(value.paths.toVector.sortBy(_.show).take(512).toSet)
+      val bitTable=PathItemInterner();bitValues.paths.flatMap(_.items).toVector.sortBy(_.show).foreach(bitTable.intern)
+      val bits=RadixTranslations.symbolsToBits(expr,Map.empty,bitTable)
+      val injection=PathEncodings.bitsToBytes
+      val byteBits=RadixTranslations.bitsToBytes(bits.program.entry,bits.program.routines)
+      val fib=RustPathMapBackend.bytes(byteBits.entry,byteBits.routines)
+      assert(fib.graphDescription.contains("FirstFibonacci"))
+      assert(fib.code.contains("next_call"))
+      assert(fib.code.contains("ordered_fibonacci"))
+      val folded=fib.eval(spaces=Map(input->bits.encode(bitValues).paths.map(injection.encode)))
+      assertEquals(folded.map(p=>bits.encoding.decode(injection.decode(p))),bitValues.paths)
+      val strings=RadixTranslations.stringsToBytes(expr)
+      val text=RustPathMapBackend.bytes(strings.program.entry,strings.program.routines)
+      assert(text.code.contains("ordered_terminated"))
+      assertEquals(text.eval(spaces=Map(input->strings.encode(bitValues).paths)).map(strings.encoding.decode),bitValues.paths)
+      val malformed=Set(BytePathValue(),BytePathValue(0),BytePathValue(0,0),BytePathValue(1),BytePathValue(1,0,255),BytePathValue(255,0,1,0),BytePathValue(255,1))
+      assertEquals(text.eval(spaces=Map(input->malformed)),Zippy_bytes.eval(strings.program.entry,
+        spaceArgs=Map(input->Zippy_bytes.SpaceValue(malformed)),routines=strings.program.routines).paths)
       val small=SpaceValue(value.paths.toVector.sortBy(_.show).take(64).toSet)
       val growing=Space.Fold(Space.Mention(input),Path.ZERO,acc,h,t,
         Space.Singleton(Path.Concat(Path.Deref(acc),Path.Deref(h))),Path.Concat(Path.Deref(acc),Path.Deref(h)))
       val encoded=RadixTranslations.internedSymbolsToBytes(growing,Map.empty,table)
       val actual=RustPathMapBackend.bytes(encoded.program.entry,encoded.program.routines).eval(spaces=Map(input->encoded.encode(small).paths))
       assertEquals(actual.map(encoded.encoding.decode),eval(growing)(using sc=SpaceContextMap(Map(input->small))).paths)
+      val orderedStrings=RadixTranslations.stringsToBytes(growing)
+      assertEquals(RustPathMapBackend.bytes(orderedStrings.program.entry,orderedStrings.program.routines)
+        .eval(spaces=Map(input->orderedStrings.encode(small).paths)).map(orderedStrings.encoding.decode),
+        eval(growing)(using sc=SpaceContextMap(Map(input->small))).paths)
+    }
+    test("terminated scanner proof rejects a shadowed accumulator and preserves strict callbacks") {
+      val scan=RoutinePtr("scan");val callback=RoutinePtr("callback")
+      val prefix=PathRef("prefix");val digit=PathRef("digit");val rest=SpaceMention("rest")
+      val eps=S.Singleton(P.ZERO)
+      def choose(test: ByteSpace,yes: ByteSpace,no: ByteSpace): ByteSpace =
+        val exists=S.Union(S.Intersection(test,eps),S.Iteration(test,PathRef("_"),SpaceMention("_"),eps))
+        S.Union(S.Composition(exists,yes),S.Composition(S.Subtraction(eps,exists),no))
+      def zero(p: PathRef)=S.Intersection(S.Singleton(P.Deref(p)),S.Singleton(Zippy_bytes.digit(0)))
+      val word=P.Concat(P.Deref(prefix),P.Deref(prefix))
+      val shadowed=Zippy_bytes.Routine(scan,Vector(prefix),Vector(rest),
+        S.Iteration(S.Mention(rest),prefix,t,choose(zero(prefix),S.Singleton(word),S.Call(scan,Vector(word),Vector(S.Mention(t))))))
+      val entry=S.Range(S.Iteration(input,digit,t,choose(zero(digit),S.Singleton(P.Deref(digit)),
+        S.Call(scan,Vector(P.Deref(digit)),Vector(S.Mention(t))))),0,1)
+      val data=Set(BytePathValue(2,3,0),BytePathValue(4,0,255),BytePathValue(8))
+      val program=RustPathMapBackend.bytes(entry,Map(scan->shadowed))
+      assert(!program.graphDescription.contains("FirstTerminated"))
+      assertEquals(program.eval(spaces=Map(x->data)),Zippy_bytes.eval(entry,
+        spaceArgs=Map(x->Zippy_bytes.SpaceValue(data)),routines=Map(scan->shadowed)).paths)
+      var calls=0
+      val body=Zippy_bytes.Routine(callback,Vector(prefix),Vector(rest),S.Singleton(P.Deref(prefix)))
+      def effect(p: P,s: S)=S.Call(callback,Vector(p),Vector(S.GroundedSS(s,v=>{calls+=1;v})))
+      val next=P.Concat(P.Deref(prefix),P.Deref(digit))
+      val strict=shadowed.copy(body=S.Iteration(S.Mention(rest),digit,t,choose(zero(digit),
+        effect(next,S.Mention(t)),S.Call(scan,Vector(next),Vector(S.Mention(t))))))
+      val strictEntry=S.Range(S.Iteration(input,digit,t,choose(zero(digit),effect(P.Deref(digit),S.Mention(t)),
+        S.Call(scan,Vector(P.Deref(digit)),Vector(S.Mention(t))))),0,1)
+      val defs=Map(scan->strict,callback->body)
+      val expected=Zippy_bytes.eval(strictEntry,spaceArgs=Map(x->Zippy_bytes.SpaceValue(data)),routines=defs).paths
+      val expectedCalls=calls;calls=0
+      val native=RustPathMapBackend.bytes(strictEntry,defs)
+      assert(!native.graphDescription.contains("FirstTerminated"))
+      assertEquals(native.eval(spaces=Map(x->data)),expected)
+      assertEquals(calls,expectedCalls)
+    }
+    test("typed native blocks preserve live values, captures, fold updates and callbacks") {
+      val previous=Option(System.getProperty("morkl.pathmap.blockBytes"))
+      System.setProperty("morkl.pathmap.blockBytes","512")
+      try
+        val expressions=operations
+        val programs=expressions.map(RustPathMapBackend.bytes(_))
+        assert(programs.exists(_.code.contains("native_block_")))
+        val session=RustPathMapBackend.Session(programs)
+        val paths=Map(h->BytePathValue(128));val spaces=Map(x->values)
+        try expressions.zipWithIndex.foreach { (e,i)=>
+          assertEquals(session.eval(i,programs(i))(paths,spaces),
+            Zippy_bytes.eval(e,paths,spaces.view.mapValues(Zippy_bytes.SpaceValue(_)).toMap).paths,s"blocked case $i")
+        } finally session.close()
+      finally previous match
+        case Some(value)=>System.setProperty("morkl.pathmap.blockBytes",value)
+        case None=>System.clearProperty("morkl.pathmap.blockBytes")
     }

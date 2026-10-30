@@ -42,6 +42,21 @@ fn algebra_against_independent_path_sets() {
         let b = generate();
         let am = map(&a);
         let bm = map(&b);
+        let terminated = a
+            .iter()
+            .filter_map(|p| p.iter().position(|b| *b == 0).map(|i| p[..=i].to_vec()))
+            .collect::<Set>();
+        assert_eq!(
+            ordered_terminated(&am)
+                .into_iter()
+                .map(|p| p.to_vec())
+                .collect::<Vec<_>>(),
+            terminated.iter().cloned().collect::<Vec<_>>()
+        );
+        same(
+            first_terminated(&am),
+            terminated.iter().take(1).cloned().collect(),
+        );
         same(unite(&am, &bm), a.union(&b).cloned().collect());
         same(intersect(&am, &bm), a.intersection(&b).cloned().collect());
         same(subtract(&am, &bm), a.difference(&b).cloned().collect());
@@ -206,6 +221,8 @@ fn proven_codeword_selectors_preserve_ordinal_order() {
             &first_fibonacci(&a, 200, 13, false),
             &first_listed(&a, &codes, false)
         ));
+        assert_eq!(ordered_fibonacci(&a, 200, 13, false), selected);
+        assert_eq!(ordered_listed(&a, &codes, false), selected);
         let with_tail = compose(&a, &singleton(&[255]));
         assert!(equal(
             &first_fibonacci(&with_tail, 200, 13, true),
@@ -213,6 +230,12 @@ fn proven_codeword_selectors_preserve_ordinal_order() {
         ));
         assert!(first_fibonacci(&with_tail, 200, 13, false).is_empty());
         let allowed = map(&codes.iter().map(|p| p.to_vec()).collect());
+        let lexical = set.iter().cloned().map(Path::from).collect::<Vec<_>>();
+        assert_eq!(ordered_fibonacci(&with_tail, 200, 13, true), selected);
+        assert_eq!(ordered_listed(&with_tail, &codes, true), selected);
+        assert_eq!(ordered_matching(&a, &allowed, false), lexical);
+        assert_eq!(ordered_matching(&with_tail, &allowed, true), lexical);
+        assert!(ordered_matching(&with_tail, &allowed, false).is_empty());
         let expected = set.iter().next().map_or(Space::new(), |p| singleton(p));
         assert!(equal(
             &first_matching(&with_tail, &allowed, true),

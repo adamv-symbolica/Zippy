@@ -41,6 +41,22 @@ pub fn restrict_to(a: &Space, b: &Space) -> Space {
 }
 #[inline]
 pub fn raffine(a: &Space, b: &Space) -> Space {
+    let mut prefix = b.read_zipper();
+    if prefix.is_val() {
+        return Space::new();
+    }
+    if !prefix.to_next_val() {
+        return a.clone();
+    }
+    let path = Path::from_slice(prefix.path());
+    if !prefix.to_next_val() {
+        let mut out = a.clone();
+        let mut w = out.write_zipper();
+        w.descend_to(&path);
+        w.remove_subtrie(true);
+        drop(w);
+        return out;
+    }
     a.subtract(&a.restrict(b))
 }
 #[inline]
@@ -162,17 +178,56 @@ pub fn suffix_closure(a: &Space, include_empty: bool) -> Space {
 }
 
 pub fn count(a: &Space) -> BigUint {
-    a.read_zipper()
-        .into_cata_jumping_cached(|_, children: &mut [BigUint], val, _| {
-            children.iter().fold(
-                if val.is_some() {
-                    BigUint::one()
-                } else {
-                    BigUint::zero()
-                },
-                |n, c| n + c,
-            )
-        })
+    // Observe physical node boundaries inside unary stems as well as forks.
+    // A jumping cata can skip the shared suffix root in a Cartesian product,
+    // then recount that suffix for every left-hand path.
+    struct Frame {
+        children: pathmap::utils::ByteMaskIter,
+        total: BigUint,
+        id: Option<u64>,
+    }
+    let mut z = a.read_zipper();
+    let mut cache = std::collections::HashMap::<u64, BigUint>::new();
+    let mut stack = vec![Frame {
+        children: z.child_mask().iter(),
+        total: if z.is_val() {
+            BigUint::one()
+        } else {
+            BigUint::zero()
+        },
+        id: z.shared_node_id(),
+    }];
+    loop {
+        if let Some(b) = stack.last_mut().unwrap().children.next() {
+            z.descend_to_byte(b);
+            let id = z.shared_node_id();
+            if let Some(value) = id.and_then(|id| cache.get(&id)) {
+                stack.last_mut().unwrap().total += value;
+                z.ascend(1);
+            } else {
+                stack.push(Frame {
+                    children: z.child_mask().iter(),
+                    total: if z.is_val() {
+                        BigUint::one()
+                    } else {
+                        BigUint::zero()
+                    },
+                    id,
+                });
+            }
+        } else {
+            let frame = stack.pop().unwrap();
+            if let Some(id) = frame.id {
+                cache.insert(id, frame.total.clone());
+            }
+            if let Some(parent) = stack.last_mut() {
+                parent.total += frame.total;
+                z.ascend(1);
+            } else {
+                return frame.total;
+            }
+        }
+    }
 }
 
 /// Rank selection visits boundary branches only; whole interior subtries are
@@ -301,6 +356,80 @@ pub fn first_listed(a: &Space, allowed: &[Path], prefix: bool) -> Space {
     }
     Space::new()
 }
+pub fn ordered_listed(a: &Space, allowed: &[Path], prefix: bool) -> Vec<Path> {
+    allowed
+        .iter()
+        .filter(|p| {
+            if prefix {
+                !unwrap(a, p).is_empty()
+            } else {
+                a.val_at(p).is_some()
+            }
+        })
+        .cloned()
+        .collect()
+}
+pub fn ordered_terminated(a: &Space) -> Vec<Path> {
+    fn visit(z: &mut impl ZipperMoving, path: &mut Path, out: &mut Vec<Path>) {
+        for b in z.child_mask().iter() {
+            path.push(b);
+            if b == 0 {
+                out.push(path.clone());
+            } else {
+                z.descend_to_byte(b);
+                visit(z, path, out);
+                z.ascend(1);
+            }
+            path.pop();
+        }
+    }
+    let mut out = Vec::new();
+    visit(&mut a.read_zipper(), &mut Path::new(), &mut out);
+    out
+}
+pub fn first_terminated(a: &Space) -> Space {
+    fn visit(z: &mut impl ZipperMoving, path: &mut Path) -> bool {
+        for b in z.child_mask().iter() {
+            path.push(b);
+            if b == 0 {
+                return true;
+            }
+            z.descend_to_byte(b);
+            if visit(z, path) {
+                return true;
+            }
+            z.ascend(1);
+            path.pop();
+        }
+        false
+    }
+    let mut path = Path::new();
+    if visit(&mut a.read_zipper(), &mut path) {
+        singleton(&path)
+    } else {
+        Space::new()
+    }
+}
+pub fn ordered_matching(a: &Space, allowed: &Space, prefix: bool) -> Vec<Path> {
+    fn visit(a: &Space, codes: &Space, prefix: bool, path: &mut Path, out: &mut Vec<Path>) {
+        if a.is_empty() {
+            return;
+        }
+        let az = a.read_zipper();
+        let cz = codes.read_zipper();
+        if cz.is_val() && (prefix || az.is_val()) {
+            out.push(path.clone());
+        }
+        for b in (az.child_mask() & cz.child_mask()).iter() {
+            path.push(b);
+            visit(&unwrap(a, &[b]), &unwrap(codes, &[b]), prefix, path, out);
+            path.pop();
+        }
+    }
+    let mut out = Vec::new();
+    visit(a, allowed, prefix, &mut Path::new(), &mut out);
+    out
+}
 pub fn first_matching(a: &Space, allowed: &Space, prefix: bool) -> Space {
     if !prefix {
         return range(&a.meet(allowed), 0, 1);
@@ -401,6 +530,76 @@ pub fn first_fibonacci(a: &Space, maximum: u64, digits: usize, prefix: bool) -> 
         }
     }
     Space::new()
+}
+
+/// Enumerate only codeword prefixes, never their potentially exponential tail
+/// languages. Used by a compiler-proven loop that removes exactly one selected
+/// prefix on every continuation, so ordinal order can be computed once.
+pub fn ordered_fibonacci(a: &Space, maximum: u64, digits: usize, prefix: bool) -> Vec<Path> {
+    struct Scan<'a> {
+        maximum: u64,
+        digits: usize,
+        prefix: bool,
+        out: &'a mut Vec<(u64, Path)>,
+    }
+    fn visit(
+        s: &Space,
+        path: &mut Path,
+        sum: u64,
+        weight: u64,
+        next: u64,
+        previous: bool,
+        scan: &mut Scan<'_>,
+    ) {
+        if path.len() >= scan.digits {
+            return;
+        }
+        for bit in s.read_zipper().child_mask().iter().filter(|b| *b < 2) {
+            let tail = unwrap(s, &[bit]);
+            if tail.is_empty() {
+                continue;
+            }
+            let done = bit == 1 && previous;
+            let value = sum + if bit == 1 && !done { weight } else { 0 };
+            if value > scan.maximum {
+                continue;
+            }
+            path.push(bit);
+            if done {
+                if scan.prefix || tail.read_zipper().is_val() {
+                    scan.out.push((value, path.clone()));
+                }
+            } else {
+                visit(
+                    &tail,
+                    path,
+                    value,
+                    next,
+                    weight.saturating_add(next),
+                    bit == 1,
+                    scan,
+                );
+            }
+            path.pop();
+        }
+    }
+    let mut out = Vec::new();
+    visit(
+        a,
+        &mut Path::new(),
+        0,
+        1,
+        2,
+        false,
+        &mut Scan {
+            maximum,
+            digits,
+            prefix,
+            out: &mut out,
+        },
+    );
+    out.sort_unstable_by_key(|(n, _)| *n);
+    out.into_iter().map(|(_, p)| p).collect()
 }
 
 pub struct Env {
