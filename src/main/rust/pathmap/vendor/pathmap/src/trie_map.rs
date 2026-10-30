@@ -310,6 +310,41 @@ impl<V: Clone + Send + Sync + Unpin, A: Allocator> PathMap<V, A> {
         self.read_zipper().into_iter()
     }
 
+    /// Certifies equal keys and values when the physical path decomposition agrees.
+    ///
+    /// `false` is inconclusive: equivalent maps may have different decompositions.
+    /// Shared roots are constant-time; repeated pairs of distinct shared nodes
+    /// are compared once. This does not allocate an algebraic result map.
+    pub fn structurally_equal(&self, other: &Self) -> bool where V: Eq {
+        fn nodes<V: Clone + Send + Sync + Eq, A: Allocator>(
+            a: &TrieNodeODRc<V,A>, b: &TrieNodeODRc<V,A>,
+            seen: &mut std::collections::HashSet<(u64,u64)>,
+        ) -> bool {
+            if a.ptr_eq(b) {return true;}
+            if a.refcount()>1 && b.refcount()>1 && !seen.insert((a.shared_node_id(),b.shared_node_id())) {return true;}
+            let left=a.as_tagged(); let right=b.as_tagged();
+            let mut li=left.new_iter_token(); let mut ri=right.new_iter_token();
+            while li!=NODE_ITER_FINISHED && ri!=NODE_ITER_FINISHED {
+                let (ln,lp,lc,lv)=left.next_items(li,false);
+                let (rn,rp,rc,rv)=right.next_items(ri,false);
+                if lp!=rp || lv!=rv {return false;}
+                match (lc,rc) {
+                    (Some(l),Some(r))=>if !nodes(l,r,seen) {return false;},
+                    (None,None)=>{},
+                    _=>return false,
+                }
+                li=ln; ri=rn;
+            }
+            li==ri
+        }
+        if self.root_val()!=other.root_val() {return false;}
+        match (self.root(),other.root()) {
+            (Some(a),Some(b))=>a.ptr_eq(b) || nodes(a,b,&mut std::collections::HashSet::new()),
+            (None,None)=>true,
+            _=>false,
+        }
+    }
+
     /// Returns `true` if the map contains a value at the specified key, otherwise returns `false`
     pub fn contains<K: AsRef<[u8]>>(&self, k: K) -> bool {
         let k = k.as_ref();

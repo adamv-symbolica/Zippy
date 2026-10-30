@@ -4,5 +4,8 @@
   "applied": [
     "4a399a3a038bccc8aa53b9c1613f9dbf4ed94ff1"
   ],
-  "notes": "Unmodified source and derive crate from PR #171 with PR #172 cherry-picked. Cargo manifest omits upstream benchmark/example targets and benchmark-only dev dependencies. No combined upstream revision exists."
+  "notes": "PR #171 source with PR #172 cherry-picked and one local structurally_equal certificate method. Cargo manifest omits benchmark/example targets and benchmark-only dev dependencies. The equality method returns false conservatively when physical decompositions differ; Zippy retains an exact zipper fallback.",
+  "localPatches": [
+    "LOCAL_STRUCTURAL_EQUALITY.patch"
+  ]
 }

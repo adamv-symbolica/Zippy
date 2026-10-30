@@ -48,33 +48,48 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
       next==start || (seen.add(next) && reaches(next)))
     reaches(start)
   }
-  private val expandedRoutines=mutable.Map.empty[RoutinePtr,Routine]
-  private val expandedSizes=mutable.Map.empty[RoutinePtr,Int]
   private lazy val inlineLimit=Integer.getInteger("morkl.pathmap.inlineNodes",8192).intValue().max(1)
-  private def expandedRoutine(name: RoutinePtr): Routine = expandedRoutines.getOrElseUpdate(name, {
-    val routine=module(name)
-    var estimate=Supercompiler.stats(routine.body).totalNodes.toLong
-    val replacements=mutable.Map.empty[RoutinePtr,Routine]
-    if estimate<=inlineLimit then
-      val counts=mutable.Map.empty[RoutinePtr,Int]
-      subs(routine.body)(spost={case c @ Space.Call(p,_,_)=>counts(p)=counts.getOrElse(p,0)+1;c})
-      for helper<-callEdges.getOrElse(name,Set.empty).diff(cyclicRoutines).toVector.sortBy(_.s) do
-        val expanded=expandedRoutine(helper)
-        val cost=expandedSizes(helper).toLong*counts(helper)
-        if estimate+cost<=inlineLimit then
-          replacements(helper)=expanded;estimate+=cost
-    val result=routine.copy(body=Lower.inline(using replacements.toMap.lift.unlift)(routine.body))
-    expandedSizes(name)=Supercompiler.stats(result.body).totalNodes
-    result
+  private lazy val helperLimit=Integer.getInteger("morkl.pathmap.inlineHelperNodes",128).intValue().max(1)
+  private val smallForwarders=mutable.Map.empty[RoutinePtr,Routine]
+  private def forwarding(name: RoutinePtr): Routine = smallForwarders.getOrElseUpdate(name, {
+    val original=module(name)
+    val body=original.body match
+      case Space.Call(target,ps,ss) if module.contains(target) && !cyclicRoutines(target) &&
+          ps.forall {case Path.Deref(_)=>true;case _=>false} && ss.forall {case Space.Mention(_)=>true;case _=>false} =>
+        val callee=forwarding(target)
+        if Supercompiler.stats(callee.body).totalNodes<=helperLimit then
+          Matching.subst(callee.body,pm=(callee.refs zip ps).toMap,sm=(callee.mentions zip ss).toMap)
+        else original.body
+      case _=>original.body
+    original.copy(body=body)
   })
-  /** Expand helper chains before substituting them into a caller. Lower.inline
-    * alone is one postorder pass and does not revisit a substituted body.
-    * Recursive edges remain native calls, preventing recursive source unrolling.
+  /** Preserve the baseline pass, then inline one additional layer of small
+    * helpers with cheap actual arguments. Expanding arbitrary helper chains
+    * duplicates compound space arguments and can multiply graph unrolling.
     */
-  private def inlineContext(blocked: Set[RoutinePtr]): PartialFunction[RoutinePtr,Routine] =
-    new PartialFunction[RoutinePtr,Routine]:
+  private def inlinePure(body: Space,blocked: Set[RoutinePtr]): Space =
+    val context=new PartialFunction[RoutinePtr,Routine]:
       def isDefinedAt(name: RoutinePtr): Boolean = module.contains(name) && !blocked(name)
-      def apply(name: RoutinePtr): Routine = expandedRoutine(name)
+      def apply(name: RoutinePtr): Routine = if cyclicRoutines(name) then module(name) else forwarding(name)
+    val first=Lower.inline(using context)(body)
+    var remaining=inlineLimit-Supercompiler.stats(first).totalNodes
+    if remaining<=0 then first else
+      def cheapPath(p: Path): Boolean = Supercompiler.stats(Space.Singleton(p)).totalNodes<=8
+      def cheapSpace(s: Space): Boolean = s match
+        case Space.Empty | Space.Mention(_)=>true
+        case Space.Singleton(p)=>cheapPath(p)
+        case Space.Literal(v)=>v.paths.size<=8 && v.paths.iterator.map(_.items.size).sum<=32
+        case _=>false
+      subs(first)(spost={case call @ Space.Call(name,ps,ss) if module.contains(name) && !blocked(name) &&
+          !cyclicRoutines(name) && ps.forall(cheapPath) && ss.forall(cheapSpace)=>
+        val callee=forwarding(name)
+        val size=Supercompiler.stats(callee.body).totalNodes
+        if size<=helperLimit && size<=remaining then
+          val expanded=Matching.subst(callee.body,pm=(callee.refs zip ps).toMap,sm=(callee.mentions zip ss).toMap)
+          val cost=Supercompiler.stats(expanded).totalNodes
+          if cost<=remaining then {remaining-=cost;expanded} else call
+        else call
+      })
 
   /** Reuse exactly the executor lowering pipeline, without generating C++. */
   def prepare(entry: dialect.Space, routines: Map[RoutinePtr,dialect.Routine]): NativeGraphProgram[V] =
@@ -209,8 +224,7 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
                 if epsilonTest(guard,r.mentions.head) && same==r.mentions.head && recur==name && callback!=name &&
                   nextPaths==Vector(Path.Concat(Path.Deref(r.refs.head),Path.Deref(head)))++r.refs.tail.map(Path.Deref(_)) &&
                   nextSpaces==Vector(Space.Mention(tail))++r.mentions.tail.map(Space.Mention(_)) =>
-              val context=inlineContext(Set(preparingRoutine,name))
-              val body=Matching.canon(if strictOpaqueArguments then terminal else Lower.inline(using context)(terminal))
+              val body=Matching.canon(if strictOpaqueArguments then terminal else inlinePure(terminal,Set(preparingRoutine,name)))
               Some((r.copy(body=body),ps,ss))
             case _ => None
         }
@@ -270,12 +284,12 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
       module.valuesIterator.exists(r => Supercompiler.backendUnsupported(r.body).nonEmpty)
     lazy val structuralLowering =
       val all = ctx.orElse[RoutinePtr,Routine] { case p if p == r.name => r }
-      val noSelf = if graphOnly then inlineContext(Set(r.name)) else module.filter((p,_) => p != r.name).lift.unlift
+      val noSelf = module.filter((p,_) => p != r.name).lift.unlift
       val body=Supercompiler.lowerFixpointCalls(r.body,all)
       // Source substitution is call-by-name: it can discard an unused strict
       // argument or move it under a guard. Keep real native call boundaries in
       // modules with opaque functions so those arguments are evaluated once.
-      r.copy(body = Matching.canon(if graphOnly && hasGrounded then body else Lower.inline(using noSelf)(body)))
+      r.copy(body = Matching.canon(if graphOnly && hasGrounded then body else if graphOnly then inlinePure(body,Set(r.name)) else Lower.inline(using noSelf)(body)))
     val lowered = if !hasGrounded && !oversizedProduct(r.body) then
       try structuralLowering.copy(body=Supercompiler.normalize(structuralLowering.body).space)
       catch

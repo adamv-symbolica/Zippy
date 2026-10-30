@@ -16,6 +16,12 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
   private def copied(s: String): String = if view(s) then s"($s).make_space()" else s"($s).clone()"
   private def nativeBorrow(s: String): String = if view(s) then s"&($s).make_space()" else s"&($s)"
   private def referenceType(t: String): Boolean = t=="Path" || t=="Space" || t.startsWith("View<")
+  private val binaryKernels=Set("unite","intersect","subtract","restrict_to","raffine","compose","equal","first_matching","ordered_matching")
+  private val unaryKernels=Set("wrap","unwrap","tails_union","tails_intersection","prefix_closure","suffix_closure","head_space","has_head","range_const","first_terminated","first_fibonacci","first_listed")
+  private def kernel(fn: String,inputs: Vector[String]): String =
+    if binaryKernels(fn) then inputs.take(2).map(s=>if view(s) then "view" else "map").mkString("","_","_kernels::")+fn
+    else if unaryKernels(fn) then (if view(inputs.head) then "view_kernels::" else "map_kernels::")+fn
+    else fn
   private val identifiers = raw"\b(?:v\d+_\d+(?:_[a-zA-Z0-9_]+)?|p\d+|s\d+|loop_[ps]\d+|next_call|ordered_head)\b".r
   private val blockLimit=Integer.getInteger("morkl.pathmap.blockBytes",32000).intValue().max(512)
   private val dependencyCache=mutable.Map.empty[(RecursiveOpGraph,Int),Set[Pos]]
@@ -349,14 +355,14 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
                 dependencies(g,i).filter(_._1==g.level).foreach(p=>collect(p._2))
             collect(right._2)
             emitBlock(g,inner,args,params,out,indent+"  ",Some(selection.toSet))
-          line(s"  compose(${borrow(a)},${borrow(resolved(right))})")
+          line(s"  ${kernel("compose",Vector(a,resolved(right)))}(${borrow(a)},${borrow(resolved(right))})")
           line("};")
           bindings=bindings.updated(pos,name)
           nativeTypes(name)="Space"
           owned+=pos
         case Left(n) =>
           val ins=n.inputs.map(value)
-          def call(fn: String): String = s"$fn(${ins.map(borrow).mkString(",")})"
+          def call(fn: String): String = s"${kernel(fn,ins)}(${ins.map(borrow).mkString(",")})"
           val code=n.operation match
             case "ExtractPathRef" | "ExtractSpaceMention" => bindings=bindings.updated(pos,args.getOrElse(index,params(n.kind->n.constant))); ""
             case "Alias" => bindings=bindings.updated(pos,ins.head); ""
@@ -390,24 +396,24 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
             case "TailsUnion" => call("tails_union")
             case "TailsIntersection" => call("tails_intersection")
             case "PrefixClosure" => call("prefix_closure")
-            case "SuffixClosure" => s"suffix_closure(${borrow(ins.head)},false)"
-            case "TailsClosure" => s"suffix_closure(${borrow(ins.head)},true)"
+            case "SuffixClosure" => s"${kernel("suffix_closure",ins)}(${borrow(ins.head)},false)"
+            case "TailsClosure" => s"${kernel("suffix_closure",ins)}(${borrow(ins.head)},true)"
             case "NativeHead" => call("head_space")
-            case "NativeHasHead" => s"if has_head(${borrow(ins.head)}) { singleton(&[]) } else { Space::new() }"
+            case "NativeHasHead" => s"if ${kernel("has_head",ins)}(${borrow(ins.head)}) { singleton(&[]) } else { Space::new() }"
             case "NativeNonempty" => s"if (${ins.head}).is_empty() { Space::new() } else { singleton(&[]) }"
             case "Range" =>
-              val (lo,hi)=g.rangeBounds(n.constant); s"range_const::<{$lo},{$hi}>(${borrow(ins.head)})"
+              val (lo,hi)=g.rangeBounds(n.constant); s"${kernel("range_const",ins)}::<{$lo},{$hi}>(${borrow(ins.head)})"
             case "GroundedPP" => s"singleton_path(&grounded_${n.constant}(c,&singleton(${borrow(ins.head)})))"
             case "GroundedSP" => s"singleton_path(&grounded_${n.constant}(c,${nativeBorrow(ins.head)}))"
             case "GroundedPS" => s"grounded_${n.constant}(c,&singleton(${borrow(ins.head)}))"
             case "GroundedSS" => s"grounded_${n.constant}(c,${nativeBorrow(ins.head)})"
             case "FirstFibonacci" | "FirstMatching" | "FirstListed" | "FirstTerminated" if orderedHead.contains(g->pos) => bindings=bindings.updated(pos,"ordered_head"); ""
-            case "FirstTerminated" => s"first_terminated(${borrow(ins.head)})"
-            case "FirstFibonacci" => s"first_fibonacci(${borrow(ins.head)},${n.constant})"
+            case "FirstTerminated" => s"${kernel("first_terminated",ins)}(${borrow(ins.head)})"
+            case "FirstFibonacci" => s"${kernel("first_fibonacci",ins)}(${borrow(ins.head)},${n.constant})"
             case "FirstMatching" | "FirstListed" =>
               val (allowed,prefix)=selectionConstant(n)
               val fn=if n.operation=="FirstMatching" then "first_matching" else "first_listed"
-              s"$fn(${borrow(ins.head)},${borrow(allowed)},$prefix)"
+              s"${kernel(fn,Vector(ins.head,allowed))}(${borrow(ins.head)},${borrow(allowed)},$prefix)"
             case other => throw IllegalArgumentException(s"unsupported byte Rust operation $other")
           if code.nonEmpty then
             line(s"let $name: ${if n.kind=="path" then "Path" else "Space"} = $code;")
@@ -471,7 +477,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
               // Native status normally eliminates the equality traversal. For
               // opaque steps retain exact callback counts even if a physical
               // representation change conservatively reports Element.
-              if sub.nodes.indices.exists(i=>opaque(sub,i)) then
+              if program.compiled.callbackCount>0 && sub.nodes.indices.exists(i=>opaque(sub,i)) then
                 line(s"  let ${name}_before = $name.clone();")
                 line(s"  if !$name.join_into(${copied(inner(output(sub)))}).is_element() || equal(&$name,&${name}_before) { break; }")
               else line(s"  if !$name.join_into(${copied(inner(output(sub)))}).is_element() { break; }")
@@ -512,13 +518,13 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
         parameters.foreach((n,kind)=>out.append(s"  let mut loop_$n: $kind = (${binding(n.take(1),n.drop(1).toInt)}).clone();\n"))
         parameters.foreach((n,kind)=>nativeTypes(s"loop_$n")=kind)
         ordering.foreach { plan=>
-          val initial=plan.removed.fold(s"loop_s${plan.space}")(i=>s"raffine(&loop_s${plan.space},&singleton(&loop_p$i))")
+          val initial=plan.removed.fold(s"loop_s${plan.space}")(i=>s"map_map_kernels::raffine(&loop_s${plan.space},&singleton(&loop_p$i))")
           val n=plan.operation
-          val selection=if n.operation=="FirstFibonacci" then s"ordered_fibonacci(&($initial),${n.constant})"
-            else if n.operation=="FirstTerminated" then s"ordered_terminated(&($initial))"
+          val selection=if n.operation=="FirstFibonacci" then s"map_kernels::ordered_fibonacci(&($initial),${n.constant})"
+            else if n.operation=="FirstTerminated" then s"map_kernels::ordered_terminated(&($initial))"
             else
               val (allowed,prefix)=selectionConstant(n)
-              val fn=if n.operation=="FirstMatching" then "ordered_matching" else "ordered_listed"
+              val fn=if n.operation=="FirstMatching" then "map_map_kernels::ordered_matching" else "map_kernels::ordered_listed"
               s"$fn(&($initial),&($allowed),$prefix)"
           out.append(s"  let mut ordered_heads = $selection.into_iter();\n")
         }

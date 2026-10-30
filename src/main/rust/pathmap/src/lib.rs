@@ -185,6 +185,20 @@ pub fn equal(a: &impl ReadSpace, b: &impl ReadSpace) -> bool {
     {
         return true;
     }
+    if a.as_map()
+        .zip(b.as_map())
+        .is_some_and(|(a, b)| native_structural_equal(a, b))
+    {
+        return true;
+    }
+    equal_views(a.read_zipper(), b.read_zipper())
+}
+#[inline(never)]
+fn native_structural_equal(a: &Space, b: &Space) -> bool {
+    a.structurally_equal(b)
+}
+#[inline(never)]
+fn equal_views(mut left: View<'_, '_>, mut right: View<'_, '_>) -> bool {
     // Exact lockstep comparison without constructing a union or differences.
     // Track offsets within shared nodes too: the two tries need not have the
     // same physical node boundaries or the same compressed representation.
@@ -193,8 +207,6 @@ pub fn equal(a: &impl ReadSpace, b: &impl ReadSpace) -> bool {
         left: Option<Anchor>,
         right: Option<Anchor>,
     }
-    let mut left = a.read_zipper();
-    let mut right = b.read_zipper();
     let mut la = None;
     let mut ra = None;
     let mut parents: smallvec::SmallVec<[Frame; 32]> = smallvec::SmallVec::new();
@@ -551,8 +563,8 @@ pub fn range(a: &impl ReadSpace, lo: i32, hi: i32) -> Space {
 
 // Bounded rank selection needs neither a total BigUint count nor an enumeration
 // of the selected words. Counts saturate at cap and whole subtries are grafted.
-fn limited_count<Z: ZipperMoving + ZipperConcrete + ZipperInfallibleSubtries<()>>(
-    z: &mut Z,
+fn limited_count(
+    z: &mut View<'_, '_>,
     cap: u64,
     cache: &mut std::collections::HashMap<(u64, bool), u64>,
 ) -> u64 {
@@ -574,8 +586,8 @@ fn limited_count<Z: ZipperMoving + ZipperConcrete + ZipperInfallibleSubtries<()>
     }
     n
 }
-fn forward_slice<Z: ZipperMoving + ZipperConcrete + ZipperInfallibleSubtries<()>>(
-    z: &mut Z,
+fn forward_slice(
+    z: &mut View<'_, '_>,
     start: u64,
     end: u64,
     cap: u64,
@@ -612,8 +624,8 @@ fn forward_slice<Z: ZipperMoving + ZipperConcrete + ZipperInfallibleSubtries<()>
     }
     out
 }
-fn last_slice<Z: ZipperMoving + ZipperConcrete + ZipperInfallibleSubtries<()>>(
-    z: &mut Z,
+fn last_slice(
+    z: &mut View<'_, '_>,
     remaining: &mut u64,
     cap: u64,
     cache: &mut std::collections::HashMap<(u64, bool), u64>,
@@ -998,6 +1010,171 @@ pub fn ordered_fibonacci(
     prefix: bool,
 ) -> FibonacciHeads<ReadZipperOwned<()>> {
     FibonacciHeads::new(a.make_space().into_read_zipper([]), maximum, digits, prefix)
+}
+
+// Concrete ABI entry points keep trie kernels at the runtime's release level
+// even when a very large generated translation unit uses opt-level 0 or 1.
+// The compiler chooses map/view variants statically; there is no value dispatch.
+macro_rules! binary_kernels {
+    ($module:ident,$left:ty,$right:ty) => {
+        pub mod $module {
+            use super::*;
+            #[inline(never)]
+            pub fn unite(a: &$left, b: &$right) -> Space {
+                super::unite(a, b)
+            }
+            #[inline(never)]
+            pub fn intersect(a: &$left, b: &$right) -> Space {
+                super::intersect(a, b)
+            }
+            #[inline(never)]
+            pub fn subtract(a: &$left, b: &$right) -> Space {
+                super::subtract(a, b)
+            }
+            #[inline(never)]
+            pub fn restrict_to(a: &$left, b: &$right) -> Space {
+                super::restrict_to(a, b)
+            }
+            #[inline(never)]
+            pub fn raffine(a: &$left, b: &$right) -> Space {
+                super::raffine(a, b)
+            }
+            #[inline(never)]
+            pub fn compose(a: &$left, b: &$right) -> Space {
+                super::compose(a, b)
+            }
+            #[inline(never)]
+            pub fn equal(a: &$left, b: &$right) -> bool {
+                super::equal(a, b)
+            }
+            #[inline(never)]
+            pub fn first_matching(a: &$left, b: &$right, prefix: bool) -> Space {
+                super::first_matching(a, b, prefix)
+            }
+            #[inline(never)]
+            pub fn ordered_matching(
+                a: &$left,
+                b: &$right,
+                prefix: bool,
+            ) -> MatchingHeads<ReadZipperOwned<()>, ReadZipperOwned<()>> {
+                super::ordered_matching(a, b, prefix)
+            }
+        }
+    };
+}
+binary_kernels!(map_map_kernels, Space, Space);
+binary_kernels!(map_view_kernels, Space, View<'_, '_>);
+binary_kernels!(view_map_kernels, View<'_, '_>, Space);
+binary_kernels!(view_view_kernels, View<'_, '_>, View<'_, '_>);
+macro_rules! unary_kernels {
+    ($module:ident,$input:ty) => {
+        pub mod $module {
+            use super::*;
+            #[inline(never)]
+            pub fn wrap(a: &$input, p: &[u8]) -> Space {
+                super::wrap(a, p)
+            }
+            #[inline(never)]
+            pub fn unwrap(a: &$input, p: &[u8]) -> Space {
+                super::unwrap(a, p)
+            }
+            #[inline(never)]
+            pub fn tails_union(a: &$input) -> Space {
+                super::tails_union(a)
+            }
+            #[inline(never)]
+            pub fn tails_intersection(a: &$input) -> Space {
+                super::tails_intersection(a)
+            }
+            #[inline(never)]
+            pub fn prefix_closure(a: &$input) -> Space {
+                super::prefix_closure(a)
+            }
+            #[inline(never)]
+            pub fn suffix_closure(a: &$input, empty: bool) -> Space {
+                super::suffix_closure(a, empty)
+            }
+            #[inline(never)]
+            pub fn has_head(a: &$input) -> bool {
+                super::has_head(a)
+            }
+            #[inline(never)]
+            pub fn head_space(a: &$input) -> Space {
+                super::head_space(a)
+            }
+            #[inline(never)]
+            pub fn count(a: &$input) -> BigUint {
+                super::count(a)
+            }
+            #[inline(never)]
+            pub fn range(a: &$input, lo: i32, hi: i32) -> Space {
+                super::range(a, lo, hi)
+            }
+            #[inline]
+            pub fn range_const<const LO: i32, const HI: i32>(a: &$input) -> Space {
+                super::range_const::<LO, HI>(a)
+            }
+            #[inline(never)]
+            pub fn first_terminated(a: &$input) -> Space {
+                super::first_terminated(a)
+            }
+            #[inline(never)]
+            pub fn first_fibonacci(a: &$input, max: u64, digits: usize, prefix: bool) -> Space {
+                super::first_fibonacci(a, max, digits, prefix)
+            }
+            #[inline(never)]
+            pub fn first_listed(a: &$input, allowed: &[&[u8]], prefix: bool) -> Space {
+                super::first_listed(a, allowed, prefix)
+            }
+            #[inline(never)]
+            pub fn ordered_terminated(a: &$input) -> TerminatedHeads<ReadZipperOwned<()>> {
+                super::ordered_terminated(a)
+            }
+            #[inline(never)]
+            pub fn ordered_fibonacci(
+                a: &$input,
+                max: u64,
+                digits: usize,
+                prefix: bool,
+            ) -> FibonacciHeads<ReadZipperOwned<()>> {
+                super::ordered_fibonacci(a, max, digits, prefix)
+            }
+            #[inline(never)]
+            pub fn ordered_listed<'a, 'p>(
+                a: &$input,
+                allowed: &'a [&'p [u8]],
+                prefix: bool,
+            ) -> ListedHeads<'a, &'p [u8]> {
+                super::ordered_listed(a, allowed, prefix)
+            }
+        }
+    };
+}
+unary_kernels!(map_kernels, Space);
+unary_kernels!(view_kernels, View<'_, '_>);
+impl TerminatedHeads<ReadZipperOwned<()>> {
+    #[inline(never)]
+    pub fn next(&mut self) -> Option<Path> {
+        <Self as Iterator>::next(self)
+    }
+}
+impl FibonacciHeads<ReadZipperOwned<()>> {
+    #[inline(never)]
+    pub fn next(&mut self) -> Option<Path> {
+        <Self as Iterator>::next(self)
+    }
+}
+impl MatchingHeads<ReadZipperOwned<()>, ReadZipperOwned<()>> {
+    #[inline(never)]
+    pub fn next(&mut self) -> Option<Path> {
+        <Self as Iterator>::next(self)
+    }
+}
+impl<'a, 'p> ListedHeads<'a, &'p [u8]> {
+    #[inline(never)]
+    pub fn next(&mut self) -> Option<Path> {
+        <Self as Iterator>::next(self)
+    }
 }
 
 pub struct Env {
