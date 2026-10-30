@@ -14,6 +14,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
   private val lifetimes = java.util.IdentityHashMap[RecursiveOpGraph,Map[Int,Vector[Pos]]]()
   private var serial = 0
   private var emittingRoutine = ""
+  private var tailCall = Option.empty[(RecursiveOpGraph,Pos)]
   private def path(p: PathValue): Vector[Int] = p.items.map { item =>
     require(item.show.startsWith("#digit:"),s"non-byte graph path: ${item.show}")
     val b=item.show.substring(7).toInt; require(b>=0 && b<256); b
@@ -75,6 +76,49 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
           case Right(nested) => captures(nested)
         }
       captures(child).filter(_._1 <= g.level)
+
+  /** Prove a single tail continuation through union and single-path loops.
+    * This turns translated ordered folds into native loops without a trampoline
+    * or a runtime stack of language continuations.
+    */
+  private def tailContinuation(top: RecursiveOpGraph,name: String): Option[(RecursiveOpGraph,Pos)] =
+    val memo=mutable.Map.empty[(RecursiveOpGraph,Pos),Boolean]
+    val selfMemo=mutable.Map.empty[(RecursiveOpGraph,Pos),Boolean]
+    def one(g: RecursiveOpGraph,p: Pos): Boolean = memo.getOrElseUpdate(g->p, {
+      val original=owner(g,p._1);val pos=alias(original,p);val scope=owner(original,pos._1)
+      scope.lookup(pos) match
+        case Left(n) => n.operation match
+          case "Empty" | "Singleton" | "FirstMatching" | "FirstListed" | "FirstFibonacci" | "NativeHasHead" | "NativeNonempty" => true
+          case "Literal" => scope.literalValue(n.constant).paths.size<=1
+          case "Intersection" => n.inputs.exists(one(scope,_))
+          case "Wrap" | "Unwrap" | "Subtraction" | "Restriction" | "Raffination" => one(scope,n.inputs.head)
+          case "Composition" => n.inputs.forall(one(scope,_))
+          case "Range" =>
+            val (lo,hi)=scope.rangeBounds(n.constant)
+            RangeBounds.cardinalityUpperBound(lo,hi).exists(_<=1) || one(scope,n.inputs.head)
+          case "ExtractSpaceMention" if scope.parent.nonEmpty =>
+            scope.root.operation match
+              case "Iteration" => one(scope.parent.get,scope.root.inputs.head)
+              case "NativePathIteration" => one(scope.parent.get,scope.root.inputs(pos._2))
+              case _ => false
+          case _ => false
+        case Right(_) => false
+    })
+    def self(g: RecursiveOpGraph,p: Pos): Boolean = selfMemo.getOrElseUpdate(g->p, {
+      val original=owner(g,p._1);val pos=alias(original,p);val scope=owner(original,pos._1)
+      scope.lookup(pos) match
+        case Left(n) => (n.operation=="Call" && n.constant==name) || n.inputs.exists(self(scope,_))
+        case Right(child) => self(child,output(child))
+    })
+    def tail(g: RecursiveOpGraph,p: Pos): Option[(RecursiveOpGraph,Pos)] =
+      val original=owner(g,p._1);val pos=alias(original,p);val scope=owner(original,pos._1)
+      scope.lookup(pos) match
+        case Left(Node("Call",target,_,_)) if target==name => Some(scope->pos)
+        case Left(Node("Union",_,_,Vector(left,right))) if !self(scope,left) => tail(scope,right)
+        case Right(child) if child.root.operation=="Iteration" && one(scope,child.root.inputs.head) => tail(child,output(child))
+        case Right(child) if child.root.operation=="NativePathIteration" && one(scope,child.root.inputs(child.root.constant.toInt)) => tail(child,output(child))
+        case _ => None
+    tail(top,output(top))
 
   /** Place partial input reads, recursive calls and opaque callbacks inside
     * the composition guard that demands them. Exclusive regions become Rust
@@ -193,7 +237,10 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
             case "Concat" => call("concat_path")
             case "Singleton" => call("singleton")
             case "Call" =>
-              val invoke=s"${functions(n.constant)}(c${ins.map(s=>", "+borrow(s)).mkString})"
+              val invoke=if tailCall.contains(g->pos) then
+                val tuple=if ins.isEmpty then "()" else ins.map(s=>s"($s).clone()").mkString("(",",",",)")
+                s"{ next_call = Some($tuple); Space::new() }"
+              else s"${functions(n.constant)}(c${ins.map(s=>", "+borrow(s)).mkString})"
               val stationary=g.level==0 && n.constant==emittingRoutine && (g.lookup(alias(g,output(g))) match
                 case Left(Node("Union",_,_,Vector(_,right))) => alias(g,right)==pos
                 case _ => false)
@@ -242,6 +289,23 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
         case Right(sub) =>
           val input=sub.root.inputs.map(value)
           sub.root.operation match
+            case "NativePathIteration" =>
+              val pc=sub.root.constant.toInt
+              line(s"let mut $name = Space::new();")
+              input.zipWithIndex.foreach { (arg,i)=>
+                line(s"let ${name}_arg_$i: &${if i<pc then "Path" else "Space"} = ${borrow(arg)};")
+              }
+              line(s"let mut ${name}_cursor = ${name}_arg_$pc.read_zipper();")
+              line(s"let mut ${name}_more = ${name}_cursor.is_val() || ${name}_cursor.to_next_val();")
+              line(s"while ${name}_more {")
+              line(s"  let ${name}_path = concat_path(${name}_arg_0,${name}_cursor.path());")
+              line(s"  let ${name}_rest = ${name}_cursor.make_map();")
+              val bound=input.indices.map { i=>i -> (if i==0 then s"${name}_path" else if i==pc then s"${name}_rest" else s"*${name}_arg_$i") }.toMap
+              val inner=emitBlock(sub,bindings.toMap,bound,params,out,indent+"  ")
+              line(s"  $name.join_into((${inner(output(sub))}).clone());")
+              line(s"  ${name}_more = ${name}_cursor.to_next_val();")
+              line("}")
+              line(s"drop(${name}_cursor);")
             case "Iteration" | "Fold" =>
               val fold=sub.root.operation=="Fold"
               line(s"let mut $name = Space::new();")
@@ -279,6 +343,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
   def compile(): String =
     val definitions=program.graphs.map { (name,g) =>
       emittingRoutine=name; mark(g,output(g))
+      tailCall=tailContinuation(g,name)
       val (ps,ss)=program.signatures(name)
       val root=name==program.root
       val signature=(Vector("c: &mut Context") ++ ps.indices.map(i=>s"p$i: ${if root then "Option<&Path>" else "&Path"}") ++
@@ -288,8 +353,21 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       val params=ps.zipWithIndex.map((p,i)=>("path"->p.s)->binding("p",i)).toMap ++
         ss.zipWithIndex.map((s,i)=>("space"->s.s)->binding("s",i)).toMap
       val out=StringBuilder(s"fn ${functions(name)}($signature) -> Space {\n")
-      val values=emitBlock(g,Map.empty,Map.empty,params,out,"  ")
-      out.append(s"  (${values(output(g))}).clone()\n}\n").toString
+      if tailCall.isEmpty then
+        val values=emitBlock(g,Map.empty,Map.empty,params,out,"  ")
+        out.append(s"  (${values(output(g))}).clone()\n}\n").toString
+      else
+        val parameters=ps.indices.map(i=>s"p$i"->"Path").toVector++ss.indices.map(i=>s"s$i"->"Space")
+        parameters.foreach((n,kind)=>out.append(s"  let mut loop_$n: $kind = (${binding(n.take(1),n.drop(1).toInt)}).clone();\n"))
+        val tuple=if parameters.isEmpty then "()" else parameters.map(_._2).mkString("(",",",",)")
+        val loopParams=ps.zipWithIndex.map((p,i)=>("path"->p.s)->s"loop_p$i").toMap ++ ss.zipWithIndex.map((s,i)=>("space"->s.s)->s"loop_s$i").toMap
+        out.append(s"  let mut loop_result = Space::new();\n  loop {\n    let mut next_call: Option<$tuple> = None;\n")
+        val values=emitBlock(g,Map.empty,Map.empty,loopParams,out,"    ")
+        out.append(s"    loop_result.join_into((${values(output(g))}).clone());\n")
+        val pattern=if parameters.isEmpty then "()" else parameters.map((n,_)=>s"next_$n").mkString("(",",",",)")
+        out.append(s"    if let Some($pattern) = next_call {\n")
+        parameters.foreach((n,_)=>out.append(s"      loop_$n = next_$n;\n"))
+        out.append("    } else { return loop_result; }\n  }\n}\n").toString
     }
     val (ps,ss)=program.signatures(program.root)
     val entry=s"pub fn entry(c: &mut Context, e: &Env) -> Space { ${functions(program.root)}(c" +

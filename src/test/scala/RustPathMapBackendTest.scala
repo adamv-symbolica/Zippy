@@ -87,3 +87,43 @@ class RustPathMapBackendTest extends FunSuite:
       assert(p.isStandalone)
       assertEquals(p.eval(paths=Map(h->BytePathValue(0,128,255))),Set(BytePathValue(255,128,0)))
     }
+    test("ordinary path-binding recursors fuse into zipper loops with epsilon and shared prefixes") {
+      val bind=RoutinePtr("bind");val callback=RoutinePtr("body");val prefix=PathRef("prefix")
+      val suffix=SpaceMention("suffix");val extra=SpaceMention("extra")
+      val eps=S.Singleton(P.ZERO)
+      val body=Zippy_bytes.Routine(callback,Vector(prefix),Vector(extra),S.Wrap(S.Mention(extra),P.Deref(prefix)))
+      val walk=Zippy_bytes.Routine(bind,Vector(prefix),Vector(suffix,extra),
+        S.Union(S.Composition(S.Intersection(S.Mention(suffix),eps),S.Call(callback,Vector(P.Deref(prefix)),Vector(S.Mention(extra)))),
+          S.Iteration(S.Mention(suffix),h,t,S.Call(bind,Vector(P.Concat(P.Deref(prefix),P.Deref(h))),Vector(S.Mention(t),S.Mention(extra))))))
+      val expression=S.Call(bind,Vector(P.ZERO),Vector(input,S.Mention(extra)))
+      val defs=Map(bind->walk,callback->body)
+      val p=RustPathMapBackend.bytes(expression,defs)
+      assert(p.graphDescription.contains("NativePathIteration"))
+      val spaces=Map(x->values,extra->Set(BytePathValue(),BytePathValue(128,0)))
+      assertEquals(p.eval(spaces=spaces),Zippy_bytes.eval(expression,spaceArgs=spaces.view.mapValues(Zippy_bytes.SpaceValue(_)).toMap,routines=defs).paths)
+      val observed=scala.collection.mutable.ArrayBuffer.empty[BytePathValue]
+      val effect=body.copy(body=S.GroundedPS(P.Deref(prefix),p=>{observed+=p;Zippy_bytes.SpaceValue(Set(p))}))
+      val effects=defs.updated(callback,effect)
+      val expected=Zippy_bytes.eval(expression,spaceArgs=spaces.view.mapValues(Zippy_bytes.SpaceValue(_)).toMap,routines=effects).paths
+      val order=observed.toVector;observed.clear()
+      assertEquals(RustPathMapBackend.bytes(expression,effects).eval(spaces=spaces),expected)
+      assertEquals(observed.toVector,order)
+    }
+    test("translated ordered folds over thousands of heads use a stack-safe native loop") {
+      val input=SpaceMention("many-heads")
+      val value=SpaceValue((0 until 8192).map(i=>PathValue(List(PathItem(s"head$i"),PathItem("tail")))).toSet)
+      val expr=Space.Fold(Space.Mention(input),Path.ZERO,acc,h,t,Space.Wrap(Space.Mention(t),Path.Deref(h)),Path.Deref(acc))
+      // The interner must include runtime symbols before taking its snapshot.
+      val table=PathItemInterner();value.paths.flatMap(_.items).toVector.sortBy(_.show).foreach(table.intern)
+      val translated=RadixTranslations.internedSymbolsToBytes(expr,Map.empty,table)
+      val p=RustPathMapBackend.bytes(translated.program.entry,translated.program.routines)
+      assert(p.code.contains("next_call"))
+      val result=p.eval(spaces=Map(input->translated.encode(value).paths))
+      assertEquals(result.map(translated.encoding.decode),value.paths)
+      val small=SpaceValue(value.paths.toVector.sortBy(_.show).take(64).toSet)
+      val growing=Space.Fold(Space.Mention(input),Path.ZERO,acc,h,t,
+        Space.Singleton(Path.Concat(Path.Deref(acc),Path.Deref(h))),Path.Concat(Path.Deref(acc),Path.Deref(h)))
+      val encoded=RadixTranslations.internedSymbolsToBytes(growing,Map.empty,table)
+      val actual=RustPathMapBackend.bytes(encoded.program.entry,encoded.program.routines).eval(spaces=Map(input->encoded.encode(small).paths))
+      assertEquals(actual.map(encoded.encoding.decode),eval(growing)(using sc=SpaceContextMap(Map(input->small))).paths)
+    }

@@ -34,6 +34,7 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
   private val intrinsicCalls = mutable.LinkedHashMap.empty[RoutinePtr,(String,String)]
   private val converted = java.util.IdentityHashMap[dialect.Space,Space]()
   private var graphOnly = false
+  private var preparingRoutine = RoutinePtr("")
 
   /** Reuse exactly the executor lowering pipeline, without generating C++. */
   def prepare(entry: dialect.Space, routines: Map[RoutinePtr,dialect.Routine]): NativeGraphProgram[V] =
@@ -128,6 +129,10 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
     constant("Space",s"""literal_text("${text(v.paths.toVector.map(encoded).sorted)}")""")
 
   private def hooks: NativeGraphLowering = new NativeGraphLowering:
+    private val activePathLoops=mutable.Set.empty[RoutinePtr]
+    override def insidePathIteration[A](name: RoutinePtr)(body: => A): A =
+      activePathLoops+=name
+      try body finally activePathLoops-=name
     private def epsilon(s: Space): Boolean = s match
       case Space.Singleton(Path.Constant(p)) => p.items.isEmpty
       case Space.Literal(v) => v.paths == Set(PathValue(Nil))
@@ -136,6 +141,29 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
     def sp(f: SpaceValue => PathValue): String = register(ps => Vector(encoded(f(SpaceValue(ps.map(decode).toSet)))))
     def ps(f: PathValue => SpaceValue): String = register(ps => f(decode(ps.head)).paths.toVector.map(encoded))
     def ss(f: SpaceValue => SpaceValue): String = register(ps => f(SpaceValue(ps.map(decode).toSet)).paths.toVector.map(encoded))
+    override def pathIteration(s: Space): Option[(Routine,Vector[Path],Vector[Space])] =
+      def epsilonTest(s: Space,ref: SpaceMention): Boolean = s match
+        case Space.Intersection(Space.Mention(input),unit) => input==ref && epsilon(unit)
+        case Space.Call(name,Vector(),Vector(Space.Mention(input))) if input==ref =>
+          intrinsicCalls.get(name).exists { (op,payload)=>
+            op=="FirstMatching" && payload.startsWith("false|") && payload.substring(6).trim=="1 0"
+          }
+        case _ => false
+      if !graphOnly then None else s match
+        case Space.Call(name,ps,ss) if !activePathLoops(name) => module.get(name).flatMap { r =>
+          if r.refs.isEmpty || r.mentions.isEmpty || ps.size!=r.refs.size || ss.size!=r.mentions.size then None
+          else r.body match
+            case Space.Union(Space.Composition(guard,terminal @ Space.Call(callback,_,_)),
+                Space.Iteration(Space.Mention(same),head,tail,Space.Call(recur,nextPaths,nextSpaces)))
+                if epsilonTest(guard,r.mentions.head) && same==r.mentions.head && recur==name && callback!=name &&
+                  nextPaths==Vector(Path.Concat(Path.Deref(r.refs.head),Path.Deref(head)))++r.refs.tail.map(Path.Deref(_)) &&
+                  nextSpaces==Vector(Space.Mention(tail))++r.mentions.tail.map(Space.Mention(_)) =>
+              val context=module.filter((p,_)=>p!=preparingRoutine && p!=name).lift.unlift
+              val body=Matching.canon(Lower.inline(using context)(terminal))
+              Some((r.copy(body=body),ps,ss))
+            case _ => None
+        }
+        case _ => None
     override def space(s: Space): Option[(String,String,Vector[Space])] = s match
       case Space.Call(name,Vector(),Vector(input)) if intrinsicCalls.contains(name) =>
         val (operation,payload) = intrinsicCalls(name)
@@ -185,6 +213,7 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
     RustPathMapAudit.withoutCapture { RadixTranslationAudit.withoutCapture { optimizeRoutine(r) } }
   }
   private def optimizeRoutine(r: Routine): RecursiveOpGraph =
+    preparingRoutine = r.name
     val ctx = module.lift.unlift
     val hasGrounded = Supercompiler.backendUnsupported(r.body).nonEmpty ||
       module.valuesIterator.exists(r => Supercompiler.backendUnsupported(r.body).nonEmpty)

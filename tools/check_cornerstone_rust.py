@@ -30,7 +30,10 @@ def main():
         stem = '-'.join(source.parts[-3:]).removesuffix('.rs')
         executable, log = output / stem, output / (stem + '.log')
         with log.open('w') as handle:
-            subprocess.run(['rustc', '--crate-name', 'cornerstone', '--edition=2024', '-O',
+            level=artifact['rustOptLevel']
+            units=16 if len(source.read_text()) > 500000 else 1
+            subprocess.run(['rustc', '--crate-name', 'cornerstone', '--edition=2024', '-C', f'opt-level={level}',
+                            '-C', f'codegen-units={units}',
                             '-C', 'target-cpu=native', '-L', 'dependency=' + str(library / 'deps'),
                             '--extern', 'zippy_pathmap=' + str(library / 'libzippy_pathmap.rlib'),
                             str(source), '-o', str(executable)], check=True,
@@ -59,12 +62,12 @@ def main():
         assert decoded == expected, (source, len(decoded), len(expected))
         print(artifact['source'], count, flush=True)
         return dict(source=artifact['source'], sha256=artifact['sha256'], paths=count,
-                    compiled=True, executed=True, exact=True)
+                    compiled=True, executed=True, exact=True, rustOptLevel=level)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
         results = list(pool.map(run, manifest['artifacts']))
     report = dict(success=True, sources=len(results), workloads=manifest['workloads'],
-                  optimization='-O / opt-level=3 target-cpu=native', results=results)
+                  optimization='manifest size policy, runtime opt-level=3, target-cpu=native', results=results)
     (output / 'summary.json').write_text(json.dumps(report, indent=2) + '\n')
 
 

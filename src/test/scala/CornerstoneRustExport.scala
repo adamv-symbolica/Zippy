@@ -54,7 +54,7 @@ object CornerstoneRustExport:
         write(folder.resolve(encoding+".input.txt"),request)
         val hash=MessageDigest.getInstance("SHA-256").digest(p.source.getBytes(UTF_8)).map(b=>f"${b&255}%02x").mkString
         val source=s"${work.family}/$key/$encoding.rs"
-        records+=s"{\"family\":${json(work.family)},\"name\":${json(work.name)},\"variant\":${json(work.variant)},\"dialect\":${json(encoding)},\"source\":${json(source)},\"sha256\":${json(hash)},\"bytes\":${p.source.getBytes(UTF_8).length},\"graphNodes\":${p.graphNodes},\"precomputed\":${p.precomputed}}"
+        records+=s"{\"family\":${json(work.family)},\"name\":${json(work.name)},\"variant\":${json(work.variant)},\"dialect\":${json(encoding)},\"source\":${json(source)},\"sha256\":${json(hash)},\"bytes\":${p.source.getBytes(UTF_8).length},\"graphNodes\":${p.graphNodes},\"precomputed\":${p.precomputed},\"rustOptLevel\":${RustPathMapBackend.optimizationFor(p.source)}}"
       emit("bytes-interned",RustPathMapBackend.bytes(bytes.program.entry,bytes.program.routines),work.context.m.view.mapValues(v=>bytes.encode(v).paths).toMap)
       emit("bytes-strings",RustPathMapBackend.bytes(strings.program.entry,strings.program.routines),work.context.m.view.mapValues(v=>strings.encode(v).paths).toMap)
       emit("bits-bytes",RustPathMapBackend.bytes(injected.entry,injected.routines),work.context.m.view.mapValues(v=>bits.encode(v).paths.map(bitCodec.encode)).toMap)
@@ -76,6 +76,9 @@ Compile a source with `rustc --edition=2024 -O -C target-cpu=native
 --extern zippy_pathmap=runtime/target/release/libzippy_pathmap.rlib CASE.rs -o program`.
 Run `./program < CASE.input.txt`. Use the repository's `tools/check_cornerstone_rust.py`
 to compile every source and compare its decoded result with expected.json.
+For large generated files use `-C opt-level=LEVEL -C codegen-units=16` instead of
+`-O`, where LEVEL is the manifest's rustOptLevel (1 above 500k characters and
+0 above 2M); the shared runtime remains release level 3.
 """)
 
 @main def exportCornerstoneRust(output: String = "output/cornerstone-rust-review"): Unit =

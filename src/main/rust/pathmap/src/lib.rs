@@ -483,6 +483,23 @@ impl Context {
     }
 }
 pub fn run(dispatch: fn(usize, &mut Context, &Env) -> Space) {
+    // Expanded, unoptimized scanner glue can have large native stack frames.
+    // Reserve a stack once per process; thread creation is outside evaluation
+    // timing and there is no per-request thread or language continuation stack.
+    let mib = std::env::var("ZIPPY_STACK_MIB")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(256);
+    std::thread::Builder::new()
+        .name("zippy-exec".into())
+        .stack_size(mib.checked_mul(1024 * 1024).expect("stack size overflow"))
+        .spawn(move || run_native(dispatch))
+        .expect("native executor thread")
+        .join()
+        .expect("native execution panicked");
+}
+
+fn run_native(dispatch: fn(usize, &mut Context, &Env) -> Space) {
     let mut c = Context {
         reader: io::stdin(),
         writer: io::stdout(),

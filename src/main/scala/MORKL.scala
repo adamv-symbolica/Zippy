@@ -863,6 +863,11 @@ trait NativeGraphLowering:
   def ps(f: PathValue => SpaceValue): String
   def ss(f: SpaceValue => SpaceValue): String
   def space(s: Space): Option[(String, String, Vector[Space])] = None
+  /** A proven ordinary path-binding recursor, fused into a native zipper loop.
+    * This extends compiler IR only; the language retains exactly its cases.
+    */
+  def pathIteration(s: Space): Option[(Routine,Vector[Path],Vector[Space])] = None
+  def insidePathIteration[A](name: RoutinePtr)(body: => A): A = body
 
 def transpile(r: Routine, caller: Option[RecursiveOpGraph] = None,
               native: Option[NativeGraphLowering] = None): RecursiveOpGraph =
@@ -894,10 +899,16 @@ def transpile(r: Routine, caller: Option[RecursiveOpGraph] = None,
       g.store(Node("GroundedSP", hooks.sp(f), "path", Vector(recs(s))))
 
   def recs(x: Space): (Int, Int) =
-    native.flatMap(_.space(x)) match
-      case Some((operation, payload, inputs)) =>
-        g.store(Node(operation, payload, "space", inputs.map(recs)))
-      case None => plainSpace(x)
+    native.flatMap(_.pathIteration(x)) match
+      case Some((body,paths,spaces)) =>
+        val inputs=paths.map(recp)++spaces.map(recs)
+        val child=native.get.insidePathIteration(body.name) { transpile(body,Some(g),native) }
+        child.root=Node("NativePathIteration",body.refs.size.toString,"space",inputs)
+        g.store(child)
+      case None => native.flatMap(_.space(x)) match
+        case Some((operation, payload, inputs)) =>
+          g.store(Node(operation, payload, "space", inputs.map(recs)))
+        case None => plainSpace(x)
 
   def plainSpace(x: Space): (Int, Int) =
     x match

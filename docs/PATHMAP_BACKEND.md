@@ -69,7 +69,13 @@ grounded operations, and partial reads of optional entry inputs. Shared values
 are generated in a dominating lexical scope, or at guarded use sites. It drops
 owned intermediates after their final graph use, reducing retained reference
 counts and improving PathMap copy-on-write behavior. Iteration cursors are
-released at loop exit. Proven ordered head scanners use joint child-mask search
+released at loop exit. Ordinary path-binding recursors are recognized from their
+function bodies and fused into loops over terminal zipper positions, preserving
+epsilon, shared prefixes, strict arguments and callback order. A proven single
+tail continuation through union and single-path loops becomes a native loop
+with typed mutable parameters. Translated ordered folds therefore do not grow
+the machine stack per symbol; no continuation interpreter is introduced.
+Proven ordered head scanners use joint child-mask search
 or a bounded ordinal Fibonacci search; these are optimizations of existing
 operations and functions, not new language cases.
 
@@ -114,6 +120,11 @@ to level 3 up to 500,000 characters, level 1 above that, and level 0 above
 time in LLVM. Benchmark CSVs record the actual `rust_opt_level`; thresholds can
 be overridden through `morkl.pathmap.mediumOptimize` and `.largeOptimize`.
 `morkl.pathmap.optimize` caps the requested level for all sizes.
+
+Expanded scanner glue can have large native stack frames. Each process creates
+one executor thread before handling requests, with a 256 MiB reserved stack
+(`ZIPPY_STACK_MIB` overrides it; the benchmark runner selects 1024 MiB). There
+is no per-evaluation thread creation, and this initialization is outside timing.
 
 Reuse a process for repeated execution:
 
