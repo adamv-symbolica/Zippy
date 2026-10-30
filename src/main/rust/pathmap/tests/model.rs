@@ -12,7 +12,6 @@ fn map(s: &Set) -> Space {
 fn same(m: Space, s: Set) {
     assert_eq!(
         enumerate(&m)
-            .into_iter()
             .map(|p| p.to_vec())
             .collect::<Set>(),
         s
@@ -78,7 +77,6 @@ fn algebra_against_independent_path_sets() {
             .collect::<Set>();
         assert_eq!(
             ordered_terminated(&am)
-                .into_iter()
                 .map(|p| p.to_vec())
                 .collect::<Vec<_>>(),
             terminated.iter().cloned().collect::<Vec<_>>()
