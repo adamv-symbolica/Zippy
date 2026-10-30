@@ -2,6 +2,12 @@ package morkl
 
 import scala.collection.mutable
 
+/** Backend-independent output of dialect lowering and graph optimization. */
+private[morkl] case class NativeGraphProgram[V](root: String,
+    graphs: Vector[(String,RecursiveOpGraph)],
+    signatures: Map[String,(Vector[PathRef],Vector[SpaceMention])],
+    compiled: OpenFstBackend.Compiled[V])
+
 /** Native control flow is emitted from optimized RecursiveOpGraph coordinates.
   * Graph positions become C++ locals; nested graph scopes become lexical loop
   * bodies. There is no generated node dispatcher, value stack or environment.
@@ -27,6 +33,18 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
   private var selector: OpenFstHeadSelection[V,dialect.type] = null
   private val intrinsicCalls = mutable.LinkedHashMap.empty[RoutinePtr,(String,String)]
   private val converted = java.util.IdentityHashMap[dialect.Space,Space]()
+  private var graphOnly = false
+
+  /** Reuse exactly the executor lowering pipeline, without generating C++. */
+  def prepare(entry: dialect.Space, routines: Map[RoutinePtr,dialect.Routine]): NativeGraphProgram[V] =
+    graphOnly = true
+    val result = compile(entry,routines)
+    NativeGraphProgram(entryName,graphs.toVector,signatures.toMap,result)
+
+  def prepareGraph(graph: RecursiveOpGraph, callees: Map[String,RecursiveOpGraph]): NativeGraphProgram[V] =
+    graphOnly = true
+    val result = compileGraph(graph,callees)
+    NativeGraphProgram(entryName,graphs.toVector,signatures.toMap,result)
 
   private def graphPath(v: V): PathValue =
     if labels.symbolic then v.asInstanceOf[PathValue]
@@ -164,7 +182,7 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
     })
     tooLarge
   private def optimized(r: Routine): RecursiveOpGraph = OpenFstAudit.withoutCapture {
-    RadixTranslationAudit.withoutCapture { optimizeRoutine(r) }
+    RustPathMapAudit.withoutCapture { RadixTranslationAudit.withoutCapture { optimizeRoutine(r) } }
   }
   private def optimizeRoutine(r: Routine): RecursiveOpGraph =
     val ctx = module.lift.unlift
@@ -423,6 +441,15 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
     emittingRoutine = name
     graphs(name) = graph
     mark(graph,output(graph))
+    if graphOnly then
+      def calls(g: RecursiveOpGraph): Unit =
+        Option(demands.get(g)).foreach(_.foreach { i => g.nodes(i) match
+          case Left(Node("Call",target,_,_)) => needed += target
+          case Right(child) => calls(child)
+          case _ => ()
+        })
+      calls(graph)
+      return
     val (ps,ss) = signatures(name)
     val params = ps.zipWithIndex.map((p,i) => ("path" -> p.s) -> (if name == entryName then s"bound_path(p$i)" else s"p$i")).toMap ++
       ss.zipWithIndex.map((s,i) => ("space" -> s.s) -> (if name == entryName then s"bound_space(s$i)" else s"s$i")).toMap
@@ -464,7 +491,7 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
     * expression tree. Called routines are compiled from their graph index too.
     */
   def compileGraph(top: RecursiveOpGraph, index: Map[String,RecursiveOpGraph]): OpenFstBackend.Compiled[V] =
-    require(labels.symbolic,"executor graphs use the symbolic alphabet")
+    require(labels.symbolic || graphOnly,"executor graphs use the symbolic alphabet")
     val start = System.nanoTime()
     suppliedGraphs = index
     def inputs(g: RecursiveOpGraph): (Vector[PathRef],Vector[SpaceMention]) =
@@ -493,7 +520,7 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
     val entryCode = s"static Space entry(Context& c,const Env& e) { return ${function(rootName)}(c" +
       ps.indices.map(i => s",path_arg(e,$i)").mkString + ss.indices.map(i => s",space_arg(e,$i)").mkString + "); }"
     val prototypes = emitted.toVector.sorted.map(n => s"static Space ${function(n)}(${signature(n)});")
-    val code = (declarations ++ prototypes ++ definitions :+ entryCode).mkString("\n")
+    val code = if graphOnly then "" else (declarations ++ prototypes ++ definitions :+ entryCode).mkString("\n")
     val dump = graphs.iterator.map((n,g) => s"routine $n\n${g.show}").mkString("\n\n")
     def liveNodes(g: RecursiveOpGraph): Int =
       val live = Option(demands.get(g)).getOrElse(mutable.BitSet.empty)

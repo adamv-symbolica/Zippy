@@ -167,6 +167,8 @@ object OpenFstBackend:
         scala.util.Try(output.close());scala.util.Try(input.close())
   object Session:
     def apply(programs: Vector[Compiled[?]]): Session = new Session(programs, build(translationUnit(programs)))
+    private[morkl] def usingExecutable(programs: Vector[Compiled[?]], executable: FilePath): Session =
+      new Session(programs,executable)
 
   private def root: FilePath = Paths.get(System.getProperty("morkl.openfst.root", ".")).toAbsolutePath.normalize()
   private def cache: FilePath = Paths.get(System.getProperty("morkl.openfst.cache", root.resolve("target/openfst").toString))

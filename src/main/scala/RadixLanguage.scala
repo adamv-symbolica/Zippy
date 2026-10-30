@@ -129,7 +129,11 @@ class DigitLanguage[V](val paths: DigitPaths[V]):
            pathArgs: Map[PathRef, V] = Map.empty,
            spaceArgs: Map[SpaceMention, SpaceValue] = Map.empty,
            routines: PartialFunction[RoutinePtr, Routine] = PartialFunction.empty): SpaceValue =
-    if OpenFstAudit.enabled then
+    if RustPathMapAudit.enabled then
+      RustPathMapAudit.evaluate(DigitLanguage.this)(expression,pathArgs,spaceArgs,routines) {
+        evalReference(expression,pathArgs,spaceArgs,routines)
+      }
+    else if OpenFstAudit.enabled then
       OpenFstAudit.evaluate(DigitLanguage.this)(expression,pathArgs,spaceArgs,routines) {
         evalReference(expression,pathArgs,spaceArgs,routines)
       }

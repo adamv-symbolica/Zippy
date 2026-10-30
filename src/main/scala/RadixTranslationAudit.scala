@@ -13,7 +13,8 @@ object RadixTranslationAudit:
   private[morkl] def withoutCapture[A](body: => A): A =
     val previous = replaying.get();replaying.set(true)
     try body finally replaying.set(previous)
-  private val output = Option(System.getProperty("morkl.radixAudit.path")).orElse(Option(System.getProperty("morkl.openfstAudit.path"))).filter(_.nonEmpty)
+  private val output = Option(System.getProperty("morkl.radixAudit.path")).orElse(Option(System.getProperty("morkl.openfstAudit.path")))
+    .orElse(Option(System.getProperty("morkl.pathmapAudit.path"))).filter(_.nonEmpty)
   val enabled: Boolean = output.nonEmpty
   private final class Identity(val value: AnyRef):
     override def hashCode(): Int = System.identityHashCode(value)
@@ -194,7 +195,10 @@ object RadixTranslationAudit:
       Files.createDirectories(directory)
       val snapshot = examples.values().toArray(new Array[Example](0)).toVector.sortBy(_.id)
       println(s"Radix translation audit: ${snapshot.size} distinct cases from ${observations.get()} reference evaluations")
-      if OpenFstAudit.enabled then
+      if RustPathMapAudit.enabled then
+        snapshot.foreach { e => RustPathMapAudit.addSymbol(e.expression,e.paths,e.spaces,e.routines,e.expected,e.alphabet,e.caller) }
+        RustPathMapAudit.finish(snapshot.size)
+      else if OpenFstAudit.enabled then
         snapshot.foreach { e => OpenFstAudit.addSymbol(e.expression,e.paths,e.spaces,e.routines,e.expected,e.alphabet,e.caller) }
         OpenFstAudit.finish(snapshot.size)
       else
