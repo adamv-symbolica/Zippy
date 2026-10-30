@@ -16,7 +16,7 @@ Every cornerstone is listed separately: five Scala evaluators, two digit referen
 | [N-queens](n-queens.md) | 2 |
 | [Supplement: large selective products](large-products.md) | 6 |
 
-The [complete CSV](all-evaluators.csv) includes native session setup, graph/source compiler times, and Scala graph compile + execution. The [Rust review bundle](../compiled-cornerstones-rust/README.md) contains 108 sources, graph dumps, exact inputs and independent expected results. [Validation evidence](../validation/pathmap/README.md) retains all nine native benchmark families, microbenchmarks and the fourteen original evaluator reports.
+The [complete CSV](all-evaluators.csv) includes native session setup, graph/source compiler times, and Scala graph compile + execution. The [Rust review bundle](../compiled-cornerstones-rust/README.md) contains 108 sources, graph dumps, exact inputs and independent expected results. [Validation evidence](../validation/pathmap-zipper/README.md) retains all nine native benchmark families, microbenchmarks and the fourteen original evaluator reports.
 
 [Translation and performance notes](performance.md) explain the main implementation choices and include the large fold and product results.
 

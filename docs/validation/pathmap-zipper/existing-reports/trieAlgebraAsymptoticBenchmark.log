@@ -1,0 +1,18 @@
+Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Dmorkl.openfst.prefix=/home/ubuntu/openfst -Xmx64g -Xss64m -Dmorkl.pathmap.root=/home/ubuntu/Zippy
+operation,size,ns_per_operation
+union-subset,1024,10960.5
+intersection-subset,1024,5356.6
+restriction-quarter,1024,59766.0
+subtraction-disjoint,1024,46.3
+union-subset,4096,33246.0
+intersection-subset,4096,37549.9
+restriction-quarter,4096,289959.3
+subtraction-disjoint,4096,57.8
+union-subset,16384,254623.8
+intersection-subset,16384,250965.3
+restriction-quarter,16384,1159245.8
+subtraction-disjoint,16384,50.3
+union-subset,65536,844520.5
+intersection-subset,65536,789171.3
+restriction-quarter,65536,3251353.3
+subtraction-disjoint,65536,46.3

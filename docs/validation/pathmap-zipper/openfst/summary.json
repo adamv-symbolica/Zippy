@@ -1,0 +1,36 @@
+{
+  "success": true,
+  "completed": 4,
+  "total": 4,
+  "workers": 2,
+  "runs": [
+    {
+      "kind": "native",
+      "name": "programs--shard-0-of-2",
+      "exitCode": 0,
+      "seconds": 129.654
+    },
+    {
+      "kind": "native",
+      "name": "large--shard-0-of-2",
+      "exitCode": 0,
+      "seconds": 41.711
+    },
+    {
+      "kind": "native",
+      "name": "programs--shard-1-of-2",
+      "exitCode": 0,
+      "seconds": 217.574
+    },
+    {
+      "kind": "native",
+      "name": "large--shard-1-of-2",
+      "exitCode": 0,
+      "seconds": 71.613
+    }
+  ],
+  "familyWorkloads": {
+    "large": 14,
+    "programs": 22
+  }
+}

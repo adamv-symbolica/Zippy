@@ -1,0 +1,5 @@
+Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Dmorkl.openfst.prefix=/home/ubuntu/openfst -Xmx64g -Xss64m -Dmorkl.pathmap.root=/home/ubuntu/Zippy
+spatial cost correlation: Reference Spearman=1.000
+spatial cost correlation: Trie      Spearman=1.000
+spatial cost correlation: Zipper    Spearman=1.000
+spatial cost correlation: Graph     Spearman=1.000

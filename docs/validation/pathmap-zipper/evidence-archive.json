@@ -1,0 +1,23 @@
+{
+  "archive": "output/pathmap-zipper/complete-evidence.tar.gz",
+  "sha256": "878b4d1bbdab01b4c37627047e0c45acb7ad3eacb2cc99fdea03aa400d93ed10",
+  "bytes": 19664417,
+  "files": 1473,
+  "directories": [
+    "verified-tests",
+    "verified-benchmarks",
+    "final-export-checks",
+    "release-0928-tests",
+    "release-0928-benchmarks",
+    "release-0928-export-checks",
+    "final-rust",
+    "source-snapshot",
+    "benchmark-source-snapshot",
+    "references",
+    "zipper-measured",
+    "openfst"
+  ],
+  "benchmarkCommit": "b58ea64b4e7feb56d4f01baba26fe56b1a559012",
+  "finalSourceCommit": "262a38cea8b6cea255a872649d2682ba78b272fc",
+  "notes": "Includes full differential ledgers, test and compiler logs, all benchmark shards and original reports, references, standalone sources, and both verified source snapshots; excludes tool build caches and native executables."
+}

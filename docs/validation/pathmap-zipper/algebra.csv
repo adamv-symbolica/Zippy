@@ -1,0 +1,199 @@
+family,name,dialect,paths,compile_ms,native_ms,reference_trie_ms,samples,checked,graph_compile_ms,graph_nodes,generated_bytes,precomputed,rust_opt_level
+algebra,1%/binary/composition,bits-bytes,576000000,1.833,48.726350,51.836,5,cardinality,2.650,3,611,false,3
+algebra,1%/binary/composition,bytes-interned,576000000,1.846,9.362214,51.836,5,cardinality,4.493,3,611,false,3
+algebra,1%/binary/composition,bytes-strings,576000000,1.753,25.348363,51.836,5,cardinality,1.874,3,611,false,3
+algebra,1%/binary/intersection,bits-bytes,6180,1.817,7.193400,83.816,5,exact,2.717,3,530,false,3
+algebra,1%/binary/intersection,bytes-interned,6180,67.478,0.991559,83.816,5,exact,67.162,3,530,false,3
+algebra,1%/binary/intersection,bytes-strings,6180,2.680,3.661036,83.816,5,exact,2.473,3,530,false,3
+algebra,1%/binary/raffination,bits-bytes,22464,1.521,18.201352,36.865,5,exact,1.727,3,528,false,3
+algebra,1%/binary/raffination,bytes-interned,22464,1.965,1.908284,36.865,5,exact,2.401,3,528,false,3
+algebra,1%/binary/raffination,bytes-strings,22464,2.218,8.651217,36.865,5,exact,2.994,3,528,false,3
+algebra,1%/binary/restriction,bits-bytes,1536,1.867,1.316334,69.515,5,exact,2.500,3,532,false,3
+algebra,1%/binary/restriction,bytes-interned,1536,66.679,0.126722,69.515,5,exact,62.646,3,532,false,3
+algebra,1%/binary/restriction,bytes-strings,1536,2.032,0.589829,69.515,5,exact,2.325,3,532,false,3
+algebra,1%/binary/subtraction,bits-bytes,17820,1.914,14.818818,82.205,5,exact,2.526,3,529,false,3
+algebra,1%/binary/subtraction,bytes-interned,17820,67.178,1.873304,82.205,5,exact,62.379,3,529,false,3
+algebra,1%/binary/subtraction,bytes-strings,17820,2.402,7.741783,82.205,5,exact,2.164,3,529,false,3
+algebra,1%/binary/union,bits-bytes,41820,2.582,36.689805,89.037,5,exact,4.347,3,526,false,3
+algebra,1%/binary/union,bytes-interned,41820,68.665,4.014146,89.037,5,exact,67.581,3,526,false,3
+algebra,1%/binary/union,bytes-strings,41820,4.341,16.838317,89.037,5,exact,2.313,3,526,false,3
+algebra,1%/combination/diff then restriction,bits-bytes,1140,2.552,1.895258,37.990,5,exact,1.096,5,654,false,3
+algebra,1%/combination/diff then restriction,bytes-interned,1140,1.677,0.473200,37.990,5,exact,2.379,5,654,false,3
+algebra,1%/combination/diff then restriction,bytes-strings,1140,1.556,1.046509,37.990,5,exact,1.133,5,654,false,3
+algebra,1%/combination/product exact intersection,bits-bytes,1,1.614,11.498237,40.786,5,exact,1.240,5,734,false,3
+algebra,1%/combination/product exact intersection,bytes-interned,1,1.522,5.814592,40.786,5,exact,1.414,5,734,false,3
+algebra,1%/combination/product exact intersection,bytes-strings,1,1.406,8.640751,40.786,5,exact,1.116,5,734,false,3
+algebra,1%/combination/product prefix restriction,bits-bytes,24000,2.583,34.213109,79.626,5,exact,1.167,5,736,false,3
+algebra,1%/combination/product prefix restriction,bytes-interned,24000,2.104,7.909013,79.626,5,exact,4.844,5,736,false,3
+algebra,1%/combination/product prefix restriction,bytes-strings,24000,2.533,18.407171,79.626,5,exact,1.395,5,736,false,3
+algebra,1%/combination/range of union,bits-bytes,512,2.270,1380.984323,52.056,1,exact,1349.110,206,16355,false,3
+algebra,1%/combination/range of union,bytes-interned,512,10.872,4.701092,52.056,5,exact,260.803,206,295443,false,3
+algebra,1%/combination/range of union,bytes-strings,512,1.529,1.925458,52.056,5,exact,3.012,4,595,false,3
+algebra,1%/combination/tails of restricted union,bits-bytes,2296,4.690,4.579799,42.660,5,exact,73.767,1163,108072,false,3
+algebra,1%/combination/tails of restricted union,bytes-interned,2296,1.431,0.733013,42.660,5,exact,2.908,12,1934,false,3
+algebra,1%/combination/tails of restricted union,bytes-strings,2296,1.703,1.947418,42.660,5,exact,7.741,56,4670,false,3
+algebra,1%/combination/union then exact intersection,bits-bytes,1,1.534,1.766169,34.686,5,exact,1.288,5,649,false,3
+algebra,1%/combination/union then exact intersection,bytes-interned,1,1.608,0.462905,34.686,5,exact,2.161,5,649,false,3
+algebra,1%/combination/union then exact intersection,bytes-strings,1,1.621,0.852994,34.686,5,exact,1.421,5,649,false,3
+algebra,1%/n-ary/three-way intersection,bits-bytes,240,2.030,1.269067,42.406,5,exact,3.314,5,653,false,3
+algebra,1%/n-ary/three-way intersection,bytes-interned,240,1.749,0.359557,42.406,5,exact,6.850,5,653,false,3
+algebra,1%/n-ary/three-way intersection,bytes-strings,240,1.829,0.732983,42.406,5,exact,2.588,5,653,false,3
+algebra,1%/range/first(512),bits-bytes,512,2.029,1369.446798,32.454,1,exact,1203.517,193,15488,false,3
+algebra,1%/range/first(512),bytes-interned,512,11.332,4.076549,32.454,5,exact,297.791,193,294576,false,3
+algebra,1%/range/first(512),bytes-strings,512,1.699,5.292619,32.454,5,exact,3.020,2,476,false,3
+algebra,1%/range/last(512),bits-bytes,512,48.238,902.738752,54.841,5,exact,2502.684,193,978005,false,1
+algebra,1%/range/last(512),bytes-interned,512,13.393,558.908946,54.841,5,exact,322.644,193,317255,false,3
+algebra,1%/range/last(512),bytes-strings,512,1.710,5.190485,54.841,5,exact,3.037,2,477,false,3
+algebra,1%/unary/prefix-closure,bits-bytes,31500,7.002,288.450367,41.132,5,exact,240.296,1950,169316,false,3
+algebra,1%/unary/prefix-closure,bytes-interned,31500,1.800,17.916855,41.132,5,exact,33.489,38,4631,false,3
+algebra,1%/unary/prefix-closure,bytes-strings,31500,1.982,142.240672,41.132,5,exact,53.163,100,8077,false,3
+algebra,1%/unary/suffix-closure,bits-bytes,48008,5.818,253.688965,64.264,5,exact,230.104,1888,164448,false,3
+algebra,1%/unary/suffix-closure,bytes-interned,48008,1.803,11.681252,64.264,5,exact,37.314,40,4844,false,3
+algebra,1%/unary/suffix-closure,bytes-strings,48008,1.999,104.524126,64.264,5,exact,45.518,100,7995,false,3
+algebra,1%/unary/tails-closure,bits-bytes,48009,6.392,298.799952,56.275,5,exact,120.409,1882,164238,false,3
+algebra,1%/unary/tails-closure,bytes-interned,48009,1.956,11.995033,56.275,5,exact,11.709,36,4609,false,3
+algebra,1%/unary/tails-closure,bytes-strings,48009,2.010,126.501974,56.275,5,exact,25.359,94,7786,false,3
+algebra,1%/unary/tails-intersection,bits-bytes,4,6.829,37.378889,47.367,5,exact,268.323,2332,217668,false,3
+algebra,1%/unary/tails-intersection,bytes-interned,4,1.645,11.447821,47.367,5,exact,32.304,31,4456,false,3
+algebra,1%/unary/tails-intersection,bytes-strings,4,2.596,8.742664,47.367,5,exact,51.475,95,7537,false,3
+algebra,1%/unary/tails-union,bits-bytes,18004,5.400,23.733480,55.116,5,exact,268.325,1159,107828,false,3
+algebra,1%/unary/tails-union,bytes-interned,18004,2.201,3.016765,55.116,5,exact,16.295,8,1690,false,3
+algebra,1%/unary/tails-union,bytes-strings,18004,2.644,8.559329,55.116,5,exact,45.435,52,4408,false,3
+algebra,1%/unary/unwrap,bits-bytes,24000,1.860,19.126550,43.816,5,exact,1.695,3,615,false,3
+algebra,1%/unary/unwrap,bytes-interned,24000,1.752,1.965448,43.816,5,exact,5.352,3,582,false,3
+algebra,1%/unary/unwrap,bytes-strings,24000,1.785,9.205658,43.816,5,exact,1.900,3,649,false,3
+algebra,1%/unary/wrap,bits-bytes,24000,1.895,19.381533,32.364,5,exact,2.422,3,613,false,3
+algebra,1%/unary/wrap,bytes-interned,24000,1.805,1.931994,32.364,5,exact,5.255,3,580,false,3
+algebra,1%/unary/wrap,bytes-strings,24000,2.197,9.145037,32.364,5,exact,1.970,3,647,false,3
+algebra,50%/binary/composition,bits-bytes,576000000,1.557,48.075554,35.815,5,cardinality,1.960,3,611,false,3
+algebra,50%/binary/composition,bytes-interned,576000000,1.796,9.297356,35.815,5,cardinality,1.230,3,611,false,3
+algebra,50%/binary/composition,bytes-strings,576000000,2.971,26.717547,35.815,5,cardinality,1.861,3,611,false,3
+algebra,50%/binary/intersection,bits-bytes,15000,1.665,14.320030,61.745,5,exact,1.287,3,530,false,3
+algebra,50%/binary/intersection,bytes-interned,15000,1.959,1.844608,61.745,5,exact,1.855,3,530,false,3
+algebra,50%/binary/intersection,bytes-strings,15000,1.771,7.791738,61.745,5,exact,1.150,3,530,false,3
+algebra,50%/binary/raffination,bits-bytes,22464,1.583,18.322614,31.482,5,exact,1.546,3,528,false,3
+algebra,50%/binary/raffination,bytes-interned,22464,1.564,1.903795,31.482,5,exact,1.660,3,528,false,3
+algebra,50%/binary/raffination,bytes-strings,22464,2.154,9.233390,31.482,5,exact,1.096,3,528,false,3
+algebra,50%/binary/restriction,bits-bytes,1536,1.618,1.305561,30.232,5,exact,0.899,3,532,false,3
+algebra,50%/binary/restriction,bytes-interned,1536,1.234,0.127389,30.232,5,exact,1.453,3,532,false,3
+algebra,50%/binary/restriction,bytes-strings,1536,1.709,0.629478,30.232,5,exact,1.382,3,532,false,3
+algebra,50%/binary/subtraction,bits-bytes,9000,1.802,7.678919,40.530,5,exact,0.881,3,529,false,3
+algebra,50%/binary/subtraction,bytes-interned,9000,1.779,1.298084,40.530,5,exact,1.714,3,529,false,3
+algebra,50%/binary/subtraction,bytes-strings,9000,1.536,4.683350,40.530,5,exact,0.944,3,529,false,3
+algebra,50%/binary/union,bits-bytes,33000,1.587,28.570346,45.261,5,exact,1.019,3,526,false,3
+algebra,50%/binary/union,bytes-interned,33000,1.504,3.300561,45.261,5,exact,1.169,3,526,false,3
+algebra,50%/binary/union,bytes-strings,33000,1.573,14.318477,45.261,5,exact,1.079,3,526,false,3
+algebra,50%/combination/diff then restriction,bits-bytes,552,1.864,1.555606,44.822,5,exact,0.897,5,654,false,3
+algebra,50%/combination/diff then restriction,bytes-interned,552,1.894,0.564505,44.822,5,exact,1.504,5,654,false,3
+algebra,50%/combination/diff then restriction,bytes-strings,552,2.387,1.170296,44.822,5,exact,1.041,5,654,false,3
+algebra,50%/combination/product exact intersection,bits-bytes,1,1.621,11.442054,46.339,5,exact,0.993,5,734,false,3
+algebra,50%/combination/product exact intersection,bytes-interned,1,1.566,5.791517,46.339,5,exact,1.114,5,734,false,3
+algebra,50%/combination/product exact intersection,bytes-strings,1,1.683,8.683896,46.339,5,exact,1.003,5,734,false,3
+algebra,50%/combination/product prefix restriction,bits-bytes,24000,2.790,33.224197,91.895,5,exact,2.018,5,736,false,3
+algebra,50%/combination/product prefix restriction,bytes-interned,24000,2.185,7.962123,91.895,5,exact,1.767,5,736,false,3
+algebra,50%/combination/product prefix restriction,bytes-strings,24000,2.371,19.141993,91.895,5,exact,2.910,5,736,false,3
+algebra,50%/combination/range of union,bits-bytes,512,2.363,1099.118874,56.091,1,exact,1120.321,206,16355,false,3
+algebra,50%/combination/range of union,bytes-interned,512,11.449,5.489244,56.091,5,exact,95.581,206,230758,false,3
+algebra,50%/combination/range of union,bytes-strings,512,2.019,1.607132,56.091,5,exact,1.260,4,595,false,3
+algebra,50%/combination/tails of restricted union,bits-bytes,1708,3.880,4.126184,37.776,5,exact,41.671,1086,101014,false,3
+algebra,50%/combination/tails of restricted union,bytes-interned,1708,1.838,0.726603,37.776,5,exact,2.872,12,1934,false,3
+algebra,50%/combination/tails of restricted union,bytes-strings,1708,1.684,1.974717,37.776,5,exact,4.839,56,4670,false,3
+algebra,50%/combination/union then exact intersection,bits-bytes,1,1.624,1.539621,51.936,5,exact,1.575,5,649,false,3
+algebra,50%/combination/union then exact intersection,bytes-interned,1,1.469,0.509648,51.936,5,exact,1.482,5,649,false,3
+algebra,50%/combination/union then exact intersection,bytes-strings,1,1.584,1.070415,51.936,5,exact,1.100,5,649,false,3
+algebra,50%/n-ary/three-way intersection,bits-bytes,12000,1.567,12.816825,46.913,5,exact,1.728,5,653,false,3
+algebra,50%/n-ary/three-way intersection,bytes-interned,12000,1.381,1.869314,46.913,5,exact,1.219,5,653,false,3
+algebra,50%/n-ary/three-way intersection,bytes-strings,12000,1.563,8.057687,46.913,5,exact,1.043,5,653,false,3
+algebra,50%/range/first(512),bits-bytes,512,1.950,1071.019485,33.503,1,exact,800.786,193,15488,false,3
+algebra,50%/range/first(512),bytes-interned,512,9.770,4.606935,33.503,5,exact,219.390,193,229891,false,3
+algebra,50%/range/first(512),bytes-strings,512,1.470,5.611267,33.503,5,exact,2.802,2,476,false,3
+algebra,50%/range/last(512),bits-bytes,512,35.575,1198.155219,30.802,1,exact,1158.211,193,737098,false,1
+algebra,50%/range/last(512),bytes-interned,512,8.169,594.166983,30.802,5,exact,147.705,193,247425,false,3
+algebra,50%/range/last(512),bytes-strings,512,1.392,5.615924,30.802,5,exact,1.118,2,477,false,3
+algebra,50%/unary/prefix-closure,bits-bytes,31500,5.080,291.241774,36.668,5,exact,62.873,1856,161126,false,3
+algebra,50%/unary/prefix-closure,bytes-interned,31500,1.562,17.891477,36.668,5,exact,4.413,38,4631,false,3
+algebra,50%/unary/prefix-closure,bytes-strings,31500,2.235,146.765058,36.668,5,exact,7.118,100,8077,false,3
+algebra,50%/unary/suffix-closure,bits-bytes,48008,5.164,254.152961,71.835,5,exact,70.775,1797,156501,false,3
+algebra,50%/unary/suffix-closure,bytes-interned,48008,1.569,11.532729,71.835,5,exact,5.186,40,4844,false,3
+algebra,50%/unary/suffix-closure,bytes-strings,48008,1.796,112.901193,71.835,5,exact,9.308,100,7995,false,3
+algebra,50%/unary/tails-closure,bits-bytes,48009,6.652,307.037848,55.838,5,exact,64.304,1791,156291,false,3
+algebra,50%/unary/tails-closure,bytes-interned,48009,2.037,11.639759,55.838,5,exact,3.605,36,4609,false,3
+algebra,50%/unary/tails-closure,bytes-strings,48009,1.904,134.209866,55.838,5,exact,5.979,94,7786,false,3
+algebra,50%/unary/tails-intersection,bits-bytes,4,6.406,34.599089,36.367,5,exact,126.723,2221,207670,false,3
+algebra,50%/unary/tails-intersection,bytes-interned,4,1.946,9.883916,36.367,5,exact,6.334,31,4456,false,3
+algebra,50%/unary/tails-intersection,bytes-strings,4,1.728,9.290115,36.367,5,exact,7.555,95,7537,false,3
+algebra,50%/unary/tails-union,bits-bytes,18004,5.033,23.795053,53.788,5,exact,54.083,1082,100770,false,3
+algebra,50%/unary/tails-union,bytes-interned,18004,1.863,3.028115,53.788,5,exact,2.449,8,1690,false,3
+algebra,50%/unary/tails-union,bytes-strings,18004,1.640,8.817226,53.788,5,exact,6.797,52,4408,false,3
+algebra,50%/unary/unwrap,bits-bytes,24000,1.831,19.154892,32.322,5,exact,1.692,3,613,false,3
+algebra,50%/unary/unwrap,bytes-interned,24000,1.470,1.937985,32.322,5,exact,2.952,3,582,false,3
+algebra,50%/unary/unwrap,bytes-strings,24000,1.419,9.658859,32.322,5,exact,1.185,3,652,false,3
+algebra,50%/unary/wrap,bits-bytes,24000,1.484,19.577576,29.106,5,exact,1.042,3,611,false,3
+algebra,50%/unary/wrap,bytes-interned,24000,1.558,1.933120,29.106,5,exact,3.332,3,580,false,3
+algebra,50%/unary/wrap,bytes-strings,24000,1.758,9.817417,29.106,5,exact,1.084,3,650,false,3
+algebra,90%/binary/composition,bits-bytes,576000000,2.037,45.717527,51.389,5,cardinality,1.248,3,611,false,3
+algebra,90%/binary/composition,bytes-interned,576000000,2.000,9.318848,51.389,5,cardinality,1.325,3,611,false,3
+algebra,90%/binary/composition,bytes-strings,576000000,2.360,27.765498,51.389,5,cardinality,1.163,3,611,false,3
+algebra,90%/binary/intersection,bits-bytes,22200,2.036,18.927271,65.032,5,exact,1.247,3,530,false,3
+algebra,90%/binary/intersection,bytes-interned,22200,1.988,2.550479,65.032,5,exact,1.776,3,530,false,3
+algebra,90%/binary/intersection,bytes-strings,22200,3.580,11.226490,65.032,5,exact,1.250,3,530,false,3
+algebra,90%/binary/raffination,bits-bytes,22464,1.544,17.694211,35.462,5,exact,0.841,3,528,false,3
+algebra,90%/binary/raffination,bytes-interned,22464,1.720,1.938429,35.462,5,exact,1.820,3,528,false,3
+algebra,90%/binary/raffination,bytes-strings,22464,1.481,9.594061,35.462,5,exact,0.945,3,528,false,3
+algebra,90%/binary/restriction,bits-bytes,1536,1.690,1.273380,42.129,5,exact,0.827,3,532,false,3
+algebra,90%/binary/restriction,bytes-interned,1536,1.570,0.127423,42.129,5,exact,1.046,3,532,false,3
+algebra,90%/binary/restriction,bytes-strings,1536,1.741,0.658554,42.129,5,exact,0.818,3,532,false,3
+algebra,90%/binary/subtraction,bits-bytes,1800,1.769,2.127210,40.065,5,exact,0.913,3,529,false,3
+algebra,90%/binary/subtraction,bytes-interned,1800,1.631,0.814679,40.065,5,exact,0.983,3,529,false,3
+algebra,90%/binary/subtraction,bytes-strings,1800,1.478,2.017321,40.065,5,exact,0.821,3,529,false,3
+algebra,90%/binary/union,bits-bytes,25800,1.860,21.269384,38.365,5,exact,0.886,3,526,false,3
+algebra,90%/binary/union,bytes-interned,25800,1.485,2.697690,38.365,5,exact,0.909,3,526,false,3
+algebra,90%/binary/union,bytes-strings,25800,1.498,12.241131,38.365,5,exact,0.835,3,526,false,3
+algebra,90%/combination/diff then restriction,bits-bytes,72,1.909,1.081401,36.633,5,exact,0.972,5,654,false,3
+algebra,90%/combination/diff then restriction,bytes-interned,72,1.602,0.628337,36.633,5,exact,1.162,5,654,false,3
+algebra,90%/combination/diff then restriction,bytes-strings,72,1.622,1.267334,36.633,5,exact,0.945,5,654,false,3
+algebra,90%/combination/product exact intersection,bits-bytes,1,1.349,11.448873,57.871,5,exact,0.931,5,734,false,3
+algebra,90%/combination/product exact intersection,bytes-interned,1,1.635,6.030525,57.871,5,exact,1.814,5,734,false,3
+algebra,90%/combination/product exact intersection,bytes-strings,1,1.265,8.621673,57.871,5,exact,1.103,5,734,false,3
+algebra,90%/combination/product prefix restriction,bits-bytes,24000,2.004,31.476935,44.676,5,exact,0.855,5,736,false,3
+algebra,90%/combination/product prefix restriction,bytes-interned,24000,1.783,8.065348,44.676,5,exact,1.385,5,736,false,3
+algebra,90%/combination/product prefix restriction,bytes-strings,24000,1.864,19.493861,44.676,5,exact,0.788,5,736,false,3
+algebra,90%/combination/range of union,bits-bytes,512,2.057,392.297659,39.059,5,exact,672.629,206,16355,false,3
+algebra,90%/combination/range of union,bytes-interned,512,6.823,4.938202,39.059,5,exact,62.899,206,178028,false,3
+algebra,90%/combination/range of union,bytes-strings,512,1.910,1.799824,39.059,5,exact,1.137,4,595,false,3
+algebra,90%/combination/tails of restricted union,bits-bytes,1228,4.986,3.072395,44.782,5,exact,41.340,1086,101014,false,3
+algebra,90%/combination/tails of restricted union,bytes-interned,1228,2.245,0.711265,44.782,5,exact,2.618,12,1934,false,3
+algebra,90%/combination/tails of restricted union,bytes-strings,1228,3.520,2.017801,44.782,5,exact,4.699,56,4670,false,3
+algebra,90%/combination/union then exact intersection,bits-bytes,1,2.416,1.183870,59.688,5,exact,1.461,5,649,false,3
+algebra,90%/combination/union then exact intersection,bytes-interned,1,1.446,0.561907,59.688,5,exact,1.280,5,649,false,3
+algebra,90%/combination/union then exact intersection,bytes-strings,1,2.312,1.259042,59.688,5,exact,1.532,5,649,false,3
+algebra,90%/n-ary/three-way intersection,bits-bytes,21600,1.350,22.006390,56.071,5,exact,1.110,5,653,false,3
+algebra,90%/n-ary/three-way intersection,bytes-interned,21600,1.205,3.070949,56.071,5,exact,1.077,5,653,false,3
+algebra,90%/n-ary/three-way intersection,bytes-strings,21600,1.412,13.683906,56.071,5,exact,0.920,5,653,false,3
+algebra,90%/range/first(512),bits-bytes,512,1.579,390.681314,45.111,5,exact,640.115,193,15488,false,3
+algebra,90%/range/first(512),bytes-interned,512,7.275,4.247761,45.111,5,exact,73.946,193,177161,false,3
+algebra,90%/range/first(512),bytes-strings,512,1.296,5.713260,45.111,5,exact,1.161,2,476,false,3
+algebra,90%/range/last(512),bits-bytes,512,25.995,1458.825186,37.466,1,exact,624.815,193,548098,false,1
+algebra,90%/range/last(512),bytes-interned,512,8.341,654.155366,37.466,5,exact,64.861,193,190495,false,3
+algebra,90%/range/last(512),bytes-strings,512,2.034,5.567231,37.466,5,exact,0.954,2,477,false,3
+algebra,90%/unary/prefix-closure,bits-bytes,31500,6.699,279.790337,45.984,5,exact,50.907,1856,161126,false,3
+algebra,90%/unary/prefix-closure,bytes-interned,31500,2.114,17.737577,45.984,5,exact,3.609,38,4631,false,3
+algebra,90%/unary/prefix-closure,bytes-strings,31500,1.963,153.842645,45.984,5,exact,5.142,100,8077,false,3
+algebra,90%/unary/suffix-closure,bits-bytes,48008,5.069,250.170397,51.132,5,exact,60.510,1797,156501,false,3
+algebra,90%/unary/suffix-closure,bytes-interned,48008,1.267,11.821002,51.132,5,exact,3.877,40,4844,false,3
+algebra,90%/unary/suffix-closure,bytes-strings,48008,1.642,122.234493,51.132,5,exact,6.679,100,7995,false,3
+algebra,90%/unary/tails-closure,bits-bytes,48009,5.381,293.919400,53.988,5,exact,45.169,1791,156291,false,3
+algebra,90%/unary/tails-closure,bytes-interned,48009,1.908,11.674352,53.988,5,exact,2.853,36,4609,false,3
+algebra,90%/unary/tails-closure,bytes-strings,48009,1.931,140.573581,53.988,5,exact,4.789,94,7786,false,3
+algebra,90%/unary/tails-intersection,bits-bytes,4,6.553,28.244898,52.047,5,exact,67.079,2221,207670,false,3
+algebra,90%/unary/tails-intersection,bytes-interned,4,1.133,14.133670,52.047,5,exact,2.919,31,4456,false,3
+algebra,90%/unary/tails-intersection,bytes-strings,4,1.456,10.108533,52.047,5,exact,5.005,95,7537,false,3
+algebra,90%/unary/tails-union,bits-bytes,18004,4.885,20.341232,46.406,5,exact,39.428,1082,100770,false,3
+algebra,90%/unary/tails-union,bytes-interned,18004,2.338,3.058902,46.406,5,exact,2.558,8,1690,false,3
+algebra,90%/unary/tails-union,bytes-strings,18004,4.329,9.098558,46.406,5,exact,5.123,52,4408,false,3
+algebra,90%/unary/unwrap,bits-bytes,24000,1.379,18.783725,33.439,5,exact,0.997,3,613,false,3
+algebra,90%/unary/unwrap,bytes-interned,24000,1.426,1.933081,33.439,5,exact,1.130,3,582,false,3
+algebra,90%/unary/unwrap,bytes-strings,24000,1.906,10.133821,33.439,5,exact,1.008,3,652,false,3
+algebra,90%/unary/wrap,bits-bytes,24000,1.752,18.846790,36.719,5,exact,0.947,3,611,false,3
+algebra,90%/unary/wrap,bytes-interned,24000,1.507,1.967345,36.719,5,exact,1.188,3,580,false,3
+algebra,90%/unary/wrap,bytes-strings,24000,1.875,10.233721,36.719,5,exact,1.154,3,650,false,3

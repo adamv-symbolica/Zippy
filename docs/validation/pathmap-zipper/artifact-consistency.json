@@ -1,0 +1,9 @@
+{
+  "success": true,
+  "rustSources": 108,
+  "sourceHashesMatched": true,
+  "archiveContainsFinalRuntime": true,
+  "evaluatorMeasurements": 398,
+  "rustMeasurements": 108,
+  "archiveSHA256": "abe4ae4f4e015aa80706dabcf8968bce1a0b276b8f11795ffda49e7baec26893"
+}

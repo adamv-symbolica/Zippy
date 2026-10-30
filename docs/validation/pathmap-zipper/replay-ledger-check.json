@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "uniqueCases": 93712,
+  "eachCaseStartedExactlyOnce": true,
+  "eachCasePassedExactlyOnce": true,
+  "passed": {
+    "bits-direct": 597,
+    "bytes-direct": 484,
+    "bytes-strings": 30877,
+    "bytes-interned": 30877,
+    "bits-bytes": 30877
+  },
+  "sourceCommit": "262a38cea8b6cea255a872649d2682ba78b272fc"
+}

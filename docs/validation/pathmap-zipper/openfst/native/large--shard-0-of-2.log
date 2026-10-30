@@ -1,0 +1,8 @@
+Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Dmorkl.openfst.prefix=/home/ubuntu/openfst -Xmx64g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy
+[openfst-bench] large/nonrecursive graph two-hop/180 nodes, 359 edge facts
+[openfst-bench] large/nonrecursive graph two-hop/720 nodes, 1439 edge facts
+[openfst-bench] large/product intersected by one exact path/10000 x 10000 product, 1 result path
+[openfst-bench] large/product restricted by one first-level prefix/2000 x 2000 product, 2000 result paths
+[openfst-bench] large/product restricted by one first-level prefix/30000 x 30000 product, 30000 result paths
+[openfst-bench] large/aunt query over large generated family, one queried person/11 generations x 160 people (6720 facts)
+[openfst-bench] large/semi-naive datalog over generated chain graph/40 nodes, 79 edge facts

@@ -1,0 +1,2 @@
+family,name,dialect,paths,reference_ms,samples,checked
+programs,"life/compile-pass random 24x24 initial literal",bits,125,0.003445,5,exact

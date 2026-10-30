@@ -1,0 +1,2 @@
+name,variant,paths,evalZ_ms,first_ms,checked
+"sliding puzzle","3x3 pure source depth-8 step",420,2705.873738,2781.020498,exact

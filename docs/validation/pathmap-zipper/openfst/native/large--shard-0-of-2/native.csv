@@ -1,0 +1,22 @@
+family,name,dialect,paths,states,arcs,compile_ms,native_ms,reference_trie_ms,samples,checked,graph_compile_ms,graph_nodes,generated_bytes,precomputed
+"large","nonrecursive graph two-hop/180 nodes, 359 edge facts",symbols,534,715,714,29.365,1.089570,26.430,5,exact,65.636,14,1859,false
+"large","nonrecursive graph two-hop/180 nodes, 359 edge facts",bits,534,5145,5677,4449.630,14.921492,26.430,5,exact,354.880,2738,185522,false
+"large","nonrecursive graph two-hop/180 nodes, 359 edge facts",bytes,534,1258,1257,666.610,2.031921,26.430,5,exact,11.240,57,6645,false
+"large","nonrecursive graph two-hop/720 nodes, 1439 edge facts",symbols,2154,2875,2874,2.100,4.277060,32.727,5,exact,1.943,14,1859,false
+"large","nonrecursive graph two-hop/720 nodes, 1439 edge facts",bits,2154,26676,28828,5987.974,84.506178,32.727,5,exact,154.940,3546,240258,false
+"large","nonrecursive graph two-hop/720 nodes, 1439 edge facts",bytes,2154,5056,5055,692.845,6.359960,32.727,5,exact,6.325,57,6645,false
+"large","product intersected by one exact path/10000 x 10000 product, 1 result path",symbols,1,3,2,342.012,1.544992,17.569,5,exact,1.123,5,885,false
+"large","product intersected by one exact path/10000 x 10000 product, 1 result path",bits,1,41,40,340.319,0.019703,17.569,5,exact,0.838,5,886,false
+"large","product intersected by one exact path/10000 x 10000 product, 1 result path",bytes,1,9,8,1.689,0.048399,17.569,5,exact,0.845,5,886,false
+"large","product restricted by one first-level prefix/2000 x 2000 product, 2000 result paths",symbols,2000,3,2001,361.186,0.320836,4.950,5,exact,1.252,5,887,false
+"large","product restricted by one first-level prefix/2000 x 2000 product, 2000 result paths",bits,2000,60,90,371.419,0.027800,4.950,5,exact,0.948,5,888,false
+"large","product restricted by one first-level prefix/2000 x 2000 product, 2000 result paths",bytes,2000,11,479,1.288,0.071510,4.950,5,exact,0.790,5,888,false
+"large","product restricted by one first-level prefix/30000 x 30000 product, 30000 result paths",symbols,30000,3,30001,1.869,5.289835,57.518,5,exact,1.309,5,887,false
+"large","product restricted by one first-level prefix/30000 x 30000 product, 30000 result paths",bits,30000,97,142,1.796,0.048785,57.518,5,exact,0.943,5,888,false
+"large","product restricted by one first-level prefix/30000 x 30000 product, 30000 result paths",bytes,30000,11,684,1.292,0.102994,57.518,5,exact,0.824,5,888,false
+"large","aunt query over large generated family, one queried person/11 generations x 160 people (6720 facts)",symbols,0,0,0,1.639,0.000255,6.507,5,exact,3.088,20,1931,false
+"large","aunt query over large generated family, one queried person/11 generations x 160 people (6720 facts)",bits,0,0,0,4479.799,0.011343,6.507,5,exact,137.601,3851,260743,false
+"large","aunt query over large generated family, one queried person/11 generations x 160 people (6720 facts)",bytes,0,0,0,701.333,0.000639,6.507,5,exact,3.461,48,5879,false
+"large","semi-naive datalog over generated chain graph/40 nodes, 79 edge facts",symbols,820,861,860,622.748,43.224918,72.994,5,exact,10.587,71,6146,false
+"large","semi-naive datalog over generated chain graph/40 nodes, 79 edge facts",bits,820,2528,3307,9286.119,1401.892529,72.994,1,exact,229.433,8175,563624,false
+"large","semi-naive datalog over generated chain graph/40 nodes, 79 edge facts",bytes,820,945,983,1552.420,78.532428,72.994,5,exact,16.593,267,29220,false

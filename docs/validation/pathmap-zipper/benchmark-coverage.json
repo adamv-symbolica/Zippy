@@ -1,0 +1,22 @@
+{
+  "success": true,
+  "logicalWorkloads": 166,
+  "nativeRows": 498,
+  "microRows": 180,
+  "existingReports": 14,
+  "exactRows": 489,
+  "cardinalityRows": 9,
+  "families": {
+    "algebra": 66,
+    "algebra-scaling": 16,
+    "construction": 12,
+    "cost-correlation": 4,
+    "cost-counter": 21,
+    "independent-product": 8,
+    "iter-range-tail": 3,
+    "large": 14,
+    "programs": 22
+  },
+  "precomputedRows": 12,
+  "cornerstoneEvaluatorMeasurements": 398
+}

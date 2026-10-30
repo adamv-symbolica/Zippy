@@ -1,0 +1,2 @@
+family,name,dialect,paths,reference_ms,samples,checked
+programs,"sliding puzzle/2x2 pure source full frontier step",bits,12,47.461503,5,exact

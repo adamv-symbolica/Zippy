@@ -8,32 +8,32 @@ Result: **264 paths**.
 
 | Evaluator / compiled encoding | Runtime ms | Execution |
 | --- | --- | --- |
-| eval Set | 2.696 | reference path sets |
-| ROG exec | 1.096 |  |
-| evalTrie | 0.502 | symbol trie |
-| evalZ | 1.387 | zipper evaluator |
-| ROG execT | 0.445 |  |
-| Zippy_bits reference | 47.050897 | independent set representation |
-| Zippy_bytes reference | 51.931317 | independent set representation |
-| C++ OpenFst symbols | 0.559124 | optimized graph |
-| C++ OpenFst bits | 7.754982 | optimized graph |
-| C++ OpenFst bytes | 1.123777 | optimized graph |
-| [Rust PathMap bytes-interned](../../output/cornerstone-rust-review/programs/06-graph-two-hop-reference-90-chain/bytes-interned.rs) | 0.302891 | optimized graph |
-| [Rust PathMap bytes-strings](../../output/cornerstone-rust-review/programs/06-graph-two-hop-reference-90-chain/bytes-strings.rs) | 0.943036 | optimized graph |
-| [Rust PathMap bits-bytes](../../output/cornerstone-rust-review/programs/06-graph-two-hop-reference-90-chain/bits-bytes.rs) | 2.419812 | optimized graph |
+| eval Set | 2.736 | reference path sets |
+| ROG exec | 1.021 |  |
+| evalTrie | 0.633 | symbol trie |
+| evalZ | 2.477 | zipper evaluator |
+| ROG execT | 0.594 |  |
+| Zippy_bits reference | 31.243155 | independent set representation |
+| Zippy_bytes reference | 35.463635 | independent set representation |
+| C++ OpenFst symbols | 0.489844 | optimized graph |
+| C++ OpenFst bits | 6.508813 | optimized graph |
+| C++ OpenFst bytes | 1.024782 | optimized graph |
+| [Rust PathMap bytes-interned](../../output/pathmap-zipper/final-rust/programs/06-graph-two-hop-reference-90-chain/bytes-interned.rs) | 0.299661 | optimized graph |
+| [Rust PathMap bytes-strings](../../output/pathmap-zipper/final-rust/programs/06-graph-two-hop-reference-90-chain/bytes-strings.rs) | 1.085831 | optimized graph |
+| [Rust PathMap bits-bytes](../../output/pathmap-zipper/final-rust/programs/06-graph-two-hop-reference-90-chain/bits-bytes.rs) | 2.858831 | optimized graph |
 
 | Compiled backend | Graph/source compile ms | Session setup ms¹ | Rust opt-level |
 | --- | --- | --- | --- |
-| C++ OpenFst symbols | 2.947 | 2.285 |  |
-| C++ OpenFst bits | 317.439 | 4937.866 |  |
-| C++ OpenFst bytes | 13.472 | 855.506 |  |
-| Rust PathMap bytes-interned | 11.188 | 1.785 | 3 |
-| Rust PathMap bytes-strings | 23.399 | 1.408 | 3 |
-| Rust PathMap bits-bytes | 126.104 | 3.045 | 3 |
+| C++ OpenFst symbols | 1.390 | 477.360 |  |
+| C++ OpenFst bits | 107.836 | 3996.673 |  |
+| C++ OpenFst bytes | 4.844 | 656.355 |  |
+| Rust PathMap bytes-interned | 6.601 | 1.240 | 3 |
+| Rust PathMap bytes-strings | 24.610 | 2.476 | 3 |
+| Rust PathMap bits-bytes | 243.759 | 11.986 | 3 |
 
 | Scala graph pipeline | Prep compile ms | Graph compile ms | Total compile ms | Compile + ROG execT ms |
 | --- | --- | --- | --- | --- |
-| optimized executor | n/a | 1.625 | 1.625 | 2.070 |
+| optimized executor | n/a | 2.019 | 2.019 | 2.613 |
 
 ## graph mutual — reference 90-chain
 
@@ -41,32 +41,32 @@ Result: **0 paths**.
 
 | Evaluator / compiled encoding | Runtime ms | Execution |
 | --- | --- | --- |
-| eval Set | 2.503 | reference path sets |
-| ROG exec | 1.065 |  |
-| evalTrie | 0.505 | symbol trie |
-| evalZ | 0.700 | zipper evaluator |
-| ROG execT | 0.293 |  |
-| Zippy_bits reference | 16.281913 | independent set representation |
-| Zippy_bytes reference | 32.806469 | independent set representation |
-| C++ OpenFst symbols | 0.057671 | optimized graph |
-| C++ OpenFst bits | 1.799922 | optimized graph |
-| C++ OpenFst bytes | 0.089743 | optimized graph |
-| [Rust PathMap bytes-interned](../../output/cornerstone-rust-review/programs/07-graph-mutual-reference-90-chain/bytes-interned.rs) | 0.076648 | optimized graph |
-| [Rust PathMap bytes-strings](../../output/cornerstone-rust-review/programs/07-graph-mutual-reference-90-chain/bytes-strings.rs) | 0.237030 | optimized graph |
-| [Rust PathMap bits-bytes](../../output/cornerstone-rust-review/programs/07-graph-mutual-reference-90-chain/bits-bytes.rs) | 0.510438 | optimized graph |
+| eval Set | 2.507 | reference path sets |
+| ROG exec | 0.969 |  |
+| evalTrie | 0.345 | symbol trie |
+| evalZ | 0.922 | zipper evaluator |
+| ROG execT | 0.310 |  |
+| Zippy_bits reference | 24.367160 | independent set representation |
+| Zippy_bytes reference | 33.285147 | independent set representation |
+| C++ OpenFst symbols | 0.052132 | optimized graph |
+| C++ OpenFst bits | 1.685169 | optimized graph |
+| C++ OpenFst bytes | 0.085665 | optimized graph |
+| [Rust PathMap bytes-interned](../../output/pathmap-zipper/final-rust/programs/07-graph-mutual-reference-90-chain/bytes-interned.rs) | 0.088941 | optimized graph |
+| [Rust PathMap bytes-strings](../../output/pathmap-zipper/final-rust/programs/07-graph-mutual-reference-90-chain/bytes-strings.rs) | 0.303856 | optimized graph |
+| [Rust PathMap bits-bytes](../../output/pathmap-zipper/final-rust/programs/07-graph-mutual-reference-90-chain/bits-bytes.rs) | 0.697046 | optimized graph |
 
 | Compiled backend | Graph/source compile ms | Session setup ms¹ | Rust opt-level |
 | --- | --- | --- | --- |
-| C++ OpenFst symbols | 2.110 | 613.803 |  |
-| C++ OpenFst bits | 121.139 | 3003.812 |  |
-| C++ OpenFst bytes | 9.643 | 831.564 |  |
-| Rust PathMap bytes-interned | 8.223 | 3.223 | 3 |
-| Rust PathMap bytes-strings | 27.692 | 1.468 | 3 |
-| Rust PathMap bits-bytes | 61.557 | 2.440 | 3 |
+| C++ OpenFst symbols | 1.408 | 461.388 |  |
+| C++ OpenFst bits | 55.997 | 2466.386 |  |
+| C++ OpenFst bytes | 5.099 | 588.058 |  |
+| Rust PathMap bytes-interned | 4.999 | 1.563 | 3 |
+| Rust PathMap bytes-strings | 10.159 | 1.732 | 3 |
+| Rust PathMap bits-bytes | 118.773 | 6.976 | 3 |
 
 | Scala graph pipeline | Prep compile ms | Graph compile ms | Total compile ms | Compile + ROG execT ms |
 | --- | --- | --- | --- | --- |
-| optimized executor | n/a | 1.506 | 1.506 | 1.799 |
+| optimized executor | n/a | 1.697 | 1.697 | 2.007 |
 
 ## nonrecursive graph two-hop — 180 nodes, 359 edge facts
 
@@ -74,23 +74,23 @@ Result: **534 paths**.
 
 | Evaluator / compiled encoding | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 1.790 | symbol trie |
-| evalZ | 2.322 | zipper evaluator |
-| C++ OpenFst symbols | 1.159814 | optimized graph |
-| C++ OpenFst bits | 17.332909 | optimized graph |
-| C++ OpenFst bytes | 2.073832 | optimized graph |
-| [Rust PathMap bytes-interned](../../output/cornerstone-rust-review/large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/bytes-interned.rs) | 0.696540 | optimized graph |
-| [Rust PathMap bytes-strings](../../output/cornerstone-rust-review/large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/bytes-strings.rs) | 2.040778 | optimized graph |
-| [Rust PathMap bits-bytes](../../output/cornerstone-rust-review/large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/bits-bytes.rs) | 5.570816 | optimized graph |
+| evalTrie | 3.944 | symbol trie |
+| evalZ | 2.204 | zipper evaluator |
+| C++ OpenFst symbols | 1.089570 | optimized graph |
+| C++ OpenFst bits | 14.921492 | optimized graph |
+| C++ OpenFst bytes | 2.031921 | optimized graph |
+| [Rust PathMap bytes-interned](../../output/pathmap-zipper/final-rust/large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/bytes-interned.rs) | 0.697400 | optimized graph |
+| [Rust PathMap bytes-strings](../../output/pathmap-zipper/final-rust/large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/bytes-strings.rs) | 2.350771 | optimized graph |
+| [Rust PathMap bits-bytes](../../output/pathmap-zipper/final-rust/large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/bits-bytes.rs) | 6.747201 | optimized graph |
 
 | Compiled backend | Graph/source compile ms | Session setup ms¹ | Rust opt-level |
 | --- | --- | --- | --- |
-| C++ OpenFst symbols | 73.152 | 10884.534 |  |
-| C++ OpenFst bits | 447.418 | 5388.455 |  |
-| C++ OpenFst bytes | 26.973 | 835.244 |  |
-| Rust PathMap bytes-interned | 112.794 | 40.385 | 3 |
-| Rust PathMap bytes-strings | 95.776 | 2.891 | 3 |
-| Rust PathMap bits-bytes | 236.282 | 6.378 | 3 |
+| C++ OpenFst symbols | 65.636 | 29.365 |  |
+| C++ OpenFst bits | 354.880 | 4449.630 |  |
+| C++ OpenFst bytes | 11.240 | 666.610 |  |
+| Rust PathMap bytes-interned | 111.844 | 76.308 | 3 |
+| Rust PathMap bytes-strings | 86.031 | 2.476 | 3 |
+| Rust PathMap bits-bytes | 409.602 | 15.518 | 3 |
 
 ## nonrecursive graph two-hop — 360 nodes, 719 edge facts
 
@@ -98,23 +98,23 @@ Result: **1,074 paths**.
 
 | Evaluator / compiled encoding | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 2.730 | symbol trie |
-| evalZ | 2.767 | zipper evaluator |
-| C++ OpenFst symbols | 2.532236 | optimized graph |
-| C++ OpenFst bits | 41.596234 | optimized graph |
-| C++ OpenFst bytes | 6.484191 | optimized graph |
-| [Rust PathMap bytes-interned](../../output/cornerstone-rust-review/large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/bytes-interned.rs) | 1.454019 | optimized graph |
-| [Rust PathMap bytes-strings](../../output/cornerstone-rust-review/large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/bytes-strings.rs) | 4.274611 | optimized graph |
-| [Rust PathMap bits-bytes](../../output/cornerstone-rust-review/large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/bits-bytes.rs) | 12.539860 | optimized graph |
+| evalTrie | 2.581 | symbol trie |
+| evalZ | 2.937 | zipper evaluator |
+| C++ OpenFst symbols | 2.252318 | optimized graph |
+| C++ OpenFst bits | 33.418858 | optimized graph |
+| C++ OpenFst bytes | 4.044142 | optimized graph |
+| [Rust PathMap bytes-interned](../../output/pathmap-zipper/final-rust/large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/bytes-interned.rs) | 1.450237 | optimized graph |
+| [Rust PathMap bytes-strings](../../output/pathmap-zipper/final-rust/large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/bytes-strings.rs) | 4.930325 | optimized graph |
+| [Rust PathMap bits-bytes](../../output/pathmap-zipper/final-rust/large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/bits-bytes.rs) | 15.415583 | optimized graph |
 
 | Compiled backend | Graph/source compile ms | Session setup ms¹ | Rust opt-level |
 | --- | --- | --- | --- |
-| C++ OpenFst symbols | 79.974 | 10891.669 |  |
-| C++ OpenFst bits | 583.269 | 5895.787 |  |
-| C++ OpenFst bytes | 12.920 | 813.840 |  |
-| Rust PathMap bytes-interned | 119.083 | 36.960 | 3 |
-| Rust PathMap bytes-strings | 86.675 | 2.381 | 3 |
-| Rust PathMap bits-bytes | 261.176 | 7.187 | 3 |
+| C++ OpenFst symbols | 65.689 | 30.181 |  |
+| C++ OpenFst bits | 390.093 | 5194.363 |  |
+| C++ OpenFst bytes | 11.783 | 683.498 |  |
+| Rust PathMap bytes-interned | 99.982 | 92.613 | 3 |
+| Rust PathMap bytes-strings | 84.376 | 2.370 | 3 |
+| Rust PathMap bits-bytes | 422.292 | 21.341 | 1 |
 
 ## nonrecursive graph two-hop — 720 nodes, 1439 edge facts
 
@@ -122,20 +122,20 @@ Result: **2,154 paths**.
 
 | Evaluator / compiled encoding | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 3.985 | symbol trie |
-| evalZ | 5.395 | zipper evaluator |
-| C++ OpenFst symbols | 4.373811 | optimized graph |
-| C++ OpenFst bits | 116.062603 | optimized graph |
-| C++ OpenFst bytes | 7.548583 | optimized graph |
-| [Rust PathMap bytes-interned](../../output/cornerstone-rust-review/large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/bytes-interned.rs) | 3.016685 | optimized graph |
-| [Rust PathMap bytes-strings](../../output/cornerstone-rust-review/large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/bytes-strings.rs) | 8.667582 | optimized graph |
-| [Rust PathMap bits-bytes](../../output/cornerstone-rust-review/large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/bits-bytes.rs) | 27.852288 | optimized graph |
+| evalTrie | 3.521 | symbol trie |
+| evalZ | 6.207 | zipper evaluator |
+| C++ OpenFst symbols | 4.277060 | optimized graph |
+| C++ OpenFst bits | 84.506178 | optimized graph |
+| C++ OpenFst bytes | 6.359960 | optimized graph |
+| [Rust PathMap bytes-interned](../../output/pathmap-zipper/final-rust/large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/bytes-interned.rs) | 3.040667 | optimized graph |
+| [Rust PathMap bytes-strings](../../output/pathmap-zipper/final-rust/large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/bytes-strings.rs) | 10.045258 | optimized graph |
+| [Rust PathMap bits-bytes](../../output/pathmap-zipper/final-rust/large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/bits-bytes.rs) | 34.801583 | optimized graph |
 
 | Compiled backend | Graph/source compile ms | Session setup ms¹ | Rust opt-level |
 | --- | --- | --- | --- |
-| C++ OpenFst symbols | 73.302 | 10853.888 |  |
-| C++ OpenFst bits | 546.293 | 7146.638 |  |
-| C++ OpenFst bytes | 16.469 | 891.655 |  |
-| Rust PathMap bytes-interned | 111.034 | 36.337 | 3 |
-| Rust PathMap bytes-strings | 86.049 | 2.400 | 3 |
-| Rust PathMap bits-bytes | 289.421 | 3.966 | 3 |
+| C++ OpenFst symbols | 1.943 | 2.100 |  |
+| C++ OpenFst bits | 154.940 | 5987.974 |  |
+| C++ OpenFst bytes | 6.325 | 692.845 |  |
+| Rust PathMap bytes-interned | 101.915 | 80.245 | 3 |
+| Rust PathMap bytes-strings | 89.475 | 2.498 | 3 |
+| Rust PathMap bits-bytes | 472.313 | 23.893 | 1 |

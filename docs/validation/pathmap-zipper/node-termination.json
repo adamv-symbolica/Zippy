@@ -1,0 +1,22 @@
+{
+  "created_at": "2026-10-30T16:13:59.937524Z",
+  "data_volume_gib": null,
+  "error": null,
+  "expires_at": "2026-10-30T21:13:59.937524Z",
+  "id": "nd-01m66sdt9pbk6wmm5jqbkhts7w",
+  "name": "zippy-pathmap-zipper",
+  "os": "ubuntu",
+  "owner": "adam.vandervorst@symbolica.ai",
+  "profile": "cpu-h4d-xlarge",
+  "ready_at": "2026-10-30T16:15:15.931039Z",
+  "region": "asia-southeast1",
+  "starts_at": null,
+  "status": "terminated",
+  "storage": "none",
+  "tailscale": {
+    "hostname": "nd-01m66sdt9pbk6wmm5jqbkhts7w",
+    "ipv4": "100.99.28.108",
+    "ssh_user": "ubuntu"
+  },
+  "terminated_at": "2026-10-30T19:39:52.378997Z"
+}

@@ -1,0 +1,24 @@
+{
+  "success": true,
+  "example": "GOL neigh",
+  "results": [
+    {
+      "dialect": "bytes-interned",
+      "routine": 4,
+      "inlineAlways": true,
+      "outlinedSymbol": false
+    },
+    {
+      "dialect": "bytes-strings",
+      "routine": 6,
+      "inlineAlways": true,
+      "outlinedSymbol": false
+    },
+    {
+      "dialect": "bits-bytes",
+      "routine": 35,
+      "inlineAlways": true,
+      "outlinedSymbol": false
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "sourceCommit": "262a38cea8b6cea255a872649d2682ba78b272fc",
+  "rustIndependentModelTests": 3,
+  "randomSetPairs": 1200,
+  "compactProductPaths": "2^80",
+  "upstreamUnitTests": 1060,
+  "upstreamIgnored": 1,
+  "upstreamDifferentialTests": 6,
+  "openFstRegressionTests": 17,
+  "generatedOptimizationZeroTests": 11,
+  "clippyWarningsDenied": true,
+  "rustfmt": true,
+  "note": "Full final-source replay, model, Clippy, 108 standalone exports and all 51 benchmark jobs passed. Upstream and OpenFst regression checks preceded the final lint-only cleanup.",
+  "finalNativeAudit": {
+    "cases": 93712,
+    "symbolCases": 30877,
+    "digitObservations": 1083,
+    "checks": 93712,
+    "failures": 0,
+    "finished": true,
+    "passed": {
+      "bits-bytes": 30877,
+      "bits-direct": 597,
+      "bytes-direct": 484,
+      "bytes-interned": 30877,
+      "bytes-strings": 30877
+    }
+  },
+  "finalScalaTests": 329,
+  "finalBenchmarkJobsPassed": 51,
+  "standalonePrograms": 108
+}

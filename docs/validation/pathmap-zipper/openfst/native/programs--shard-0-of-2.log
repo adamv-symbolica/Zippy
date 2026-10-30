@@ -1,0 +1,25 @@
+Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Dmorkl.openfst.prefix=/home/ubuntu/openfst -Xmx64g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy
+[bench-setup] aunt fixtures
+[bench-setup] graph fixtures
+[bench-setup] datalog residual
+[bench-setup] life compile
+[bench-setup] temperature fixtures
+[bench-setup] temperature committed load
+[bench-setup] temperature committed trie
+[bench-setup] temperature committed query
+[bench-setup] temperature synthetic data
+[bench-setup] temperature synthetic trie
+[bench-setup] temperature synthetic query
+[bench-setup] puzzle fixtures
+[bench-setup] n-queens fixture
+[openfst-bench] programs/aunt/reference
+[openfst-bench] programs/aunt synthetic/reference 60 people
+[openfst-bench] programs/aunt synthetic/process-sc static family 24 people
+[openfst-bench] programs/graph mutual/reference 90-chain
+[openfst-bench] programs/datalog semi-naive/reference 24-chain
+[openfst-bench] programs/life/reference random 24x24
+[openfst-bench] programs/life/compile-pass random 24x24 initial literal
+[openfst-bench] programs/temperature/synthetic 32x64
+[openfst-bench] programs/sliding puzzle/2x2 pure compile-pass full frontier step
+[openfst-bench] programs/sliding puzzle/3x3 pure compile-pass depth-8 step
+[openfst-bench] programs/n-queens/MORKL 8x8 source

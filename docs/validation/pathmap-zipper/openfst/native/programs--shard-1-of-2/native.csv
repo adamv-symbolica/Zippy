@@ -1,0 +1,34 @@
+family,name,dialect,paths,states,arcs,compile_ms,native_ms,reference_trie_ms,samples,checked,graph_compile_ms,graph_nodes,generated_bytes,precomputed
+"programs","aunt/process-sc static family",symbols,3,8,7,9832.260,0.013572,7.244,5,exact,16.572,19,1934,false
+"programs","aunt/process-sc static family",bits,3,27,26,1570.430,0.085692,7.244,5,exact,125.901,1134,77346,false
+"programs","aunt/process-sc static family",bytes,3,23,22,643.159,0.035663,7.244,5,exact,7.996,46,5963,false
+"programs","aunt royal92/reference royal92_simple.metta fallback",symbols,3,8,7,1.162,0.013305,1.144,5,exact,2.562,20,1931,false
+"programs","aunt royal92/reference royal92_simple.metta fallback",bits,3,28,27,2.047,0.086705,1.144,5,exact,88.560,1356,92307,false
+"programs","aunt royal92/reference royal92_simple.metta fallback",bytes,3,23,22,101.946,0.039521,1.144,5,exact,3.420,48,5875,false
+"programs","graph two-hop/reference 90-chain",symbols,264,355,354,477.360,0.489844,7.122,5,exact,1.390,14,1859,false
+"programs","graph two-hop/reference 90-chain",bits,264,2214,2476,3996.673,6.508813,7.122,5,exact,107.836,2492,169034,false
+"programs","graph two-hop/reference 90-chain",bytes,264,628,627,656.355,1.024782,7.122,5,exact,4.844,57,6644,false
+"programs","scc/paper divide-and-conquer",symbols,2,5,4,611.628,0.195221,10.383,5,exact,18.687,104,5043,false
+"programs","scc/paper divide-and-conquer",bits,2,14,13,5688.523,1.132906,10.383,5,exact,214.001,3324,232585,false
+"programs","scc/paper divide-and-conquer",bytes,2,14,13,1315.849,0.521765,10.383,5,exact,41.164,351,34938,false
+"programs","datalog semi-naive/process-sc 24-chain",symbols,300,325,324,726.455,9.373159,39.594,5,exact,6.802,116,13395,false
+"programs","datalog semi-naive/process-sc 24-chain",bits,300,1310,1309,4416.928,62.785829,39.594,5,exact,147.100,3504,246723,false
+"programs","datalog semi-naive/process-sc 24-chain",bytes,300,400,399,1560.382,12.898288,39.594,5,exact,34.235,305,43646,false
+"programs","life/compile-pass random 24x24",symbols,125,26,149,327.428,0.000006,232.400,5,exact,21.305,1,2103,true
+"programs","life/compile-pass random 24x24",bits,125,648,647,13195.302,144.614573,232.400,5,exact,612.688,11051,779200,false
+"programs","life/compile-pass random 24x24",bytes,125,225,224,1245.194,71.277156,232.400,5,exact,281.896,567,56119,false
+"programs","temperature/NOAA committed slice",symbols,12,49,59,332.893,0.008314,0.386,5,exact,0.793,3,885,false
+"programs","temperature/NOAA committed slice",bits,12,121,131,332.578,0.022219,0.386,5,exact,0.608,3,982,false
+"programs","temperature/NOAA committed slice",bytes,12,193,203,332.192,0.042686,0.386,5,exact,0.612,3,1034,false
+"programs","sliding puzzle/2x2 pure source full frontier step",symbols,12,13,19,329.536,0.000006,14.208,5,exact,2.877,1,859,true
+"programs","sliding puzzle/2x2 pure source full frontier step",bits,12,144,143,18751.756,16.613301,14.208,5,exact,293.018,13879,977398,false
+"programs","sliding puzzle/2x2 pure source full frontier step",bytes,12,128,127,1549.153,6.872508,14.208,5,exact,25.113,639,66085,false
+"programs","sliding puzzle/3x3 pure source depth-8 step",symbols,420,419,721,331.278,0.000006,750.322,5,exact,35.745,1,9674,true
+"programs","sliding puzzle/3x3 pure source depth-8 step",bits,420,11146,11145,15587.068,2897.656884,750.322,1,exact,2032.748,73023,5195957,false
+"programs","sliding puzzle/3x3 pure source depth-8 step",bytes,420,7904,7903,4565.981,397.781926,750.322,5,exact,139.611,2363,250534,false
+"programs","sliding puzzle/4x4 pure source depth-5 step",symbols,202,456,606,334.217,0.000006,1068.373,5,exact,54.348,1,9747,true
+"programs","sliding puzzle/4x4 pure source depth-5 step",bits,202,13398,13397,57342.026,3704.032642,1068.373,1,exact,14137.419,257564,18305351,false
+"programs","sliding puzzle/4x4 pure source depth-5 step",bytes,202,8486,8485,14416.933,724.821738,1068.373,5,exact,265.549,7097,737869,false
+"programs","n-queens/MORKL 8x8 compile-pass",symbols,92,288,378,1.386,0.000006,0.177,5,exact,0.414,1,2390,true
+"programs","n-queens/MORKL 8x8 compile-pass",bits,92,1074,1164,333.580,0.000006,0.177,5,exact,1.316,1,7212,true
+"programs","n-queens/MORKL 8x8 compile-pass",bytes,92,1149,1239,330.714,0.000006,0.177,5,exact,1.395,1,6844,true

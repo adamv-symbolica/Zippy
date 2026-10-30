@@ -8,23 +8,23 @@ Result: **1 paths**.
 
 | Evaluator / compiled encoding | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 0.539 | symbol trie |
-| evalZ | 0.078 | zipper evaluator |
-| C++ OpenFst symbols | 0.287871 | optimized graph |
-| C++ OpenFst bits | 0.009684 | optimized graph |
-| C++ OpenFst bytes | 0.025597 | optimized graph |
-| [Rust PathMap bytes-interned](../../output/cornerstone-rust-review/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bytes-interned.rs) | 0.239032 | optimized graph |
-| [Rust PathMap bytes-strings](../../output/cornerstone-rust-review/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bytes-strings.rs) | 0.424889 | optimized graph |
-| [Rust PathMap bits-bytes](../../output/cornerstone-rust-review/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bits-bytes.rs) | 0.670547 | optimized graph |
+| evalTrie | 0.568 | symbol trie |
+| evalZ | 0.077 | zipper evaluator |
+| C++ OpenFst symbols | 0.284763 | optimized graph |
+| C++ OpenFst bits | 0.009268 | optimized graph |
+| C++ OpenFst bytes | 0.025197 | optimized graph |
+| [Rust PathMap bytes-interned](../../output/pathmap-zipper/final-rust/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bytes-interned.rs) | 0.243390 | optimized graph |
+| [Rust PathMap bytes-strings](../../output/pathmap-zipper/final-rust/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bytes-strings.rs) | 0.424633 | optimized graph |
+| [Rust PathMap bits-bytes](../../output/pathmap-zipper/final-rust/large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bits-bytes.rs) | 0.694480 | optimized graph |
 
 | Compiled backend | Graph/source compile ms | Session setup ms¹ | Rust opt-level |
 | --- | --- | --- | --- |
-| C++ OpenFst symbols | 61.635 | 10696.218 |  |
-| C++ OpenFst bits | 3.188 | 403.718 |  |
-| C++ OpenFst bytes | 3.928 | 3.116 |  |
-| Rust PathMap bytes-interned | 66.727 | 39.737 | 3 |
-| Rust PathMap bytes-strings | 3.208 | 1.849 | 3 |
-| Rust PathMap bits-bytes | 3.095 | 2.499 | 3 |
+| C++ OpenFst symbols | 1.211 | 1.686 |  |
+| C++ OpenFst bits | 1.254 | 1.715 |  |
+| C++ OpenFst bytes | 0.938 | 1.924 |  |
+| Rust PathMap bytes-interned | 64.289 | 64.282 | 3 |
+| Rust PathMap bytes-strings | 2.828 | 1.682 | 3 |
+| Rust PathMap bits-bytes | 2.533 | 1.848 | 3 |
 
 ## product intersected by one exact path — 10000 x 10000 product, 1 result path
 
@@ -32,23 +32,23 @@ Result: **1 paths**.
 
 | Evaluator / compiled encoding | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 2.613 | symbol trie |
-| evalZ | 0.081 | zipper evaluator |
-| C++ OpenFst symbols | 1.635623 | optimized graph |
-| C++ OpenFst bits | 0.021235 | optimized graph |
-| C++ OpenFst bytes | 0.051535 | optimized graph |
-| [Rust PathMap bytes-interned](../../output/cornerstone-rust-review/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bytes-interned.rs) | 1.221174 | optimized graph |
-| [Rust PathMap bytes-strings](../../output/cornerstone-rust-review/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bytes-strings.rs) | 2.245808 | optimized graph |
-| [Rust PathMap bits-bytes](../../output/cornerstone-rust-review/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bits-bytes.rs) | 3.483039 | optimized graph |
+| evalTrie | 2.650 | symbol trie |
+| evalZ | 0.071 | zipper evaluator |
+| C++ OpenFst symbols | 1.544992 | optimized graph |
+| C++ OpenFst bits | 0.019703 | optimized graph |
+| C++ OpenFst bytes | 0.048399 | optimized graph |
+| [Rust PathMap bytes-interned](../../output/pathmap-zipper/final-rust/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bytes-interned.rs) | 1.218988 | optimized graph |
+| [Rust PathMap bytes-strings](../../output/pathmap-zipper/final-rust/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bytes-strings.rs) | 2.264369 | optimized graph |
+| [Rust PathMap bits-bytes](../../output/pathmap-zipper/final-rust/large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bits-bytes.rs) | 3.675162 | optimized graph |
 
 | Compiled backend | Graph/source compile ms | Session setup ms¹ | Rust opt-level |
 | --- | --- | --- | --- |
-| C++ OpenFst symbols | 1.769 | 6.698 |  |
-| C++ OpenFst bits | 1.414 | 2.514 |  |
-| C++ OpenFst bytes | 1.526 | 3.025 |  |
-| Rust PathMap bytes-interned | 2.150 | 1.574 | 3 |
-| Rust PathMap bytes-strings | 1.748 | 1.887 | 3 |
-| Rust PathMap bits-bytes | 1.606 | 1.859 | 3 |
+| C++ OpenFst symbols | 1.123 | 342.012 |  |
+| C++ OpenFst bits | 0.838 | 340.319 |  |
+| C++ OpenFst bytes | 0.845 | 1.689 |  |
+| Rust PathMap bytes-interned | 2.432 | 1.756 | 3 |
+| Rust PathMap bytes-strings | 1.693 | 1.688 | 3 |
+| Rust PathMap bits-bytes | 1.351 | 1.671 | 3 |
 
 ## product intersected by one exact path — 30000 x 30000 product, 1 result path
 
@@ -56,23 +56,23 @@ Result: **1 paths**.
 
 | Evaluator / compiled encoding | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 7.272 | symbol trie |
-| evalZ | 0.229 | zipper evaluator |
-| C++ OpenFst symbols | 5.239589 | optimized graph |
-| C++ OpenFst bits | 0.022537 | optimized graph |
-| C++ OpenFst bytes | 0.068283 | optimized graph |
-| [Rust PathMap bytes-interned](../../output/cornerstone-rust-review/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bytes-interned.rs) | 3.712158 | optimized graph |
-| [Rust PathMap bytes-strings](../../output/cornerstone-rust-review/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bytes-strings.rs) | 7.177486 | optimized graph |
-| [Rust PathMap bits-bytes](../../output/cornerstone-rust-review/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bits-bytes.rs) | 10.478227 | optimized graph |
+| evalTrie | 7.214 | symbol trie |
+| evalZ | 0.072 | zipper evaluator |
+| C++ OpenFst symbols | 4.814416 | optimized graph |
+| C++ OpenFst bits | 0.020707 | optimized graph |
+| C++ OpenFst bytes | 0.063762 | optimized graph |
+| [Rust PathMap bytes-interned](../../output/pathmap-zipper/final-rust/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bytes-interned.rs) | 3.683264 | optimized graph |
+| [Rust PathMap bytes-strings](../../output/pathmap-zipper/final-rust/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bytes-strings.rs) | 6.771097 | optimized graph |
+| [Rust PathMap bits-bytes](../../output/pathmap-zipper/final-rust/large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bits-bytes.rs) | 11.049544 | optimized graph |
 
 | Compiled backend | Graph/source compile ms | Session setup ms¹ | Rust opt-level |
 | --- | --- | --- | --- |
-| C++ OpenFst symbols | 2.031 | 5.020 |  |
-| C++ OpenFst bits | 1.401 | 3.058 |  |
-| C++ OpenFst bytes | 1.435 | 6.119 |  |
-| Rust PathMap bytes-interned | 2.247 | 2.102 | 3 |
-| Rust PathMap bytes-strings | 1.805 | 2.322 | 3 |
-| Rust PathMap bits-bytes | 2.822 | 2.314 | 3 |
+| C++ OpenFst symbols | 1.153 | 1.758 |  |
+| C++ OpenFst bits | 1.031 | 1.789 |  |
+| C++ OpenFst bytes | 0.967 | 1.755 |  |
+| Rust PathMap bytes-interned | 2.029 | 1.813 | 3 |
+| Rust PathMap bytes-strings | 1.292 | 1.714 | 3 |
+| Rust PathMap bits-bytes | 1.707 | 1.550 | 3 |
 
 ## product restricted by one first-level prefix — 2000 x 2000 product, 2000 result paths
 
@@ -80,23 +80,23 @@ Result: **2,000 paths**.
 
 | Evaluator / compiled encoding | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 0.497 | symbol trie |
-| evalZ | 0.055 | zipper evaluator |
-| C++ OpenFst symbols | 0.332190 | optimized graph |
-| C++ OpenFst bits | 0.029538 | optimized graph |
-| C++ OpenFst bytes | 0.077080 | optimized graph |
-| [Rust PathMap bytes-interned](../../output/cornerstone-rust-review/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bytes-interned.rs) | 0.276813 | optimized graph |
-| [Rust PathMap bytes-strings](../../output/cornerstone-rust-review/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bytes-strings.rs) | 0.512652 | optimized graph |
-| [Rust PathMap bits-bytes](../../output/cornerstone-rust-review/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bits-bytes.rs) | 0.929739 | optimized graph |
+| evalTrie | 0.535 | symbol trie |
+| evalZ | 0.017 | zipper evaluator |
+| C++ OpenFst symbols | 0.320836 | optimized graph |
+| C++ OpenFst bits | 0.027800 | optimized graph |
+| C++ OpenFst bytes | 0.071510 | optimized graph |
+| [Rust PathMap bytes-interned](../../output/pathmap-zipper/final-rust/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bytes-interned.rs) | 0.288556 | optimized graph |
+| [Rust PathMap bytes-strings](../../output/pathmap-zipper/final-rust/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bytes-strings.rs) | 0.564490 | optimized graph |
+| [Rust PathMap bits-bytes](../../output/pathmap-zipper/final-rust/large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bits-bytes.rs) | 1.079072 | optimized graph |
 
 | Compiled backend | Graph/source compile ms | Session setup ms¹ | Rust opt-level |
 | --- | --- | --- | --- |
-| C++ OpenFst symbols | 2.158 | 4.342 |  |
-| C++ OpenFst bits | 4.036 | 6.266 |  |
-| C++ OpenFst bytes | 3.134 | 3.216 |  |
-| Rust PathMap bytes-interned | 2.033 | 1.634 | 3 |
-| Rust PathMap bytes-strings | 1.338 | 1.632 | 3 |
-| Rust PathMap bits-bytes | 1.105 | 1.709 | 3 |
+| C++ OpenFst symbols | 1.252 | 361.186 |  |
+| C++ OpenFst bits | 0.948 | 371.419 |  |
+| C++ OpenFst bytes | 0.790 | 1.288 |  |
+| Rust PathMap bytes-interned | 1.764 | 1.620 | 3 |
+| Rust PathMap bytes-strings | 1.238 | 1.688 | 3 |
+| Rust PathMap bits-bytes | 1.052 | 1.440 | 3 |
 
 ## product restricted by one first-level prefix — 10000 x 10000 product, 10000 result paths
 
@@ -104,23 +104,23 @@ Result: **10,000 paths**.
 
 | Evaluator / compiled encoding | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 2.029 | symbol trie |
-| evalZ | 0.015 | zipper evaluator |
-| C++ OpenFst symbols | 1.738443 | optimized graph |
-| C++ OpenFst bits | 0.045659 | optimized graph |
-| C++ OpenFst bytes | 0.089612 | optimized graph |
-| [Rust PathMap bytes-interned](../../output/cornerstone-rust-review/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bytes-interned.rs) | 1.383340 | optimized graph |
-| [Rust PathMap bytes-strings](../../output/cornerstone-rust-review/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bytes-strings.rs) | 2.731407 | optimized graph |
-| [Rust PathMap bits-bytes](../../output/cornerstone-rust-review/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bits-bytes.rs) | 4.798868 | optimized graph |
+| evalTrie | 2.024 | symbol trie |
+| evalZ | 0.014 | zipper evaluator |
+| C++ OpenFst symbols | 1.701440 | optimized graph |
+| C++ OpenFst bits | 0.043241 | optimized graph |
+| C++ OpenFst bytes | 0.080984 | optimized graph |
+| [Rust PathMap bytes-interned](../../output/pathmap-zipper/final-rust/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bytes-interned.rs) | 1.449556 | optimized graph |
+| [Rust PathMap bytes-strings](../../output/pathmap-zipper/final-rust/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bytes-strings.rs) | 2.997596 | optimized graph |
+| [Rust PathMap bits-bytes](../../output/pathmap-zipper/final-rust/large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bits-bytes.rs) | 5.529494 | optimized graph |
 
 | Compiled backend | Graph/source compile ms | Session setup ms¹ | Rust opt-level |
 | --- | --- | --- | --- |
-| C++ OpenFst symbols | 3.348 | 372.816 |  |
-| C++ OpenFst bits | 2.983 | 398.606 |  |
-| C++ OpenFst bytes | 2.862 | 3.367 |  |
-| Rust PathMap bytes-interned | 2.501 | 1.731 | 3 |
-| Rust PathMap bytes-strings | 3.640 | 1.718 | 3 |
-| Rust PathMap bits-bytes | 2.727 | 1.717 | 3 |
+| C++ OpenFst symbols | 1.378 | 1.446 |  |
+| C++ OpenFst bits | 0.897 | 1.696 |  |
+| C++ OpenFst bytes | 0.934 | 1.460 |  |
+| Rust PathMap bytes-interned | 2.373 | 2.070 | 3 |
+| Rust PathMap bytes-strings | 2.302 | 1.865 | 3 |
+| Rust PathMap bits-bytes | 1.992 | 1.775 | 3 |
 
 ## product restricted by one first-level prefix — 30000 x 30000 product, 30000 result paths
 
@@ -128,20 +128,20 @@ Result: **30,000 paths**.
 
 | Evaluator / compiled encoding | Runtime ms | Execution |
 | --- | --- | --- |
-| evalTrie | 11.040 | symbol trie |
-| evalZ | 0.015 | zipper evaluator |
-| C++ OpenFst symbols | 5.845197 | optimized graph |
-| C++ OpenFst bits | 0.053720 | optimized graph |
-| C++ OpenFst bytes | 0.111908 | optimized graph |
-| [Rust PathMap bytes-interned](../../output/cornerstone-rust-review/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bytes-interned.rs) | 4.167381 | optimized graph |
-| [Rust PathMap bytes-strings](../../output/cornerstone-rust-review/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bytes-strings.rs) | 8.494472 | optimized graph |
-| [Rust PathMap bits-bytes](../../output/cornerstone-rust-review/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bits-bytes.rs) | 15.839269 | optimized graph |
+| evalTrie | 11.087 | symbol trie |
+| evalZ | 0.014 | zipper evaluator |
+| C++ OpenFst symbols | 5.289835 | optimized graph |
+| C++ OpenFst bits | 0.048785 | optimized graph |
+| C++ OpenFst bytes | 0.102994 | optimized graph |
+| [Rust PathMap bytes-interned](../../output/pathmap-zipper/final-rust/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bytes-interned.rs) | 4.345703 | optimized graph |
+| [Rust PathMap bytes-strings](../../output/pathmap-zipper/final-rust/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bytes-strings.rs) | 9.380812 | optimized graph |
+| [Rust PathMap bits-bytes](../../output/pathmap-zipper/final-rust/large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bits-bytes.rs) | 16.765999 | optimized graph |
 
 | Compiled backend | Graph/source compile ms | Session setup ms¹ | Rust opt-level |
 | --- | --- | --- | --- |
-| C++ OpenFst symbols | 2.364 | 2.417 |  |
-| C++ OpenFst bits | 1.651 | 2.517 |  |
-| C++ OpenFst bytes | 1.361 | 2.457 |  |
-| Rust PathMap bytes-interned | 1.985 | 1.992 | 3 |
-| Rust PathMap bytes-strings | 4.294 | 3.209 | 3 |
-| Rust PathMap bits-bytes | 1.541 | 1.801 | 3 |
+| C++ OpenFst symbols | 1.309 | 1.869 |  |
+| C++ OpenFst bits | 0.943 | 1.796 |  |
+| C++ OpenFst bytes | 0.824 | 1.292 |  |
+| Rust PathMap bytes-interned | 3.148 | 2.393 | 3 |
+| Rust PathMap bytes-strings | 1.409 | 1.771 | 3 |
+| Rust PathMap bits-bytes | 1.190 | 2.267 | 3 |

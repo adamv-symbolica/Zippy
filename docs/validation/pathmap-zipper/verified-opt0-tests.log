@@ -1,0 +1,27 @@
+Picked up _JAVA_OPTIONS: -Xmx64g -Xss64m -XX:ActiveProcessorCount=8 -Dmorkl.pathmap.test=true -Dmorkl.pathmap.root=/home/ubuntu/Zippy -Dmorkl.pathmap.optimize=0
+Warning: setting /home/ubuntu/Zippy/output/pathmap-zipper/verified-benchmarks/scala-sources/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -Xmx64g -Xss64m -XX:ActiveProcessorCount=8 -Dmorkl.pathmap.test=true -Dmorkl.pathmap.root=/home/ubuntu/Zippy -Dmorkl.pathmap.optimize=0
+[33m[33m-- [E121] Pattern Match Warning: /home/ubuntu/Zippy/output/pathmap-zipper/verified-benchmarks/scala-sources/src/main/scala/MORKL.scala:1724:9 [0m[0m
+[33m1724 |[0m    [33mcase[0m x => x
+[33m[33m     |[0m         ^[0m
+[33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).
+there were 155 feature warnings; re-run with -feature for details
+there were 8 deprecation warnings; re-run with -deprecation for details
+3 warnings found
+[[33mhint[0m]  "munit is outdated, update to 1.3.6"
+     munit 1.2.1 -> org.scalameta::munit:1.3.6
+[[33mhint[0m]  "scala-collection-contrib is outdated, update to 0.4.0"
+     scala-collection-contrib 0.3.0 -> org.scala-lang.modules::scala-collection-contrib:0.4.0
+Picked up _JAVA_OPTIONS: -Xmx64g -Xss64m -XX:ActiveProcessorCount=8 -Dmorkl.pathmap.test=true -Dmorkl.pathmap.root=/home/ubuntu/Zippy -Dmorkl.pathmap.optimize=0
+[32mmorkl.RustPathMapBackendTest:[0m
+[32m  + [0m[32mRust source consumes the optimized graph and emits lexical iteration loops[0m [90m0.066s[0m
+[32m  + [0m[32mhelper chains inline together with callers and opaque fixpoints preserve callback counts[0m [90m0.13s[0m
+[32m  + [0m[32man existing optimized executor graph compiles without an expression round trip[0m [90m0.005s[0m
+[32m  + [0m[32mgenerated Rust implements all byte cases on dynamic inputs[0m [90m0.073s[0m
+[32m  + [0m[32mall 256 labels, empty guards, recursion and lexical captures[0m [90m0.064s[0m
+[32m  + [0m[32mnative benchmarks execute the graph and count results inside the timed region[0m [90m0.005s[0m
+[32m  + [0m[32mgrounded functions can be supplied as standalone native Rust[0m [90m0.004s[0m
+[32m  + [0m[32mordinary path-binding recursors fuse into zipper loops with epsilon and shared prefixes[0m [90m0.026s[0m
+[32m  + [0m[32mtranslated ordered folds over thousands of heads use a stack-safe native loop[0m [90m0.814s[0m
+[32m  + [0m[32mterminated scanner proof rejects a shadowed accumulator and preserves strict callbacks[0m [90m0.029s[0m
+[32m  + [0m[32mtyped native blocks preserve live values, captures, fold updates and callbacks[0m [90m0.032s[0m
