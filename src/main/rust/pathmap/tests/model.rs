@@ -93,7 +93,7 @@ fn adiabatic_walks_restore_their_focus_and_never_visit_siblings() {
     {
         let mut w = out.write_zipper();
         let mut r = a.read_zipper();
-        w.descend_to(&[6, 7]);
+        w.descend_to([6, 7]);
         join_branches(&mut w, &mut r);
         assert_eq!(w.path(), [6, 7]);
         assert!(r.path().is_empty());
