@@ -532,6 +532,23 @@ impl<V: Clone + Send + Sync + Unpin, A: Allocator> PathMap<V, A> {
         }
     }
 
+    /// Counts native physical nodes with sharing, returning `None` on overflow.
+    /// Compressed path bytes are never visited individually.
+    pub fn checked_val_count(&self) -> Option<usize> {
+        #[derive(Clone, Copy)]
+        struct Count(Option<usize>);
+        impl Default for Count {
+            fn default() -> Self { Self(Some(0)) }
+        }
+        let root_value = usize::from(self.root_val().is_some());
+        self.root().map_or(Some(root_value), |root| {
+            traverse_physical(root,
+                |node, n: Count| Count(n.0.and_then(|n| n.checked_add(node.node_goat_val_count()))),
+                |a: Count, b: Count| Count(a.0.zip(b.0).and_then(|(a,b)| a.checked_add(b))))
+                .0.and_then(|n| n.checked_add(root_value))
+        })
+    }
+
     /// GOAT, temporary method to do side-by-side comparison between abstracted val_count and bespoke version
     pub fn goat_val_count(&self) -> usize {
         let root_val = unsafe{ &*self.root_val.get() }.is_some() as usize;

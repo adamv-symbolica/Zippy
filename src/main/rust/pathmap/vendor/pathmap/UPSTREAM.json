@@ -4,8 +4,9 @@
   "applied": [
     "4a399a3a038bccc8aa53b9c1613f9dbf4ed94ff1"
   ],
-  "notes": "PR #171 source with PR #172 cherry-picked and one local structurally_equal certificate method. Cargo manifest omits benchmark/example targets and benchmark-only dev dependencies. The equality method returns false conservatively when physical decompositions differ; Zippy retains an exact zipper fallback.",
+  "notes": "PR #171 source with PR #172 cherry-picked and local structurally_equal and checked_val_count methods. Cargo manifest omits benchmark/example targets and benchmark-only dev dependencies. The equality method returns false conservatively when physical decompositions differ; Zippy retains an exact zipper fallback.",
   "localPatches": [
-    "LOCAL_STRUCTURAL_EQUALITY.patch"
+    "LOCAL_STRUCTURAL_EQUALITY.patch",
+    "LOCAL_CHECKED_COUNT.patch"
   ]
 }

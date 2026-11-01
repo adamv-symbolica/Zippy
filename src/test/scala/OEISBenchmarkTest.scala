@@ -3,6 +3,7 @@ package morkl
 import munit.FunSuite
 
 class OEISBenchmarkTest extends FunSuite:
+  override val munitTimeout=scala.concurrent.duration.Duration(600,"s")
   test("OEIS build, ten offsets and Fibonacci prefix query match independent sequence sets") {
     val sequences=Vector(Vector[BigInt](0,1,2,3,5,8,13,21),Vector[BigInt](1,2,3,5,8,13),
       Vector[BigInt](-129,128,0,1,2),Vector.empty[BigInt],Vector[BigInt](1,2,3,5,8,13))

@@ -492,6 +492,16 @@ pub fn suffix_closure(a: &impl ReadSpace, include_empty: bool) -> Space {
 }
 
 pub fn count(a: &impl ReadSpace) -> BigUint {
+    let owned;
+    let map = if let Some(map) = a.as_map() {
+        map
+    } else {
+        owned = a.make_space();
+        &owned
+    };
+    if let Some(n) = map.checked_val_count() {
+        return BigUint::from(n);
+    }
     // Observe physical node boundaries inside unary stems as well as forks.
     // A jumping cata can skip the shared suffix root in a Cartesian product,
     // then recount that suffix for every left-hand path.
