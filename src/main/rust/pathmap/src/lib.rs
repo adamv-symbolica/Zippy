@@ -17,6 +17,14 @@ pub type View<'a, 'p> = ReadZipperUntracked<'a, 'p, ()>;
 pub trait ReadSpace {
     fn read_zipper(&self) -> View<'_, '_>;
     #[inline]
+    fn head_mask(&self) -> pathmap::utils::ByteMask {
+        self.read_zipper().child_mask()
+    }
+    #[inline]
+    fn has_head(&self) -> bool {
+        self.read_zipper().child_count() != 0
+    }
+    #[inline]
     fn as_map(&self) -> Option<&Space> {
         None
     }
@@ -85,6 +93,10 @@ impl ReadSpace for Space {
     fn make_space(&self) -> Space {
         self.clone()
     }
+    #[inline]
+    fn is_empty(&self) -> bool {
+        Space::is_empty(self)
+    }
 }
 impl ReadSpace for View<'_, '_> {
     #[inline]
@@ -94,6 +106,18 @@ impl ReadSpace for View<'_, '_> {
     #[inline]
     fn is_empty(&self) -> bool {
         !self.is_val() && self.child_count() == 0
+    }
+    #[inline]
+    fn make_space(&self) -> Space {
+        self.make_map()
+    }
+    #[inline]
+    fn head_mask(&self) -> pathmap::utils::ByteMask {
+        self.child_mask()
+    }
+    #[inline]
+    fn has_head(&self) -> bool {
+        self.child_count() != 0
     }
 }
 
@@ -380,7 +404,7 @@ pub fn tails_intersection(a: &impl ReadSpace) -> Space {
 }
 #[inline]
 pub fn has_head(a: &impl ReadSpace) -> bool {
-    a.read_zipper().child_count() != 0
+    a.has_head()
 }
 pub fn head_space(a: &impl ReadSpace) -> Space {
     static ALPHABET: std::sync::LazyLock<Space> = std::sync::LazyLock::new(|| {
@@ -391,11 +415,8 @@ pub fn head_space(a: &impl ReadSpace) -> Space {
         map
     });
     let mut out = Space::new();
-    out.write_zipper().graft_masked_branches(
-        &ALPHABET.read_zipper(),
-        a.read_zipper().child_mask(),
-        true,
-    );
+    out.write_zipper()
+        .graft_masked_branches(&ALPHABET.read_zipper(), a.head_mask(), true);
     out
 }
 
