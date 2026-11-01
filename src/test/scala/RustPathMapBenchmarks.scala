@@ -88,6 +88,7 @@ object RustPathMapBenchmarks:
         val bits=RadixTranslations.symbolsToBits(work.expr,defs,interner)
         val bytes=RadixTranslations.internedSymbolsToBytes(work.expr,defs,interner)
         val strings=RadixTranslations.stringsToBytes(work.expr,defs)
+        val lengths=RadixTranslations.lengthPrefixedStringsToBytes(work.expr,defs)
         val injected=RadixTranslations.bitsToBytes(bits.program.entry,bits.program.routines)
         val injection=PathEncodings.bitsToBytes
         def measure(dialect: String,p: RustPathMapBackend.Compiled,spaces: Map[SpaceMention,Set[BytePathValue]],decode: BytePathValue=>PathValue): Unit =
@@ -114,6 +115,7 @@ object RustPathMapBenchmarks:
           finally session.close()
         measure("bytes-interned",RustPathMapBackend.bytes(bytes.program.entry,bytes.program.routines),work.context.m.view.mapValues(v=>bytes.encode(v).paths).toMap,bytes.encoding.decode)
         measure("bytes-strings",RustPathMapBackend.bytes(strings.program.entry,strings.program.routines),work.context.m.view.mapValues(v=>strings.encode(v).paths).toMap,strings.encoding.decode)
+        measure("bytes-length",RustPathMapBackend.bytes(lengths.program.entry,lengths.program.routines),work.context.m.view.mapValues(v=>lengths.encode(v).paths).toMap,lengths.encoding.decode)
         measure("bits-bytes",RustPathMapBackend.bytes(injected.entry,injected.routines),work.context.m.view.mapValues(v=>bits.encode(v).paths.map(injection.encode)).toMap,v=>bits.encoding.decode(injection.decode(v)))
         completed+=1
       catch case error: Throwable =>

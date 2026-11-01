@@ -27,6 +27,10 @@ object RadixTranslations:
   def stringsToBytes(entry: Space, routines: Map[RoutinePtr, Routine] = Map.empty): SymbolBytes =
     val compiler = new EncodingCompiler(SymbolSyntax, Zippy_bytes, PathEncodings.strings)
     SymbolBytes(compiler.compile(SymbolSyntax.importSpace(entry), routines.view.mapValues(SymbolSyntax.importRoutine).toMap), PathEncodings.strings)
+  def lengthPrefixedStringsToBytes(entry: Space, routines: Map[RoutinePtr, Routine] = Map.empty): SymbolBytes =
+    val encoding=PathEncodings.lengthPrefixed
+    val compiler=new EncodingCompiler(SymbolSyntax,Zippy_bytes,encoding)
+    SymbolBytes(compiler.compile(SymbolSyntax.importSpace(entry),routines.view.mapValues(SymbolSyntax.importRoutine).toMap),encoding)
   def internedSymbolsToBytes(entry: Space, routines: Map[RoutinePtr, Routine] = Map.empty,
                             interner: PathItemInterner = PathItemInterner()): SymbolBytes =
     internConstants(entry, routines, interner)

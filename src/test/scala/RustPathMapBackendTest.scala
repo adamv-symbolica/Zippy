@@ -34,6 +34,51 @@ class RustPathMapBackendTest extends FunSuite:
   }
 
   if java.lang.Boolean.getBoolean("morkl.pathmap.test") then
+    test("nested traversals share one cursor and borrow contiguous path segments") {
+      def scan(s: ByteSpace,p: BytePath,depth: Int): ByteSpace =
+        if depth==0 then S.Wrap(s,p)
+        else
+          val h=PathRef(s"h$depth");val t=SpaceMention(s"t$depth")
+          S.Iteration(s,h,t,scan(S.Mention(t),P.Concat(p,P.Deref(h)),depth-1))
+      val e=scan(input,P.ZERO,4)
+      val p=RustPathMapBackend.bytes(e)
+      assertEquals("read_zipper\\(\\)".r.findAllIn(p.code).size,1,p.code)
+      assert(!p.code.contains("fork_read_zipper"),p.code)
+      assert(!p.code.contains("concat_path"),p.code)
+      assertEquals("let mut v\\d+_\\d+ = Space::new".r.findAllIn(p.code).size,1,p.code)
+      val paths=values++Set(BytePathValue(0,1,2,3),BytePathValue(0,1,2,3,4),BytePathValue(255,0,255,0,7))
+      assertEquals(p.eval(spaces=Map(x->paths)),paths.filter(_.unsigned.size>=4))
+    }
+    test("adiabatic traversal restores ancestors, sibling scans and dynamic unwraps") {
+      val a=PathRef("a");val b=PathRef("b");val outer=SpaceMention("outer");val inner=SpaceMention("inner")
+      val leaf=S.Union(S.Wrap(S.Mention(outer),P.Deref(a)),S.Wrap(S.Mention(inner),P.Concat(P.Deref(a),P.Deref(b))))
+      val nested=S.Iteration(S.Mention(outer),b,inner,leaf)
+      val expr=S.Iteration(input,a,outer,S.Union(nested,S.Wrap(S.Mention(outer),P.Deref(a))))
+      val dynamic=PathRef("prefix")
+      val descended=S.Iteration(S.Unwrap(input,P.Deref(dynamic)),a,outer,S.Union(nested,S.Mention(outer)))
+      for e<-Vector(expr,descended) do
+        val p=RustPathMapBackend.bytes(e)
+        for prefix<-Vector(BytePathValue(),BytePathValue(0),BytePathValue(9,9)) do
+          val spaces=Map(x->Zippy_bytes.SpaceValue(values))
+          val expected=Zippy_bytes.eval(e,Map(dynamic->prefix),spaces).paths
+          assertEquals(p.eval(Map(dynamic->prefix),spaces.view.mapValues(_.paths).toMap),expected)
+    }
+    test("length-prefixed translation handles complete heads, source order and truncated words") {
+      val strings=Vector("", "zz", "a", "longer", 0.toChar.toString, "é", "x"*255)
+      val value=SpaceValue(strings.zipWithIndex.map((s,i)=>PathValue(List(PathItem(s),PathItem((i%3).toString)))).toSet+PathValue(List.empty))
+      val mention=Space.Mention(x)
+      val expressions=Vector(Space.TailsUnion(mention),Space.Iteration(mention,h,t,Space.Wrap(Space.Mention(t),Path.Deref(h))),
+        Space.Range(mention,0,1),Space.Range(mention,-2,0))
+      for e<-expressions do
+        val lowered=RadixTranslations.lengthPrefixedStringsToBytes(e)
+        val p=RustPathMapBackend.bytes(lowered.program.entry,lowered.program.routines)
+        val expected=eval(e)(using sc=SpaceContextMap(Map(x->value))).paths
+        assertEquals(p.eval(spaces=Map(x->lowered.encode(value).paths)).map(lowered.encoding.decode),expected)
+      val lowered=RadixTranslations.lengthPrefixedStringsToBytes(Space.TailsUnion(mention))
+      val p=RustPathMapBackend.bytes(lowered.program.entry,lowered.program.routines)
+      val malformed=Set(BytePathValue(4,1,2),BytePathValue(255,1),BytePathValue())
+      assertEquals(p.eval(spaces=Map(x->malformed)),Set.empty[BytePathValue])
+    }
     test("helper chains inline together with callers and opaque fixpoints preserve callback counts") {
       val refs=Vector(PathRef("prefix")); val ss=Vector(SpaceMention("source"))
       val names=Vector("outer","middle","leaf").map(RoutinePtr(_))

@@ -12,12 +12,52 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
   private val declarations = mutable.ArrayBuffer.empty[String]
   private val nativeBlocks = mutable.ArrayBuffer.empty[String]
   private val nativeTypes = mutable.Map.empty[String,String]
-  private def view(s: String): Boolean = nativeTypes.get(s).exists(_.startsWith("View<"))
-  private def copied(s: String): String = if view(s) then s"($s).make_space()" else s"($s).clone()"
-  private def nativeBorrow(s: String): String = if view(s) then s"&($s).make_space()" else s"&($s)"
+  // Compile-time provenance only: no cursor/path descriptor enters the runtime.
+  // A lexical traversal restores its cursor, so values may refer to fixed byte
+  // ranges and ancestor focuses without copying paths or materializing tries.
+  private case class Depth(base: String, offset: Int = 0):
+    def +(n: Int): Depth = copy(offset=offset+n)
+    def code: String = if offset==0 then base else s"($base + $offset)"
+  private case class Slice(cursor: String, start: Depth, end: Depth)
+  private case class Focus(cursor: String, depth: Depth)
+  private case class Residual(source: String, prefixes: Vector[String])
+  private val slices=mutable.Map.empty[String,Slice]
+  private val focuses=mutable.Map.empty[String,Focus]
+  private val residuals=mutable.Map.empty[String,Residual]
+  private val cursorDepth=mutable.Map.empty[String,Depth]
+  private val emptyPaths=mutable.Set.empty[String]
+  private val retained=mutable.Set.empty[String]
+  private val reuse=java.lang.Boolean.parseBoolean(System.getProperty("morkl.pathmap.reuse","true"))
+  private def focus(s: String): Option[Focus] = focuses.get(s).orElse(residuals.get(s).flatMap { r=>
+    r.prefixes.foldLeft(focus(r.source)) { (at,p)=> for
+      f<-at; slice<-slices.get(p)
+      if slice.cursor==f.cursor && slice.start==f.depth
+    yield Focus(f.cursor,slice.end) }
+  })
+  private def view(s: String): Boolean = focuses.contains(s) || residuals.contains(s) || nativeTypes.get(s).exists(_.startsWith("View<"))
+  private def pathSlice(s: String): String = slices.get(s).fold(s"&($s)")(p=>s"&${p.cursor}.path()[${p.start.code}..${p.end.code}]")
+  private def readCursor(s: String): String = focus(s) match
+    case Some(f)=>s"cursor_at(&${f.cursor},${f.depth.code})"
+    case _=>residuals.get(s) match
+      case Some(r)=>r.prefixes.foldLeft(readCursor(r.source))((z,p)=>s"descend_cursor($z,${pathSlice(p)})")
+      case _=>s"($s).read_zipper()"
+  private def borrowed(s: String): String = if view(s) then focus(s) match
+    case Some(f) if cursorDepth.get(f.cursor).contains(f.depth)=>s"&${f.cursor}"
+    case _ if focuses.contains(s) || residuals.contains(s)=>s"&(${readCursor(s)})"
+    case _=>s"&($s)"
+  else pathSlice(s)
+  private def copied(s: String): String =
+    if view(s) then s"(${borrowed(s)}).make_map()"
+    else if slices.contains(s) || nativeTypes.get(s).contains("PathSlice") then s"Path::from_slice(${pathSlice(s)})"
+    else s"($s).clone()"
+  private def nativeBorrow(s: String): String =
+    if view(s) then s"&${copied(s)}" else borrowed(s)
+  private def retain(s: String): Unit =
+    retained+=s
+    residuals.get(s).foreach(r=>{retain(r.source);r.prefixes.foreach(retain)})
   private def referenceType(t: String): Boolean = t=="Path" || t=="Space" || t.startsWith("View<")
   private val binaryKernels=Set("unite","intersect","subtract","restrict_to","raffine","compose","equal","first_matching","ordered_matching")
-  private val unaryKernels=Set("wrap","unwrap","tails_union","tails_intersection","prefix_closure","suffix_closure","head_space","has_head","range_const","first_terminated","first_fibonacci","first_listed")
+  private val unaryKernels=Set("wrap","unwrap","tails_union","tails_union_n","tails_intersection","prefix_closure","suffix_closure","head_space","has_head","range_const","first_terminated","first_fibonacci","first_listed")
   private def kernel(fn: String,inputs: Vector[String]): String =
     if binaryKernels(fn) then inputs.take(2).map(s=>if view(s) then "view" else "map").mkString("","_","_kernels::")+fn
     else if unaryKernels(fn) then (if view(inputs.head) then "view_kernels::" else "map_kernels::")+fn
@@ -65,7 +105,10 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
     declarations += s"static $n: std::sync::LazyLock<$kind> = std::sync::LazyLock::new(|| $code);"
     s"*$n"
   })
-  private def pathConstant(p: PathValue): String = constant("Path",s"Path::from_slice(&[${path(p).mkString(",")}])")
+  private def pathConstant(p: PathValue): String =
+    val n=constant("Path",s"Path::from_slice(&[${path(p).mkString(",")}])")
+    if p.items.isEmpty then emptyPaths+=n
+    n
   private def literalConstant(v: SpaceValue): String = constant("Space",s"literal_text(\"${text(v.paths.toVector.map(path).sorted)}\")")
   private def owner(g: RecursiveOpGraph, level: Int): RecursiveOpGraph =
     if g.level == level then g else owner(g.parent.get,level)
@@ -73,6 +116,12 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
   private def alias(g: RecursiveOpGraph, pos: Pos): Pos = g.lookup(pos) match
     case Left(Node("Alias",_,_,Vector(input))) => alias(g,input)
     case _ => pos
+  private def tailsChain(g: RecursiveOpGraph,p: Pos): (Pos,Int) =
+    val q=alias(g,p)
+    g.lookup(q) match
+      case Left(Node("TailsUnion",_,_,Vector(in)))=>
+        val (base,n)=tailsChain(g,in);base->(n+1)
+      case _=>q->0
   /** Fold's executor framing is removed at compile time. No tag symbols or
     * packed update spaces are ever emitted into the bit/byte automata.
     */
@@ -99,6 +148,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       wanted = mutable.BitSet.empty
       demands.put(g,wanted)
     if wanted.add(pos._2) then g.nodes(pos._2) match
+      case Left(node) if reuse && node.operation=="TailsUnion"=>mark(g,tailsChain(g,pos)._1)
       case Left(node) => node.inputs.foreach(mark(g,_))
       case Right(sub) =>
         sub.root.inputs.foreach(mark(g,_))
@@ -107,6 +157,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
         else mark(sub,output(sub))
 
   private def dependencies(g: RecursiveOpGraph, index: Int): Set[Pos] = dependencyCache.getOrElseUpdate(g->index,g.nodes(index) match
+    case Left(n) if reuse && n.operation=="TailsUnion"=>Set(tailsChain(g,g.level->index)._1)
     case Left(n) => n.inputs.toSet
     case Right(child) =>
       def captures(s: RecursiveOpGraph): Set[Pos] =
@@ -260,7 +311,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
           readsInput(g,g.level->index) || opaque(child)
     val result = mutable.Map.empty[Int,Set[Int]]
     for i <- wanted.toVector.sorted do g.nodes(i) match
-      case Left(Node("Composition",_,_,Vector(_,right))) if right._1 == g.level && effect(right._2) =>
+      case Left(Node("Composition",_,_,Vector(_,right))) if right._1 == g.level =>
         val closure = mutable.Set.empty[Int]
         def collect(index: Int): Unit =
           if wanted(index) && !closure(index) then g.nodes(index) match
@@ -282,7 +333,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
 
   private def emitBlock(g: RecursiveOpGraph, inherited: Map[Pos,String], args: Map[Int,String],
                         params: Map[(String,String),String], out: StringBuilder, indent: String,
-                        selected: Option[Set[Int]] = None): Map[Pos,String] =
+                        selected: Option[Set[Int]] = None, sink: Option[String] = None): Map[Pos,String] =
     // Persistent compiler bindings share their unchanged prefix across lexical
     // scopes. Copying a growing mutable table for every guard was quadratic.
     var bindings = inherited
@@ -303,7 +354,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       bindings(p)
     }
     def line(s: String): Unit = out.append(indent).append(s).append('\n')
-    def borrow(s: String): String = s"&($s)"
+    def borrow(s: String): String = borrowed(s)
     val wanted = selected.getOrElse(Option(demands.get(g)).map(_.toSet).getOrElse(Set.empty))
     val releases=Option(lifetimes.get(g)).getOrElse {
       val uses=mutable.Map.empty[Pos,Int]
@@ -316,7 +367,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
     }
     def release(index: Int): Unit =
       releases.getOrElse(index,Vector.empty).foreach { p=>
-        if !opaque(g,p._2) && owned.remove(p) then
+        if !opaque(g,p._2) && owned(p) && !retained(bindings(p)) && owned.remove(p) then
           val n=bindings(p);line(s"drop($n);");released+=n
       }
     // Bound Rust's MIR/drop elaboration and LLVM work without introducing a
@@ -342,12 +393,15 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
             val t=nativeTypes(n);n -> (if referenceType(t) then s"(*capture_$i)" else s"capture_$i")
           }.toMap
           val code=identifiers.replaceAllIn(cleaned,m=>java.util.regex.Matcher.quoteReplacement(replacements.getOrElse(m.matched,m.matched)))
-          val params=free.zipWithIndex.map((n,i)=>s"capture_$i: ${if referenceType(nativeTypes(n)) then "&" else ""}${nativeTypes(n)}")
+          val mutated=free.filter(n=>referenceType(nativeTypes(n)) &&
+            (cleaned.contains(s"$n.descend_") || cleaned.contains(s"$n.ascend(") ||
+              cleaned.contains(s"$n.join_into(") || cleaned.contains(s"&mut $n"))).toSet
+          val params=free.zipWithIndex.map((n,i)=>s"capture_$i: ${if mutated(n) then "&mut " else if referenceType(nativeTypes(n)) then "&" else ""}${nativeTypes(n)}")
           val resultType=if live.isEmpty then "()" else if live.size==1 then nativeTypes(live.head) else live.map(nativeTypes).mkString("(",",",",)")
           val result=if live.isEmpty then "()" else if live.size==1 then s"(${live.head}).clone()" else live.map(n=>s"($n).clone()").mkString("(",",",",)")
           nativeBlocks+=s"#[inline(never)]\nfn $helper(${(Vector("c: &mut Context")++params).mkString(",")}) -> $resultType {\n$code\n$result\n}\n"
           out.setLength(chunkStart)
-          val call=s"$helper(c${free.map(n=>", "+(if referenceType(nativeTypes(n)) then s"&$n" else n)).mkString})"
+          val call=s"$helper(c${free.map(n=>", "+(if mutated(n) then s"&mut $n" else if referenceType(nativeTypes(n)) then s"&$n" else n)).mkString})"
           if live.isEmpty then line(s"$call;")
           else if live.size==1 then line(s"let ${live.head}: $resultType = $call;")
           else line(s"let ${live.mkString("(",",",",)")} = $call;")
@@ -361,7 +415,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       entry match
         case Left(Node("Composition",_,_,Vector(left,right))) if regions.contains(index) =>
           val a=value(left)
-          line(s"let $name: Space = if ($a).is_empty() { Space::new() } else {")
+          line(s"let $name: Space = if (${borrow(a)}).is_empty() { Space::new() } else {")
           val inner=emitBlock(g,bindings.toMap,args,params,out,indent+"  ",Some(regions(index)))
           // Shared dependencies may belong to a different guarded region. The
           // result must still be materialized in this lexical scope unless a
@@ -379,7 +433,8 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
           nativeTypes(name)="Space"
           owned+=pos
         case Left(n) =>
-          val ins=n.inputs.map(value)
+          val chain=if reuse && n.operation=="TailsUnion" then Some(tailsChain(g,pos)) else None
+          val ins=chain.fold(n.inputs)(c=>Vector(c._1)).map(value)
           def call(fn: String): String = s"${kernel(fn,ins)}(${ins.map(borrow).mkString(",")})"
           val code=n.operation match
             case "ExtractPathRef" | "ExtractSpaceMention" => bindings=bindings.updated(pos,args.getOrElse(index,params(n.kind->n.constant))); ""
@@ -387,19 +442,26 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
             case "Constant" => bindings=bindings.updated(pos,pathConstant(g.pathValue(n.constant))); ""
             case "Literal" => bindings=bindings.updated(pos,literalConstant(g.literalValue(n.constant))); ""
             case "Empty" => "Space::new()"
+            case "Concat" if reuse && emptyPaths(ins.head) => bindings=bindings.updated(pos,ins(1)); ""
+            case "Concat" if reuse && emptyPaths(ins(1)) => bindings=bindings.updated(pos,ins.head); ""
+            case "Concat" if reuse && slices.get(ins.head).zip(slices.get(ins(1))).exists((a,b)=>a.cursor==b.cursor && a.end==b.start) =>
+              val a=slices(ins.head);val b=slices(ins(1))
+              slices(name)=a.copy(end=b.end);bindings=bindings.updated(pos,name);nativeTypes(name)="PathSlice"; ""
             case "Concat" => call("concat_path")
             case "Singleton" => call("singleton")
             case "Call" =>
               val invoke=if tailCall.contains(g->pos) then
                 val tuple=if ins.isEmpty then "()" else ins.map(copied).mkString("(",",",",)")
                 s"{ next_call = Some($tuple); Space::new() }"
-              else s"${functions(n.constant)}(c${ins.map(s=>", "+nativeBorrow(s)).mkString})"
+              else
+                val pc=program.signatures(n.constant)._1.size
+                s"${functions(n.constant)}(c${ins.zipWithIndex.map((s,i)=>", "+(if i<pc then borrowed(s) else if view(s) then borrowed(s) else s"&(${readCursor(s)})")).mkString})"
               val stationary=g.level==0 && n.constant==emittingRoutine && (g.lookup(alias(g,output(g))) match
                 case Left(Node("Union",_,_,Vector(_,right))) => alias(g,right)==pos
                 case _ => false)
               if stationary then
                 val (ps,ss)=program.signatures(n.constant)
-                val checks=ps.zipWithIndex.map((p,i)=>s"(${ins(i)}) == (${params("path"->p.s)})") ++
+                val checks=ps.zipWithIndex.map((p,i)=>s"${borrow(ins(i))} == ${borrow(params("path"->p.s))}") ++
                   ss.zipWithIndex.map((s,i)=>s"equal(${borrow(ins(ps.size+i))},${borrow(params("space"->s.s))})")
                 s"if ${if checks.isEmpty then "true" else checks.mkString(" && ")} { Space::new() } else { $invoke }"
               else invoke
@@ -410,7 +472,12 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
             case "Raffination" => call("raffine")
             case "Composition" => call("compose")
             case "Wrap" => call("wrap")
+            case "Unwrap" if reuse =>
+              residuals(name)=residuals.get(ins.head).fold(Residual(ins.head,Vector(ins(1))))(r=>r.copy(prefixes=r.prefixes:+ins(1)))
+              ins.foreach(retain)
+              bindings=bindings.updated(pos,name);nativeTypes(name)="View<'_, '_>"; ""
             case "Unwrap" => call("unwrap")
+            case "TailsUnion" if chain.exists(_._2>1) => s"${kernel("tails_union_n",ins)}(${borrow(ins.head)},${chain.get._2})"
             case "TailsUnion" => call("tails_union")
             case "TailsIntersection" => call("tails_intersection")
             case "PrefixClosure" => call("prefix_closure")
@@ -418,7 +485,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
             case "TailsClosure" => s"${kernel("suffix_closure",ins)}(${borrow(ins.head)},true)"
             case "NativeHead" => call("head_space")
             case "NativeHasHead" => s"if ${kernel("has_head",ins)}(${borrow(ins.head)}) { singleton(&[]) } else { Space::new() }"
-            case "NativeNonempty" => s"if (${ins.head}).is_empty() { Space::new() } else { singleton(&[]) }"
+            case "NativeNonempty" => s"if (${borrow(ins.head)}).is_empty() { Space::new() } else { singleton(&[]) }"
             case "Range" =>
               val (lo,hi)=g.rangeBounds(n.constant); s"${kernel("range_const",ins)}::<{$lo},{$hi}>(${borrow(ins.head)})"
             case "GroundedPP" => s"singleton_path(&grounded_${n.constant}(c,&singleton(${borrow(ins.head)})))"
@@ -440,54 +507,107 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
             owned+=pos
         case Right(sub) =>
           nativeTypes(name)="Space"
+          val result=if reuse && pos==output(g) && Set("Iteration","NativePathIteration")(sub.root.operation) then sink.getOrElse(name) else name
+          def freshResult(): Unit = if result==name then line(s"let mut $result = Space::new();")
+          def collect(body: String): Unit = if body!=result then line(s"  $result.join_into(${copied(body)});")
           val input=sub.root.inputs.map(value)
           sub.root.operation match
             case "NativePathIteration" =>
               val pc=sub.root.constant.toInt
-              line(s"let mut $name = Space::new();")
-              input.zipWithIndex.foreach { (arg,i)=>
-                line(s"let ${name}_arg_$i: &${if i<pc then "Path" else "Space"} = ${nativeBorrow(arg)};")
-                nativeTypes(s"${name}_arg_$i")=if i<pc then "&Path" else "&Space"
+              freshResult()
+              input.zipWithIndex.filter(_._2!=pc).foreach { (arg,i)=>
+                line(s"let ${name}_arg_$i: ${if i<pc then "&[u8]" else "&Space"} = ${nativeBorrow(arg)};")
+                nativeTypes(s"${name}_arg_$i")=if i<pc then "&[u8]" else "&Space"
               }
-              line(s"let mut ${name}_cursor = ${name}_arg_$pc.read_zipper();")
-              line(s"let mut ${name}_more = ${name}_cursor.is_val() || ${name}_cursor.to_next_val();")
+              val existing=if reuse then focus(input(pc)).filter(f=>cursorDepth.get(f.cursor).contains(f.depth)) else None
+              val cursor=existing.fold(s"${name}_cursor")(_.cursor)
+              if existing.isEmpty then
+                line(s"let mut $cursor = ${readCursor(input(pc))};")
+                nativeTypes(cursor)="View<'_, '_>"
+              val origin=existing.fold {
+                line(s"let ${name}_origin = $cursor.path().len();")
+                nativeTypes(s"${name}_origin")="usize";Depth(s"${name}_origin")
+              }(_.depth)
+              line(s"let mut ${name}_more = $cursor.is_val() || next_value_within(&mut $cursor,${origin.code});")
               line(s"while ${name}_more {")
               line("  {")
-              line(s"  let ${name}_path = concat_path(${name}_arg_0,${name}_cursor.path());")
-              line(s"  let ${name}_rest = ${name}_cursor.fork_read_zipper();")
-              nativeTypes(s"${name}_path")="Path";nativeTypes(s"${name}_rest")="View<'_, '_>"
+              line(s"  let ${name}_depth = $cursor.path().len();")
+              nativeTypes(s"${name}_depth")="usize"
+              val end=Depth(s"${name}_depth");cursorDepth(cursor)=end
+              val prefix=slices.get(input.head).filter(p=>p.cursor==cursor && p.end==origin)
+              if reuse && (emptyPaths(input.head) || prefix.nonEmpty) then
+                slices(s"${name}_path")=Slice(cursor,prefix.fold(origin)(_.start),end)
+                nativeTypes(s"${name}_path")="PathSlice"
+              else
+                line(s"  let ${name}_path = concat_path(${name}_arg_0,&$cursor.path()[${origin.code}..]);")
+                nativeTypes(s"${name}_path")="Path"
+              if reuse then focuses(s"${name}_rest")=Focus(cursor,end)
+              else line(s"  let ${name}_rest = $cursor.fork_read_zipper();")
+              nativeTypes(s"${name}_rest")="View<'_, '_>"
               val bound=input.indices.map { i=>i -> (if i==0 then s"${name}_path" else if i==pc then s"${name}_rest" else s"*${name}_arg_$i") }.toMap
-              val inner=emitBlock(sub,bindings.toMap,bound,params,out,indent+"  ")
-              line(s"  $name.join_into(${copied(inner(output(sub)))});")
+              bound.filter(_._1<pc).values.foreach(n=>nativeTypes(n)="PathSlice")
+              val inner=emitBlock(sub,bindings.toMap,bound,params,out,indent+"  ",sink=Some(result))
+              collect(inner(output(sub)))
               line("  }")
-              line(s"  ${name}_more = ${name}_cursor.to_next_val();")
+              line(s"  ${name}_more = next_value_within(&mut $cursor,${origin.code});")
               line("}")
-              line(s"drop(${name}_cursor);")
+              existing match
+                case Some(f)=>cursorDepth(cursor)=f.depth
+                case _=>line(s"drop($cursor);");cursorDepth.remove(cursor)
             case "Iteration" | "Fold" =>
               val fold=sub.root.operation=="Fold"
-              line(s"let mut $name = Space::new();")
+              freshResult()
               if fold then
-                line(s"let mut ${name}_acc: Path = (${input(1)}).clone();")
+                line(s"let mut ${name}_acc: Path = ${copied(input(1))};")
                 nativeTypes(s"${name}_acc")="Path"
-              // A single reusable cursor and a four-word ByteMask; no branch
-              // vector or callback is allocated for the iterator body.
-              line(s"let mut ${name}_cursor = (${input.head}).read_zipper();")
-              line(s"for ${name}_byte in ${name}_cursor.child_mask().iter() {")
-              line(s"  ${name}_cursor.descend_to_byte(${name}_byte);")
+              val direct=focus(input.head).filter(f=>cursorDepth.get(f.cursor).contains(f.depth)).map(f=>f->Vector.empty[String])
+              val descents=residuals.get(input.head).flatMap(r=>focus(r.source)
+                .filter(f=>cursorDepth.get(f.cursor).contains(f.depth)).map(f=>f->r.prefixes))
+              val plan=if reuse then direct.orElse(descents) else None
+              val cursor=plan.fold(s"${name}_cursor")(_._1.cursor)
+              val restore=plan.map(_._1.depth)
+              if plan.isEmpty then
+                line(s"let mut $cursor = ${readCursor(input.head)};")
+                nativeTypes(cursor)="View<'_, '_>"
+              plan.foreach { (_,prefixes)=>prefixes.foreach { p=>
+                // A prefix borrowed from this very cursor must survive its
+                // path-buffer mutation; every other prefix stays borrowed.
+                if slices.get(p).exists(_.cursor==cursor) then
+                  line(s"let ${name}_prefix = ${copied(p)};")
+                  line(s"$cursor.descend_to(&${name}_prefix);")
+                else line(s"$cursor.descend_to(${borrow(p)});")
+              } }
+              val origin=if plan.exists(_._2.isEmpty) then restore.get else
+                line(s"let ${name}_origin = $cursor.path().len();")
+                nativeTypes(s"${name}_origin")="usize"
+                Depth(s"${name}_origin")
+              cursorDepth(cursor)=origin
+              line(s"for ${name}_byte in $cursor.child_mask().iter() {")
+              line(s"  $cursor.descend_to_existing_byte(${name}_byte);")
               line("  {")
-              line(s"  let ${name}_tail = ${name}_cursor.fork_read_zipper();")
-              line(s"  let ${name}_head = Path::from_slice(&[${name}_byte]);")
-              nativeTypes(s"${name}_head")="Path";nativeTypes(s"${name}_tail")="View<'_, '_>"
+              cursorDepth(cursor)=origin+1
+              if reuse then
+                slices(s"${name}_head")=Slice(cursor,origin,origin+1)
+                focuses(s"${name}_tail")=Focus(cursor,origin+1)
+              else
+                line(s"  let ${name}_tail = $cursor.fork_read_zipper();")
+                line(s"  let ${name}_head = Path::from_slice(&[${name}_byte]);")
+              nativeTypes(s"${name}_head")=if reuse then "PathSlice" else "Path"
+              nativeTypes(s"${name}_tail")="View<'_, '_>"
               val bound=if fold then Map(0->s"${name}_acc",1->s"${name}_head",2->s"${name}_tail")
                 else Map(0->s"${name}_head",1->s"${name}_tail")
-              val inner=emitBlock(sub,bindings.toMap,bound,params,out,indent+"  ")
+              val inner=emitBlock(sub,bindings.toMap,bound,params,out,indent+"  ",sink=if fold then None else Some(result))
               val body=if fold then foldOutputs(sub)._1 else output(sub)
-              line(s"  $name.join_into(${copied(inner(body))});")
-              if fold then line(s"  ${name}_acc = (${inner(foldOutputs(sub)._2)}).clone();")
+              collect(inner(body))
+              if fold then line(s"  ${name}_acc = ${copied(inner(foldOutputs(sub)._2))};")
               line("  }")
-              line(s"  ${name}_cursor.ascend(1);")
+              line(s"  $cursor.ascend(1);")
               line("}")
-              line(s"drop(${name}_cursor);")
+              restore match
+                case Some(depth)=>
+                  if depth!=origin then line(s"$cursor.ascend($cursor.path().len() - ${depth.code});")
+                  cursorDepth(cursor)=depth
+                case _=>line(s"drop($cursor);");cursorDepth.remove(cursor)
             case "Fixpoint" =>
               line(s"let mut $name: Space = ${copied(input.head)};")
               line("loop {")
@@ -501,9 +621,9 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
               else line(s"  if !$name.join_into(${copied(inner(output(sub)))}).is_element() { break; }")
               line("}")
             case other => throw IllegalArgumentException(s"unsupported Rust graph scope $other")
-          bindings=bindings.updated(pos,name)
-          nativeTypes(name)="Space"
-          owned+=pos
+          bindings=bindings.updated(pos,result)
+          nativeTypes(result)="Space"
+          if result==name then owned+=pos
       release(index)
       lastEmitted=index
       chunkNodes+=1
@@ -519,24 +639,26 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       val ordering=tailCall.flatMap(t=>orderedFold(g,t,ps,ss))
       orderedHead=ordering.map(o=>(g,o.head))
       val root=name==program.root
-      val signature=(Vector("c: &mut Context") ++ ps.indices.map(i=>s"p$i: ${if root then "Option<&Path>" else "&Path"}") ++
-        ss.indices.map(i=>s"s$i: ${if root then "Option<&Space>" else "&Space"}")).mkString(", ")
-      ps.indices.foreach(i=>nativeTypes(s"p$i")=if root then "Option<&Path>" else "&Path")
-      ss.indices.foreach(i=>nativeTypes(s"s$i")=if root then "Option<&Space>" else "&Space")
+      val signature=(Vector("c: &mut Context") ++ ps.indices.map(i=>s"p$i: ${if root then "Option<&Path>" else "&[u8]"}") ++
+        ss.indices.map(i=>s"s$i: ${if root then "Option<&Space>" else "&View<'_, '_>"}")).mkString(", ")
+      ps.indices.foreach(i=>nativeTypes(s"p$i")=if root then "Option<&Path>" else "&[u8]")
+      ss.indices.foreach(i=>nativeTypes(s"s$i")=if root then "Option<&Space>" else "&View<'_, '_>")
       def binding(kind: String, i: Int): String =
         val n=s"$kind$i"; if root then s"*$n.expect(\"unbound native input\")" else s"*$n"
       val params=ps.zipWithIndex.map((p,i)=>("path"->p.s)->binding("p",i)).toMap ++
         ss.zipWithIndex.map((s,i)=>("space"->s.s)->binding("s",i)).toMap
+      ps.indices.foreach(i=>nativeTypes(binding("p",i))=if root then "Path" else "PathSlice")
+      ss.indices.foreach(i=>nativeTypes(binding("s",i))=if root then "Space" else "View<'_, '_>")
       // Inlining after graph lowering avoids multiplying the source language's
       // parser loops. Small path helpers (e.g. GOL neigh) still optimize together
       // with callers, including their constructed coordinate paths.
       val out=StringBuilder((if inlinePathHelper(name,g) then "#[inline(always)]\n" else "")+s"fn ${functions(name)}($signature) -> Space {\n")
       if tailCall.isEmpty then
         val values=emitBlock(g,Map.empty,Map.empty,params,out,"  ")
-        out.append(s"  (${values(output(g))}).clone()\n}\n").toString
+        out.append(s"  ${copied(values(output(g)))}\n}\n").toString
       else
         val parameters=ps.indices.map(i=>s"p$i"->"Path").toVector++ss.indices.map(i=>s"s$i"->"Space")
-        parameters.foreach((n,kind)=>out.append(s"  let mut loop_$n: $kind = (${binding(n.take(1),n.drop(1).toInt)}).clone();\n"))
+        parameters.foreach((n,kind)=>out.append(s"  let mut loop_$n: $kind = ${copied(binding(n.take(1),n.drop(1).toInt))};\n"))
         parameters.foreach((n,kind)=>nativeTypes(s"loop_$n")=kind)
         ordering.foreach { plan=>
           val initial=plan.removed.fold(s"loop_s${plan.space}")(i=>s"map_map_kernels::raffine(&loop_s${plan.space},&singleton(&loop_p$i))")
@@ -557,7 +679,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
           nativeTypes("ordered_head")="Space"
         }
         val values=emitBlock(g,Map.empty,Map.empty,loopParams,out,"    ")
-        out.append(s"    loop_result.join_into((${values(output(g))}).clone());\n")
+        out.append(s"    loop_result.join_into(${copied(values(output(g)))});\n")
         val pattern=if parameters.isEmpty then "()" else parameters.map((n,_)=>s"next_$n").mkString("(",",",",)")
         out.append(s"    if let Some($pattern) = next_call {\n")
         parameters.foreach((n,_)=>out.append(s"      loop_$n = next_$n;\n"))

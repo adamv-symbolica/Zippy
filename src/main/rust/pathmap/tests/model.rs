@@ -2,6 +2,58 @@ use num_bigint::BigUint;
 use std::collections::BTreeSet;
 use zippy_pathmap::*;
 type Set = BTreeSet<Vec<u8>>;
+
+#[test]
+fn adiabatic_walks_restore_their_focus_and_never_visit_siblings() {
+    let paths: Set = [
+        vec![],
+        vec![0],
+        vec![0, 1],
+        vec![0, 1, 2],
+        vec![0, 2, 3],
+        vec![1, 0],
+        vec![255],
+    ]
+    .into_iter()
+    .collect();
+    let a = map(&paths);
+    for prefix in [
+        vec![],
+        vec![0],
+        vec![0, 1],
+        vec![0, 1, 2],
+        vec![1],
+        vec![9, 9],
+    ] {
+        let mut z = a.read_zipper();
+        z.descend_to(&prefix);
+        let depth = z.path().len();
+        let mut actual = Set::new();
+        let mut more = z.is_val() || next_value_within(&mut z, depth);
+        while more {
+            actual.insert(z.path()[depth..].to_vec());
+            let snapshot = cursor_at(&z, depth);
+            assert!(equal(&snapshot, &a.read_zipper_at_path(&prefix)));
+            more = next_value_within(&mut z, depth);
+        }
+        assert_eq!(z.path(), prefix);
+        let expected: Set = paths
+            .iter()
+            .filter_map(|p| p.strip_prefix(prefix.as_slice()).map(<[u8]>::to_vec))
+            .collect();
+        assert_eq!(actual, expected);
+    }
+    for depth in 1..=7 {
+        same(
+            tails_union_n(&a, depth),
+            paths
+                .iter()
+                .filter(|p| p.len() >= depth)
+                .map(|p| p[depth..].to_vec())
+                .collect(),
+        );
+    }
+}
 fn map(s: &Set) -> Space {
     let mut m = Space::new();
     for p in s {

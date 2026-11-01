@@ -143,7 +143,7 @@ def main():
                         key = row['name'], row['dialect']
                         assert key not in seen, f'duplicate workload: {key}'
                         seen.add(key); rows.append(row)
-            assert len(rows) == 3 * total, f'missing dialect rows: {family}'
+            assert len(rows) == 4 * total, f'missing dialect rows: {family}'
             merged = output / 'native' / family
             merged.mkdir(exist_ok=True)
             with (merged / 'native.csv').open('w', newline='') as target:

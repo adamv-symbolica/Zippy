@@ -47,7 +47,7 @@ def main():
     if not args.test_only and audit:
         valid = valid and audit['symbolCases'] > 0 and all(
             audit['passed'].get(d) == audit['symbolCases']
-            for d in ('bytes-strings', 'bytes-interned', 'bits-bytes'))
+            for d in ('bytes-strings', 'bytes-length', 'bytes-interned', 'bits-bytes'))
     text = re.sub(r'\x1b\[[0-9;]*m', '', (output / 'tests.log').read_text(errors='replace'))
     report = dict(testExitCode=result.returncode, generatedOptimization=args.optimize, largeGeneratedOptimization='opt-level 1 above 500k characters, 0 above 2M; runtime always release opt-level 3', passedTests=sum(line.startswith('  + ') for line in text.splitlines()),
                   fullSuite=args.test_only is None, audit=audit, success=bool(valid))

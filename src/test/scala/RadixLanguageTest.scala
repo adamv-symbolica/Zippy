@@ -48,6 +48,8 @@ class RadixLanguageTest extends FunSuite:
       assertEquals(bytes.decode(bytes.program.eval()), expected, s"interned bytes case $i")
       val strings = RadixTranslations.stringsToBytes(program, routines)
       assertEquals(strings.decode(strings.program.eval()), expected, s"strings case $i")
+      val lengths=RadixTranslations.lengthPrefixedStringsToBytes(program,routines)
+      assertEquals(lengths.decode(lengths.program.eval()),expected,s"length-prefixed case $i")
   }
 
   private def digitPrograms[V](lang: DigitLanguage[V]): Vector[lang.Space] =
@@ -123,6 +125,13 @@ class RadixLanguageTest extends FunSuite:
     val text = Vector("", "a", "a" + 0.toChar, 0.toChar.toString, 1.toChar.toString, "é", "😀", 0xd800.toChar.toString)
     val path = pv(text*)
     assertEquals(PathEncodings.strings.decode(PathEncodings.strings.encode(path)), path)
+    assertEquals(PathEncodings.lengthPrefixed.decode(PathEncodings.lengthPrefixed.encode(path)),path)
+    assertEquals(PathEncodings.lengthPrefixed.encode(pv("",0.toChar.toString,"a")),BytePathValue(0,1,0,1,97))
+    val maximum=pv("x"*255)
+    assertEquals(PathEncodings.lengthPrefixed.decode(PathEncodings.lengthPrefixed.encode(maximum)),maximum)
+    intercept[IllegalArgumentException](PathEncodings.lengthPrefixed.encode(pv("x"*256)))
+    intercept[IllegalArgumentException](PathEncodings.lengthPrefixed.decode(BytePathValue(2,97)))
+    intercept[IllegalArgumentException](PathEncodings.lengthPrefixed.decode(BytePathValue(1,192)))
     val sorted = text.sortWith(_.compareTo(_) < 0)
     val encodedSorted = text.sortWith((a, b) => BytePaths.compare(PathEncodings.strings.encode(pv(a)), PathEncodings.strings.encode(pv(b))) < 0)
     assertEquals(encodedSorted, sorted)

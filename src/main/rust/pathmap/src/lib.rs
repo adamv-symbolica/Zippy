@@ -91,6 +91,55 @@ impl ReadSpace for View<'_, '_> {
     fn read_zipper(&self) -> View<'_, '_> {
         self.fork_read_zipper()
     }
+    #[inline]
+    fn is_empty(&self) -> bool {
+        !self.is_val() && self.child_count() == 0
+    }
+}
+
+/// Snapshot only when a lexical body reads an ancestor while its cursor is
+/// deeper. Ordinary nested iterations reuse the cursor without calling this.
+#[inline]
+pub fn cursor_at<'a, 'p>(source: &View<'a, 'p>, depth: usize) -> View<'a, 'p> {
+    let mut cursor = source.clone();
+    debug_assert!(depth <= cursor.path().len());
+    cursor.ascend(cursor.path().len() - depth);
+    cursor
+}
+
+#[inline]
+pub fn descend_cursor<'a, 'p>(mut cursor: View<'a, 'p>, path: &[u8]) -> View<'a, 'p> {
+    cursor.descend_to(path);
+    cursor
+}
+
+/// Depth-first value traversal bounded by a lexical subtree. Exhaustion leaves
+/// the caller's cursor exactly at its entry focus, including at missing paths.
+#[inline]
+pub fn next_value_within(cursor: &mut View<'_, '_>, root_depth: usize) -> bool {
+    loop {
+        if cursor.descend_first_byte().is_some() {
+            if cursor.is_val() {
+                return true;
+            }
+            if cursor.descend_until() && cursor.is_val() {
+                return true;
+            }
+        } else {
+            loop {
+                if cursor.path().len() == root_depth {
+                    return false;
+                }
+                if cursor.to_next_sibling_byte().is_some() {
+                    if cursor.is_val() {
+                        return true;
+                    }
+                    break;
+                }
+                cursor.ascend(1);
+            }
+        }
+    }
 }
 
 // PathMap intentionally withholds shared_node_id at valued focuses: the
@@ -294,6 +343,13 @@ pub fn unwrap(a: &impl ReadSpace, p: &[u8]) -> Space {
 pub fn tails_union(a: &impl ReadSpace) -> Space {
     let mut out = a.make_space();
     out.write_zipper().join_k_path_into(1, true);
+    out
+}
+
+#[inline(never)]
+pub fn tails_union_n(a: &impl ReadSpace, depth: usize) -> Space {
+    let mut out = a.make_space();
+    out.write_zipper().join_k_path_into(depth, true);
     out
 }
 #[inline]
@@ -1082,6 +1138,10 @@ macro_rules! unary_kernels {
                 super::tails_union(a)
             }
             #[inline(never)]
+            pub fn tails_union_n(a: &$input, depth: usize) -> Space {
+                super::tails_union_n(a, depth)
+            }
+            #[inline(never)]
             pub fn tails_intersection(a: &$input) -> Space {
                 super::tails_intersection(a)
             }
@@ -1198,6 +1258,14 @@ pub struct Context {
     reader: io::Stdin,
     writer: io::Stdout,
 }
+impl Default for Context {
+    fn default() -> Self {
+        Self {
+            reader: io::stdin(),
+            writer: io::stdout(),
+        }
+    }
+}
 fn integer(tokens: &mut std::str::SplitWhitespace<'_>) -> usize {
     tokens
         .next()
@@ -1278,10 +1346,7 @@ pub fn run(dispatch: fn(usize, &mut Context, &Env) -> Space) {
 }
 
 fn run_native(dispatch: fn(usize, &mut Context, &Env) -> Space) {
-    let mut c = Context {
-        reader: io::stdin(),
-        writer: io::stdout(),
-    };
+    let mut c = Context::default();
     loop {
         let mut line = String::new();
         if c.reader.read_line(&mut line).unwrap() == 0 {

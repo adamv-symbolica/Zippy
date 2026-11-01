@@ -5,6 +5,7 @@ enum CodeFraming:
   case Fixed(width: Int)
   case Fibonacci(maxBits: Int)
   case ZeroTerminated
+  case LengthPrefixed
 
 trait PathEncoding[S, T]:
   def encode(path: S): T
@@ -49,6 +50,41 @@ object FibonacciCode:
     out.result()
 
 object PathEncodings:
+  /** One unsigned length byte followed by 0..255 CESU-8 payload bytes. Unlike
+    * terminated strings, payload NUL/SOH bytes need no escaping. */
+  val lengthPrefixed: PathEncoding[morkl.PathValue, BytePathValue] = new PathEncoding[morkl.PathValue, BytePathValue]:
+    val framing=CodeFraming.LengthPrefixed
+    val maxCodeLength=Some(256)
+    val preservesOrder=false
+    def encode(path: morkl.PathValue): BytePathValue = BytePaths.fromDigits(path.items.flatMap { item=>
+      val payload=item.show.toVector.flatMap { ch=>
+        val c=ch.toInt
+        if c<128 then Vector(c)
+        else if c<2048 then Vector(192|(c>>>6),128|(c&63))
+        else Vector(224|(c>>>12),128|((c>>>6)&63),128|(c&63))
+      }
+      require(payload.size<=255,s"symbol payload exceeds 255 bytes: ${payload.size}")
+      payload.size +: payload
+    })
+    def decode(path: BytePathValue): morkl.PathValue =
+      val bytes=path.unsigned;val result=List.newBuilder[PathItem]
+      var at=0
+      while at<bytes.size do
+        val end=at+1+bytes(at);at+=1
+        require(end<=bytes.size,"truncated length-prefixed symbol")
+        val text=new StringBuilder
+        while at<end do
+          val c=bytes(at)
+          val width=if c<128 then 1 else if c>=192 && c<224 then 2 else if c>=224 && c<240 then 3 else 0
+          require(width>0 && at+width<=end,"invalid length-prefixed string bytes")
+          require((1 until width).forall(j=>bytes(at+j)>=128 && bytes(at+j)<192),"invalid continuation byte")
+          val unit=if width==1 then c else if width==2 then ((c&31)<<6)|(bytes(at+1)&63)
+            else ((c&15)<<12)|((bytes(at+1)&63)<<6)|(bytes(at+2)&63)
+          require(unit >= (if width==1 then 0 else if width==2 then 128 else 2048),"noncanonical string encoding")
+          text.append(unit.toChar);at+=width
+        result+=PathItem(text.result())
+      morkl.PathValue(result.result())
+
   /** Snapshot the interner before compiling. Runtime inputs use this same alphabet. */
   def fibonacci(interner: PathItemInterner): PathEncoding[morkl.PathValue, BigInt] =
     interned(interner, BitPaths, bits = true)

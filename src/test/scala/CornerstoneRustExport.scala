@@ -31,6 +31,7 @@ object CornerstoneRustExport:
       work.context.m.valuesIterator.flatMap(_.paths).flatMap(_.items).toSet.toVector.sortBy(_.show).foreach(interner.intern)
       val bytes=RadixTranslations.internedSymbolsToBytes(work.expr,defs,interner)
       val strings=RadixTranslations.stringsToBytes(work.expr,defs)
+      val lengths=RadixTranslations.lengthPrefixedStringsToBytes(work.expr,defs)
       val bits=RadixTranslations.symbolsToBits(work.expr,defs,interner)
       val injected=RadixTranslations.bitsToBytes(bits.program.entry,bits.program.routines)
       val bitCodec=PathEncodings.bitsToBytes
@@ -38,7 +39,7 @@ object CornerstoneRustExport:
       val encodingMap=Vector.tabulate(interner.size) { id=>
         val symbol=interner.decodeItem(id);val p=PathValue(List(symbol))
         def digits(p: BytePathValue)=BytePaths.digits(p).mkString("[",",","]")
-        s"{\"symbol\":${json(symbol.show)},\"bytes-interned\":${digits(bytes.encoding.encode(p))},\"bytes-strings\":${digits(strings.encoding.encode(p))},\"bits-bytes\":${digits(bitCodec.encode(bits.encoding.encode(p)))}}"
+        s"{\"symbol\":${json(symbol.show)},\"bytes-interned\":${digits(bytes.encoding.encode(p))},\"bytes-strings\":${digits(strings.encoding.encode(p))},\"bytes-length\":${digits(lengths.encoding.encode(p))},\"bits-bytes\":${digits(bitCodec.encode(bits.encoding.encode(p)))}}"
       }
       write(folder.resolve("encodings.json"),encodingMap.mkString("[\n",",\n","\n]\n"))
       val expected=evalTrie(work.expr)(using sc=TrieSpaceContext.fromReference(work.context),rc=work.routines).toSpaceValue
@@ -57,6 +58,7 @@ object CornerstoneRustExport:
         records+=s"{\"family\":${json(work.family)},\"name\":${json(work.name)},\"variant\":${json(work.variant)},\"dialect\":${json(encoding)},\"source\":${json(source)},\"sha256\":${json(hash)},\"bytes\":${p.source.getBytes(UTF_8).length},\"graphNodes\":${p.graphNodes},\"precomputed\":${p.precomputed},\"rustOptLevel\":${RustPathMapBackend.optimizationFor(p.source)}}"
       emit("bytes-interned",RustPathMapBackend.bytes(bytes.program.entry,bytes.program.routines),work.context.m.view.mapValues(v=>bytes.encode(v).paths).toMap)
       emit("bytes-strings",RustPathMapBackend.bytes(strings.program.entry,strings.program.routines),work.context.m.view.mapValues(v=>strings.encode(v).paths).toMap)
+      emit("bytes-length",RustPathMapBackend.bytes(lengths.program.entry,lengths.program.routines),work.context.m.view.mapValues(v=>lengths.encode(v).paths).toMap)
       emit("bits-bytes",RustPathMapBackend.bytes(injected.entry,injected.routines),work.context.m.view.mapValues(v=>bits.encode(v).paths.map(bitCodec.encode)).toMap)
     for relative<-RustPathMapBackend.runtimeFiles do
       val target=output.resolve("runtime").resolve(relative)
@@ -64,7 +66,7 @@ object CornerstoneRustExport:
     write(output.resolve("manifest.json"),s"{\"workloads\":${all.size},\"artifacts\":[${records.mkString(",\n")}]}\n")
     write(output.resolve("README.md"),"""# Rust cornerstone review
 
-36 logical cases, each compiled from its optimized executor graph for three byte encodings.
+36 logical cases, each compiled from its optimized executor graph for four byte encodings.
 Each case contains the symbolic source, Rust translation units, graph dumps,
 wire-protocol inputs, codeword dictionary and the independent Scala trie result.
 Runtime PathMap labels are actual bytes 0..255; only protocol labels use byte+1.
@@ -77,8 +79,8 @@ Compile a source with `rustc --edition=2024 -O -C target-cpu=native
 Run `./program < CASE.input.txt`. Use the repository's `tools/check_cornerstone_rust.py`
 to compile every source and compare its decoded result with expected.json.
 For large generated files use `-C opt-level=LEVEL -C codegen-units=16` instead of
-`-O`, where LEVEL is the manifest's rustOptLevel (1 above 500k characters and
-0 above 2M); the shared runtime remains release level 3.
+`-O`, where LEVEL is the manifest's rustOptLevel (1 above 500k logical characters and
+0 above 2M, excluding concrete kernel namespace qualification); the shared runtime remains release level 3.
 """)
 
 @main def exportCornerstoneRust(output: String = "output/cornerstone-rust-review"): Unit =

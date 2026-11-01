@@ -123,6 +123,24 @@ final class EncodingCompiler[S, T, SL <: DigitLanguage[S], TL <: DigitLanguage[T
             E.Iteration(src, d, r,
               choose(E.Intersection(one(pd(d)), one(target.digit(0))), done(pd(d), sd(r)),
                 E.Call(scan, Vector(pd(d)) ++ captures.pathArgs, Vector(sd(r)) ++ captures.spaceArgs)))
+          case CodeFraming.LengthPrefixed =>
+            // A shared predecessor relation implements the bounded byte counter
+            // using ordinary literals/unwrap/iteration and function abstraction.
+            // No counter, length annotation or dictionary is attached to data.
+            val predecessors=E.Literal(target.SpaceValue((1 to 255).map(n=>
+              target.paths.fromDigits(Vector(n,n-1))).toSet))
+            val scan=rp("length_iter")
+            val a=pr("encoded_head").bounded(256)
+            val left=pr("bytes_left").known(1)
+            val s=sm("encoded_rest")
+            val next=pr("next_length").known(1)
+            val d=pr("byte").known(1);val r=sm("byte_tail")
+            val step=bindPath(E.Unwrap(predecessors,pd(left)),next,
+              E.Iteration(sd(s),d,r,E.Call(scan,Vector(P.Concat(pd(a),pd(d)),pd(next))++captures.pathArgs,
+                Vector(sd(r))++captures.spaceArgs)))
+            definitions(scan)=R(scan,Vector(a,left)++captures.ps,Vector(s)++captures.ss,
+              choose(E.Intersection(one(pd(left)),one(target.digit(0))),done(pd(a),sd(s)),step))
+            E.Iteration(src,d,r,E.Call(scan,Vector(pd(d),pd(d))++captures.pathArgs,Vector(sd(r))++captures.spaceArgs))
           case CodeFraming.Fibonacci(maxBits) =>
             val scans = (for depth <- 0 until maxBits; previous <- 0 to 1 yield
               (depth, previous) -> rp(s"fib_iter_$depth$previous")).toMap
@@ -150,12 +168,29 @@ final class EncodingCompiler[S, T, SL <: DigitLanguage[S], TL <: DigitLanguage[T
     val h = pr("head")
     iter(src, h, sm("tail"), one(pd(h)))
   private def tails(src: target.Space): target.Space =
-    val t = sm("tails")
-    iter(src, pr("head"), t, sd(t))
+    if encoding.framing==CodeFraming.LengthPrefixed then
+      val length=pr("length").known(1);val tail=sm("payload")
+      val branches=Vector.tabulate(256)(n=>(0 until n).foldLeft(sd(tail))((s,_)=>E.TailsUnion(s)))
+      def select(lo: Int,hi: Int): target.Space =
+        if lo==hi then branches(lo)
+        else
+          val mid=(lo+hi)/2
+          val mask=E.Literal(target.SpaceValue((lo to mid).map(n=>target.paths.fromDigits(Vector(n))).toSet))
+          choose(E.Intersection(one(pd(length)),mask),select(lo,mid),select(mid+1,hi))
+      E.Iteration(src,length,tail,select(0,255))
+    else
+      val t = sm("tails")
+      iter(src, pr("head"), t, sd(t))
   private val extremeHeadRoutines = mutable.Map.empty[Boolean, RoutinePtr]
   private def extremeHead(src: target.Space, last: Boolean): target.Space =
     val hs = heads(src)
-    if encoding.preservesOrder then E.Range(hs, if last then -1 else 0, if last then 0 else 1)
+    if encoding.framing==CodeFraming.LengthPrefixed then
+      // Length order differs from source lexical order. Select payload bytes,
+      // then recover their original length byte. CESU-8 preserves UTF-16 order.
+      val payload=E.Range(E.TailsUnion(hs),if last then -1 else 0,if last then 0 else 1)
+      val length=pr("selected_length").known(1);val tails=sm("selected_payloads")
+      E.Iteration(hs,length,tails,E.Wrap(E.Intersection(sd(tails),payload),pd(length)))
+    else if encoding.preservesOrder then E.Range(hs, if last then -1 else 0, if last then 0 else 1)
     else
       val name = extremeHeadRoutines.getOrElseUpdate(last, {
         val name = rp("ordered_head")

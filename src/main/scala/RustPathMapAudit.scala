@@ -111,6 +111,11 @@ object RustPathMapAudit:
       check(RustPathMapBackend.bytes(lowered.program.entry,lowered.program.routines),paths.view.mapValues(lowered.encoding.encode).toMap,
         spaces.view.mapValues(v => lowered.encode(v).paths).toMap,lowered.encode(expected).paths)
     }
+    add("bytes-length") {
+      val lowered=RadixTranslations.lengthPrefixedStringsToBytes(entry,routines)
+      check(RustPathMapBackend.bytes(lowered.program.entry,lowered.program.routines),paths.view.mapValues(lowered.encoding.encode).toMap,
+        spaces.view.mapValues(v=>lowered.encode(v).paths).toMap,lowered.encode(expected).paths)
+    }
     add("bytes-interned") {
       val table = PathItemInterner(); alphabet.toVector.sortBy(_.show).foreach(table.intern)
       val lowered = RadixTranslations.internedSymbolsToBytes(entry,routines,table)
