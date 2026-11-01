@@ -468,7 +468,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
           val code=identifiers.replaceAllIn(cleaned,m=>java.util.regex.Matcher.quoteReplacement(replacements.getOrElse(m.matched,m.matched)))
           val mutated=free.filter(n=>referenceType(nativeTypes(n)) &&
             (cleaned.contains(s"$n.descend_") || cleaned.contains(s"$n.ascend(") ||
-              cleaned.contains(s"$n.join_into(") || cleaned.contains(s"&mut $n"))).toSet
+              cleaned.contains(s"$n.join_into(") || (s"&mut ${java.util.regex.Pattern.quote(n)}\\b").r.findFirstIn(cleaned).nonEmpty)).toSet
           val params=free.zipWithIndex.map((n,i)=>s"capture_$i: ${if mutated(n) then "&mut " else if referenceType(nativeTypes(n)) then "&" else ""}${nativeTypes(n)}")
           val resultType=if live.isEmpty then "()" else if live.size==1 then nativeTypes(live.head) else live.map(nativeTypes).mkString("(",",",",)")
           val result=if live.isEmpty then "()" else if live.size==1 then s"(${live.head}).clone()" else live.map(n=>s"($n).clone()").mkString("(",",",",)")
