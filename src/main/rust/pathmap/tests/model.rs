@@ -17,6 +17,16 @@ fn adiabatic_walks_restore_their_focus_and_never_visit_siblings() {
         assert_eq!(writer.path(), &[8]);
     }
     same(output, [vec![9], vec![8], vec![8, 4], vec![8, 4, 5]].into());
+    let mut dense = singleton(&[9]);
+    {
+        let mut writer = dense.write_zipper();
+        writer.descend_to_byte(9);
+        write_heads_mask(&mut writer, [u64::MAX; 4].into(), &[]);
+        assert_eq!(writer.path(), &[9]);
+    }
+    let mut dense_expected = BTreeSet::from([vec![9]]);
+    dense_expected.extend((0..=255u8).map(|b| vec![9, b]));
+    same(dense, dense_expected);
     let mut preserved = singleton(&[9, 1, 2]);
     {
         let mut out = preserved.write_zipper();

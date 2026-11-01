@@ -36,23 +36,40 @@ pub fn write_path(out: &mut WriteCursor<'_>, path: &[u8]) {
 /// any longer paths already present below those same bytes.
 #[inline(never)]
 pub fn write_heads_mask(out: &mut WriteCursor<'_>, mask: pathmap::utils::ByteMask, prefix: &[u8]) {
+    let width = mask.count_bits();
+    if width == 0 {
+        return;
+    }
     out.descend_to(prefix);
-    for byte in mask.iter() {
-        out.descend_to_byte(byte);
-        out.set_val(());
-        out.ascend(1);
+    if width > 2 && out.child_count() == 0 {
+        out.graft_masked_branches(&byte_alphabet().read_zipper(), mask, true);
+    } else {
+        for byte in mask.iter() {
+            out.descend_to_byte(byte);
+            out.set_val(());
+            out.ascend(1);
+        }
     }
     out.ascend(prefix.len());
 }
 
-/// Join immediate residuals into the current output without constructing their
-/// union first. Both focuses are restored; at most 256 branches are visited.
+/// A singleton residual is exactly the descended source cursor. Multiple
+/// residuals use native bulk projection: accumulating them individually loses
+/// PathMap's grouped algebra and is substantially slower on dense input tries.
 #[inline]
 pub fn join_tails_into(out: &mut WriteCursor<'_>, source: &mut View<'_, '_>) {
-    for byte in source.child_mask().iter() {
-        source.descend_to_existing_byte(byte);
-        out.join_into(&*source);
-        source.ascend(1);
+    match source.child_count() {
+        0 => (),
+        1 => {
+            let byte = source.child_mask().iter().next().unwrap();
+            source.descend_to_existing_byte(byte);
+            out.join_into(&*source);
+            source.ascend(1);
+        }
+        _ => {
+            let projected = tails_union(source);
+            out.join_into(&projected.read_zipper());
+        }
     }
 }
 
@@ -461,7 +478,7 @@ pub fn tails_intersection(a: &impl ReadSpace) -> Space {
 pub fn has_head(a: &impl ReadSpace) -> bool {
     a.has_head()
 }
-pub fn head_space(a: &impl ReadSpace) -> Space {
+fn byte_alphabet() -> &'static Space {
     static ALPHABET: std::sync::LazyLock<Space> = std::sync::LazyLock::new(|| {
         let mut map = Space::new();
         for byte in 0..=255u8 {
@@ -469,9 +486,12 @@ pub fn head_space(a: &impl ReadSpace) -> Space {
         }
         map
     });
+    &ALPHABET
+}
+pub fn head_space(a: &impl ReadSpace) -> Space {
     let mut out = Space::new();
     out.write_zipper()
-        .graft_masked_branches(&ALPHABET.read_zipper(), a.head_mask(), true);
+        .graft_masked_branches(&byte_alphabet().read_zipper(), a.head_mask(), true);
     out
 }
 
