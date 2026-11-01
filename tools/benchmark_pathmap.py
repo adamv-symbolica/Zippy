@@ -46,7 +46,7 @@ def main():
     env.setdefault('ZIPPY_BENCH_WARMUPS', '0')
     env['_JAVA_OPTIONS'] = env.get('_JAVA_OPTIONS', '') + f' -Xmx{args.heap} -Xss64m -Dmorkl.pathmap.root={root}'
     jobs = ([] if args.native_only else [('existing', n) for n in EXISTING]) + (
-        [] if args.existing_only else [('native', n) for n in FAMILIES] + [('native-micro', 'acceptor-algebra')])
+        [] if args.existing_only else [('native', n) for n in FAMILIES] + [('native-micro', 'acceptor-algebra'), ('reuse', 'cursor-reuse')])
     if args.only:
         unknown = set(args.only) - {name for _, name in jobs}
         if unknown:
@@ -107,15 +107,19 @@ def main():
             if kind == 'native-micro':
                 with (output / 'native-micro.csv').open('w') as csv_file:
                     code = execute(['cargo', 'run', '--release', '--locked', '--manifest-path',
-                                    str(root / 'src/main/rust/pathmap/Cargo.toml'), '--example', 'benchmark'], csv_file, log)
+                                    str(root / 'src/main/rust/pathmap/Cargo.toml'), '--target-dir',
+                                    str(output / 'native-micro-target'), '--example', 'benchmark'], csv_file, log)
             else:
-                command = base + ['morkl.' + (name if kind == 'existing' else 'rustPathMapBenchmarkReport')]
+                main = name if kind == 'existing' else 'cursorReuseBenchmarkReport' if kind == 'reuse' else 'rustPathMapBenchmarkReport'
+                command = base + ['morkl.' + main]
                 if kind == 'native':
                     family, _, suffix = name.partition('--shard-')
                     shard, shards = suffix.split('-of-') if suffix else ('0', '1')
                     command += [str(folder / name), family, shard, shards]
                 elif name == 'cornerstoneSpatialTypeReport':
                     command += [str(folder / (name + '.md'))]
+                elif kind == 'reuse':
+                    command += [str(folder / name)]
                 code = execute(command, log)
         return dict(kind=kind, name=name, exitCode=code, seconds=round(time.monotonic() - start, 3))
 

@@ -27,6 +27,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
   private val cursorDepth=mutable.Map.empty[String,Depth]
   private val emptyPaths=mutable.Set.empty[String]
   private val retained=mutable.Set.empty[String]
+  private val writeSinks=mutable.Map.empty[String,String]
   private val reuse=java.lang.Boolean.parseBoolean(System.getProperty("morkl.pathmap.reuse","true"))
   private def focus(s: String): Option[Focus] = focuses.get(s).orElse(residuals.get(s).flatMap { r=>
     r.prefixes.foldLeft(focus(r.source)) { (at,p)=> for
@@ -52,12 +53,13 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
     else s"($s).clone()"
   private def nativeBorrow(s: String): String =
     if view(s) then s"&${copied(s)}" else borrowed(s)
+  private def zipperBorrow(s: String): String = if view(s) then borrowed(s) else s"&(${readCursor(s)})"
   private def retain(s: String): Unit =
     retained+=s
     residuals.get(s).foreach(r=>{retain(r.source);r.prefixes.foreach(retain)})
-  private def referenceType(t: String): Boolean = t=="Path" || t=="Space" || t.startsWith("View<")
+  private def referenceType(t: String): Boolean = t=="Path" || t=="Space" || t.startsWith("View<") || t.startsWith("WriteCursor<")
   private val binaryKernels=Set("unite","intersect","subtract","restrict_to","raffine","compose","equal","first_matching","ordered_matching")
-  private val unaryKernels=Set("wrap","unwrap","tails_union","tails_union_n","drop_length_prefixes","tails_intersection","prefix_closure","suffix_closure","head_space","has_head","range_const","first_terminated","first_fibonacci","first_listed")
+  private val unaryKernels=Set("wrap","unwrap","tails_union","tails_union_n","drop_length_prefixes","tails_intersection","prefix_closure","suffix_closure","head_space","has_head","range_const","first_terminated","first_length_prefixed","first_fibonacci","first_listed")
   private def kernel(fn: String,inputs: Vector[String]): String =
     if binaryKernels(fn) then inputs.take(2).map(s=>if view(s) then "view" else "map").mkString("","_","_kernels::")+fn
     else if unaryKernels(fn) then (if view(inputs.head) then "view_kernels::" else "map_kernels::")+fn
@@ -122,6 +124,21 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       case Left(Node("TailsUnion",_,_,Vector(in)))=>
         val (base,n)=tailsChain(g,in);base->(n+1)
       case _=>q->0
+  private def epsilon(g: RecursiveOpGraph,p: Pos): Boolean = g.lookup(alias(g,p)) match
+    case Left(Node("Literal",v,_,_))=>g.literalValue(v).paths==Set(PathValue(List.empty))
+    case Left(Node("Singleton",_,_,Vector(x)))=>g.lookup(alias(g,x)) match
+      case Left(Node("Constant",v,_,_))=>g.pathValue(v).items.isEmpty
+      case _=>false
+    case _=>false
+  private def withoutEpsilon(g: RecursiveOpGraph,p: Pos): Option[Pos] = g.lookup(alias(g,p)) match
+    case Left(Node("Subtraction",_,_,Vector(a,b))) if epsilon(g,b)=>Some(a)
+    case _=>None
+  private def terminalProjection(g: RecursiveOpGraph,p: Pos): Option[(Pos,Option[Pos])] =
+    if !reuse || p!=output(g) || !Set("Iteration","NativePathIteration")(g.root.operation) then None
+    else g.lookup(alias(g,p)) match
+      case Left(Node("Wrap",_,_,Vector(s,prefix)))=>withoutEpsilon(g,s).map(_->Some(prefix))
+      case Left(Node("Subtraction",_,_,_))=>withoutEpsilon(g,p).map(_->None)
+      case _=>None
 
   /** Prove from the optimized graph that each byte branch removes that many
     * bytes from its tail. This is finite compile-time specialization, not a
@@ -199,6 +216,8 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       wanted = mutable.BitSet.empty
       demands.put(g,wanted)
     if wanted.add(pos._2) then g.nodes(pos._2) match
+      case Left(_) if terminalProjection(g,pos).nonEmpty=>
+        val (source,prefix)=terminalProjection(g,pos).get;mark(g,source);prefix.foreach(mark(g,_))
       case Left(node) if reuse && node.operation=="TailsUnion"=>mark(g,tailsChain(g,pos)._1)
       case Left(node) => node.inputs.foreach(mark(g,_))
       case Right(sub) =>
@@ -209,6 +228,8 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
         else mark(sub,output(sub))
 
   private def dependencies(g: RecursiveOpGraph, index: Int): Set[Pos] = dependencyCache.getOrElseUpdate(g->index,g.nodes(index) match
+    case Left(_) if terminalProjection(g,g.level->index).nonEmpty=>
+      val (source,prefix)=terminalProjection(g,g.level->index).get;Set(source)++prefix
     case Left(n) if reuse && n.operation=="TailsUnion"=>Set(tailsChain(g,g.level->index)._1)
     case Left(n) => n.inputs.toSet
     case Right(child) =>
@@ -229,7 +250,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       val original=owner(g,p._1);val pos=alias(original,p);val scope=owner(original,pos._1)
       scope.lookup(pos) match
         case Left(n) => n.operation match
-          case "Empty" | "Singleton" | "FirstMatching" | "FirstListed" | "FirstFibonacci" | "FirstTerminated" | "NativeHasHead" | "NativeNonempty" => true
+          case "Empty" | "Singleton" | "FirstMatching" | "FirstListed" | "FirstFibonacci" | "FirstTerminated" | "FirstLengthPrefixed" | "NativeHasHead" | "NativeNonempty" => true
           case "Literal" => scope.literalValue(n.constant).paths.size<=1
           case "Intersection" => n.inputs.exists(one(scope,_))
           case "Wrap" | "Unwrap" | "Subtraction" | "Restriction" | "Raffination" => one(scope,n.inputs.head)
@@ -291,7 +312,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       case Left(Node("Union",_,_,Vector(_,right))) => loopAt(right)
       case _ => None
     def prefixFree(n: Node[Pos]): Boolean =
-      if n.operation=="FirstFibonacci" || n.operation=="FirstTerminated" then true
+      if n.operation=="FirstFibonacci" || n.operation=="FirstTerminated" || n.operation=="FirstLengthPrefixed" then true
       else if Set("FirstMatching","FirstListed")(n.operation) then
         val tokens=n.constant.split("\\|",2)(1).split("\\s+").filter(_.nonEmpty).map(_.toInt).iterator
         val codes=Vector.fill(tokens.next()) {Vector.fill(tokens.next())(tokens.next())}.sorted
@@ -486,9 +507,20 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
           owned+=pos
         case Left(n) =>
           val chain=if reuse && n.operation=="TailsUnion" then Some(tailsChain(g,pos)) else None
-          val ins=chain.fold(n.inputs)(c=>Vector(c._1)).map(value)
+          val projection=if sink.exists(writeSinks.contains) then terminalProjection(g,pos) else None
+          val ins=projection.map((src,p)=>Vector(src)++p.toVector).getOrElse(chain.fold(n.inputs)(c=>Vector(c._1))).map(value)
           def call(fn: String): String = s"${kernel(fn,ins)}(${ins.map(borrow).mkString(",")})"
-          val code=n.operation match
+          val code=if projection.nonEmpty then
+            val target=sink.get;val writer=writeSinks(target)
+            projection.get._2.foreach(_=>line(s"$writer.descend_to(${borrow(ins(1))});"))
+            focus(ins.head).filter(f=>cursorDepth.get(f.cursor).contains(f.depth)) match
+              case Some(f)=>line(s"join_branches(&mut $writer,&mut ${f.cursor});")
+              case _=>
+                line(s"let mut ${name}_branches = ${readCursor(ins.head)};")
+                line(s"join_branches(&mut $writer,&mut ${name}_branches);")
+            projection.get._2.foreach(_=>line(s"$writer.ascend((${borrow(ins(1))}).len());"))
+            bindings=bindings.updated(pos,target); ""
+          else n.operation match
             case "ExtractPathRef" | "ExtractSpaceMention" => bindings=bindings.updated(pos,args.getOrElse(index,params(n.kind->n.constant))); ""
             case "Alias" => bindings=bindings.updated(pos,ins.head); ""
             case "Constant" => bindings=bindings.updated(pos,pathConstant(g.pathValue(n.constant))); ""
@@ -500,6 +532,10 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
               val a=slices(ins.head);val b=slices(ins(1))
               slices(name)=a.copy(end=b.end);bindings=bindings.updated(pos,name);nativeTypes(name)="PathSlice"; ""
             case "Concat" => call("concat_path")
+            case "Singleton" if reuse && pos==output(g) && sink.exists(writeSinks.contains) =>
+              val target=sink.get
+              line(s"write_path(&mut ${writeSinks(target)},${borrow(ins.head)});")
+              bindings=bindings.updated(pos,target); ""
             case "Singleton" => call("singleton")
             case "Call" =>
               val invoke=if tailCall.contains(g->pos) then
@@ -523,6 +559,10 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
             case "Restriction" => call("restrict_to")
             case "Raffination" => call("raffine")
             case "Composition" => call("compose")
+            case "Wrap" if reuse && pos==output(g) && sink.exists(writeSinks.contains) =>
+              val target=sink.get
+              line(s"join_wrapped_into(&mut ${writeSinks(target)},${zipperBorrow(ins.head)},${borrow(ins(1))});")
+              bindings=bindings.updated(pos,target); ""
             case "Wrap" => call("wrap")
             case "Unwrap" if reuse =>
               residuals(name)=residuals.get(ins.head).fold(Residual(ins.head,Vector(ins(1))))(r=>r.copy(prefixes=r.prefixes:+ins(1)))
@@ -544,7 +584,8 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
             case "GroundedSP" => s"singleton_path(&grounded_${n.constant}(c,${nativeBorrow(ins.head)}))"
             case "GroundedPS" => s"grounded_${n.constant}(c,&singleton(${borrow(ins.head)}))"
             case "GroundedSS" => s"grounded_${n.constant}(c,${nativeBorrow(ins.head)})"
-            case "FirstFibonacci" | "FirstMatching" | "FirstListed" | "FirstTerminated" if orderedHead.contains(g->pos) => bindings=bindings.updated(pos,"ordered_head"); ""
+            case "FirstFibonacci" | "FirstMatching" | "FirstListed" | "FirstTerminated" | "FirstLengthPrefixed" if orderedHead.contains(g->pos) => bindings=bindings.updated(pos,"ordered_head"); ""
+            case "FirstLengthPrefixed" => s"${kernel("first_length_prefixed",ins)}(${borrow(ins.head)})"
             case "FirstTerminated" => s"${kernel("first_terminated",ins)}(${borrow(ins.head)})"
             case "FirstFibonacci" => s"${kernel("first_fibonacci",ins)}(${borrow(ins.head)},${n.constant})"
             case "FirstMatching" | "FirstListed" =>
@@ -560,12 +601,21 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
         case Right(sub) =>
           nativeTypes(name)="Space"
           val result=if reuse && pos==output(g) && Set("Iteration","NativePathIteration")(sub.root.operation) then sink.getOrElse(name) else name
-          def freshResult(): Unit = if result==name then line(s"let mut $result = Space::new();")
-          def collect(body: String): Unit = if body!=result then line(s"  $result.join_into(${copied(body)});")
+          def freshResult(): Unit = if result==name then
+            line(s"let mut $result = Space::new();")
+            if reuse then
+              val writer=s"${name}_write"
+              line(s"let mut $writer = $result.write_zipper();")
+              nativeTypes(writer)="WriteCursor<'_>";writeSinks(result)=writer
+          def collect(body: String): Unit = if body!=result then
+            if writeSinks.contains(result) then line(s"  join_wrapped_into(&mut ${writeSinks(result)},${zipperBorrow(body)},&[]);")
+            else line(s"  $result.join_into(${copied(body)});")
           val input=sub.root.inputs.map(value)
           if lengthDrop(sub) then
             val call=s"${kernel("drop_length_prefixes",input)}(${borrow(input.head)})"
-            if result==name then line(s"let $name: Space = $call;") else line(s"$result.join_into($call);")
+            if result==name then line(s"let $name: Space = $call;")
+            else if writeSinks.contains(result) then line(s"join_wrapped_into(&mut ${writeSinks(result)},&($call).read_zipper(),&[]);")
+            else line(s"$result.join_into($call);")
           else sub.root.operation match
             case "NativePathIteration" =>
               val pc=sub.root.constant.toInt
@@ -676,6 +726,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
               else line(s"  if !$name.join_into(${copied(inner(output(sub)))}).is_element() { break; }")
               line("}")
             case other => throw IllegalArgumentException(s"unsupported Rust graph scope $other")
+          if result==name then writeSinks.remove(result).foreach(writer=>line(s"drop($writer);"))
           bindings=bindings.updated(pos,result)
           nativeTypes(result)="Space"
           if result==name then owned+=pos
@@ -720,6 +771,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
           val n=plan.operation
           val selection=if n.operation=="FirstFibonacci" then s"map_kernels::ordered_fibonacci(&($initial),${n.constant})"
             else if n.operation=="FirstTerminated" then s"map_kernels::ordered_terminated(&($initial))"
+            else if n.operation=="FirstLengthPrefixed" then s"map_kernels::ordered_length_prefixed(&($initial))"
             else
               val (allowed,prefix)=selectionConstant(n)
               val fn=if n.operation=="FirstMatching" then "map_map_kernels::ordered_matching" else "map_kernels::ordered_listed"

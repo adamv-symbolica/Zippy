@@ -104,6 +104,98 @@ private[morkl] final class OpenFstHeadSelection[V,L <: DigitLanguage[V]](
         }.map(_=>input) }
       }
       case _=>None
+  /** Inductive proof of a length-byte scanner. Negative abstract digits stand
+    * for an arbitrary accumulator, arbitrary payload byte and continuation.
+    * Set predicates may inspect only concrete digits; an opaque suffix may not
+    * be inspected at all. For every counter byte the scanner must either return
+    * its accumulator (zero), or consume exactly one byte and recurse with n-1.
+    */
+  def lengthFirst(x: source.Space): Option[source.Space] =
+    def prove(heads: source.Space): Option[source.Space] = heads match
+      case S.Iteration(input,h,t,S.Call(name,Vector(P.Deref(a),P.Deref(b)),Vector(S.Mention(r))))
+          if h.s!="_" && t.s!="_" && a==h && b==h && r==t =>
+        routines.get(name).filter(fn=>fn.refs.size==2 && fn.mentions.size==1).flatMap { scan=>
+          import Value.*
+          type PC=Map[PathRef,Vector[Int]]
+          type SC=Map[SpaceMention,Value]
+          def sequence[A](xs: Vector[Option[A]]): Option[Vector[A]] =
+            if xs.forall(_.nonEmpty) then Some(xs.map(_.get)) else None
+          def path(p: source.Path,pc: PC): Option[Vector[Int]] = p match
+            case P.Constant(v)=>Some(encode(v))
+            case P.Deref(r)=>pc.get(r)
+            case P.Concat(a,b)=>for x<-path(a,pc);y<-path(b,pc) yield x++y
+            case _=>None
+          var fuel=0
+          var counter=0
+          def concrete(ps: Set[Vector[Int]])=ps.forall(_.forall(_>0))
+          def eval(x: source.Space,pc: PC,sc: SC): Option[Value] =
+            fuel-=1
+            if fuel<0 then None
+            else x match
+              case S.Empty=>Some(Known(Set.empty))
+              case S.Mention(r)=>sc.get(r)
+              case S.Singleton(p)=>path(p,pc).map(p=>Known(Set(p)))
+              case S.Literal(v)=>Some(Known(v.paths.map(encode)))
+              case S.Union(a,b)=>for case Known(l)<-eval(a,pc,sc);case Known(r)<-eval(b,pc,sc) yield Known(l union r)
+              case S.Intersection(a,b)=>
+                for
+                  case Known(l)<-eval(a,pc,sc);case Known(r)<-eval(b,pc,sc)
+                  if concrete(l) && concrete(r)
+                yield Known(l intersect r)
+              case S.Subtraction(a,b)=>
+                for
+                  case Known(l)<-eval(a,pc,sc);case Known(r)<-eval(b,pc,sc)
+                  if concrete(l) && concrete(r)
+                yield Known(l diff r)
+              case S.Unwrap(a,p)=>
+                for
+                  case Known(ps)<-eval(a,pc,sc);prefix<-path(p,pc)
+                  if concrete(ps) && prefix.forall(_>0)
+                yield Known(ps.filter(_.startsWith(prefix)).map(_.drop(prefix.size)))
+              case S.Composition(a,b)=>eval(a,pc,sc).flatMap {
+                case Known(l) if l.isEmpty=>Some(Known(Set.empty))
+                case Known(l) if concrete(l)=>eval(b,pc,sc).collect {case Known(r)=>Known(for a<-l;b<-r yield a++b)}
+                case _=>None
+              }
+              case S.Iteration(a,h,t,b)=>eval(a,pc,sc).flatMap { value=>
+                def run(head: Vector[Int],tail: Value)=eval(b,
+                  if h.s=="_" then pc else pc.updated(h,head),if t.s=="_" then sc else sc.updated(t,tail))
+                value match
+                  case Residual(prefix) if prefix.nonEmpty=>run(prefix.take(1),Residual(prefix.tail))
+                  case Residual(_)=>None
+                  case Known(ps) if concrete(ps)=>sequence(ps.filter(_.nonEmpty).groupBy(_.head).toVector.map((h,ps)=>run(Vector(h),Known(ps.map(_.tail)))))
+                    .filter(_.forall {case Known(_)=>true;case _=>false})
+                    .map(rs=>Known(rs.collect {case Known(ps)=>ps}.foldLeft(Set.empty[Vector[Int]])(_ union _)))
+                  case _=>None
+              }
+              case S.Call(c,ps,ss)=>
+                for
+                  pv<-sequence(ps.map(path(_,pc)));sv<-sequence(ss.map(eval(_,pc,sc)))
+                  result<-if c==name then
+                    Option.when(counter>0 && pv==Vector(Vector(-1,-2),Vector(counter)) && sv==Vector(Residual(Vector.empty)))(Known(Set(Vector(-3))))
+                  else routines.get(c).filter(fn=>fn.refs.size==pv.size && fn.mentions.size==sv.size)
+                    .flatMap(fn=>eval(fn.body,(fn.refs zip pv).toMap,(fn.mentions zip sv).toMap))
+                yield result
+              case _=>None
+          val valid=(0 to 255).forall { n=>
+            fuel=10000;counter=n
+            eval(scan.body,Map(scan.refs(0)->Vector(-1),scan.refs(1)->Vector(n+1)),
+              Map(scan.mentions.head->Residual(Vector(-2)))).contains(Known(Set(Vector(if n==0 then -1 else -3))))
+          }
+          Option.when(valid)(input)
+        }
+      case _=>None
+    def captures(value: Any,h: PathRef,t: SpaceMention): Boolean = value match
+      case p: PathRef=>p==h
+      case s: SpaceMention=>s==t
+      case xs: Iterable[?]=>xs.exists(captures(_,h,t))
+      case p: Product=>p.productIterator.exists(captures(_,h,t))
+      case _=>false
+    x match
+      case S.Iteration(heads,h,t,S.Wrap(S.Intersection(S.Mention(r),S.Range(S.TailsUnion(other),0,1)),P.Deref(p)))
+          if h.s!="_" && t.s!="_" && r==t && p==h && heads==other && !captures(heads,h,t)=>prove(heads)
+      case _=>None
+
   private def closedPath(p: source.Path, bound: Set[String]): Boolean = p match
     case P.Deref(r) => bound(r.s)
     case P.Constant(_) => true

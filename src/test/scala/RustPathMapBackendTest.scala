@@ -214,6 +214,14 @@ class RustPathMapBackendTest extends FunSuite:
       val text=RustPathMapBackend.bytes(strings.program.entry,strings.program.routines)
       assert(text.code.contains("ordered_terminated"))
       assertEquals(text.eval(spaces=Map(input->strings.encode(bitValues).paths)).map(strings.encoding.decode),bitValues.paths)
+      val length=RadixTranslations.lengthPrefixedStringsToBytes(expr)
+      val lengthCode=RustPathMapBackend.bytes(length.program.entry,length.program.routines)
+      assert(lengthCode.graphDescription.contains("FirstLengthPrefixed"))
+      assert(lengthCode.code.contains("ordered_length_prefixed"))
+      assertEquals(lengthCode.eval(spaces=Map(input->length.encode(value).paths)).map(length.encoding.decode),value.paths)
+      val badLength=Set(BytePathValue(),BytePathValue(0),BytePathValue(0,4),BytePathValue(1),BytePathValue(1,0,255),BytePathValue(3,2,1),BytePathValue(2,255,1,0))
+      assertEquals(lengthCode.eval(spaces=Map(input->badLength)),Zippy_bytes.eval(length.program.entry,
+        spaceArgs=Map(input->Zippy_bytes.SpaceValue(badLength)),routines=length.program.routines).paths)
       val malformed=Set(BytePathValue(),BytePathValue(0),BytePathValue(0,0),BytePathValue(1),BytePathValue(1,0,255),BytePathValue(255,0,1,0),BytePathValue(255,1))
       assertEquals(text.eval(spaces=Map(input->malformed)),Zippy_bytes.eval(strings.program.entry,
         spaceArgs=Map(input->Zippy_bytes.SpaceValue(malformed)),routines=strings.program.routines).paths)
@@ -223,6 +231,10 @@ class RustPathMapBackendTest extends FunSuite:
       val encoded=RadixTranslations.internedSymbolsToBytes(growing,Map.empty,table)
       val actual=RustPathMapBackend.bytes(encoded.program.entry,encoded.program.routines).eval(spaces=Map(input->encoded.encode(small).paths))
       assertEquals(actual.map(encoded.encoding.decode),eval(growing)(using sc=SpaceContextMap(Map(input->small))).paths)
+      val orderedLength=RadixTranslations.lengthPrefixedStringsToBytes(growing)
+      assertEquals(RustPathMapBackend.bytes(orderedLength.program.entry,orderedLength.program.routines)
+        .eval(spaces=Map(input->orderedLength.encode(small).paths)).map(orderedLength.encoding.decode),
+        eval(growing)(using sc=SpaceContextMap(Map(input->small))).paths)
       val orderedStrings=RadixTranslations.stringsToBytes(growing)
       assertEquals(RustPathMapBackend.bytes(orderedStrings.program.entry,orderedStrings.program.routines)
         .eval(spaces=Map(input->orderedStrings.encode(small).paths)).map(orderedStrings.encoding.decode),

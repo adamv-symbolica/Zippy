@@ -128,12 +128,13 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
     val previous = converted.get(s)
     if previous != null then previous
     else
+      val length = if graphOnly then Option(selector).flatMap(_.lengthFirst(s)) else None
       val terminated = if graphOnly then Option(selector).flatMap(_.terminatedFirst(s)) else None
-      val result = if terminated.nonEmpty then
+      val result = if terminated.nonEmpty || length.nonEmpty then
         val name=Iterator.iterate(s"__openfst_proven_selection_${intrinsicCalls.size}")(_+"_")
           .map(RoutinePtr(_)).find(p=> !reservedRoutines(p) && !intrinsicCalls.contains(p)).get
-        intrinsicCalls(name)="FirstTerminated"->""
-        Space.Call(name,Vector.empty,Vector(convertSpace(terminated.get)))
+        intrinsicCalls(name)=(if length.nonEmpty then "FirstLengthPrefixed" else "FirstTerminated")->""
+        Space.Call(name,Vector.empty,Vector(convertSpace(length.orElse(terminated).get)))
       else Option(selector).flatMap(_.plan(s)) match
         case Some(plan) =>
           val codes = plan.codes

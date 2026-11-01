@@ -11,6 +11,37 @@ use std::time::Instant;
 pub type Space = PathMap<()>;
 pub type Path = smallvec::SmallVec<[u8; 8]>;
 pub type View<'a, 'p> = ReadZipperUntracked<'a, 'p, ()>;
+pub type WriteCursor<'a> = WriteZipperUntracked<'a, 'static, ()>;
+
+/// Accumulate a wrapped residual without constructing the wrapped map. The
+/// output cursor is adiabatic, so sibling and nested bodies share it as well.
+#[inline]
+pub fn join_wrapped_into(out: &mut WriteCursor<'_>, source: &View<'_, '_>, prefix: &[u8]) {
+    if !source.is_val() && source.child_count() == 0 {
+        return;
+    }
+    out.descend_to(prefix);
+    out.join_into(source);
+    out.ascend(prefix.len());
+}
+
+#[inline]
+pub fn write_path(out: &mut WriteCursor<'_>, path: &[u8]) {
+    out.descend_to(path);
+    out.set_val(());
+    out.ascend(path.len());
+}
+
+#[inline]
+pub fn join_branches(out: &mut WriteCursor<'_>, source: &mut View<'_, '_>) {
+    for byte in source.child_mask().iter() {
+        source.descend_to_existing_byte(byte);
+        out.descend_to_byte(byte);
+        out.join_into(&*source);
+        out.ascend(1);
+        source.ascend(1);
+    }
+}
 
 /// Statically dispatched borrowed input. A loop tail is a read zipper; an owned
 /// map is materialized only for an output or an ordinary function boundary.
@@ -940,6 +971,82 @@ pub fn first_terminated(a: &impl ReadSpace) -> Space {
         .map_or_else(Space::new, |p| singleton(&p))
 }
 
+/// Merge at most 256 native fixed-depth cursor streams by payload order.
+/// The heap holds cursor indices, never copied paths or materialized head maps.
+pub struct LengthHeads {
+    cursors: smallvec::SmallVec<[(usize, ReadZipperOwned<()>); 8]>,
+    heap: smallvec::SmallVec<[usize; 16]>,
+}
+impl LengthHeads {
+    fn new(a: &impl ReadSpace) -> Self {
+        let source = a.make_space();
+        let mut result = Self {
+            cursors: smallvec::SmallVec::new(),
+            heap: smallvec::SmallVec::new(),
+        };
+        for byte in source.read_zipper().child_mask().iter() {
+            let mut z = source.clone().into_read_zipper([]);
+            z.descend_to_byte(byte);
+            let width = byte as usize;
+            if width == 0 || z.descend_first_k_path(width) {
+                result.heap.push(result.cursors.len());
+                result.cursors.push((width, z));
+            }
+        }
+        for i in (0..result.heap.len() / 2).rev() {
+            result.sift(i);
+        }
+        result
+    }
+    fn sift(&mut self, mut i: usize) {
+        loop {
+            let left = i * 2 + 1;
+            if left >= self.heap.len() {
+                break;
+            }
+            let right = left + 1;
+            let mut child = left;
+            if right < self.heap.len() && self.less(right, left) {
+                child = right;
+            }
+            if !self.less(child, i) {
+                break;
+            }
+            self.heap.swap(i, child);
+            i = child;
+        }
+    }
+    fn less(&self, a: usize, b: usize) -> bool {
+        self.cursors[self.heap[a]].1.path()[1..] < self.cursors[self.heap[b]].1.path()[1..]
+    }
+    #[allow(clippy::should_implement_trait)]
+    #[inline(never)]
+    pub fn next(&mut self) -> Option<Path> {
+        <Self as Iterator>::next(self)
+    }
+}
+impl Iterator for LengthHeads {
+    type Item = Path;
+    fn next(&mut self) -> Option<Path> {
+        let &index = self.heap.first()?;
+        let (width, z) = &mut self.cursors[index];
+        let result = Path::from_slice(z.path());
+        if *width == 0 || !z.to_next_k_path(*width) {
+            self.heap.swap_remove(0);
+        }
+        self.sift(0);
+        Some(result)
+    }
+}
+pub fn ordered_length_prefixed(a: &impl ReadSpace) -> LengthHeads {
+    LengthHeads::new(a)
+}
+pub fn first_length_prefixed(a: &impl ReadSpace) -> Space {
+    LengthHeads::new(a)
+        .next()
+        .map_or_else(Space::new, |p| singleton(&p))
+}
+
 struct MatchFrame {
     children: pathmap::utils::ByteMaskIter,
     entered: bool,
@@ -1227,6 +1334,14 @@ macro_rules! unary_kernels {
             #[inline]
             pub fn range_const<const LO: i32, const HI: i32>(a: &$input) -> Space {
                 super::range_const::<LO, HI>(a)
+            }
+            #[inline(never)]
+            pub fn first_length_prefixed(a: &$input) -> Space {
+                super::first_length_prefixed(a)
+            }
+            #[inline(never)]
+            pub fn ordered_length_prefixed(a: &$input) -> LengthHeads {
+                super::ordered_length_prefixed(a)
             }
             #[inline(never)]
             pub fn first_terminated(a: &$input) -> Space {

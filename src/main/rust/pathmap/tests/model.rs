@@ -72,6 +72,41 @@ fn adiabatic_walks_restore_their_focus_and_never_visit_siblings() {
     let a = map(&framed);
     same(drop_length_prefixes(&a), expected.clone());
     same(drop_length_prefixes(&a.read_zipper()), expected);
+    let mut out = Space::new();
+    let mut expected = Set::new();
+    {
+        let mut w = out.write_zipper();
+        for prefix in [vec![], vec![0], vec![255, 1]] {
+            join_wrapped_into(&mut w, &a.read_zipper(), &prefix);
+            write_path(&mut w, &prefix);
+            assert!(w.path().is_empty());
+            expected.insert(prefix.clone());
+            expected.extend(
+                framed
+                    .iter()
+                    .map(|p| [prefix.as_slice(), p.as_slice()].concat()),
+            );
+        }
+    }
+    same(out, expected);
+    let mut out = Space::new();
+    {
+        let mut w = out.write_zipper();
+        let mut r = a.read_zipper();
+        w.descend_to(&[6, 7]);
+        join_branches(&mut w, &mut r);
+        assert_eq!(w.path(), [6, 7]);
+        assert!(r.path().is_empty());
+        w.ascend(2);
+    }
+    same(
+        out,
+        framed
+            .iter()
+            .filter(|p| !p.is_empty())
+            .map(|p| [&[6, 7], p.as_slice()].concat())
+            .collect(),
+    );
 }
 fn map(s: &Set) -> Space {
     let mut m = Space::new();
@@ -340,6 +375,38 @@ fn compact_products_have_exact_unbounded_cardinality_and_ranges() {
 
 #[test]
 fn proven_codeword_selectors_preserve_ordinal_order() {
+    // Arbitrary bytes, all 256 length buckets, incomplete records, epsilon,
+    // interior terminals and shared tails. Compare with independent set logic.
+    let mut raw = BTreeSet::new();
+    for n in 0..=255usize {
+        for seed in 0..3usize {
+            let mut p = vec![n as u8];
+            p.extend((0..n).map(|i| (seed * 83 + i * 37) as u8));
+            raw.insert(p.clone());
+            p.extend([0, 255]);
+            raw.insert(p);
+        }
+        if n > 0 {
+            raw.insert(vec![n as u8]);
+        }
+    }
+    raw.insert(vec![]);
+    let mut expected = raw
+        .iter()
+        .filter(|p| !p.is_empty() && p.len() > p[0] as usize)
+        .map(|p| p[..=p[0] as usize].to_vec())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    expected.sort_by(|a, b| a[1..].cmp(&b[1..]));
+    let a = map(&raw);
+    assert_eq!(
+        ordered_length_prefixed(&a)
+            .map(|p| p.to_vec())
+            .collect::<Vec<_>>(),
+        expected
+    );
+    same(first_length_prefixed(&a), [expected[0].clone()].into());
     fn fib(mut n: u64) -> Path {
         let mut weights = vec![1, 2];
         while *weights.last().unwrap() <= n {
