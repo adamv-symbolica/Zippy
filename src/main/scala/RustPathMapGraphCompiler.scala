@@ -133,11 +133,16 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
   private def withoutEpsilon(g: RecursiveOpGraph,p: Pos): Option[Pos] = g.lookup(alias(g,p)) match
     case Left(Node("Subtraction",_,_,Vector(a,b))) if epsilon(g,b)=>Some(a)
     case _=>None
-  private def terminalProjection(g: RecursiveOpGraph,p: Pos): Option[(Pos,Option[Pos])] =
+  private def headSource(g: RecursiveOpGraph,p: Pos): Option[Pos] = g.lookup(alias(g,p)) match
+    case Left(Node("NativeHead",_,_,Vector(s)))=>Some(s)
+    case _=>None
+  private def terminalProjection(g: RecursiveOpGraph,p: Pos): Option[(Pos,Option[Pos],Boolean)] =
     if !reuse || p!=output(g) || !Set("Iteration","NativePathIteration")(g.root.operation) then None
     else g.lookup(alias(g,p)) match
-      case Left(Node("Wrap",_,_,Vector(s,prefix)))=>withoutEpsilon(g,s).map(_->Some(prefix))
-      case Left(Node("Subtraction",_,_,_))=>withoutEpsilon(g,p).map(_->None)
+      case Left(Node("Wrap",_,_,Vector(s,prefix)))=>
+        headSource(g,s).map((_,Some(prefix),true)).orElse(withoutEpsilon(g,s).map((_,Some(prefix),false)))
+      case Left(Node("Subtraction",_,_,_))=>withoutEpsilon(g,p).map((_,None,false))
+      case Left(Node("NativeHead",_,_,Vector(s)))=>Some((s,None,true))
       case _=>None
 
   /** Prove from the optimized graph that each byte branch removes that many
@@ -217,7 +222,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       demands.put(g,wanted)
     if wanted.add(pos._2) then g.nodes(pos._2) match
       case Left(_) if terminalProjection(g,pos).nonEmpty=>
-        val (source,prefix)=terminalProjection(g,pos).get;mark(g,source);prefix.foreach(mark(g,_))
+        val (source,prefix,_)=terminalProjection(g,pos).get;mark(g,source);prefix.foreach(mark(g,_))
       case Left(node) if reuse && node.operation=="TailsUnion"=>mark(g,tailsChain(g,pos)._1)
       case Left(node) => node.inputs.foreach(mark(g,_))
       case Right(sub) =>
@@ -229,7 +234,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
 
   private def dependencies(g: RecursiveOpGraph, index: Int): Set[Pos] = dependencyCache.getOrElseUpdate(g->index,g.nodes(index) match
     case Left(_) if terminalProjection(g,g.level->index).nonEmpty=>
-      val (source,prefix)=terminalProjection(g,g.level->index).get;Set(source)++prefix
+      val (source,prefix,_)=terminalProjection(g,g.level->index).get;Set(source)++prefix
     case Left(n) if reuse && n.operation=="TailsUnion"=>Set(tailsChain(g,g.level->index)._1)
     case Left(n) => n.inputs.toSet
     case Right(child) =>
@@ -508,17 +513,21 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
         case Left(n) =>
           val chain=if reuse && n.operation=="TailsUnion" then Some(tailsChain(g,pos)) else None
           val projection=if sink.exists(writeSinks.contains) then terminalProjection(g,pos) else None
-          val ins=projection.map((src,p)=>Vector(src)++p.toVector).getOrElse(chain.fold(n.inputs)(c=>Vector(c._1))).map(value)
+          val ins=projection.map((src,p,_)=>Vector(src)++p.toVector).getOrElse(chain.fold(n.inputs)(c=>Vector(c._1))).map(value)
           def call(fn: String): String = s"${kernel(fn,ins)}(${ins.map(borrow).mkString(",")})"
           val code=if projection.nonEmpty then
             val target=sink.get;val writer=writeSinks(target)
-            projection.get._2.foreach(_=>line(s"$writer.descend_to(${borrow(ins(1))});"))
-            focus(ins.head).filter(f=>cursorDepth.get(f.cursor).contains(f.depth)) match
-              case Some(f)=>line(s"join_branches(&mut $writer,&mut ${f.cursor});")
-              case _=>
-                line(s"let mut ${name}_branches = ${readCursor(ins.head)};")
-                line(s"join_branches(&mut $writer,&mut ${name}_branches);")
-            projection.get._2.foreach(_=>line(s"$writer.ascend((${borrow(ins(1))}).len());"))
+            if projection.get._3 then
+              val prefix=projection.get._2.fold("&[]")(_=>borrow(ins(1)))
+              line(s"write_heads_mask(&mut $writer,(${borrow(ins.head)}).head_mask(),$prefix);")
+            else
+              projection.get._2.foreach(_=>line(s"$writer.descend_to(${borrow(ins(1))});"))
+              focus(ins.head).filter(f=>cursorDepth.get(f.cursor).contains(f.depth)) match
+                case Some(f)=>line(s"join_branches(&mut $writer,&mut ${f.cursor});")
+                case _=>
+                  line(s"let mut ${name}_branches = ${readCursor(ins.head)};")
+                  line(s"join_branches(&mut $writer,&mut ${name}_branches);")
+              projection.get._2.foreach(_=>line(s"$writer.ascend((${borrow(ins(1))}).len());"))
             bindings=bindings.updated(pos,target); ""
           else n.operation match
             case "ExtractPathRef" | "ExtractSpaceMention" => bindings=bindings.updated(pos,args.getOrElse(index,params(n.kind->n.constant))); ""

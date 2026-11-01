@@ -32,6 +32,19 @@ pub fn write_path(out: &mut WriteCursor<'_>, path: &[u8]) {
     out.ascend(path.len());
 }
 
+/// Append terminal head bytes directly to an existing output focus, preserving
+/// any longer paths already present below those same bytes.
+#[inline(never)]
+pub fn write_heads_mask(out: &mut WriteCursor<'_>, mask: pathmap::utils::ByteMask, prefix: &[u8]) {
+    out.descend_to(prefix);
+    for byte in mask.iter() {
+        out.descend_to_byte(byte);
+        out.set_val(());
+        out.ascend(1);
+    }
+    out.ascend(prefix.len());
+}
+
 #[inline]
 pub fn join_branches(out: &mut WriteCursor<'_>, source: &mut View<'_, '_>) {
     for byte in source.child_mask().iter() {

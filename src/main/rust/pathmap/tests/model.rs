@@ -1,10 +1,23 @@
 use num_bigint::BigUint;
+use pathmap::utils::BitMask;
 use std::collections::BTreeSet;
 use zippy_pathmap::*;
 type Set = BTreeSet<Vec<u8>>;
 
 #[test]
 fn adiabatic_walks_restore_their_focus_and_never_visit_siblings() {
+    let mut preserved = singleton(&[9, 1, 2]);
+    {
+        let mut out = preserved.write_zipper();
+        out.descend_to_byte(9);
+        let mut mask = pathmap::utils::ByteMask::new();
+        mask.set_bit(1);
+        mask.set_bit(255);
+        write_heads_mask(&mut out, mask, &[]);
+        assert_eq!(out.path(), &[9]);
+    }
+    same(preserved, [vec![9, 1], vec![9, 1, 2], vec![9, 255]].into());
+
     let paths: Set = [
         vec![],
         vec![0],
