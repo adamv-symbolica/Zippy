@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "uniqueChecks": 247048,
+  "frames": 30881,
+  "directions": {
+    "symbols-bits": 30881,
+    "strings-bytes": 30881,
+    "length-bytes": 30881,
+    "interned-bytes": 30881,
+    "bits-bytes": 30881,
+    "bytes-bits": 30881,
+    "bits-symbols": 30881,
+    "bytes-symbols": 30881
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "success": true,
+  "workloads": 166,
+  "nativeRows": 664,
+  "exactRows": 652,
+  "cardinalityOnlyRows": 12,
+  "encodings": {
+    "bits-bytes": 166,
+    "bytes-interned": 166,
+    "bytes-length": 166,
+    "bytes-strings": 166
+  },
+  "families": {
+    "algebra-scaling": 64,
+    "large": 56,
+    "cost-correlation": 16,
+    "iter-range-tail": 12,
+    "cost-counter": 84,
+    "independent-product": 32,
+    "programs": 88,
+    "incremental-union": 16,
+    "construction": 32,
+    "algebra": 264
+  },
+  "benchmarkJobs": 52,
+  "cppBenchmarkJobs": 37,
+  "nativeMicroRows": 180,
+  "cppMicroRows": 132,
+  "cursorReuseRows": 18,
+  "sourceCommit": "fdf15dd188e20f3739d0d1060fefeb503c3509d0"
+}

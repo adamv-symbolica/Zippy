@@ -1,0 +1,5 @@
+family,name,dialect,paths,compile_ms,native_ms,reference_trie_ms,samples,checked,graph_compile_ms,graph_nodes,generated_bytes,precomputed,rust_opt_level
+"algebra","50%/combination/diff then restriction",bytes-interned,552,64.939,0.519842,91.099,5,exact,65.414,5,654,false,3
+"algebra","50%/combination/diff then restriction",bytes-strings,552,1.942,0.944513,91.099,5,exact,2.476,5,654,false,3
+"algebra","50%/combination/diff then restriction",bytes-length,552,1.756,0.586441,91.099,5,exact,2.833,5,654,false,3
+"algebra","50%/combination/diff then restriction",bits-bytes,552,1.710,1.119692,91.099,5,exact,2.179,5,654,false,3

@@ -16,7 +16,7 @@ only the repository guide.
 The project contains working implementations of:
 
 - the direct `Set[PathValue]` reference semantics;
-- matching bit and byte languages, reference backends, and all seven encoding translations (see [Bit and Byte Zippy](docs/RADIX_LANGUAGES.md));
+- matching bit and byte languages, reference backends, and eight encoding translations, including length-prefixed strings (see [Bit and Byte Zippy](docs/RADIX_LANGUAGES.md));
 - an interned `IntMap` trie runtime;
 - a C++17 / OpenFst backend for symbols, bits, and bytes (see [backend usage](docs/OPENFST_BACKEND.md));
 - a Rust / PathMap compiler for byte executor graphs, including all operations and the symbol/bit-to-byte translations (see [backend usage](docs/PATHMAP_BACKEND.md));
@@ -202,7 +202,8 @@ row is timed.
 See:
 
 - [Rust PathMap backend, all operations and byte encodings](docs/PATHMAP_BACKEND.md)
-- [PathMap and OpenFst results by example, all evaluators](docs/pathmap-benchmarks/README.md)
+- [OEIS reproduced with Zippy](docs/OEIS_BENCHMARK.md)
+- [PathMap and OpenFst results by example, all evaluators](docs/pathmap-adiabatic-benchmarks/README.md)
 - [Standalone Rust cornerstone sources](docs/compiled-cornerstones-rust/README.md)
 - [Cornerstone results by example, all evaluators and C++ dialects](docs/cornerstone-benchmarks/README.md)
 - [Compiled cornerstone sources for manual review](docs/compiled-cornerstones/README.md)

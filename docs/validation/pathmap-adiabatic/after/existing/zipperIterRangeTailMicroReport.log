@@ -1,0 +1,13 @@
+Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Xmx32g -Xss64m -Dmorkl.pathmap.root=/home/ubuntu/Zippy-bulk-final
+[iter-range-tail-micro] heads=32 tailFanout=12
+[iter-range-tail-micro] heads=96 tailFanout=16
+[iter-range-tail-micro] heads=192 tailFanout=16
+# Iter Range-Tail Zipper Microbenchmark
+
+This isolates `SpaceZipper.Iteration(..., RangeTail(0, -1))`, the path used by range-tail iteration over child zippers. The old model first collected all output keys, then recomputed each key by scanning every source head again. The current implementation accumulates per-key children in the first branch traversal and joins them once.
+
+| source heads | tail fanout | result paths | old emulation ms | current ms | old / current |
+|---:|---:|---:|---:|---:|---:|
+| 32 | 12 | 352 | 8.185 | 0.871 | 9.40 x |
+| 96 | 16 | 1,440 | 65.071 | 1.324 | 49.14 x |
+| 192 | 16 | 2,880 | 110.885 | 1.871 | 59.26 x |

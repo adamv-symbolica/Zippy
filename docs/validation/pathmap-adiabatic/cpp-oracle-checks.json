@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "sources": 108,
+  "cases": 36,
+  "independentScalaTrieOracle": true,
+  "sha256Format": "SHA-256 of json.dumps(sorted(set(tuple(path) for path in expected)), ensure_ascii=True)"
+}

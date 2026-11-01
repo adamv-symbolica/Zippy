@@ -1,0 +1,2 @@
+family,name,dialect,paths,reference_ms,samples,checked
+programs,"n-queens/MORKL 8x8 compile-pass",bytes,92,0.003786,5,exact

@@ -35,7 +35,9 @@ at `f3e442ed19025582aced71c598a0359b3b469e45`, with the sparse restriction fix f
 The PR branches do not contain one another. A local `structurally_equal`
 certificate method compares native nodes without
 constructing an algebraic result; its exact patch is recorded as
-`LOCAL_STRUCTURAL_EQUALITY.patch`. The manifest omits benchmark-only targets
+`LOCAL_STRUCTURAL_EQUALITY.patch`. A checked physical-node cardinality fold is
+recorded in `LOCAL_CHECKED_COUNT.patch`; the runtime falls back to exact BigUint
+counting on machine overflow. The manifest omits benchmark-only targets
 and dependencies. Provenance and the exact upstream patch are in
 `src/main/rust/pathmap/vendor/pathmap/UPSTREAM.json` and `PR172.patch`.
 Cargo.lock is committed, and cache identities and standalone review bundles
@@ -48,8 +50,9 @@ operations for epsilon paths to have the required semantics.
 
 Every space is a `PathMap<()>`; each accepted path has one unit terminal.
 Actual labels are bytes 0..255, including zero. Paths use an inline eight-byte
-`SmallVec`. No symbol boundaries, encoding dictionaries, lengths, or auxiliary
-language values are attached to spaces. The numeric process protocol reuses
+`SmallVec`. No encoding dictionaries or auxiliary language values are attached
+to spaces. Length-prefix bytes, when used, are ordinary bytes in the encoded
+paths. The numeric process protocol reuses
 the existing native session transport and represents byte b as b+1; this offset
 is removed before PathMap construction.
 
@@ -68,7 +71,7 @@ is removed before PathMap construction.
 | Fixpoint | In-place `join_into` with its algebraic status; exact fallback for opaque steps |
 | Equality | Native structural certificate, then exact shared-state zipper comparison when layouts differ |
 | Routine calls | Typed Rust functions, with lexical captures resolved at graph compilation |
-| Exact cardinality | Iterative BigUint fold memoized at shared physical node boundaries, including unary stems |
+| Exact cardinality | Checked native physical-node fold, with an exact memoized BigUint fallback on overflow |
 
 Composition and closures visit shared physical subtries through cached folds.
 A product with 2^80 accepted paths remains compact; counts and
@@ -91,11 +94,36 @@ Proven ordered head scanners use joint child-mask search
 or a bounded ordinal Fibonacci search; these are optimizations of existing
 operations and functions, not new language cases.
 
+Nested iterations, folds and terminal path walks are adiabatic: they descend a
+current read cursor and restore its entry depth. The compiler tracks provenance
+in its own binding tables. Contiguous concatenated heads become borrowed slices
+of that cursor's path; residual unwraps become further descent where the focus
+is current. Ancestor reads use a snapshot only while a deeper scope is active.
+Sibling walks restore and reuse the same cursor. Shared output unions use one
+write zipper, including direct wrapped-subtree grafts, singleton writes and
+terminal epsilon removal, direct head-mask writes and immediate tails unions.
+Dense heads use a bulk masked graft at empty output focuses. Singleton tails
+reuse the descended input cursor; multiple tails retain native bulk projection,
+which avoids fragmenting unions into many individual joins. No provenance object is emitted into the executable.
+`-Dmorkl.pathmap.reuse=false` provides an ablation using the same runtime and
+cardinality code; [measurements](pathmap-adiabatic-benchmarks/performance.md)
+separate these gains from the faster physical-node count.
+
+Length-byte dispatch is specialized only after a graph proof checks every byte
+branch. Ordered length-prefixed scanners have a separate inductive proof: zero
+returns the accumulator, every positive counter consumes exactly one arbitrary
+payload byte and recurses with its predecessor, and opaque suffixes cannot be
+inspected. A heap of at most 256 cursor indices merges fixed-depth native
+streams in payload order. Prefix-removing ordered folds hoist this stream once;
+they do not repeatedly materialize all remaining heads. Reused large helpers
+retain native call boundaries so expensive graph results remain shared.
+
 Read-only loop tails implement the statically dispatched `ReadSpace` adapter.
 The compiler selects concrete map/view kernel entry points, compiled at release
 level 3 even when large generated glue uses level 0 or 1. Algebra consumes those
 zippers directly where PathMap supports it; owned maps are materialized for
-results and ordinary routine/callback boundaries. Native
+results and opaque callback boundaries. Ordinary native routines accept read
+views. Native
 map inputs retain PathMap's direct algebra implementations. No trait-object
 dispatch or copied path list is introduced.
 
@@ -167,9 +195,9 @@ Native union can repeat work on distinct shared operand pairs. The diagnostic
 their inputs have O(N) states, while native work grows with the logical paths.
 This limits very large suffix closures. It is a performance limitation; the
 independent model checks exact closure results on bounded inputs. No additional
-PathMap correctness defect was found by the Zippy model, the 1,060 upstream unit
-tests, or PR #172's six upstream differential tests. One pre-existing upstream
-unit test is ignored.
+PathMap correctness defect was found by the Zippy model or
+upstream checks; exact counts and ignored tests are recorded in the current
+[validation report](validation/pathmap-adiabatic/README.md).
 
 The compiler preserves observable path order. In particular, the current SCC
 routine emits pivot/member pairs, so changing its pivot can change returned
@@ -202,7 +230,7 @@ PathMap's hash implementation:
 ```sh
 cd src/main/rust/pathmap
 cargo test --release --locked
-cargo clippy --all-targets -- -D warnings
+cargo clippy --no-deps --all-targets
 cargo run --release --locked --example benchmark
 ```
 
@@ -249,24 +277,25 @@ python3 tools/benchmark_pathmap.py --output output/pathmap-benchmarks --workers 
 
 The test runner executes every Scala suite, captures successful symbolic
 executions and direct digit executions, and replays them through compiled Rust.
-Each symbolic frame is checked with string bytes, fixed-width interned bytes,
-and Fibonacci bits injected into bytes. Direct bit tests are injected into bytes;
+Each symbolic frame is checked with terminated string bytes, length-prefixed
+string bytes, fixed-width interned bytes, and Fibonacci bits injected into bytes. Direct bit tests are injected into bytes;
 direct byte tests compile directly. Missing, failed, or incomplete comparisons
 fail the runner. Independent Rust tests compare the native primitives against
 ordered path sets, including epsilon and byte extremes, and test compact
 exponential products and scanner selection.
 
 The benchmark runner covers every existing benchmark main, all nine native
-workload families with three byte encodings, and 180 native microbenchmarks,
+workload families with four byte encodings, 18 cursor-reuse comparisons, and
+180 native microbenchmarks,
 including paired equality measurements.
 Parallel runs use an immutable benchmark JAR. Use `--workers 1` for isolated
 timings, or `--workers 8 --shards 4` for the full h4d throughput run.
 
-`exportCornerstoneRust` exports 108 complete programs for the 36 cornerstone
+`exportCornerstoneRust` exports 144 complete programs for the 36 cornerstone
 and supplementary cases. `tools/check_cornerstone_rust.py` builds each source
 and compares decoded output exactly against its independent Scala trie result.
 
-The [validation evidence](validation/pathmap-zipper/README.md),
-[per-example evaluator results](pathmap-benchmarks/README.md), and
+The [validation evidence](validation/pathmap-adiabatic/README.md),
+[per-example evaluator results](pathmap-adiabatic-benchmarks/README.md), and
 [standalone Rust review bundle](compiled-cornerstones-rust/README.md) record the
 completed h4d run and its exact source hashes.

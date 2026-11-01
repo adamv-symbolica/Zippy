@@ -1,0 +1,9 @@
+{
+  "success": true,
+  "measuredCommit": "fdf15dd188e20f3739d0d1060fefeb503c3509d0",
+  "files": 195,
+  "changedSinceMeasurement": [
+    "tools/report_adiabatic.py"
+  ],
+  "note": "Only the reporting tool changed after measurements; compiler, runtime, tests, encoders and benchmark runners match the measured source."
+}

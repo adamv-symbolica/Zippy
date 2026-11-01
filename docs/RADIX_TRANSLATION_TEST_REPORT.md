@@ -1,5 +1,18 @@
 # Full-suite translation validation
 
+The 2026-11-01 audit includes the new length-prefixed string translation.
+**333 Scala tests passed**, followed by **247,048 comparisons**: 30,881 captured
+source frames through each of eight translation routes. There were zero
+failures, unexpected source errors or unfinished frames. A separate native
+PathMap replay passed **124,652 comparisons**, including length-prefixed bytes.
+
+[Current evidence](validation/pathmap-adiabatic/README.md) retains the per-route
+counts, complete ledgers, logs and source hashes. The native test suites and
+optional valued suite were enabled. The earlier seven-route audit remains below
+as historical evidence.
+
+# Historical full-suite translation validation — 28 October 2026
+
 Validated on 28 October 2026 using an ephemeral Symba `cpu-h4d-xlarge` node
 (192 CPUs, 1488 GiB RAM), with 48 audit workers and a 256 GiB JVM heap.
 

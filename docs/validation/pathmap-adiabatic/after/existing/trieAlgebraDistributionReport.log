@@ -1,0 +1,18 @@
+Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Xmx32g -Xss64m -Dmorkl.pathmap.root=/home/ubuntu/Zippy-bulk-final
+size,regime,node_visits,patricia_visits,allocations,ns_per_union
+256,Identity,1,0,0,104.6
+256,RootDisjoint,1,1,1,1182.9
+256,MixedQuarter,1,129,1,12062.0
+256,Interwoven,1,511,1,72131.0
+1024,Identity,1,0,0,43.7
+1024,RootDisjoint,1,1,1,512.8
+1024,MixedQuarter,1,513,1,64550.6
+1024,Interwoven,1,2047,1,243322.5
+4096,Identity,1,0,0,43.0
+4096,RootDisjoint,1,1,1,566.9
+4096,MixedQuarter,1,2049,1,259866.0
+4096,Interwoven,1,8191,1,825920.4
+16384,Identity,1,0,0,43.2
+16384,RootDisjoint,1,1,1,386.2
+16384,MixedQuarter,1,8193,1,1206449.1
+16384,Interwoven,1,32767,1,5328713.1

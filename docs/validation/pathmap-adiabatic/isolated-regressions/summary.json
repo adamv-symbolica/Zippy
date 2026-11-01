@@ -1,0 +1,10 @@
+{
+  "success": true,
+  "trials": 3,
+  "workloads": 2,
+  "rows": 42,
+  "cpuAffinity": "80-87",
+  "baseline": "00c4163",
+  "current": "fdf15dd",
+  "note": "Sequential JVMs; five timing samples per encoding; the full original matrix is retained unchanged."
+}

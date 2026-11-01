@@ -1,0 +1,23 @@
+{
+  "sourceCommit": "fdf15dd188e20f3739d0d1060fefeb503c3509d0",
+  "nativeScalaTests": 333,
+  "referenceScalaTests": 333,
+  "nativeChecks": 124652,
+  "referenceChecks": 247048,
+  "rustModelTests": 4,
+  "randomSetPairs": 1200,
+  "compactProductPaths": "2^80",
+  "upstreamTests": 1070,
+  "upstreamIgnored": 2,
+  "pythonTests": 8,
+  "eggModels": 3,
+  "clippyWarningsDenied": true,
+  "rustfmt": true,
+  "rustSources": 144,
+  "cppSources": 108,
+  "benchmarkJobs": {
+    "rust": 52,
+    "cpp": 37
+  },
+  "allPassed": true
+}

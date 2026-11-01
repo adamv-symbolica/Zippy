@@ -1,42 +1,31 @@
-# Compiled cornerstone programs
+# Standalone C++ cornerstone programs
 
-The ready-to-read directory is [`output/cornerstone-review/`](../../output/cornerstone-review/README.md).
-It contains **108 standalone C++ translation units**: symbols, Fibonacci bits,
-and four-byte intern IDs for each of **22 cornerstone variants** and **14
-supplementary large cases**.
+The current review directory is [`output/pathmap-adiabatic/cpp-cornerstones/`](../../output/pathmap-adiabatic/cpp-cornerstones/README.md).
+It contains **108 complete C++ programs**: the symbol, bit and byte dialects for
+22 cornerstone variants and 14 supplementary large cases. Each case includes
+optimized graphs, symbolic source, codeword dictionaries, input bindings and
+wire inputs. The shared delayed OpenFst runtime and CMake project are in `runtime/`.
 
-Each case includes:
+All 108 sources were rebuilt and executed on the h4d on 2026-11-01. All decoded
+outputs match the independent Scala trie fixtures from the companion Rust
+bundle. [Build/execution checks](../validation/pathmap-adiabatic/cpp-standalone-export-checks.json)
+and the [independent-oracle check](../validation/pathmap-adiabatic/cpp-oracle-checks.json)
+are retained. Review builds use `-O0`; the native benchmark run uses its normal
+optimized build configuration.
 
-- `symbols.cpp`, `bits.cpp`, and `bytes.cpp`, with `main` and reachable routines;
-- `*.graph.txt`, the optimized executor graphs used for native emission;
-- `symbolic.zippy`, the source expression and reachable symbolic routines;
-- `encodings.json`, original symbols and their intern IDs/bit/byte codewords;
-- `*.input.txt` fixtures and `*.bindings.json` input-slot/label maps.
+The [per-example tables](../pathmap-adiabatic-benchmarks/README.md) contain all
+434 current evaluator/compiled measurements. [The full C++ matrix](../validation/pathmap-adiabatic/openfst/summary.json)
+completed all 37 jobs and 498 rows across nine native workload families.
 
-The shared delayed OpenFst runtime and CMake project are in `runtime/`.
-Generated iterations, folds and fixpoints use inline loops and typed locals.
-Only language routines become functions. Precomputed programs are marked in
-the accompanying tables; their source/graph compilation costs remain visible.
-
-The portable [source archive](cornerstone-review.tar.gz) retains the directory,
-per-example benchmark pages, and their raw evidence in Git. Restore it with:
+Restore the committed [portable source archive](cornerstone-review.tar.gz):
 
 ```sh
 mkdir -p output
 tar -xzf docs/compiled-cornerstones/cornerstone-review.tar.gz -C output
 ```
 
-[manifest.json](manifest.json) identifies all C++ files and SHA-256 hashes;
-[archive.json](archive.json) identifies the archive itself. C++ sources total
-**34,188,777 bytes**. OpenFst remains an external build dependency.
-
-All **108 files compiled and executed** on the h4d. Decoded results agree across
-all three dialects for every case; the native benchmark matrix also checks all
-108 case/dialect results exactly against the trie oracle. See
-[export checks](../validation/openfst-graph/cornerstone-export-checks.json).
-
-The [per-example benchmark index](../cornerstone-benchmarks/README.md) contains
-**290 measured evaluator rows with no omitted runtime cells**, including the
-three source `evalZ` cases omitted by the normal report. It separates runtime,
-source/graph compilation and native session setup, and states each measurement
-protocol. The supplementary large cases retain their original evaluator scope.
+[manifest.json](manifest.json) identifies each source and SHA-256 hash;
+[archive.json](archive.json) identifies the archive and source totals.
+OpenFst is an external build dependency. The generated C++ sources remain
+byte-identical to the previous review bundle; they were checked again against
+the current inputs and backend on this node.

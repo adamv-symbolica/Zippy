@@ -1,0 +1,11 @@
+{
+  "success": true,
+  "measurements": 434,
+  "missing": 0,
+  "allEvaluatorCSVIdentical": true,
+  "beforeAfterCSVIdentical": true,
+  "regeneratedFromCommittedEvidence": true,
+  "rustArchiveSourcesVerified": 144,
+  "cppArchiveSourcesVerified": 108,
+  "allCurrentLinksResolve": true
+}

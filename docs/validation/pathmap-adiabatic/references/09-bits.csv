@@ -1,0 +1,2 @@
+family,name,dialect,paths,reference_ms,samples,checked
+programs,"datalog semi-naive/process-sc 24-chain",bits,300,363.852969,5,exact

@@ -1,0 +1,5 @@
+family,name,dialect,paths,compile_ms,native_ms,reference_trie_ms,samples,checked,graph_compile_ms,graph_nodes,generated_bytes,precomputed,rust_opt_level
+"large","semi-naive datalog over generated chain graph/80 nodes, 159 edge facts",bytes-interned,3240,78.919,102.041853,266.146,5,exact,173.433,267,17275,false,3
+"large","semi-naive datalog over generated chain graph/80 nodes, 159 edge facts",bytes-strings,3240,4.375,1216.634602,266.146,1,exact,217.148,1071,93141,false,3
+"large","semi-naive datalog over generated chain graph/80 nodes, 159 edge facts",bytes-length,3240,4.523,763.367642,266.146,5,exact,190.312,1181,106714,false,3
+"large","semi-naive datalog over generated chain graph/80 nodes, 159 edge facts",bits-bytes,3240,48.247,2382.441274,266.146,1,exact,858.434,16555,1737173,false,1

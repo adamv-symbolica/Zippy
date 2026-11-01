@@ -46,12 +46,13 @@ symbol reference, including its stationary positive self-call rule.
 
 ## Translations
 
-`RadixTranslations` exposes all seven directions:
+`RadixTranslations` exposes the original seven directions and a length-prefixed string translation:
 
 | Entry point | Encoding |
 | --- | --- |
 | `symbolsToBits` | Fibonacci code of the nonnegative intern ID plus one |
 | `stringsToBytes` | zero-terminated string codewords |
+| `lengthPrefixedStringsToBytes` | one byte of payload length, followed by 0–255 raw CESU-8 bytes |
 | `internedSymbolsToBytes` | four bytes per intern ID, most significant first |
 | `bitsToBytes` | one byte, 0 or 1, per bit |
 | `bytesToBits` | eight bits per byte, most significant first |
@@ -103,6 +104,21 @@ ordering and handles every JVM string, including embedded NULs, empty symbols,
 supplementary characters, and lone surrogates. Interior payload bytes are never
 0. Ordinary BMP text apart from NUL/SOH has its usual UTF-8 bytes. This is an
 explicit reversible string encoding, rather than raw UTF-8 for all strings.
+
+Length-prefixed strings use raw CESU-8 payload bytes without NUL/SOH escaping.
+The empty symbol is `[0]`; `"a"` is `[1,97]`; a NUL symbol is `[1,0]`.
+The maximum is 255 **encoded bytes**, rather than 255 characters. Encoding a
+longer symbol, or decoding a truncated/noncanonical codeword, fails explicitly.
+`PathEncodings.lengthPrefixed` exposes the codec independently.
+
+Length order differs from string order. The translation selects ordered heads
+by payload and then restores the corresponding length byte. Iteration scans the
+length counter using an ordinary predecessor relation and recursive functions;
+tails union dispatches to ordinary byte tails operations. No new language case,
+encoding table or symbol-boundary metadata is stored at runtime. The PathMap
+compiler proves these ordinary programs before replacing their scans with native
+bulk projections and streaming fixed-depth zipper selection. See the
+[OEIS reproduction](OEIS_BENCHMARK.md) for a numeric use of the same framing.
 
 ## Lowering and bounds
 
@@ -170,7 +186,7 @@ observed during reference execution, including grounded intermediate results. Su
 branches are retained as well.
 It follows reachable routine definitions and deduplicates equivalent expression
 and input frames. After the assertions finish, it checks each case through all
-seven directions; composed translations are decoded back to the original
+eight directions; composed translations are decoded back to the original
 symbol result. Replay happens outside test timing and cost-counter scopes.
 Source evaluations that intentionally throw have no successful result to compare
 and are counted separately. Tests that do not evaluate a source expression

@@ -1,10 +1,11 @@
 {
   "archive": "cornerstone-review.tar.gz",
-  "sha256": "5b08facdf636f51207519c22d340b920e991e39962621dca65ab3f531039026e",
-  "bytes": 10012453,
-  "files": 678,
+  "sha256": "b6f284b31cc46790de815685aa76a270c57bee54dc4c961134a9bb3015675b94",
+  "bytes": 9943656,
+  "files": 546,
   "cppSources": 108,
   "sourceBytes": 34188777,
   "graphDumps": 108,
-  "standalonePrograms": 108
+  "standalonePrograms": 108,
+  "sourceCommit": "fdf15dd188e20f3739d0d1060fefeb503c3509d0"
 }

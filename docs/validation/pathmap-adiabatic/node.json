@@ -1,0 +1,22 @@
+{
+  "created_at": "2026-11-01T17:33:11.084501Z",
+  "data_volume_gib": null,
+  "error": null,
+  "expires_at": "2026-11-01T22:33:11.084501Z",
+  "id": "nd-01m6c2r83jaxcwmwxv8a2bbbt5",
+  "name": "zippy-adiabatic-oeis",
+  "os": "ubuntu",
+  "owner": "adam.vandervorst@symbolica.ai",
+  "profile": "cpu-h4d-xlarge",
+  "ready_at": "2026-11-01T17:34:33.562786Z",
+  "region": "asia-southeast1",
+  "starts_at": null,
+  "status": "ready",
+  "storage": "none",
+  "tailscale": {
+    "hostname": "nd-01m6c2r83jaxcwmwxv8a2bbbt5",
+    "ipv4": "100.127.239.37",
+    "ssh_user": "ubuntu"
+  },
+  "terminated_at": null
+}

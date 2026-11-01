@@ -1,0 +1,13 @@
+family,name,dialect,paths,compile_ms,native_ms,reference_trie_ms,samples,checked,graph_compile_ms,graph_nodes,generated_bytes,precomputed,rust_opt_level
+iter-range-tail,heads=192/fanout=16,bits-bytes,2880,4853.004,19.952369,27.913,5,exact,598.259,1037,212681,false,3
+iter-range-tail,heads=192/fanout=16,bytes-interned,2880,2459.463,13.314241,27.913,5,exact,232.743,66,48243,false,3
+iter-range-tail,heads=192/fanout=16,bytes-length,2880,2.801,24.845448,27.913,5,exact,94.648,387,40270,false,3
+iter-range-tail,heads=192/fanout=16,bytes-strings,2880,1.983,3.462917,27.913,5,exact,25.658,55,4906,false,3
+iter-range-tail,heads=32/fanout=12,bits-bytes,352,4112.434,0.544282,16.644,5,exact,205.850,789,85370,false,3
+iter-range-tail,heads=32/fanout=12,bytes-interned,352,2384.634,0.343655,16.644,5,exact,181.262,66,11725,false,3
+iter-range-tail,heads=32/fanout=12,bytes-length,352,2844.591,3.886104,16.644,5,exact,94.754,387,40270,false,3
+iter-range-tail,heads=32/fanout=12,bytes-strings,352,2202.259,0.421795,16.644,5,exact,25.677,55,4906,false,3
+iter-range-tail,heads=96/fanout=16,bits-bytes,1440,4581.210,5.374883,22.075,5,exact,406.589,972,144391,false,3
+iter-range-tail,heads=96/fanout=16,bytes-interned,1440,2411.602,3.440105,22.075,5,exact,204.632,66,26987,false,3
+iter-range-tail,heads=96/fanout=16,bytes-length,1440,1468.731,12.440171,22.075,5,exact,98.558,387,40270,false,3
+iter-range-tail,heads=96/fanout=16,bytes-strings,1440,1.870,1.834662,22.075,5,exact,24.851,55,4906,false,3

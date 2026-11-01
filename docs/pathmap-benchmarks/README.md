@@ -1,5 +1,7 @@
 # PathMap cornerstone results
 
+The newer [2026-11-01 results](../pathmap-adiabatic-benchmarks/README.md) include adiabatic reuse, length-prefixed strings and the OEIS workload. This directory retains the earlier run.
+
 Recorded on 2026-10-30 on a Symba h4d xlarge (192 AMD EPYC Turin CPUs).
 
 Every cornerstone is listed separately: five Scala evaluators, two digit references, three C++ dialects, and three Rust byte encodings. Supplementary large cases retain their two Scala evaluators and all six native variants. All 398 runtime cells are measured and every native cornerstone result was checked exactly.

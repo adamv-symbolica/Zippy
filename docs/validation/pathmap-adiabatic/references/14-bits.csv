@@ -1,0 +1,2 @@
+family,name,dialect,paths,reference_ms,samples,checked
+programs,"temperature/synthetic 32x64",bits,448,3.812038,5,exact

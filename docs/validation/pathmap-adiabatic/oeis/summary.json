@@ -1,0 +1,19 @@
+{
+  "success": true,
+  "samples": 150,
+  "stages": 15,
+  "repeats": 5,
+  "exactKeySets": true,
+  "seconds": 106.368,
+  "dataset": {
+    "path": "oeis_stripped.txt",
+    "bytes": 76128173,
+    "sha256": "71308b63dfd641dacd1e9be9b6ea9f474866f75cad1ed1c6faf73faff9bdebc3"
+  },
+  "generatedSourceBytes": 16524,
+  "generatedOptimization": 3,
+  "runtimeOptimization": 3,
+  "platform": "Linux-7.0.0-1014-gcp-x86_64-with-glibc2.39",
+  "source": "https://github.com/Adam-Vandervorst/PathMap/blob/master/benches/oeis.rs",
+  "notes": "Record-trie ingestion is outside Zippy execution. Native terminals retain usize IDs; Zippy checks the exact key set with unit terminals. Execution and cardinality timings are separate; count_contents includes counting in execution."
+}

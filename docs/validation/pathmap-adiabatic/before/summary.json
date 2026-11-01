@@ -1,0 +1,325 @@
+{
+  "success": true,
+  "completed": 51,
+  "total": 51,
+  "workers": 8,
+  "runs": [
+    {
+      "kind": "existing",
+      "name": "trieConstructionAsymptoticBenchmark",
+      "exitCode": 0,
+      "seconds": 0.415
+    },
+    {
+      "kind": "existing",
+      "name": "independentProductBenchmark",
+      "exitCode": 0,
+      "seconds": 0.716
+    },
+    {
+      "kind": "existing",
+      "name": "zipperIterRangeTailMicroReport",
+      "exitCode": 0,
+      "seconds": 1.117
+    },
+    {
+      "kind": "existing",
+      "name": "trieIncrementalUnionAsymptoticBenchmark",
+      "exitCode": 0,
+      "seconds": 1.567
+    },
+    {
+      "kind": "existing",
+      "name": "spatialCostCounterReport",
+      "exitCode": 0,
+      "seconds": 0.766
+    },
+    {
+      "kind": "existing",
+      "name": "spatialTypeScalingAudit",
+      "exitCode": 0,
+      "seconds": 0.114
+    },
+    {
+      "kind": "existing",
+      "name": "trieAlgebraAsymptoticBenchmark",
+      "exitCode": 0,
+      "seconds": 1.717
+    },
+    {
+      "kind": "existing",
+      "name": "zipperLargeBenchmarkReport",
+      "exitCode": 0,
+      "seconds": 2.319
+    },
+    {
+      "kind": "existing",
+      "name": "spatialCostCorrelationReport",
+      "exitCode": 0,
+      "seconds": 1.817
+    },
+    {
+      "kind": "existing",
+      "name": "trieAlgebraDistributionReport",
+      "exitCode": 0,
+      "seconds": 3.12
+    },
+    {
+      "kind": "existing",
+      "name": "constantFoldExecutorReport",
+      "exitCode": 0,
+      "seconds": 15.739
+    },
+    {
+      "kind": "existing",
+      "name": "zipperAlgebraBenchmarkReport",
+      "exitCode": 0,
+      "seconds": 16.941
+    },
+    {
+      "kind": "existing",
+      "name": "cornerstoneSpatialTypeReport",
+      "exitCode": 0,
+      "seconds": 23.8
+    },
+    {
+      "kind": "existing",
+      "name": "trieBenchmarkReport",
+      "exitCode": 0,
+      "seconds": 46.795
+    },
+    {
+      "kind": "native",
+      "name": "large--shard-2-of-4",
+      "exitCode": 0,
+      "seconds": 23.401
+    },
+    {
+      "kind": "native",
+      "name": "large--shard-3-of-4",
+      "exitCode": 0,
+      "seconds": 3.57
+    },
+    {
+      "kind": "native",
+      "name": "programs--shard-2-of-4",
+      "exitCode": 0,
+      "seconds": 57.601
+    },
+    {
+      "kind": "native",
+      "name": "large--shard-0-of-4",
+      "exitCode": 0,
+      "seconds": 52.645
+    },
+    {
+      "kind": "native",
+      "name": "large--shard-1-of-4",
+      "exitCode": 0,
+      "seconds": 58.804
+    },
+    {
+      "kind": "native",
+      "name": "iter-range-tail--shard-0-of-4",
+      "exitCode": 0,
+      "seconds": 9.88
+    },
+    {
+      "kind": "native",
+      "name": "programs--shard-0-of-4",
+      "exitCode": 0,
+      "seconds": 91.706
+    },
+    {
+      "kind": "native",
+      "name": "iter-range-tail--shard-1-of-4",
+      "exitCode": 0,
+      "seconds": 9.129
+    },
+    {
+      "kind": "native",
+      "name": "iter-range-tail--shard-3-of-4",
+      "exitCode": 0,
+      "seconds": 0.265
+    },
+    {
+      "kind": "native",
+      "name": "algebra-scaling--shard-0-of-4",
+      "exitCode": 0,
+      "seconds": 7.225
+    },
+    {
+      "kind": "native",
+      "name": "iter-range-tail--shard-2-of-4",
+      "exitCode": 0,
+      "seconds": 10.581
+    },
+    {
+      "kind": "native",
+      "name": "algebra-scaling--shard-1-of-4",
+      "exitCode": 0,
+      "seconds": 5.974
+    },
+    {
+      "kind": "native",
+      "name": "algebra-scaling--shard-2-of-4",
+      "exitCode": 0,
+      "seconds": 5.274
+    },
+    {
+      "kind": "native",
+      "name": "algebra-scaling--shard-3-of-4",
+      "exitCode": 0,
+      "seconds": 9.88
+    },
+    {
+      "kind": "native",
+      "name": "programs--shard-1-of-4",
+      "exitCode": 0,
+      "seconds": 116.298
+    },
+    {
+      "kind": "native",
+      "name": "construction--shard-0-of-4",
+      "exitCode": 0,
+      "seconds": 18.243
+    },
+    {
+      "kind": "native",
+      "name": "construction--shard-1-of-4",
+      "exitCode": 0,
+      "seconds": 10.031
+    },
+    {
+      "kind": "native",
+      "name": "construction--shard-2-of-4",
+      "exitCode": 0,
+      "seconds": 17.641
+    },
+    {
+      "kind": "native",
+      "name": "construction--shard-3-of-4",
+      "exitCode": 0,
+      "seconds": 14.337
+    },
+    {
+      "kind": "native",
+      "name": "independent-product--shard-0-of-4",
+      "exitCode": 0,
+      "seconds": 23.301
+    },
+    {
+      "kind": "native",
+      "name": "independent-product--shard-1-of-4",
+      "exitCode": 0,
+      "seconds": 23.802
+    },
+    {
+      "kind": "native",
+      "name": "cost-counter--shard-0-of-4",
+      "exitCode": 0,
+      "seconds": 1.717
+    },
+    {
+      "kind": "native",
+      "name": "cost-counter--shard-1-of-4",
+      "exitCode": 0,
+      "seconds": 1.317
+    },
+    {
+      "kind": "native",
+      "name": "cost-counter--shard-2-of-4",
+      "exitCode": 0,
+      "seconds": 1.767
+    },
+    {
+      "kind": "native",
+      "name": "independent-product--shard-2-of-4",
+      "exitCode": 0,
+      "seconds": 23.602
+    },
+    {
+      "kind": "native",
+      "name": "cost-counter--shard-3-of-4",
+      "exitCode": 0,
+      "seconds": 1.216
+    },
+    {
+      "kind": "native",
+      "name": "cost-correlation--shard-0-of-4",
+      "exitCode": 0,
+      "seconds": 0.615
+    },
+    {
+      "kind": "native",
+      "name": "cost-correlation--shard-1-of-4",
+      "exitCode": 0,
+      "seconds": 0.715
+    },
+    {
+      "kind": "native",
+      "name": "algebra--shard-0-of-4",
+      "exitCode": 0,
+      "seconds": 117.654
+    },
+    {
+      "kind": "native",
+      "name": "cost-correlation--shard-2-of-4",
+      "exitCode": 0,
+      "seconds": 0.967
+    },
+    {
+      "kind": "native",
+      "name": "cost-correlation--shard-3-of-4",
+      "exitCode": 0,
+      "seconds": 1.918
+    },
+    {
+      "kind": "native",
+      "name": "algebra--shard-2-of-4",
+      "exitCode": 0,
+      "seconds": 108.38
+    },
+    {
+      "kind": "native",
+      "name": "independent-product--shard-3-of-4",
+      "exitCode": 0,
+      "seconds": 22.049
+    },
+    {
+      "kind": "native",
+      "name": "algebra--shard-1-of-4",
+      "exitCode": 0,
+      "seconds": 131.972
+    },
+    {
+      "kind": "native-micro",
+      "name": "acceptor-algebra",
+      "exitCode": 0,
+      "seconds": 19.95
+    },
+    {
+      "kind": "native",
+      "name": "algebra--shard-3-of-4",
+      "exitCode": 0,
+      "seconds": 126.212
+    },
+    {
+      "kind": "native",
+      "name": "programs--shard-3-of-4",
+      "exitCode": 0,
+      "seconds": 216.204
+    }
+  ],
+  "familyWorkloads": {
+    "algebra": 66,
+    "algebra-scaling": 16,
+    "construction": 12,
+    "cost-correlation": 4,
+    "cost-counter": 21,
+    "independent-product": 8,
+    "iter-range-tail": 3,
+    "large": 14,
+    "programs": 22
+  }
+}

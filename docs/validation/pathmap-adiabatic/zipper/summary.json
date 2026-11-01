@@ -1,0 +1,44 @@
+{
+  "attempted": 3,
+  "measured": 3,
+  "heap": "192g",
+  "timeoutSeconds": 3600,
+  "runs": [
+    {
+      "index": 17,
+      "exitCode": 0,
+      "seconds": 15.898674488999859,
+      "status": "measured",
+      "name": "sliding puzzle",
+      "variant": "3x3 pure source depth-8 step",
+      "paths": "420",
+      "evalZ_ms": "2092.114634",
+      "first_ms": "2690.206834",
+      "checked": "exact"
+    },
+    {
+      "index": 19,
+      "exitCode": 0,
+      "seconds": 31.029627564999828,
+      "status": "measured",
+      "name": "sliding puzzle",
+      "variant": "4x4 pure source depth-5 step",
+      "paths": "202",
+      "evalZ_ms": "4222.271933",
+      "first_ms": "5252.626365",
+      "checked": "exact"
+    },
+    {
+      "index": 20,
+      "exitCode": 0,
+      "seconds": 312.74382222000077,
+      "status": "measured",
+      "name": "n-queens",
+      "variant": "MORKL 8x8 source",
+      "paths": "92",
+      "evalZ_ms": "67191.532551",
+      "first_ms": "48947.342297",
+      "checked": "exact"
+    }
+  ]
+}
