@@ -45,6 +45,17 @@ pub fn write_heads_mask(out: &mut WriteCursor<'_>, mask: pathmap::utils::ByteMas
     out.ascend(prefix.len());
 }
 
+/// Join immediate residuals into the current output without constructing their
+/// union first. Both focuses are restored; at most 256 branches are visited.
+#[inline]
+pub fn join_tails_into(out: &mut WriteCursor<'_>, source: &mut View<'_, '_>) {
+    for byte in source.child_mask().iter() {
+        source.descend_to_existing_byte(byte);
+        out.join_into(&*source);
+        source.ascend(1);
+    }
+}
+
 #[inline]
 pub fn join_branches(out: &mut WriteCursor<'_>, source: &mut View<'_, '_>) {
     for byte in source.child_mask().iter() {

@@ -136,13 +136,15 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
   private def headSource(g: RecursiveOpGraph,p: Pos): Option[Pos] = g.lookup(alias(g,p)) match
     case Left(Node("NativeHead",_,_,Vector(s)))=>Some(s)
     case _=>None
-  private def terminalProjection(g: RecursiveOpGraph,p: Pos): Option[(Pos,Option[Pos],Boolean)] =
+  private def terminalProjection(g: RecursiveOpGraph,p: Pos): Option[(Pos,Option[Pos],String)] =
+    def projection(s: Pos,prefix: Option[Pos]): Option[(Pos,Option[Pos],String)] =
+      headSource(g,s).map((_,prefix,"heads"))
+        .orElse(withoutEpsilon(g,s).map((_,prefix,"branches")))
+        .orElse { val (base,n)=tailsChain(g,s);Option.when(n==1)((base,prefix,"tails")) }
     if !reuse || p!=output(g) || !Set("Iteration","NativePathIteration")(g.root.operation) then None
     else g.lookup(alias(g,p)) match
-      case Left(Node("Wrap",_,_,Vector(s,prefix)))=>
-        headSource(g,s).map((_,Some(prefix),true)).orElse(withoutEpsilon(g,s).map((_,Some(prefix),false)))
-      case Left(Node("Subtraction",_,_,_))=>withoutEpsilon(g,p).map((_,None,false))
-      case Left(Node("NativeHead",_,_,Vector(s)))=>Some((s,None,true))
+      case Left(Node("Wrap",_,_,Vector(s,prefix)))=>projection(s,Some(prefix))
+      case Left(_)=>projection(p,None)
       case _=>None
 
   /** Prove from the optimized graph that each byte branch removes that many
@@ -517,16 +519,17 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
           def call(fn: String): String = s"${kernel(fn,ins)}(${ins.map(borrow).mkString(",")})"
           val code=if projection.nonEmpty then
             val target=sink.get;val writer=writeSinks(target)
-            if projection.get._3 then
+            if projection.get._3=="heads" then
               val prefix=projection.get._2.fold("&[]")(_=>borrow(ins(1)))
               line(s"write_heads_mask(&mut $writer,(${borrow(ins.head)}).head_mask(),$prefix);")
             else
+              val join=if projection.get._3=="tails" then "join_tails_into" else "join_branches"
               projection.get._2.foreach(_=>line(s"$writer.descend_to(${borrow(ins(1))});"))
               focus(ins.head).filter(f=>cursorDepth.get(f.cursor).contains(f.depth)) match
-                case Some(f)=>line(s"join_branches(&mut $writer,&mut ${f.cursor});")
+                case Some(f)=>line(s"$join(&mut $writer,&mut ${f.cursor});")
                 case _=>
                   line(s"let mut ${name}_branches = ${readCursor(ins.head)};")
-                  line(s"join_branches(&mut $writer,&mut ${name}_branches);")
+                  line(s"$join(&mut $writer,&mut ${name}_branches);")
               projection.get._2.foreach(_=>line(s"$writer.ascend((${borrow(ins(1))}).len());"))
             bindings=bindings.updated(pos,target); ""
           else n.operation match

@@ -6,6 +6,17 @@ type Set = BTreeSet<Vec<u8>>;
 
 #[test]
 fn adiabatic_walks_restore_their_focus_and_never_visit_siblings() {
+    let input = map(&[vec![0], vec![0, 4], vec![255, 4, 5], vec![]].into());
+    let mut output = singleton(&[9]);
+    {
+        let mut source = input.read_zipper();
+        let mut writer = output.write_zipper();
+        writer.descend_to_byte(8);
+        join_tails_into(&mut writer, &mut source);
+        assert_eq!(source.path(), &[]);
+        assert_eq!(writer.path(), &[8]);
+    }
+    same(output, [vec![9], vec![8], vec![8, 4], vec![8, 4, 5]].into());
     let mut preserved = singleton(&[9, 1, 2]);
     {
         let mut out = preserved.write_zipper();
