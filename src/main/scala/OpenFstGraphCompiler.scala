@@ -68,8 +68,15 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
     * duplicates compound space arguments and can multiply graph unrolling.
     */
   private def inlinePure(body: Space,blocked: Set[RoutinePtr]): Space =
+    // Keep reused large helpers as graph calls. Substituting their bodies turns
+    // shared call results into separate lexical iteration scopes that ordinary
+    // SSA common-subexpression elimination can no longer identify.
+    val calls=mutable.Map.empty[RoutinePtr,Int]
+    subs(body)(spost={case c @ Space.Call(name,_,_)=>calls(name)=calls.getOrElse(name,0)+1;c})
+    val sharedLarge=calls.collect {case (name,n) if n>1 && module.contains(name) &&
+      Supercompiler.stats(forwarding(name).body).totalNodes>helperLimit=>name}.toSet
     val context=new PartialFunction[RoutinePtr,Routine]:
-      def isDefinedAt(name: RoutinePtr): Boolean = module.contains(name) && !blocked(name)
+      def isDefinedAt(name: RoutinePtr): Boolean = module.contains(name) && !blocked(name) && !sharedLarge(name)
       def apply(name: RoutinePtr): Routine = if cyclicRoutines(name) then module(name) else forwarding(name)
     val first=Lower.inline(using context)(body)
     var remaining=inlineLimit-Supercompiler.stats(first).totalNodes

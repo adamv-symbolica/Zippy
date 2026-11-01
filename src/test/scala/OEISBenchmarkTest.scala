@@ -23,6 +23,7 @@ class OEISBenchmarkTest extends FunSuite:
     if java.lang.Boolean.getBoolean("morkl.pathmap.test") then
       val programs=OEISBenchmark.compile();val session=RustPathMapBackend.Session(programs)
       try
+        assertEquals("drop_length_prefixes\\(".r.findAllIn(programs(1).code).size,1,programs(1).code)
         assertEquals(session.eval(0,programs(0))(Map.empty,Map(OEISBenchmark.records->input)),built.paths)
         assertEquals(session.eval(1,programs(1))(Map.empty,Map(OEISBenchmark.index->built.paths)),indexed.paths)
         assertEquals(session.eval(2,programs(2))(Map.empty,Map(OEISBenchmark.index->indexed.paths)),found.paths)
