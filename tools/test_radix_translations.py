@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run all Scala tests and audit captured reference programs through seven translations."""
+"""Run all Scala tests and audit captured reference programs through eight translations."""
 import argparse
 import json
 import os
@@ -43,8 +43,8 @@ def main():
     audit = json.loads(summary_path.read_text()) if summary_path.exists() else None
     valid = (completed.returncode == 0 and audit is not None and audit["finished"]
              and audit["cases"] > 0 and audit["completed"] == audit["cases"]
-             and audit["checks"] == audit["cases"] * 7 and audit["failures"] == 0
-             and len(audit["passed"]) == 7 and all(n == audit["cases"] for n in audit["passed"].values()))
+             and audit["checks"] == audit["cases"] * 8 and audit["failures"] == 0
+             and set(audit["passed"]) == {"symbols-bits", "strings-bytes", "length-bytes", "interned-bytes", "bits-bytes", "bytes-bits", "bits-symbols", "bytes-symbols"} and all(n == audit["cases"] for n in audit["passed"].values()))
     report = {"testExitCode": completed.returncode, "passedTests": sum(line.startswith("  + ") for line in log_text.splitlines()),
               "fullSuite": args.test_only is None, "audit": audit, "success": valid}
     (output / "result.json").write_text(json.dumps(report, indent=2) + "\n")

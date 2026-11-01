@@ -40,7 +40,7 @@ object RadixTranslationAudit:
   private val failures = AtomicLong(0)
   private val checks = AtomicLong(0)
   private val passed = ConcurrentHashMap[String, AtomicLong]()
-  private val directions = Vector("symbols-bits", "strings-bytes", "interned-bytes", "bits-bytes", "bytes-bits", "bits-symbols", "bytes-symbols")
+  private val directions = Vector("symbols-bits", "strings-bytes", "length-bytes", "interned-bytes", "bits-bytes", "bytes-bits", "bits-symbols", "bytes-symbols")
   def path(value: PathValue): PathValue =
     val c = if enabled then current.get() else null
     if c != null then c.alphabet ++= value.items
@@ -135,6 +135,7 @@ object RadixTranslationAudit:
         result
       lazy val bits = RadixTranslations.symbolsToBits(e.expression, e.routines, table())
       lazy val strings = RadixTranslations.stringsToBytes(e.expression, e.routines)
+      lazy val lengths = RadixTranslations.lengthPrefixedStringsToBytes(e.expression, e.routines)
       lazy val bytes = RadixTranslations.internedSymbolsToBytes(e.expression, e.routines, table())
       def bitArgs = e.paths.view.mapValues(bits.encoding.encode).toMap
       def bitSpaces = e.spaces.view.mapValues(bits.encode).toMap
@@ -158,6 +159,8 @@ object RadixTranslationAudit:
         }
       check("symbols-bits") { bits.decode(bits.program.eval(bitArgs, bitSpaces)) }
       check("strings-bytes") { strings.decode(strings.program.eval(stringArgs, stringSpaces)) }
+      check("length-bytes") { lengths.decode(lengths.program.eval(e.paths.view.mapValues(lengths.encoding.encode).toMap,
+        e.spaces.view.mapValues(lengths.encode).toMap)) }
       check("interned-bytes") { bytes.decode(bytes.program.eval(byteArgs, byteSpaces)) }
       check("bits-bytes") {
         val codec = PathEncodings.bitsToBytes
