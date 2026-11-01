@@ -352,6 +352,26 @@ pub fn tails_union_n(a: &impl ReadSpace, depth: usize) -> Space {
     out.write_zipper().join_k_path_into(depth, true);
     out
 }
+
+/// Fused form of an ordinary byte iteration whose branch b takes b tails.
+/// Operates in place on one persistent clone, without per-branch maps.
+pub fn drop_length_prefixes(a: &impl ReadSpace) -> Space {
+    let mut out = a.make_space();
+    {
+        let mut z = out.write_zipper();
+        for length in z.child_mask().iter() {
+            if length == 0 {
+                continue;
+            }
+            z.descend_to_existing_byte(length);
+            z.join_k_path_into(usize::from(length), true);
+            z.ascend(1);
+        }
+        z.reset();
+        z.join_k_path_into(1, true);
+    }
+    out
+}
 #[inline]
 pub fn tails_intersection(a: &impl ReadSpace) -> Space {
     let mut out = a.make_space();
@@ -1150,6 +1170,10 @@ macro_rules! unary_kernels {
             #[inline(never)]
             pub fn tails_union_n(a: &$input, depth: usize) -> Space {
                 super::tails_union_n(a, depth)
+            }
+            #[inline(never)]
+            pub fn drop_length_prefixes(a: &$input) -> Space {
+                super::drop_length_prefixes(a)
             }
             #[inline(never)]
             pub fn tails_intersection(a: &$input) -> Space {

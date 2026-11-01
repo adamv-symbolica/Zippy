@@ -76,8 +76,13 @@ class RustPathMapBackendTest extends FunSuite:
         assertEquals(p.eval(spaces=Map(x->lowered.encode(value).paths)).map(lowered.encoding.decode),expected)
       val lowered=RadixTranslations.lengthPrefixedStringsToBytes(Space.TailsUnion(mention))
       val p=RustPathMapBackend.bytes(lowered.program.entry,lowered.program.routines)
+      assert(p.code.contains("drop_length_prefixes"),p.code)
       val malformed=Set(BytePathValue(4,1,2),BytePathValue(255,1),BytePathValue())
       assertEquals(p.eval(spaces=Map(x->malformed)),Set.empty[BytePathValue])
+      val different=S.Iteration(input,h,t,S.TailsUnion(S.Mention(t)))
+      val ordinary=RustPathMapBackend.bytes(different)
+      assert(!ordinary.code.contains("drop_length_prefixes"),ordinary.code)
+      assertEquals(ordinary.eval(spaces=Map(x->values)),Zippy_bytes.eval(different,spaceArgs=Map(x->Zippy_bytes.SpaceValue(values))).paths)
     }
     test("helper chains inline together with callers and opaque fixpoints preserve callback counts") {
       val refs=Vector(PathRef("prefix")); val ss=Vector(SpaceMention("source"))

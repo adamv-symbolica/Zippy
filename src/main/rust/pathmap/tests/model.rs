@@ -53,6 +53,25 @@ fn adiabatic_walks_restore_their_focus_and_never_visit_siblings() {
                 .collect(),
         );
     }
+    let framed: Set = [
+        vec![],
+        vec![0],
+        vec![0, 7],
+        vec![1, 255, 7],
+        vec![2, 0, 255, 9],
+        vec![3, 1],
+        vec![255, 1],
+    ]
+    .into_iter()
+    .collect();
+    let expected: Set = framed
+        .iter()
+        .filter(|p| !p.is_empty() && p.len() > usize::from(p[0]))
+        .map(|p| p[1 + usize::from(p[0])..].to_vec())
+        .collect();
+    let a = map(&framed);
+    same(drop_length_prefixes(&a), expected.clone());
+    same(drop_length_prefixes(&a.read_zipper()), expected);
 }
 fn map(s: &Set) -> Space {
     let mut m = Space::new();

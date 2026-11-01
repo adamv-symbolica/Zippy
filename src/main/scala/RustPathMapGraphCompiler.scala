@@ -57,7 +57,7 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
     residuals.get(s).foreach(r=>{retain(r.source);r.prefixes.foreach(retain)})
   private def referenceType(t: String): Boolean = t=="Path" || t=="Space" || t.startsWith("View<")
   private val binaryKernels=Set("unite","intersect","subtract","restrict_to","raffine","compose","equal","first_matching","ordered_matching")
-  private val unaryKernels=Set("wrap","unwrap","tails_union","tails_union_n","tails_intersection","prefix_closure","suffix_closure","head_space","has_head","range_const","first_terminated","first_fibonacci","first_listed")
+  private val unaryKernels=Set("wrap","unwrap","tails_union","tails_union_n","drop_length_prefixes","tails_intersection","prefix_closure","suffix_closure","head_space","has_head","range_const","first_terminated","first_fibonacci","first_listed")
   private def kernel(fn: String,inputs: Vector[String]): String =
     if binaryKernels(fn) then inputs.take(2).map(s=>if view(s) then "view" else "map").mkString("","_","_kernels::")+fn
     else if unaryKernels(fn) then (if view(inputs.head) then "view_kernels::" else "map_kernels::")+fn
@@ -122,6 +122,57 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       case Left(Node("TailsUnion",_,_,Vector(in)))=>
         val (base,n)=tailsChain(g,in);base->(n+1)
       case _=>q->0
+
+  /** Prove from the optimized graph that each byte branch removes that many
+    * bytes from its tail. This is finite compile-time specialization, not a
+    * runtime length opcode or a convention about generated routine names. */
+  private val lengthDrops=java.util.IdentityHashMap[RecursiveOpGraph,java.lang.Boolean]()
+  private def lengthDrop(g: RecursiveOpGraph): Boolean =
+    val cached=lengthDrops.get(g)
+    if cached!=null then return cached.booleanValue()
+    if !reuse || g.root.operation!="Iteration" then return false
+    val finite=mutable.Map.empty[(Pos,Int),Option[Set[Vector[Int]]]]
+    val paths=mutable.Map.empty[(Pos,Int),Option[Vector[Int]]]
+    val projections=mutable.Map.empty[(Pos,Int),Option[Option[Int]]]
+    val epsilon=Set(Vector.empty[Int])
+    def p(at: Pos,b: Int): Option[Vector[Int]] = paths.getOrElseUpdate(at->b, {
+      val q=alias(g,at)
+      if q==(g.level->0) then Some(Vector(b)) else g.lookup(q) match
+        case Left(Node("Constant",v,_,_))=>Some(path(g.pathValue(v)))
+        case Left(Node("Concat",_,_,Vector(a,c)))=>for x<-p(a,b);y<-p(c,b) yield x++y
+        case _=>None
+    })
+    def s(at: Pos,b: Int): Option[Set[Vector[Int]]] = finite.getOrElseUpdate(at->b, {
+      g.lookup(alias(g,at)) match
+        case Left(Node("Empty",_,_,_))=>Some(Set.empty)
+        case Left(Node("Literal",v,_,_))=>Some(g.literalValue(v).paths.map(path))
+        case Left(Node("Singleton",_,_,Vector(x)))=>p(x,b).map(Set(_))
+        case Left(Node(op,_,_,Vector(a,c))) if Set("Union","Intersection","Subtraction","Composition")(op)=>
+          for x<-s(a,b);y<-s(c,b);if op!="Composition" || x.size.toLong*y.size<=4096 yield op match
+            case "Union"=>x union y
+            case "Intersection"=>x intersect y
+            case "Subtraction"=>x diff y
+            case _=>for l<-x;r<-y yield l++r
+        case Left(Node(op,_,_,Vector(x))) if Set("NativeHasHead","NativeNonempty","NativeHead")(op)=>
+          s(x,b).map { values=>
+            if op=="NativeHead" then values.filter(_.nonEmpty).map(_.take(1))
+            else if (if op=="NativeHasHead" then values.exists(_.nonEmpty) else values.nonEmpty) then epsilon else Set.empty
+          }
+        case _=>None
+    })
+    def projection(at: Pos,b: Int): Option[Option[Int]] = projections.getOrElseUpdate(at->b, {
+      val q=alias(g,at)
+      if q==(g.level->1) then Some(Some(0)) else g.lookup(q) match
+        case Left(Node("Empty",_,_,_))=>Some(None)
+        case Left(Node("TailsUnion",_,_,Vector(x)))=>projection(x,b).map(_.map(_+1))
+        case Left(Node("Composition",_,_,Vector(a,c)))=>s(a,b).flatMap { guard=>
+          if guard.isEmpty then Some(None) else if guard==epsilon then projection(c,b) else None
+        }
+        case Left(Node("Union",_,_,Vector(a,c)))=>for x<-projection(a,b);y<-projection(c,b);if x.isEmpty || y.isEmpty || x==y yield x.orElse(y)
+        case _=>None
+    })
+    val result=(0 until 256).forall(b=>projection(output(g),b).contains(Some(b)))
+    lengthDrops.put(g,java.lang.Boolean.valueOf(result));result
   /** Fold's executor framing is removed at compile time. No tag symbols or
     * packed update spaces are ever emitted into the bit/byte automata.
     */
@@ -152,7 +203,8 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
       case Left(node) => node.inputs.foreach(mark(g,_))
       case Right(sub) =>
         sub.root.inputs.foreach(mark(g,_))
-        if sub.root.operation == "Fold" then
+        if lengthDrop(sub) then ()
+        else if sub.root.operation == "Fold" then
           val (body,update) = foldOutputs(sub);mark(sub,body);mark(sub,update)
         else mark(sub,output(sub))
 
@@ -511,7 +563,10 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
           def freshResult(): Unit = if result==name then line(s"let mut $result = Space::new();")
           def collect(body: String): Unit = if body!=result then line(s"  $result.join_into(${copied(body)});")
           val input=sub.root.inputs.map(value)
-          sub.root.operation match
+          if lengthDrop(sub) then
+            val call=s"${kernel("drop_length_prefixes",input)}(${borrow(input.head)})"
+            if result==name then line(s"let $name: Space = $call;") else line(s"$result.join_into($call);")
+          else sub.root.operation match
             case "NativePathIteration" =>
               val pc=sub.root.constant.toInt
               freshResult()
