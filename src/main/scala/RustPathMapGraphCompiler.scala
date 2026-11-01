@@ -476,8 +476,8 @@ private[morkl] final class RustPathMapGraphCompiler(program: NativeGraphProgram[
           out.setLength(chunkStart)
           val call=s"$helper(c${free.map(n=>", "+(if mutated(n) then s"&mut $n" else if referenceType(nativeTypes(n)) then s"&$n" else n)).mkString})"
           if live.isEmpty then line(s"$call;")
-          else if live.size==1 then line(s"let ${live.head}: $resultType = $call;")
-          else line(s"let ${live.mkString("(",",",",)")} = $call;")
+          else if live.size==1 then line(s"let mut ${live.head}: $resultType = $call;")
+          else line(s"let ${live.map(n=>s"mut $n").mkString("(",",",",)")} = $call;")
           delayed.foreach(n=>line(s"drop($n);"))
       chunkStart=out.length;chunkNodes=0
     val regions = deferredRegions(g,wanted)
