@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import threading
 import time
 
@@ -50,7 +51,11 @@ def main():
             classpaths[revision] = (args.reuse_classpath / revision / 'classpath.txt').read_text().strip()
         else:
             jar = folder / 'benchmarks.jar'
-            command = ['scala-cli', 'compile', str(root / 'src/main/scala'), str(root / 'src/test/scala'),
+            snapshot = folder / 'scala-sources'
+            for relative in ('src/main/scala', 'src/test/scala'):
+                shutil.copytree(root / relative, snapshot / relative,
+                                ignore=shutil.ignore_patterns('.scala-build', '.bsp', 'target'))
+            command = ['scala-cli', 'compile', str(snapshot / 'src/main/scala'), str(snapshot / 'src/test/scala'),
                        str(probe), '--server=false', '--scala', '3.8.1', '--source', '3.3',
                        '--dependency', 'org.scalameta::munit:1.2.1', '--dependency',
                        'org.scala-lang.modules::scala-collection-contrib:0.3.0',

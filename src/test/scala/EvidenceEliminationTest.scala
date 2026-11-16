@@ -53,6 +53,46 @@ class EvidenceEliminationTest extends FunSuite:
       assertEquals(frame.last.asInstanceOf[TrieSpace].toSpaceValue, expected)
   }
 
+  test("invariant iterations preserve singleton rank windows without another selection") {
+    val windows = Vector(0 -> 1, 2 -> 3, 3 -> 4, -1 -> 0, -2 -> -1,
+      2 -> 2, 3 -> 2, -1 -> -2, -1 -> 1, -1 -> 2,
+      Int.MinValue -> (Int.MinValue + 1), (Int.MaxValue - 1) -> Int.MaxValue)
+    for (lo, hi) <- windows do
+      assert(RangeBounds.cardinalityUpperBound(lo, hi).exists(_ <= 1))
+      val selected = Space.Range(Space.Mention(a), lo, hi)
+      val original = Space.Iteration(selected, x, at, Space.Mention(b))
+      val reduced = EvidenceElimination(original)
+      assertEquals(reduced, ReferenceHints.tag(original))
+      assertEquals(EvidenceElimination(reduced), reduced)
+      for av <- languages; bv <- Vector(value(), value(""), value("b"), value("", "a", "b.tail")) do
+        val headed = run(selected, av).paths.exists(_.items.nonEmpty)
+        val expected = if headed then bv else value()
+        assertEquals(run(original, av, bv), expected)
+        assertEquals(run(reduced, av, bv), expected)
+    // Wider and open windows still need the headed cap: epsilon may be first.
+    for (lo, hi) <- Vector(0 -> 2, 0 -> 0, 1 -> 0, 0 -> -1) do
+      val wider = Space.Iteration(Space.Range(Space.Mention(a), lo, hi), x, at, Space.Mention(b))
+      val reduced = EvidenceElimination(wider)
+      assert(collect(reduced)(spre = {
+        case Space.Range(Space.Subtraction(Space.Range(_, `lo`, `hi`), _), 0, 1) => ()
+      })._1.nonEmpty)
+      for av <- languages do
+        assertEquals(run(reduced, av, value("b")), run(wider, av, value("b")))
+  }
+
+  test("Fibonacci rank witnesses compile a single logical range selector") {
+    val inputs = Vector(value(), value(""), value("", "a"), value("a", "b", "b.tail"),
+      value("", "a", "a.b", "b", "b.a"))
+    for rank <- 2 to 4 do
+      val witness = Space.Iteration(Space.Range(Space.Mention(a), rank, rank + 1), x, at, epsilon)
+      val interner = PathItemInterner()
+      inputs.flatMap(_.paths).foreach(interner.encode)
+      val lowered = RadixTranslations.symbolsToBits(witness, interner = interner)
+      assertEquals(lowered.program.routines.keys.count(_.s.contains("ordered_range")), 1)
+      for input <- inputs do
+        assertEquals(lowered.decode(lowered.program.eval(spaceArgs = Map(a -> lowered.encode(input)))), run(witness, input))
+  }
+
   test("unwrap avoids capturing an external prefix with the producer's head name") {
     val producer = Space.Iteration(Space.Mention(a), x, at,
       Space.Wrap(Space.Mention(at), Path.Deref(x)))

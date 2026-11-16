@@ -160,8 +160,11 @@ object EvidenceElimination:
           case None if independent(body, h, t) && pure(body) =>
             if headed(src) && pure(src) then body
             else src match
-              // Already at most one path, including the epsilon-only case.
-              case Space.Range(_, 0, 1) => Space.Iteration(src, h, t, body)
+              // A singleton window already runs the body at most once, even
+              // when its selected path is epsilon. A second selection here
+              // becomes another full symbol scanner after variable encoding.
+              case Space.Range(_, lo, hi) if RangeBounds.cardinalityUpperBound(lo, hi).exists(_ <= 1) =>
+                Space.Iteration(src, h, t, body)
               case _ => Space.Iteration(Space.Range(Space.Subtraction(src, epsilon), 0, 1), h, t, body)
           case _ => Space.Iteration(src, h, t, body)
 
