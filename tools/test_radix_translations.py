@@ -14,6 +14,7 @@ def main():
     parser.add_argument("--output", type=Path, default=Path("/tmp/zippy-radix-full-suite"))
     parser.add_argument("--scala-cli", default="scala-cli")
     parser.add_argument("--heap", default="8g")
+    parser.add_argument("--stack", default="64m", help="JVM thread stack; deep cold trie tests may need 256m.")
     parser.add_argument("--workers", type=int, default=16)
     parser.add_argument("--seconds", type=int, default=5400)
     parser.add_argument("--test-only", help="Optional diagnostic subset; omitted runs all tests.")
@@ -32,7 +33,7 @@ def main():
     if args.test_only:
         command += ["--test-only", args.test_only]
     env = os.environ.copy()
-    env["_JAVA_OPTIONS"] = (env.get("_JAVA_OPTIONS", "") + f" -Xmx{args.heap} -Xss64m"
+    env["_JAVA_OPTIONS"] = (env.get("_JAVA_OPTIONS", "") + f" -Xmx{args.heap} -Xss{args.stack}"
                             f" -Dmorkl.radixAudit.path={output / 'audit'}"
                             f" -Dmorkl.radixAudit.workers={args.workers}"
                             f" -Dmorkl.radixAudit.seconds={args.seconds}").strip()

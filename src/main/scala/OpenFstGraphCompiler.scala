@@ -243,6 +243,10 @@ private[morkl] final class OpenFstGraphCompiler[V, L <: DigitLanguage[V]](
         Some((operation,payload,Vector(input)))
       case Space.Iteration(a,h,_,Space.Singleton(Path.Deref(r))) if h.s != "_" && r == h => Some(("NativeHead","",Vector(a)))
       case Space.Iteration(a,_,t,Space.Mention(r)) if t.s != "_" && r == t => Some(("TailsUnion","",Vector(a)))
+      // The source pass caps invariant bodies at one headed path. Native head
+      // existence already short-circuits and ignores epsilon, so peel the cap.
+      case Space.Iteration(Space.Range(Space.Subtraction(a,unit),0,1),_,_,body)
+          if epsilon(unit) && epsilon(body) => Some(("NativeHasHead","",Vector(a)))
       case Space.Iteration(a,_,_,body) if epsilon(body) => Some(("NativeHasHead","",Vector(a)))
       case Space.Union(Space.Intersection(value,unit),Space.Iteration(same,_,_,body))
           if value == same && epsilon(unit) && epsilon(body) && (value match

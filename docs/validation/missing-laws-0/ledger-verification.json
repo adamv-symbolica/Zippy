@@ -1,0 +1,21 @@
+{
+  "cases": 389961,
+  "checks": 3119688,
+  "routes": {
+    "symbols-bits": 389961,
+    "strings-bytes": 389961,
+    "length-bytes": 389961,
+    "interned-bytes": 389961,
+    "bits-bytes": 389961,
+    "bytes-bits": 389961,
+    "bits-symbols": 389961,
+    "bytes-symbols": 389961
+  },
+  "duplicateChecks": 0,
+  "missingChecks": 0,
+  "failures": 0,
+  "rawBytes": 366488052,
+  "sha256": "711b09de73e13c0e94a8f7ab0c9f1ea4ddb3b524289bda58a13dda72f9439feb",
+  "gzipBytes": 13715701,
+  "gzipSha256": "891a8b25331cdd09472cb1f1021fbc958ffeebe445503a85e11f5673edebf24e"
+}

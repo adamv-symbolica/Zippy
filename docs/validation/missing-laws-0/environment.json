@@ -1,0 +1,21 @@
+{
+  "profile": "cpu-h4d-xlarge",
+  "cpu": "AMD EPYC 9B45",
+  "cores": 192,
+  "benchmarkCpus": "144-151",
+  "testCpus": "0-143",
+  "heap": "256g",
+  "stack": "256m",
+  "rust": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "cargo": "cargo 1.99.1 (5f94df478 2026-08-27)",
+  "scalaCli": "Scala CLI version: 1.18.0\nScala version (default): 3.9.0",
+  "z3": "Z3 version 4.8.12 - 64 bit",
+  "egglog": "egglog 2.0.0_2026-11-16_",
+  "openfst": "libfst-dev\t1.7.9-5build1",
+  "nativeBackends": [
+    "PathMap",
+    "OpenFst"
+  ],
+  "scala": "3.8.1",
+  "sourceCompatibility": "3.3"
+}

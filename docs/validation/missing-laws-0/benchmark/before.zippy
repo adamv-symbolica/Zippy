@@ -1,0 +1,3 @@
+TailsUnion(S"evidence_a".iter(P"evidence_x", S"evidence_at",
+ (P"evidence_x" x (S"evidence_b" \ Literal(SpaceValue(""))))
+))

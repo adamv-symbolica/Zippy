@@ -22,7 +22,7 @@ The project contains working implementations of:
 - a Rust / PathMap compiler for byte executor graphs, including all operations and the symbol/bit-to-byte translations (see [backend usage](docs/PATHMAP_BACKEND.md));
 - a virtual zipper evaluator with focus/context movement;
 - recursive operation-graph lowering and direct trie execution;
-- source optimization and positive supercompilation;
+- source optimization and positive supercompilation, including [consumer/producer evidence elimination](docs/EVIDENCE_ELIMINATION.md);
 - generated egglog, Z3, and Vampire proof artifacts;
 - dependent expression/space fuzzers and differential backend verification;
 - benchmark suites for the cornerstone MORKL programs.
@@ -46,6 +46,7 @@ See [Proof Status](#proof-status) and [`fallbacks.md`](docs/fallbacks.md).
 | `src/main/scala/TrieSpace.scala` | interned trie representation and native algebra |
 | `src/main/scala/ZipperSpace.scala` | virtual zipper operators, traversal, context, and `execZ` |
 | `src/main/scala/Supercompiler.scala` | positive supercompiler and residualization |
+| `src/main/scala/EvidenceElimination.scala` | capture-aware consumer/producer simplification before encoding |
 | `src/main/scala/Fuzzer.scala` | reusable distribution and corpus machinery |
 | `src/main/scala/ProofArtifacts.scala` | generated bounded and unbounded proof obligations |
 | `src/test/scala/` | unit, differential, corpus, proof-generation, and benchmark suites |

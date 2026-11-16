@@ -89,11 +89,11 @@ object Matching:
       case Space.Restriction(a, b) => recs(a, boundS); recs(b, boundS)
       case Space.Raffination(a, b) => recs(a, boundS); recs(b, boundS)
       case Space.Composition(a, b) => recs(a, boundS); recs(b, boundS)
-      case Space.Iteration(src, _, rest, body) => recs(src, boundS); recs(body, boundS + rest.s)
+      case Space.Iteration(src, _, rest, body) => recs(src, boundS); recs(body, boundS ++ Option.when(rest.s != "_")(rest.s))
       case Space.Fold(src, initial, _, _, rest, body, update) =>
-        recs(src, boundS); recp(initial, boundS); recs(body, boundS + rest.s); recp(update, boundS)
+        recs(src, boundS); recp(initial, boundS); recs(body, boundS ++ Option.when(rest.s != "_")(rest.s)); recp(update, boundS)
       case Space.Fixpoint(initial, variable, step) =>
-        recs(initial, boundS); recs(step, boundS + variable.s)
+        recs(initial, boundS); recs(step, boundS ++ Option.when(variable.s != "_")(variable.s))
       case Space.Wrap(src, p) => recs(src, boundS); recp(p, boundS)
       case Space.Unwrap(src, p) => recs(src, boundS); recp(p, boundS)
       case Space.TailsUnion(src) => recs(src, boundS)
@@ -129,9 +129,10 @@ object Matching:
       case Space.Restriction(a, b) => recs(a, boundP); recs(b, boundP)
       case Space.Raffination(a, b) => recs(a, boundP); recs(b, boundP)
       case Space.Composition(a, b) => recs(a, boundP); recs(b, boundP)
-      case Space.Iteration(src, sym, _, body) => recs(src, boundP); recs(body, boundP + sym.s)
+      case Space.Iteration(src, sym, _, body) => recs(src, boundP); recs(body, boundP ++ Option.when(sym.s != "_")(sym.s))
       case Space.Fold(src, initial, acc, sym, _, body, update) =>
-        recs(src, boundP); recp(initial, boundP); recs(body, boundP + acc.s + sym.s); recp(update, boundP + acc.s + sym.s)
+        val bodyBound = boundP ++ Vector(acc.s, sym.s).filter(_ != "_")
+        recs(src, boundP); recp(initial, boundP); recs(body, bodyBound); recp(update, bodyBound)
       case Space.Fixpoint(initial, _, step) =>
         recs(initial, boundP); recs(step, boundP)
       case Space.Wrap(src, p) => recs(src, boundP); recp(p, boundP)

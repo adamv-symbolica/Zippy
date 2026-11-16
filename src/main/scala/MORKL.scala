@@ -416,8 +416,8 @@ object ReferenceHints:
         val restSize = Option.when(rest.sizeHint >= 0)(rest.sizeHint).orElse(uniformTailGroupSize(taggedSource))
         val taggedRest = hinted(rest, restSize)
         val bodyEnvironment = HintEnvironment(
-          environment.pathHints.updated(symbol, 1),
-          restSize.fold(environment.spaceHints)(environment.spaceHints.updated(rest, _))
+          if symbol.s == "_" then environment.pathHints else environment.pathHints.updated(symbol, 1),
+          if rest.s == "_" then environment.spaceHints else restSize.fold(environment.spaceHints)(environment.spaceHints.updated(rest, _))
         )
         Space.Iteration(
           taggedSource,
@@ -430,7 +430,7 @@ object ReferenceHints:
         val taggedInitial = recp(initial, environment)
         val initialLength = pathLength(taggedInitial)
         val updateProbeEnvironment = HintEnvironment(
-          environment.pathHints.updated(symbol, 1) ++ initialLength.map(acc -> _),
+          environment.pathHints ++ Option.when(symbol.s != "_")(symbol -> 1) ++ initialLength.filter(_ => acc.s != "_").map(acc -> _),
           environment.spaceHints
         )
         val taggedUpdate0 = recp(update, updateProbeEnvironment)
@@ -443,8 +443,8 @@ object ReferenceHints:
         val restSize = Option.when(rest.sizeHint >= 0)(rest.sizeHint).orElse(uniformTailGroupSize(taggedSource))
         val taggedRest = hinted(rest, restSize)
         val bodyEnvironment = HintEnvironment(
-          environment.pathHints.updated(symbol, 1) ++ accumulatorLength.map(acc -> _),
-          restSize.fold(environment.spaceHints)(environment.spaceHints.updated(rest, _))
+          environment.pathHints ++ Option.when(symbol.s != "_")(symbol -> 1) ++ accumulatorLength.filter(_ => acc.s != "_").map(acc -> _),
+          if rest.s == "_" then environment.spaceHints else restSize.fold(environment.spaceHints)(environment.spaceHints.updated(rest, _))
         )
         Space.Fold(
           taggedSource,
@@ -467,7 +467,7 @@ object ReferenceHints:
           taggedVariable,
           recs(step, HintEnvironment(
             environment.pathHints,
-            variableSize.fold(environment.spaceHints)(environment.spaceHints.updated(variable, _))
+            if variable.s == "_" then environment.spaceHints else variableSize.fold(environment.spaceHints)(environment.spaceHints.updated(variable, _))
           ))
         )
       case Space.Wrap(src, prefix) => Space.Wrap(recs(src, environment), recp(prefix, environment))
@@ -1781,7 +1781,7 @@ object Lower:
     collect(s)(ppre = { case Path.Deref(`pr`) => () })._2.nonEmpty
 
   private def independentOf(s: Space, symbol: PathRef, rest: SpaceMention): Boolean =
-    !usesRef(s, symbol) && !usesMention(s, rest)
+    (symbol.s == "_" || !Matching.freeRefs(s)(symbol)) && (rest.s == "_" || !Matching.freeMentions(s)(rest))
 
   private val epsilonSpace: Space = Space.Singleton(Path.ZERO)
 
@@ -2380,8 +2380,8 @@ object Lower:
     case Space.Fold(Space.Empty, _, _, _, _, _, _) => Space.Empty
     case Space.Fold(src, _, acc, symbol, rest, body, _) if !usesRef(body, acc) =>
       Space.Iteration(src, symbol, rest, body)
-    case Space.Iteration(src, _, rest, Space.Mention(sm)) if sm == rest => Space.TailsUnion(src)
-    case Space.Iteration(src, symbol, rest, body) if hasStaticHead(src) && !usesRef(body, symbol) && !usesMention(body, rest) => body
+    case Space.Iteration(src, _, rest, Space.Mention(sm)) if rest.s != "_" && sm == rest => Space.TailsUnion(src)
+    case Space.Iteration(src, symbol, rest, body) if hasStaticHead(src) && independentOf(body, symbol, rest) => body
     case Space.Fixpoint(initial, variable, Space.Mention(sm)) if sm == variable => initial
     case Space.Fixpoint(initial, variable, Space.Union(Space.Mention(sm), static)) if sm == variable && !usesMention(static, variable) =>
       Space.Union(initial, static)
@@ -2422,16 +2422,14 @@ object Lower:
   })
 
   val Iter_Ident = subs(_: Space)(PartialFunction.empty, {
-    case Space.Iteration(src, symbol, rest, Space.Wrap(Space.Mention(sm), Path.Deref(pr))) if symbol == pr && sm == rest
+    case Space.Iteration(src, symbol, rest, Space.Wrap(Space.Mention(sm), Path.Deref(pr))) if symbol.s != "_" && rest.s != "_" && symbol == pr && sm == rest
     => Space.Subtraction(src, Space.Singleton(Path.ZERO))
-    case Space.Iteration(src, symbol, rest, Space.Wrap(Space.Mention(sm), Path.Concat(prefix, Path.Deref(pr)))) if symbol == pr && sm == rest && {
-      val (soc, poc) = collect(Space.Singleton(prefix))({ case Space.Mention(`rest`) => () }, { case Path.Deref(`symbol`) => () })
-      soc.isEmpty && poc.isEmpty
-    } => Space.Wrap(Space.Subtraction(src, Space.Singleton(Path.ZERO)), prefix)
-    case Space.Iteration(src, symbol, rest, Space.Composition(Space.Singleton(Path.Concat(prefix, Path.Deref(pr))), Space.Mention(sm))) if symbol == pr && sm == rest && {
-      val (soc, poc) = collect(Space.Singleton(prefix))({ case Space.Mention(`rest`) => () }, { case Path.Deref(`symbol`) => () })
-      soc.isEmpty && poc.isEmpty
-    } => Space.Wrap(Space.Subtraction(src, Space.Singleton(Path.ZERO)), prefix)
+    case Space.Iteration(src, symbol, rest, Space.Wrap(Space.Mention(sm), Path.Concat(prefix, Path.Deref(pr))))
+        if symbol.s != "_" && rest.s != "_" && symbol == pr && sm == rest && independentOf(Space.Singleton(prefix), symbol, rest) =>
+      Space.Wrap(Space.Subtraction(src, Space.Singleton(Path.ZERO)), prefix)
+    case Space.Iteration(src, symbol, rest, Space.Composition(Space.Singleton(Path.Concat(prefix, Path.Deref(pr))), Space.Mention(sm)))
+        if symbol.s != "_" && rest.s != "_" && symbol == pr && sm == rest && independentOf(Space.Singleton(prefix), symbol, rest) =>
+      Space.Wrap(Space.Subtraction(src, Space.Singleton(Path.ZERO)), prefix)
   })
 
   val inline = (ctx: PartialFunction[RoutinePtr, Routine]) ?=> subs(_: Space)(spost = {
@@ -2846,6 +2844,7 @@ object Supercompiler:
       case _ => false
 
   val defaultSourcePasses: Vector[(String, Space => Space)] = Vector(
+    "evidence-elimination" -> EvidenceElimination.apply,
     "algebraic-identities" -> Lower.AlgebraicIdentities,
     "constant-paths" -> Lower.Concat_Path,
     "constant-spaces" -> Lower.ConstantOps,

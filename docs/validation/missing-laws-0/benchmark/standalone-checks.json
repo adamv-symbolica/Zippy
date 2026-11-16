@@ -1,0 +1,26 @@
+[
+  {
+    "source": "before.rs",
+    "sha256": "9d1863b1f05cafe415b5913096804206291c4769b074ff8908e451e7e72033f2",
+    "compiled": true,
+    "exactChecks": 3
+  },
+  {
+    "source": "before.cpp",
+    "sha256": "2c16bc17856248324b5c35893705431bc4c994a1463ddcee9e7518687ee2f4c9",
+    "compiled": true,
+    "exactChecks": 3
+  },
+  {
+    "source": "after.rs",
+    "sha256": "44e4f67d1bd9adc737d7a4c3e28c749288cbebbb6a01ce853e3a2b52c6207fd3",
+    "compiled": true,
+    "exactChecks": 3
+  },
+  {
+    "source": "after.cpp",
+    "sha256": "8496f7c9c48b64b2de28524631ac7944e3206ce7fe70c6d693b832cd72dfd04f",
+    "compiled": true,
+    "exactChecks": 3
+  }
+]
