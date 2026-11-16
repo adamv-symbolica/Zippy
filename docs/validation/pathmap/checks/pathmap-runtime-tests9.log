@@ -1,4 +1,4 @@
-   Compiling zippy-pathmap v0.1.0 (/home/ubuntu/Zippy-pathmap-final9/src/main/rust/pathmap)
+   Compiling zippy-pathmap v0.1.0 (<node-home>/Zippy-pathmap-final9/src/main/rust/pathmap)
     Finished `release` profile [optimized + debuginfo] target(s) in 3.81s
      Running unittests src/lib.rs (target/release/deps/zippy_pathmap-e698212c332a30d5)
 

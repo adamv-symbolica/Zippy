@@ -1,2 +1,2 @@
-Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Xmx48g -Xss64m -Dmorkl.pathmap.root=/home/ubuntu/Zippy-bulk-final
+Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Xmx48g -Xss64m -Dmorkl.pathmap.root=<node-home>/Zippy-bulk-final
 [pathmap-bench] large/semi-naive datalog over generated chain graph/80 nodes, 159 edge facts

@@ -1,2 +1,2 @@
-Picked up _JAVA_OPTIONS:  -Xmx192g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy-final-pruned-bench
-wrote 7 cornerstone spatial analyses to /home/ubuntu/openfst-benchmarks/cornerstone-final/existing/cornerstoneSpatialTypeReport.md
+Picked up _JAVA_OPTIONS:  -Xmx192g -Xss64m -Dmorkl.openfst.root=<node-home>/Zippy-final-pruned-bench
+wrote 7 cornerstone spatial analyses to <node-home>/openfst-benchmarks/cornerstone-final/existing/cornerstoneSpatialTypeReport.md

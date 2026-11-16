@@ -1,0 +1,81 @@
+{
+  "date": "2026-11-16",
+  "before": "6ef74ef9699cb613ead3a03c78cc99a45415c155",
+  "after": "018bcdb106767513a8e7460381186f8643313d8e",
+  "profile": "cpu-h4d-xlarge",
+  "cpu": "AMD EPYC 9B45",
+  "cores": 192,
+  "java": 21,
+  "scala": "3.8.1",
+  "scala_cli": "1.18.0",
+  "rust_cargo": "1.99.1",
+  "cases": {
+    "programs": 22,
+    "large": 14
+  },
+  "paired_measurements": 434,
+  "exact": true,
+  "output_mismatches": 0,
+  "successful_processes": 632,
+  "retained_measurements": 1708,
+  "confirmed_native_regressions": [
+    {
+      "index": 10,
+      "evaluator": "pathmap:bits-bytes",
+      "before_ms": 144.055225,
+      "after_ms": 339.7281,
+      "after_over_before": 2.3583184851503995,
+      "process_pair_ratios": [
+        2.346518944577079,
+        2.360298367105367,
+        2.3714733360070763
+      ]
+    },
+    {
+      "index": 10,
+      "evaluator": "openfst:bits",
+      "before_ms": 178.89528,
+      "after_ms": 421.022666,
+      "after_over_before": 2.3534587720816336,
+      "process_pair_ratios": [
+        2.325352833550302,
+        2.403457771496263,
+        2.350400682618891
+      ]
+    },
+    {
+      "index": 11,
+      "evaluator": "pathmap:bits-bytes",
+      "before_ms": 61.976902,
+      "after_ms": 103.560838,
+      "after_over_before": 1.6709586097091462,
+      "process_pair_ratios": [
+        1.6709586097091462,
+        1.6734198741195716,
+        1.6734056639931085
+      ]
+    },
+    {
+      "index": 11,
+      "evaluator": "openfst:bits",
+      "before_ms": 142.303059,
+      "after_ms": 231.612982,
+      "after_over_before": 1.6276036764606725,
+      "process_pair_ratios": [
+        1.6238993547467235,
+        1.6294016476041815,
+        1.6468420120188703
+      ]
+    }
+  ],
+  "reference_warmup_ms": 3000,
+  "reference_sample_target_ms": 50,
+  "reference_samples": 5,
+  "alias": "execZ delegates to evalZ; it is not counted as an independent measurement",
+  "notes": [
+    "Native session setup may hit compiler caches; it is not a uniformly cold compilation comparison.",
+    "Reference probes report exact output checks separately from timed evaluation and cardinality.",
+    "Reference timings vary with JVM compilation and GC; candidate replays are retained without discarding unfavorable samples.",
+    "GOL bit-native regressions reproduce in both revision orders; their generated Rust opt-level caps are unchanged."
+  ]
+}

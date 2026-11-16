@@ -1,2 +1,2 @@
-Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Xmx32g -Xss64m -Dmorkl.pathmap.root=/home/ubuntu/Zippy-bulk-final
-wrote 7 cornerstone spatial analyses to /home/ubuntu/Zippy/output/adiabatic-bulk-final/benchmarks/existing/cornerstoneSpatialTypeReport.md
+Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Xmx32g -Xss64m -Dmorkl.pathmap.root=<node-home>/Zippy-bulk-final
+wrote 7 cornerstone spatial analyses to <node-home>/Zippy/output/adiabatic-bulk-final/benchmarks/existing/cornerstoneSpatialTypeReport.md

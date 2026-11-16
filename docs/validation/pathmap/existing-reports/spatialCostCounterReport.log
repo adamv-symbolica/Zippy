@@ -1,4 +1,4 @@
-Picked up _JAVA_OPTIONS: -Dmorkl.pathmap.cache=/home/ubuntu/zippy-pathmap-cache8 -Xmx128g -Xss64m -Dmorkl.pathmap.root=/home/ubuntu/Zippy-pathmap-final9
+Picked up _JAVA_OPTIONS: -Dmorkl.pathmap.cache=<node-home>/zippy-pathmap-cache8 -Xmx128g -Xss64m -Dmorkl.pathmap.root=<node-home>/Zippy-pathmap-final9
 restriction-left-64,Trie,predicted=SpatialCostComponents(Const(6),Const(8),Const(3),Const(1),Const(0)),actual=ExecutorCostCounts(3,6,3,0,0)
 restriction-left-64,Zipper,predicted=SpatialCostComponents(Const(8),Const(8),Const(3),Const(1),Const(0)),actual=ExecutorCostCounts(3,6,3,0,0)
 restriction-left-64,Graph,predicted=SpatialCostComponents(Const(7),Const(8),Const(3),Const(1),Const(0)),actual=ExecutorCostCounts(4,6,3,0,0)

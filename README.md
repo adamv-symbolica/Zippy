@@ -11,6 +11,9 @@ That paper introduces the algebra through family queries, graph algorithms,
 Game of Life, semi-naive Datalog, and fuzzy temperature search. This README is
 only the repository guide.
 
+Retained validation logs use `<node-home>` in place of machine-specific home
+directories; their test results and timing data are preserved.
+
 ## Status
 
 The project contains working implementations of:

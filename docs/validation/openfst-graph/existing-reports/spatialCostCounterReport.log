@@ -1,4 +1,4 @@
-Picked up _JAVA_OPTIONS: -Dmorkl.openfst.prefix=/home/ubuntu/zippy-upstream -Dmorkl.openfst.cache=/home/ubuntu/Zippy-graph-final/target/openfst -Xmx128g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy-graph-final10
+Picked up _JAVA_OPTIONS: -Dmorkl.openfst.prefix=<node-home>/zippy-upstream -Dmorkl.openfst.cache=<node-home>/Zippy-graph-final/target/openfst -Xmx128g -Xss64m -Dmorkl.openfst.root=<node-home>/Zippy-graph-final10
 restriction-left-64,Trie,predicted=SpatialCostComponents(Const(6),Const(8),Const(3),Const(1),Const(0)),actual=ExecutorCostCounts(3,6,3,0,0)
 restriction-left-64,Zipper,predicted=SpatialCostComponents(Const(8),Const(8),Const(3),Const(1),Const(0)),actual=ExecutorCostCounts(3,6,3,0,0)
 restriction-left-64,Graph,predicted=SpatialCostComponents(Const(7),Const(8),Const(3),Const(1),Const(0)),actual=ExecutorCostCounts(4,6,3,0,0)

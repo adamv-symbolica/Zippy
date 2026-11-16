@@ -1,4 +1,4 @@
-Picked up _JAVA_OPTIONS: -Dmorkl.pathmap.cache=/home/ubuntu/zippy-pathmap-cache8 -Xmx128g -Xss64m -Dmorkl.pathmap.root=/home/ubuntu/Zippy-pathmap-final9
+Picked up _JAVA_OPTIONS: -Dmorkl.pathmap.cache=<node-home>/zippy-pathmap-cache8 -Xmx128g -Xss64m -Dmorkl.pathmap.root=<node-home>/Zippy-pathmap-final9
 operation,size,ns_per_operation
 union-subset,1024,11804.7
 intersection-subset,1024,5249.8

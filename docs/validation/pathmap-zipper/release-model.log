@@ -7,7 +7,7 @@ warning: function `new_map_from_ana_jumping` is never used
     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
 warning: `pathmap` (lib) generated 1 warning
-   Compiling zippy-pathmap v0.1.0 (/home/ubuntu/Zippy/src/main/rust/pathmap)
+   Compiling zippy-pathmap v0.1.0 (<node-home>/Zippy/src/main/rust/pathmap)
     Finished `release` profile [optimized + debuginfo] target(s) in 5.32s
      Running unittests src/lib.rs (src/main/rust/pathmap/target/release/deps/zippy_pathmap-e2b9f1aaa524f6de)
 

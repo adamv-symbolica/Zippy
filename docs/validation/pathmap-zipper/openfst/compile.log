@@ -1,7 +1,7 @@
-Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Dmorkl.openfst.prefix=/home/ubuntu/openfst -Xmx64g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy
-Warning: setting /home/ubuntu/Zippy/output/pathmap-zipper/openfst/scala-sources/src/main/scala as the project root directory for this run.
-Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Dmorkl.openfst.prefix=/home/ubuntu/openfst -Xmx64g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy
-[33m[33m-- [E121] Pattern Match Warning: /home/ubuntu/Zippy/output/pathmap-zipper/openfst/scala-sources/src/main/scala/MORKL.scala:1722:9 [0m[0m
+Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Dmorkl.openfst.prefix=<node-home>/openfst -Xmx64g -Xss64m -Dmorkl.openfst.root=<node-home>/Zippy
+Warning: setting <node-home>/Zippy/output/pathmap-zipper/openfst/scala-sources/src/main/scala as the project root directory for this run.
+Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Dmorkl.openfst.prefix=<node-home>/openfst -Xmx64g -Xss64m -Dmorkl.openfst.root=<node-home>/Zippy
+[33m[33m-- [E121] Pattern Match Warning: <node-home>/Zippy/output/pathmap-zipper/openfst/scala-sources/src/main/scala/MORKL.scala:1722:9 [0m[0m
 [33m1722 |[0m    [33mcase[0m x => x
 [33m[33m     |[0m         ^[0m
 [33m     |[0mUnreachable case except for [32mnull[0m (if this is intentional, consider writing [33mcase[0m [32mnull[0m => instead).

@@ -1,4 +1,4 @@
-Picked up _JAVA_OPTIONS: -Dmorkl.openfst.prefix=/home/ubuntu/zippy-upstream -Dmorkl.openfst.cache=/home/ubuntu/Zippy-graph-final/target/openfst -Xmx128g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy-graph-final10
+Picked up _JAVA_OPTIONS: -Dmorkl.openfst.prefix=<node-home>/zippy-upstream -Dmorkl.openfst.cache=<node-home>/Zippy-graph-final/target/openfst -Xmx128g -Xss64m -Dmorkl.openfst.root=<node-home>/Zippy-graph-final10
 heads,paths,original_ms,optimized_ms,compiled_execT_ms,original/optimized
 32,64,2.7330,0.1369,0.4301,19.96
 64,128,2.7213,0.1822,0.4822,14.93

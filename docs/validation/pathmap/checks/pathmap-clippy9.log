@@ -18,5 +18,5 @@
     Checking num-bigint v0.4.8
    Compiling pathmap-derive v0.3.0 (https://github.com/Adam-Vandervorst/PathMap?rev=f3e442ed19025582aced71c598a0359b3b469e45#f3e442ed)
     Checking pathmap v0.4.0 (https://github.com/Adam-Vandervorst/PathMap?rev=f3e442ed19025582aced71c598a0359b3b469e45#f3e442ed)
-    Checking zippy-pathmap v0.1.0 (/home/ubuntu/Zippy-pathmap-final9/src/main/rust/pathmap)
+    Checking zippy-pathmap v0.1.0 (<node-home>/Zippy-pathmap-final9/src/main/rust/pathmap)
     Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.03s

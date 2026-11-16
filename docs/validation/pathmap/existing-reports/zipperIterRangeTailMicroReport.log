@@ -1,4 +1,4 @@
-Picked up _JAVA_OPTIONS: -Dmorkl.pathmap.cache=/home/ubuntu/zippy-pathmap-cache8 -Xmx128g -Xss64m -Dmorkl.pathmap.root=/home/ubuntu/Zippy-pathmap-final9
+Picked up _JAVA_OPTIONS: -Dmorkl.pathmap.cache=<node-home>/zippy-pathmap-cache8 -Xmx128g -Xss64m -Dmorkl.pathmap.root=<node-home>/Zippy-pathmap-final9
 [iter-range-tail-micro] heads=32 tailFanout=12
 [iter-range-tail-micro] heads=96 tailFanout=16
 [iter-range-tail-micro] heads=192 tailFanout=16

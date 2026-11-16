@@ -1,4 +1,4 @@
-   Compiling pathmap v0.4.0 (/home/ubuntu/Zippy/src/main/rust/pathmap/vendor/pathmap)
+   Compiling pathmap v0.4.0 (<node-home>/Zippy/src/main/rust/pathmap/vendor/pathmap)
 warning: function `new_map_from_ana_jumping` is never used
    --> vendor/pathmap/src/morphisms.rs:686:15
     |
@@ -7,7 +7,7 @@ warning: function `new_map_from_ana_jumping` is never used
     |
     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
-   Compiling zippy-pathmap v0.1.0 (/home/ubuntu/Zippy/src/main/rust/pathmap)
+   Compiling zippy-pathmap v0.1.0 (<node-home>/Zippy/src/main/rust/pathmap)
 warning: the `inline` attribute cannot be used on required trait methods
   --> src/lib.rs:18:7
    |

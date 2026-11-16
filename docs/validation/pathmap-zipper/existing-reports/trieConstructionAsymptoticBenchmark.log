@@ -1,4 +1,4 @@
-Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Dmorkl.openfst.prefix=/home/ubuntu/openfst -Xmx64g -Xss64m -Dmorkl.pathmap.root=/home/ubuntu/Zippy
+Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Dmorkl.openfst.prefix=<node-home>/openfst -Xmx64g -Xss64m -Dmorkl.pathmap.root=<node-home>/Zippy
 size,wide_ms,deep_ms
 256,0.534,0.336
 1024,1.007,0.797

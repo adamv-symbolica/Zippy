@@ -1,4 +1,4 @@
-   Compiling pathmap v0.4.0 (/home/ubuntu/Zippy/src/main/rust/pathmap/vendor/pathmap)
+   Compiling pathmap v0.4.0 (<node-home>/Zippy/src/main/rust/pathmap/vendor/pathmap)
 warning: function `new_map_from_ana_jumping` is never used
    --> vendor/pathmap/src/morphisms.rs:686:15
     |

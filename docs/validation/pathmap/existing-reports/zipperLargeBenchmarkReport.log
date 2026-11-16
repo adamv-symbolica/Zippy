@@ -1,4 +1,4 @@
-Picked up _JAVA_OPTIONS: -Dmorkl.pathmap.cache=/home/ubuntu/zippy-pathmap-cache8 -Xmx128g -Xss64m -Dmorkl.pathmap.root=/home/ubuntu/Zippy-pathmap-final9
+Picked up _JAVA_OPTIONS: -Dmorkl.pathmap.cache=<node-home>/zippy-pathmap-cache8 -Xmx128g -Xss64m -Dmorkl.pathmap.root=<node-home>/Zippy-pathmap-final9
 [zipper-large] nonrecursive graph two-hop / 180 nodes, 359 edge facts
 [zipper-large] nonrecursive graph two-hop / 360 nodes, 719 edge facts
 [zipper-large] nonrecursive graph two-hop / 720 nodes, 1439 edge facts

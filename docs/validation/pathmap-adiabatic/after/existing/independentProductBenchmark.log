@@ -1,4 +1,4 @@
-Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Xmx32g -Xss64m -Dmorkl.pathmap.root=/home/ubuntu/Zippy-bulk-final
+Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Xmx32g -Xss64m -Dmorkl.pathmap.root=<node-home>/Zippy-bulk-final
 heads,paths,original_ms,optimized_ms,compiled_execT_ms,original/optimized
 32,64,3.5295,0.2283,0.5662,15.46
 64,128,2.3646,0.1737,0.3817,13.62

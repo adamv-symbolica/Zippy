@@ -1,4 +1,4 @@
-Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Dmorkl.openfst.prefix=/home/ubuntu/openfst -Xmx64g -Xss64m -Dmorkl.openfst.root=/home/ubuntu/Zippy
+Picked up _JAVA_OPTIONS: -XX:ActiveProcessorCount=8 -Dmorkl.openfst.prefix=<node-home>/openfst -Xmx64g -Xss64m -Dmorkl.openfst.root=<node-home>/Zippy
 [openfst-bench] large/nonrecursive graph two-hop/180 nodes, 359 edge facts
 [openfst-bench] large/nonrecursive graph two-hop/720 nodes, 1439 edge facts
 [openfst-bench] large/product intersected by one exact path/10000 x 10000 product, 1 result path

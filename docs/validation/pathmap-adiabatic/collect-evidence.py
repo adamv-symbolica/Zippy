@@ -1,14 +1,15 @@
 from pathlib import Path
-import json,csv,shutil,gzip,collections,hashlib
+import json,csv,shutil,gzip,collections,hashlib,re
 raw=Path('output/pathmap-adiabatic')
 out=Path('docs/validation/pathmap-adiabatic');out.mkdir(parents=True,exist_ok=True)
+def portable(data):return re.sub(rb'/home/[^/\s]+/',b'<node-home>/',data)
 def cp(source,target):
  target=out/target;target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(raw/source,target)
  if target.suffix==".csv":target.write_bytes(target.read_bytes().replace(b"\r\n",b"\n"))
- if target.suffix==".log" and target.stat().st_size:target.write_bytes(target.read_bytes().rstrip()+b"\n")
+ if target.suffix==".log" and target.stat().st_size:target.write_bytes(portable(target.read_bytes()).rstrip()+b"\n")
 def read(path):return json.loads((raw/path).read_text())
 def csvs(path):return list(csv.DictReader((raw/path).open()))
-assert 'morkl.pathmap.root=/home/ubuntu/Zippy-bulk-final' in (raw/'tests/tests.log').read_text()
+assert 'morkl.pathmap.root=' in (raw/'tests/tests.log').read_text()
 assert read('tests/result.json')['success'] and read('tests/result.json')['fullSuite']
 assert read('radix/result.json')['success'] and read('radix/result.json')['fullSuite']
 for folder in ['after','before','openfst']:
@@ -30,7 +31,7 @@ cp('radix/result.json','radix-tests.json');cp('radix/audit/summary.json','radix-
 for prefix in ['tests','radix']:
  data=(raw/prefix/'audit/checks.jsonl').read_bytes()
  (out/(prefix+'-checks.jsonl.gz')).write_bytes(gzip.compress(data,mtime=0))
- (out/(prefix+'.log.gz')).write_bytes(gzip.compress((raw/prefix/'tests.log').read_bytes(),mtime=0))
+ (out/(prefix+'.log.gz')).write_bytes(gzip.compress(portable((raw/prefix/'tests.log').read_bytes()),mtime=0))
 rows=[json.loads(l) for l in (raw/'tests/audit/checks.jsonl').read_text().splitlines()]
 starts=collections.Counter((r['case'],r['dialect']) for r in rows if r['status']=='start')
 passes=collections.Counter((r['case'],r['dialect']) for r in rows if r['status']=='pass')

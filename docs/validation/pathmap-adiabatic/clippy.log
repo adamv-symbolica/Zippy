@@ -16,8 +16,8 @@
    Compiling syn v2.0.119
     Checking num-integer v0.1.47
     Checking num-bigint v0.4.8
-   Compiling pathmap-derive v0.3.0 (/home/ubuntu/Zippy-bulk-final/src/main/rust/pathmap/vendor/pathmap/pathmap-derive)
-    Checking pathmap v0.4.0 (/home/ubuntu/Zippy-bulk-final/src/main/rust/pathmap/vendor/pathmap)
+   Compiling pathmap-derive v0.3.0 (<node-home>/Zippy-bulk-final/src/main/rust/pathmap/vendor/pathmap/pathmap-derive)
+    Checking pathmap v0.4.0 (<node-home>/Zippy-bulk-final/src/main/rust/pathmap/vendor/pathmap)
 warning: function `new_map_from_ana_jumping` is never used
    --> vendor/pathmap/src/morphisms.rs:686:15
     |
@@ -27,5 +27,5 @@ warning: function `new_map_from_ana_jumping` is never used
     = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
 
 warning: `pathmap` (lib) generated 1 warning
-    Checking zippy-pathmap v0.1.0 (/home/ubuntu/Zippy-bulk-final/src/main/rust/pathmap)
+    Checking zippy-pathmap v0.1.0 (<node-home>/Zippy-bulk-final/src/main/rust/pathmap)
     Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.30s

@@ -6,7 +6,7 @@
 -- Detecting CXX compile features - done
 -- Configuring done (0.6s)
 -- Generating done (0.0s)
--- Build files have been written to: /home/ubuntu/zippy-graph-sanitize10
+-- Build files have been written to: <node-home>/zippy-graph-sanitize10
 [ 16%] Building CXX object CMakeFiles/zippy_openfst.dir/zippy_openfst.cpp.o
 [ 33%] Linking CXX shared library libzippy_openfst.so
 [ 33%] Built target zippy_openfst

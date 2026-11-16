@@ -60,14 +60,14 @@
    Compiling tempfile v3.27.0
    Compiling num-bigint v0.4.8
    Compiling num-iter v0.1.46
-   Compiling pathmap-derive v0.3.0 (/home/ubuntu/Zippy-release/src/main/rust/pathmap/vendor/pathmap/pathmap-derive)
+   Compiling pathmap-derive v0.3.0 (<node-home>/Zippy-release/src/main/rust/pathmap/vendor/pathmap/pathmap-derive)
    Compiling ppv-lite86 v0.2.21
    Compiling num-rational v0.4.2
    Compiling rand_chacha v0.9.0
    Compiling num v0.4.3
    Compiling rand v0.9.5
    Compiling rand_distr v0.5.1
-   Compiling pathmap v0.4.0 (/home/ubuntu/Zippy-release/src/main/rust/pathmap/vendor/pathmap)
+   Compiling pathmap v0.4.0 (<node-home>/Zippy-release/src/main/rust/pathmap/vendor/pathmap)
     Finished `release` profile [optimized + debuginfo] target(s) in 1m 40s
      Running unittests src/lib.rs (src/main/rust/pathmap/target/release/deps/pathmap-261beb9d2f616cda)
 

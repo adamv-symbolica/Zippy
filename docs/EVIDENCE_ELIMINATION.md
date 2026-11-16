@@ -1,7 +1,7 @@
 # Consumer/producer simplification
 
-`EvidenceElimination` implements the improvements described in
-`~/Zippy_a_missing_laws_0.md`. It is the first shared source-optimization pass,
+`EvidenceElimination` removes intermediate prefixes and repeated work when
+an operation immediately consumes an iteration's output. It is the first shared source-optimization pass,
 used by both supercompilers and the native graph-compilation pipeline. The four
 symbol encodings also apply it to the entry expression and routine bodies
 before lowering symbols to bits or bytes.
@@ -49,7 +49,7 @@ lengths, union growth, shared nodes, opaque evaluation counts, all four symbol
 encodings, and the counterexample to source-union distribution.
 
 `EvidenceEliminationBenchmark.scala` compares the previous source pass list
-with the new one on the notes' evidence-elimination example. Both variants
+with the new one on a nested prefix-production and removal example. Both variants
 receive the same preconstructed inputs. The previous optimizer already
 eliminates the inner reconstruction iterator; it still constructs the outer
 evidence prefixes before dropping them. The new optimizer also removes those
@@ -77,7 +77,7 @@ scala-cli run src/main/scala src/test/scala --server=false --scala 3.8.1 \
   --source 3.3 --dependency org.scalameta::munit:1.2.1 \
   --dependency org.scala-lang.modules::scala-collection-contrib:0.3.0 \
   --main-class morkl.evidenceEliminationBenchmarkReport \
-  -- output/missing-laws-0/benchmark true
+  -- output/evidence-elimination/benchmark true
 ```
 
 ## h4d results
@@ -96,11 +96,77 @@ Median milliseconds for the 256-head case (five warmed samples):
 | openfst-symbols | 0.363602 | 0.017458 | 20.83× |
 
 All 48 measurements (16, 64, and 256 heads) and the generated
-[Rust/C++ sources](validation/missing-laws-0/benchmark/) are retained.
+[Rust/C++ sources](validation/evidence-elimination/benchmark/) are retained.
 Each source was also compiled separately and checked with headed,
 epsilon-only, and mixed epsilon/headed inputs.
 The benchmark process was pinned to h4d CPUs 144–151; replay used CPUs 0–143.
 
-The [validation record](validation/missing-laws-0/README.md) contains the
-successful 369-test result, all eight translation counts, source fingerprints,
-and the independent verification of the 3,119,688-check replay ledger.
+Validation on an AMD EPYC 9B45 h4d node used Java 21, Scala 3.8.1 and
+Rust/Cargo 1.99.1, with PathMap and OpenFst enabled. All 369 tests and
+3,119,688 reference translation checks passed; see the [test summary](validation/evidence-elimination/result.json)
+and [independent ledger verification](validation/evidence-elimination/ledger-verification.json).
+The corpus included an additional untracked divergence suite, so a clean
+checkout has fewer cases. Translation replay checks the reference evaluators;
+native backend correctness is covered separately by the compiled tests.
+
+## Cornerstone regression check
+
+The 2026-11-16 h4d comparison runs `6ef74ef` against `018bcdb`: all 22 primary
+variants and all 14 supplementary large fixtures. All **434 paired evaluator
+measurements pass exact-output checks**. The primary matrix covers `eval`,
+`evalTrie`, `evalZ`, `exec`, `execT`, bit/byte set references, four PathMap
+encodings and three OpenFst dialects. The supplementary matrix covers its
+existing trie/zipper evaluators and all seven native variants. `execZ` delegates
+to `evalZ` and is not counted twice. Previously omitted source puzzle and
+8-queens zipper cases are included.
+
+Four substantial native regressions reproduce in both revision orders:
+
+| Game of Life variant | Backend / encoding | Before ms | After ms | Slowdown |
+|---|---|---:|---:|---:|
+| Source 24×24 | PathMap / Fibonacci bits injected into bytes | 144.055 | 339.728 | 2.36× |
+| Source 24×24 | OpenFst / Fibonacci bits | 178.895 | 421.023 | 2.35× |
+| Compile-pass 24×24 | PathMap / Fibonacci bits injected into bytes | 61.977 | 103.561 | 1.67× |
+| Compile-pass 24×24 | OpenFst / Fibonacci bits | 142.303 | 231.613 | 1.63× |
+
+These are medians of three process medians, including two isolated repeats
+with opposite revision orders. Each native process uses the existing five
+adaptive timing samples. Rust's optimization caps remain unchanged: level 0
+for the source bit program and level 1 for its compile-pass variant. The
+symbolic source graph also grows from 2,667 to 3,393 nodes. The exact cause of
+the native slowdown remains to be isolated; source size alone does not explain
+it, since the compile-pass native sources shrink.
+
+Reference measurements use independent JVMs, pinned eight-CPU sets, a 192 GiB
+heap, at least three seconds of warmup and five adaptive batches targeting 50 ms each.
+Scala and PathMap timings include result cardinality; OpenFst includes lazy
+realization and counts afterward. Translation, input encoding, compilation,
+exact-output comparison and decoding are outside execution timing. Native
+session setup can reuse compiler caches and is recorded separately. One-node
+literal graphs are flagged in the measurements; their submicrosecond ratios
+are not treated as performance regressions.
+
+Shorter reference runs showed JVM compilation transitions and GC variation;
+the retained replays include both favorable and unfavorable samples. A large
+two-hop trie candidate falls from 1.80× to 1.02× after a ten-second warmup.
+The graph-query and Datalog byte-reference candidates also fail to reproduce
+as slowdowns in isolation. Smaller reference differences should be interpreted
+with that variation in mind.
+
+The [per-example comparison](validation/cornerstone-regressions/comparison.csv)
+contains every evaluator's before/after time. [Individual measurements](validation/cornerstone-regressions/measurements.csv)
+retain graph sizes, source bytes, session setup times and available raw samples;
+[replays](validation/cornerstone-regressions/repeats.csv) and the
+[strict summary](validation/cornerstone-regressions/summary.json) record the
+confirmation evidence. All four native performance regressions remain present
+in `018bcdb`.
+
+Reproduce with clean before/after checkouts on the same Linux node:
+
+```sh
+python3 tools/check_cornerstone_regressions.py --before BEFORE --after AFTER \
+  --output output/cornerstone-regressions/programs --workers 6 --warmup-ms 3000
+python3 tools/check_cornerstone_regressions.py --before BEFORE --after AFTER \
+  --output output/cornerstone-regressions/large --family large --workers 4 \
+  --warmup-ms 3000
+```
