@@ -1,0 +1,7 @@
+{
+  "success": true,
+  "cases": 36,
+  "rustPrograms": 144,
+  "cppPrograms": 108,
+  "exactIndependentScalaComparisons": 252
+}

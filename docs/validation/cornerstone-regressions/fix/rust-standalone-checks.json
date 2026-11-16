@@ -1,0 +1,1304 @@
+{
+  "success": true,
+  "sources": 144,
+  "workloads": 36,
+  "optimization": "manifest size policy, runtime opt-level=3, target-cpu=native",
+  "results": [
+    {
+      "source": "programs/01-aunt-reference/bytes-interned.rs",
+      "sha256": "3366cc7d22fd40a0e79988c2f0a92709ab7fe230b3ac6fac9be2f9f7e9945e8f",
+      "paths": 3,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/01-aunt-reference/bytes-strings.rs",
+      "sha256": "4d6620f7c23aae41fc1ffc5cfff205f5adf7468468458ea6fd5391424bf6d3c8",
+      "paths": 3,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/01-aunt-reference/bytes-length.rs",
+      "sha256": "a02aa58af321c864cc87855752178e5a2ed64a7c23543a70ac5dd065eb3edbbc",
+      "paths": 3,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/01-aunt-reference/bits-bytes.rs",
+      "sha256": "0377917fe9e86829b61181d4afbfc7176f2d9ba04022ed73d9bcf64a6b712359",
+      "paths": 3,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/02-aunt-process-sc-static-family/bytes-interned.rs",
+      "sha256": "bf7a129661ded1153ed12a1b952926b837e9bb986d973f43b276fa795b286962",
+      "paths": 3,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/02-aunt-process-sc-static-family/bytes-strings.rs",
+      "sha256": "9b4bc27d7cd6467fb280889fb94376e85f47c0d98f0274d427dcf157fd25ccc2",
+      "paths": 3,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/02-aunt-process-sc-static-family/bytes-length.rs",
+      "sha256": "751ebb50e8dc808a59d8d18566dda55255919d8ffbc8d1c44d1b41cfbc451b17",
+      "paths": 3,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/02-aunt-process-sc-static-family/bits-bytes.rs",
+      "sha256": "dd50c2f3b55ef27e70da2dd724cb5e80ff858b0c162e2e8b9e0f69243c7643b6",
+      "paths": 3,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/03-aunt-synthetic-reference-60-people/bytes-interned.rs",
+      "sha256": "6d2ba5cd108c9f1535c44a47982814cb511f201492f94ad44dfe75399162767c",
+      "paths": 36,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/03-aunt-synthetic-reference-60-people/bytes-strings.rs",
+      "sha256": "4d6620f7c23aae41fc1ffc5cfff205f5adf7468468458ea6fd5391424bf6d3c8",
+      "paths": 36,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/03-aunt-synthetic-reference-60-people/bytes-length.rs",
+      "sha256": "a02aa58af321c864cc87855752178e5a2ed64a7c23543a70ac5dd065eb3edbbc",
+      "paths": 36,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/03-aunt-synthetic-reference-60-people/bits-bytes.rs",
+      "sha256": "9f1d9a4e8c795950d6a0f7d5b4040639c4c60c278ed4eff1da190f5b4ff6ec61",
+      "paths": 36,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/04-aunt-royal92-reference-royal92-simple-metta-fallback/bytes-interned.rs",
+      "sha256": "3366cc7d22fd40a0e79988c2f0a92709ab7fe230b3ac6fac9be2f9f7e9945e8f",
+      "paths": 3,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/04-aunt-royal92-reference-royal92-simple-metta-fallback/bytes-strings.rs",
+      "sha256": "4d6620f7c23aae41fc1ffc5cfff205f5adf7468468458ea6fd5391424bf6d3c8",
+      "paths": 3,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/04-aunt-royal92-reference-royal92-simple-metta-fallback/bytes-length.rs",
+      "sha256": "a02aa58af321c864cc87855752178e5a2ed64a7c23543a70ac5dd065eb3edbbc",
+      "paths": 3,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/04-aunt-royal92-reference-royal92-simple-metta-fallback/bits-bytes.rs",
+      "sha256": "0377917fe9e86829b61181d4afbfc7176f2d9ba04022ed73d9bcf64a6b712359",
+      "paths": 3,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/05-aunt-synthetic-process-sc-static-family-24-people/bytes-interned.rs",
+      "sha256": "dcff199fe6b3ab8dacec59dbb1607b62465f2a9d0029e2bc687d8502de862df3",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/05-aunt-synthetic-process-sc-static-family-24-people/bytes-strings.rs",
+      "sha256": "31cdb11f41e43e8a33501975228b1abe43df702399354bf7606e9f3263786a4c",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/05-aunt-synthetic-process-sc-static-family-24-people/bytes-length.rs",
+      "sha256": "7990a2133d4cdc3c4b4e8cb77ae266eba81310dae490dcdd3bb1a2387e96b94d",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/05-aunt-synthetic-process-sc-static-family-24-people/bits-bytes.rs",
+      "sha256": "8ff47e90df72fdecf39507b0b0221fd71fa07e1259edea6381048f3251418a23",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/06-graph-two-hop-reference-90-chain/bytes-interned.rs",
+      "sha256": "7dd0b97d122c38522f6fd7e7d297181c8e5da6555f3c2e708fa45f84752ef935",
+      "paths": 264,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/06-graph-two-hop-reference-90-chain/bytes-strings.rs",
+      "sha256": "53fda4de2cc372be420d8991705cb579e0e4d531ad9543e9df6cda8b8da28cc9",
+      "paths": 264,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/06-graph-two-hop-reference-90-chain/bytes-length.rs",
+      "sha256": "4071aec5b48be00eaab3f4e54da95dad0496ae4536a2156dc60e44426bc8ff90",
+      "paths": 264,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/06-graph-two-hop-reference-90-chain/bits-bytes.rs",
+      "sha256": "c7e537fefc03153970a05571f36afb2e8afd72eb57150d1c427eae096de8f3c1",
+      "paths": 264,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/07-graph-mutual-reference-90-chain/bytes-interned.rs",
+      "sha256": "bf684153243a125e2e49e71778c216ec49168a3a8b29b4507df4d2d8728d8d7a",
+      "paths": 0,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/07-graph-mutual-reference-90-chain/bytes-strings.rs",
+      "sha256": "2f8fc5cd6dfad5f180b537d03c9339128b8f60f3c0673aa70caf13d444d17ab9",
+      "paths": 0,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/07-graph-mutual-reference-90-chain/bytes-length.rs",
+      "sha256": "215dbea8655297ddead55d2a3884069c0a95adc6453b3b35c0e70b095bb6c13a",
+      "paths": 0,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/07-graph-mutual-reference-90-chain/bits-bytes.rs",
+      "sha256": "2c5ffb51a7e5562119b418f70359d8d1791beeb70d8d3d15ddd91aa382eb2280",
+      "paths": 0,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/08-scc-paper-divide-and-conquer/bytes-interned.rs",
+      "sha256": "b47003612bfc3397ac674a4e5e961a695d76d0c7ce37d91a252c17f5a04cbf40",
+      "paths": 2,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/08-scc-paper-divide-and-conquer/bytes-strings.rs",
+      "sha256": "f3701924681337ad2bb5f7d205997991ec8936cdf8348be4c8d5aa883fc0194b",
+      "paths": 2,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/08-scc-paper-divide-and-conquer/bytes-length.rs",
+      "sha256": "9e6442ffac6de23bc66dca605f9e59e2724d28a5cddf3d29659ce69517b5a1b1",
+      "paths": 2,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/08-scc-paper-divide-and-conquer/bits-bytes.rs",
+      "sha256": "b5401fd1165f8ab02eb6b6e608ecea0828acc98b995b70e82077fa04f2be9c8f",
+      "paths": 2,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/09-datalog-semi-naive-reference-24-chain/bytes-interned.rs",
+      "sha256": "84f35d7d63feab07cf5a417d6e1578e84841947999c86575be52dc9907ae0ddb",
+      "paths": 300,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/09-datalog-semi-naive-reference-24-chain/bytes-strings.rs",
+      "sha256": "7b7543b34fb39e32bfa1971010d119e429e5f516355ee7e0638fd56c35e01cf3",
+      "paths": 300,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/09-datalog-semi-naive-reference-24-chain/bytes-length.rs",
+      "sha256": "7a5fe919dea047528ca393d2979c1a91795d6792bd348b1b9fa2e5282831c590",
+      "paths": 300,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/09-datalog-semi-naive-reference-24-chain/bits-bytes.rs",
+      "sha256": "a56fed61450af051b5e6f754241eef9e7a1d13f5a03b3bc2a90488eb545d6133",
+      "paths": 300,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 1
+    },
+    {
+      "source": "programs/10-datalog-semi-naive-process-sc-24-chain/bytes-interned.rs",
+      "sha256": "a27259c5fce6a6829725aad21a7ef5004521a949c51a5fa84d64ba67bc92f0cf",
+      "paths": 300,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/10-datalog-semi-naive-process-sc-24-chain/bytes-strings.rs",
+      "sha256": "d0f46b8c323ef8ae255ba7e62a5101d494b1f171750ec1f2cfa52325469972a5",
+      "paths": 300,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/10-datalog-semi-naive-process-sc-24-chain/bytes-length.rs",
+      "sha256": "39147ed796e010ae222752205414ccb73dfb5889db090b046c77d2335587884a",
+      "paths": 300,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/10-datalog-semi-naive-process-sc-24-chain/bits-bytes.rs",
+      "sha256": "bc5461afa9d93bf31abf0dc5a19c29f00bcb2d2053e95333c71e5c032a4b3c92",
+      "paths": 300,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 1
+    },
+    {
+      "source": "programs/11-life-reference-random-24x24/bytes-interned.rs",
+      "sha256": "c0235e8518a46ce9048b28c6d60cf689171b88737b1ba0455f4bfb5a08ca1b6d",
+      "paths": 125,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/11-life-reference-random-24x24/bytes-strings.rs",
+      "sha256": "7893c871f1d39a4cf68a6151858ffd966e8e8a6f48226b2607375406ebc69846",
+      "paths": 125,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/11-life-reference-random-24x24/bytes-length.rs",
+      "sha256": "f36cbc74d5bca67a8f36f96768fb9a29063be4b50e4d229c1c7ae4f7b5dc360f",
+      "paths": 125,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/11-life-reference-random-24x24/bits-bytes.rs",
+      "sha256": "6bcd15e16467b3e64ecabddb760863deef71ff081279152e8a843b8ea251a23c",
+      "paths": 125,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 0
+    },
+    {
+      "source": "programs/12-life-compile-pass-random-24x24/bytes-interned.rs",
+      "sha256": "999fe21ef549c3ea602520cf474e776397f29be1e7b52738f73d2e760ca738db",
+      "paths": 125,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/12-life-compile-pass-random-24x24/bytes-strings.rs",
+      "sha256": "c6ebc1e6dffbec51ed638e3a4e692faa35647bdcfafa35761c1cb5699fff82ac",
+      "paths": 125,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/12-life-compile-pass-random-24x24/bytes-length.rs",
+      "sha256": "04d6ce2b886675d5bc98b13a96120e6c4280b82f649011121ce37096e0d5f523",
+      "paths": 125,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/12-life-compile-pass-random-24x24/bits-bytes.rs",
+      "sha256": "598bf19777be82ba1e458cd0742a434396d99a36a05f81227edb930c3837120e",
+      "paths": 125,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 1
+    },
+    {
+      "source": "programs/13-life-compile-pass-random-24x24-initial-literal/bytes-interned.rs",
+      "sha256": "2397cb32fc7ba876aa5bb01cd435856695cf15d1a571c51fd18bb67887bc5c8e",
+      "paths": 125,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/13-life-compile-pass-random-24x24-initial-literal/bytes-strings.rs",
+      "sha256": "aba8264c67006a9ffd531780909ff12b2ffada574300e036e4ba9d5265feb53d",
+      "paths": 125,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/13-life-compile-pass-random-24x24-initial-literal/bytes-length.rs",
+      "sha256": "9a36ade0373739e0690a407ada868e1bdd7eb1bc2cc735403914bc87c054645a",
+      "paths": 125,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/13-life-compile-pass-random-24x24-initial-literal/bits-bytes.rs",
+      "sha256": "f4950dad7e950389bf0edddd3e0cec8ee2c49f295e95c03705d5981c2ddd6937",
+      "paths": 125,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/14-temperature-noaa-committed-slice/bytes-interned.rs",
+      "sha256": "be39561ad8c1917b623074a4e374e972d68e5f82b3525b0344574c44fd5c0015",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/14-temperature-noaa-committed-slice/bytes-strings.rs",
+      "sha256": "821f39d07fbecd5b5a3dff54c17a1926d23fd1240934625e3db1c95de4a0e382",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/14-temperature-noaa-committed-slice/bytes-length.rs",
+      "sha256": "32f105e4ec711c3fe006ae7d2e93f3e5021f4a2410f734200addf2eab1cfbbbe",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/14-temperature-noaa-committed-slice/bits-bytes.rs",
+      "sha256": "757241c4a6cdd4bb5342c761bd07a78dbe87b8d886fef32f15f0edd2856b6636",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/15-temperature-synthetic-32x64/bytes-interned.rs",
+      "sha256": "c71deb1cf1055f7bbaa3b796ac24685b63e4989cc147fa6d2a88b6073451c625",
+      "paths": 448,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/15-temperature-synthetic-32x64/bytes-strings.rs",
+      "sha256": "2515f9c9dddd94762fe71c2a254136643a25728d2438e9c71a8197258a5710ed",
+      "paths": 448,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/15-temperature-synthetic-32x64/bytes-length.rs",
+      "sha256": "215f8dcf5190accb43adc295b2b3583c67d1d4f75ade57130d41b3bf3b260be8",
+      "paths": 448,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/15-temperature-synthetic-32x64/bits-bytes.rs",
+      "sha256": "cd0bdfa77b164a7608cbd0db0ac7b9ff9acde5a70d1c6742c8ca2aa291cb4f9f",
+      "paths": 448,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/bytes-interned.rs",
+      "sha256": "a36a139a8b0a756138944f49e2a690731504f9bfc0698df5d4acdac7d31e8b39",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/bytes-strings.rs",
+      "sha256": "5cd1009a3afffb580ad0963519f0b028143aa555c46b1ba1aa72e074aa93e744",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/bytes-length.rs",
+      "sha256": "2f60dd6323f92e9c8dd45232dcd46dbe87dd44f8eac473c8a54ddd22dbdd161f",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/16-sliding-puzzle-2x2-pure-source-full-frontier-step/bits-bytes.rs",
+      "sha256": "8dc94156b2fbef69af4bd8bc89291518868ed1be082553e9a308fc1ee8c7cca9",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 0
+    },
+    {
+      "source": "programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/bytes-interned.rs",
+      "sha256": "2491c3b35159f05430bee6aea0ad8547a6bb63c958e2dceab1f827d4780dc943",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/bytes-strings.rs",
+      "sha256": "b8c7185d4a821b6e0359b638428af6f2fde8123a0781ac8f5aeb924a901458ec",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/bytes-length.rs",
+      "sha256": "686fdbbb889e3679e7191b1cb03c1a9ccf88af5f2b370f00f8ecf5f7307ec866",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/17-sliding-puzzle-2x2-pure-compile-pass-full-frontier-step/bits-bytes.rs",
+      "sha256": "22f8a03fb7f2b19ee70405977b2b01b7ef7ebb38f5201e0ecedde4410bc6bcc8",
+      "paths": 12,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/bytes-interned.rs",
+      "sha256": "a8f67ac64b807f295ba13d3cdee7074e2582cb018d6c4d9b8c5c5baca20b3cc7",
+      "paths": 420,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/bytes-strings.rs",
+      "sha256": "47891dc81efa6998f55fbc3dbe7382b3bd8c25a34c411b10bf6e1a78e5d69d24",
+      "paths": 420,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 1
+    },
+    {
+      "source": "programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/bytes-length.rs",
+      "sha256": "a5b0be46a881eab20619176579cea894be5e099da3f4681370d84ab974921845",
+      "paths": 420,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 1
+    },
+    {
+      "source": "programs/18-sliding-puzzle-3x3-pure-source-depth-8-step/bits-bytes.rs",
+      "sha256": "d4f731c5d1d183a41fc586c4107ca721ba5adcb2c0083b07a905ccc15a7d92c9",
+      "paths": 420,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 0
+    },
+    {
+      "source": "programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/bytes-interned.rs",
+      "sha256": "e6e27b63bb4fe009aa85ba6e26b63b880fc2693f8c8fa432956b5601547a2eea",
+      "paths": 420,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/bytes-strings.rs",
+      "sha256": "1fb930e046538f22f7a10b6ef37ad79fdd28cb8948ffa7807cc63fb7ddb9fb91",
+      "paths": 420,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/bytes-length.rs",
+      "sha256": "cffb81a59d1a22a0cc4718c10aa78bf0585f040c41490660a99b8e3a0e1fdc7a",
+      "paths": 420,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/19-sliding-puzzle-3x3-pure-compile-pass-depth-8-step/bits-bytes.rs",
+      "sha256": "4edee3135b16c088b90558ab67443a6da5d4fd0fa5921f86636232df81b5ee57",
+      "paths": 420,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/bytes-interned.rs",
+      "sha256": "f391dba5530c472b9e4afbb38c2ced2711b127e2658136657ed8535ac5409ce1",
+      "paths": 202,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/bytes-strings.rs",
+      "sha256": "2b9e4995485e9039358f95dcd4cacab8f4a3c05e1047fdbea93a4db636643de4",
+      "paths": 202,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 0
+    },
+    {
+      "source": "programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/bytes-length.rs",
+      "sha256": "f138ffa6059e2ddd690d3e009c02ef639a637e105e92711e1f1ce11846324cff",
+      "paths": 202,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 0
+    },
+    {
+      "source": "programs/20-sliding-puzzle-4x4-pure-source-depth-5-step/bits-bytes.rs",
+      "sha256": "0b84a26d35e77b6cc441aee5cb26df74beee7968fb4d669bd71ac2724ce57f96",
+      "paths": 202,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 0
+    },
+    {
+      "source": "programs/21-n-queens-morkl-8x8-source/bytes-interned.rs",
+      "sha256": "b5d684ff234d2585f84182ca3a90fbcb02e91e4597e3dc80c49f41ddcc138c18",
+      "paths": 92,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/21-n-queens-morkl-8x8-source/bytes-strings.rs",
+      "sha256": "92c1bc0e3642b34c84f1c67d6fdab606a0983933385bbabff22fb6c3f53c8354",
+      "paths": 92,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/21-n-queens-morkl-8x8-source/bytes-length.rs",
+      "sha256": "a6ce0bac1ff6f9dee6f4f5d0961ce0d1f202495d72f1f158bf49419ba0bf20a1",
+      "paths": 92,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/21-n-queens-morkl-8x8-source/bits-bytes.rs",
+      "sha256": "a6219d1e6ce09f2681f5677b283fe9642fcf466838d06cc2d3d688188bcf6d2d",
+      "paths": 92,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 0
+    },
+    {
+      "source": "programs/22-n-queens-morkl-8x8-compile-pass/bytes-interned.rs",
+      "sha256": "1cdba03b4a793460bec7ad13f8ac956ff90ff9d6e10840dce6a5a4cb6d767a1b",
+      "paths": 92,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/22-n-queens-morkl-8x8-compile-pass/bytes-strings.rs",
+      "sha256": "65e75587d512b59f57a7e9faac355a3c11490d2a565e4d8d55d941ca5ef35bfc",
+      "paths": 92,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/22-n-queens-morkl-8x8-compile-pass/bytes-length.rs",
+      "sha256": "243d28e72426f6d272866b54c3ad0c3853e255bdb7995b95fcf052e3b6b88b12",
+      "paths": 92,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "programs/22-n-queens-morkl-8x8-compile-pass/bits-bytes.rs",
+      "sha256": "240366ec343e1a7ff83d42f2a222c01b215f2a8739627c66e9c624969a904cfc",
+      "paths": 92,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/bytes-interned.rs",
+      "sha256": "511240cd9f43dc43195c9db423f5389305c95febcfba79c19369099ff909395f",
+      "paths": 534,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/bytes-strings.rs",
+      "sha256": "53fda4de2cc372be420d8991705cb579e0e4d531ad9543e9df6cda8b8da28cc9",
+      "paths": 534,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/bytes-length.rs",
+      "sha256": "4071aec5b48be00eaab3f4e54da95dad0496ae4536a2156dc60e44426bc8ff90",
+      "paths": 534,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/23-nonrecursive-graph-two-hop-180-nodes-359-edge-facts/bits-bytes.rs",
+      "sha256": "55d1669941e932f458c6544946318605a8c1c6ad156e390853a23141075164b7",
+      "paths": 534,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/bytes-interned.rs",
+      "sha256": "ed2c99c353da915dac480ae5ad270fab8692d9ea78f8e578916cdaa0e56310b2",
+      "paths": 1074,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/bytes-strings.rs",
+      "sha256": "53fda4de2cc372be420d8991705cb579e0e4d531ad9543e9df6cda8b8da28cc9",
+      "paths": 1074,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/bytes-length.rs",
+      "sha256": "4071aec5b48be00eaab3f4e54da95dad0496ae4536a2156dc60e44426bc8ff90",
+      "paths": 1074,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/24-nonrecursive-graph-two-hop-360-nodes-719-edge-facts/bits-bytes.rs",
+      "sha256": "dd30979f42eb4e8ab0b30c38ad280355122cd9b68a5b56cfee67dc597f1b0592",
+      "paths": 1074,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 1
+    },
+    {
+      "source": "large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/bytes-interned.rs",
+      "sha256": "f7eed4a7e086f251a7176a93c134ca54db0f87c8d0e3e1c311581730e376fbe1",
+      "paths": 2154,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/bytes-strings.rs",
+      "sha256": "53fda4de2cc372be420d8991705cb579e0e4d531ad9543e9df6cda8b8da28cc9",
+      "paths": 2154,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/bytes-length.rs",
+      "sha256": "4071aec5b48be00eaab3f4e54da95dad0496ae4536a2156dc60e44426bc8ff90",
+      "paths": 2154,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/25-nonrecursive-graph-two-hop-720-nodes-1439-edge-facts/bits-bytes.rs",
+      "sha256": "63de3119455cf0a38ca9f53b6259c0008831bdbcd8bb8e1a1cb94f97a542a9f8",
+      "paths": 2154,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 1
+    },
+    {
+      "source": "large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bytes-interned.rs",
+      "sha256": "fe7479e07774e899a8ca37e52a46405af2960a0a69dcf0a7f1aa39fbfd6f9d16",
+      "paths": 1,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bytes-strings.rs",
+      "sha256": "fe7479e07774e899a8ca37e52a46405af2960a0a69dcf0a7f1aa39fbfd6f9d16",
+      "paths": 1,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bytes-length.rs",
+      "sha256": "fe7479e07774e899a8ca37e52a46405af2960a0a69dcf0a7f1aa39fbfd6f9d16",
+      "paths": 1,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/26-product-intersected-by-one-exact-path-2000-x-2000-product-1-result-path/bits-bytes.rs",
+      "sha256": "fe7479e07774e899a8ca37e52a46405af2960a0a69dcf0a7f1aa39fbfd6f9d16",
+      "paths": 1,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bytes-interned.rs",
+      "sha256": "fe7479e07774e899a8ca37e52a46405af2960a0a69dcf0a7f1aa39fbfd6f9d16",
+      "paths": 1,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bytes-strings.rs",
+      "sha256": "fe7479e07774e899a8ca37e52a46405af2960a0a69dcf0a7f1aa39fbfd6f9d16",
+      "paths": 1,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bytes-length.rs",
+      "sha256": "fe7479e07774e899a8ca37e52a46405af2960a0a69dcf0a7f1aa39fbfd6f9d16",
+      "paths": 1,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/27-product-intersected-by-one-exact-path-10000-x-10000-product-1-result-path/bits-bytes.rs",
+      "sha256": "fe7479e07774e899a8ca37e52a46405af2960a0a69dcf0a7f1aa39fbfd6f9d16",
+      "paths": 1,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bytes-interned.rs",
+      "sha256": "fe7479e07774e899a8ca37e52a46405af2960a0a69dcf0a7f1aa39fbfd6f9d16",
+      "paths": 1,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bytes-strings.rs",
+      "sha256": "fe7479e07774e899a8ca37e52a46405af2960a0a69dcf0a7f1aa39fbfd6f9d16",
+      "paths": 1,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bytes-length.rs",
+      "sha256": "fe7479e07774e899a8ca37e52a46405af2960a0a69dcf0a7f1aa39fbfd6f9d16",
+      "paths": 1,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/28-product-intersected-by-one-exact-path-30000-x-30000-product-1-result-path/bits-bytes.rs",
+      "sha256": "fe7479e07774e899a8ca37e52a46405af2960a0a69dcf0a7f1aa39fbfd6f9d16",
+      "paths": 1,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bytes-interned.rs",
+      "sha256": "f1d348055ab50206fc2ef3ddba421b0c01990a91b838b91a750e268e6b8fca43",
+      "paths": 2000,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bytes-strings.rs",
+      "sha256": "f1d348055ab50206fc2ef3ddba421b0c01990a91b838b91a750e268e6b8fca43",
+      "paths": 2000,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bytes-length.rs",
+      "sha256": "f1d348055ab50206fc2ef3ddba421b0c01990a91b838b91a750e268e6b8fca43",
+      "paths": 2000,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/29-product-restricted-by-one-first-level-prefix-2000-x-2000-product-2000-result-paths/bits-bytes.rs",
+      "sha256": "f1d348055ab50206fc2ef3ddba421b0c01990a91b838b91a750e268e6b8fca43",
+      "paths": 2000,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bytes-interned.rs",
+      "sha256": "f1d348055ab50206fc2ef3ddba421b0c01990a91b838b91a750e268e6b8fca43",
+      "paths": 10000,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bytes-strings.rs",
+      "sha256": "f1d348055ab50206fc2ef3ddba421b0c01990a91b838b91a750e268e6b8fca43",
+      "paths": 10000,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bytes-length.rs",
+      "sha256": "f1d348055ab50206fc2ef3ddba421b0c01990a91b838b91a750e268e6b8fca43",
+      "paths": 10000,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/30-product-restricted-by-one-first-level-prefix-10000-x-10000-product-10000-result-paths/bits-bytes.rs",
+      "sha256": "f1d348055ab50206fc2ef3ddba421b0c01990a91b838b91a750e268e6b8fca43",
+      "paths": 10000,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bytes-interned.rs",
+      "sha256": "f1d348055ab50206fc2ef3ddba421b0c01990a91b838b91a750e268e6b8fca43",
+      "paths": 30000,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bytes-strings.rs",
+      "sha256": "f1d348055ab50206fc2ef3ddba421b0c01990a91b838b91a750e268e6b8fca43",
+      "paths": 30000,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bytes-length.rs",
+      "sha256": "f1d348055ab50206fc2ef3ddba421b0c01990a91b838b91a750e268e6b8fca43",
+      "paths": 30000,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/31-product-restricted-by-one-first-level-prefix-30000-x-30000-product-30000-result-paths/bits-bytes.rs",
+      "sha256": "f1d348055ab50206fc2ef3ddba421b0c01990a91b838b91a750e268e6b8fca43",
+      "paths": 30000,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/32-aunt-query-over-large-generated-family-one-queried-person-9-generations-x-80-people-2720-facts/bytes-interned.rs",
+      "sha256": "49b88ed2ab9407984fe3a20023765bb938c3fc6b9058273583c5617241b3e486",
+      "paths": 0,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/32-aunt-query-over-large-generated-family-one-queried-person-9-generations-x-80-people-2720-facts/bytes-strings.rs",
+      "sha256": "4d6620f7c23aae41fc1ffc5cfff205f5adf7468468458ea6fd5391424bf6d3c8",
+      "paths": 0,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/32-aunt-query-over-large-generated-family-one-queried-person-9-generations-x-80-people-2720-facts/bytes-length.rs",
+      "sha256": "a02aa58af321c864cc87855752178e5a2ed64a7c23543a70ac5dd065eb3edbbc",
+      "paths": 0,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/32-aunt-query-over-large-generated-family-one-queried-person-9-generations-x-80-people-2720-facts/bits-bytes.rs",
+      "sha256": "d1c7efaffa9f9c8b5d301a5c0ac7a1a495087a8cc62344548c7080d9298d26ea",
+      "paths": 0,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 1
+    },
+    {
+      "source": "large/33-aunt-query-over-large-generated-family-one-queried-person-11-generations-x-160-people-6720-facts/bytes-interned.rs",
+      "sha256": "fb386e2d9537267239a8292a13e273b30b67bfe8dc1300dcfec3d6d8e3397d07",
+      "paths": 0,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/33-aunt-query-over-large-generated-family-one-queried-person-11-generations-x-160-people-6720-facts/bytes-strings.rs",
+      "sha256": "4d6620f7c23aae41fc1ffc5cfff205f5adf7468468458ea6fd5391424bf6d3c8",
+      "paths": 0,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/33-aunt-query-over-large-generated-family-one-queried-person-11-generations-x-160-people-6720-facts/bytes-length.rs",
+      "sha256": "a02aa58af321c864cc87855752178e5a2ed64a7c23543a70ac5dd065eb3edbbc",
+      "paths": 0,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/33-aunt-query-over-large-generated-family-one-queried-person-11-generations-x-160-people-6720-facts/bits-bytes.rs",
+      "sha256": "2cc562715e75cdb38d07b0c732cc9f454ef3304a143498badd7d0332455df54b",
+      "paths": 0,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 1
+    },
+    {
+      "source": "large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/bytes-interned.rs",
+      "sha256": "b47003612bfc3397ac674a4e5e961a695d76d0c7ce37d91a252c17f5a04cbf40",
+      "paths": 2,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/bytes-strings.rs",
+      "sha256": "f3701924681337ad2bb5f7d205997991ec8936cdf8348be4c8d5aa883fc0194b",
+      "paths": 2,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/bytes-length.rs",
+      "sha256": "9e6442ffac6de23bc66dca605f9e59e2724d28a5cddf3d29659ce69517b5a1b1",
+      "paths": 2,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/34-scc-divide-and-conquer-6-directed-edges-2-representative-member-pairs/bits-bytes.rs",
+      "sha256": "b5401fd1165f8ab02eb6b6e608ecea0828acc98b995b70e82077fa04f2be9c8f",
+      "paths": 2,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/35-semi-naive-datalog-over-generated-chain-graph-40-nodes-79-edge-facts/bytes-interned.rs",
+      "sha256": "ef2f8cfa612347d857fc0b8ec794b78aaebe71c5d9590ed1a130113281fe39a0",
+      "paths": 820,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/35-semi-naive-datalog-over-generated-chain-graph-40-nodes-79-edge-facts/bytes-strings.rs",
+      "sha256": "5519280ecb62d5fab96ea4395b274b676db475bc61e3d715f0bd0c2bcdda0f96",
+      "paths": 820,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/35-semi-naive-datalog-over-generated-chain-graph-40-nodes-79-edge-facts/bytes-length.rs",
+      "sha256": "30838e1dd238b5b1c1745fa7f1e155881c8514c23404462f51206247c707c09b",
+      "paths": 820,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/35-semi-naive-datalog-over-generated-chain-graph-40-nodes-79-edge-facts/bits-bytes.rs",
+      "sha256": "b9b4b644e4f9b695aed7a6f643e641e616d5bb4bdf3efbf1c976f497162d8fff",
+      "paths": 820,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 1
+    },
+    {
+      "source": "large/36-semi-naive-datalog-over-generated-chain-graph-80-nodes-159-edge-facts/bytes-interned.rs",
+      "sha256": "988964c061eaf17ee76816cb4eb0c1a0e87b4e658a0878fe42aadf7976eb8e65",
+      "paths": 3240,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/36-semi-naive-datalog-over-generated-chain-graph-80-nodes-159-edge-facts/bytes-strings.rs",
+      "sha256": "5519280ecb62d5fab96ea4395b274b676db475bc61e3d715f0bd0c2bcdda0f96",
+      "paths": 3240,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/36-semi-naive-datalog-over-generated-chain-graph-80-nodes-159-edge-facts/bytes-length.rs",
+      "sha256": "30838e1dd238b5b1c1745fa7f1e155881c8514c23404462f51206247c707c09b",
+      "paths": 3240,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 3
+    },
+    {
+      "source": "large/36-semi-naive-datalog-over-generated-chain-graph-80-nodes-159-edge-facts/bits-bytes.rs",
+      "sha256": "379e7fd8f6b71ef9b547eb7d2f3e9e27ade6b5132cd38ef57dff8808bcca0ff2",
+      "paths": 3240,
+      "compiled": true,
+      "executed": true,
+      "exact": true,
+      "rustOptLevel": 1
+    }
+  ]
+}

@@ -1,0 +1,75 @@
+family,index,name,variant,evaluator,paths,before_commit,after_commit,before_ms,after_ms,after_over_before,checked,phase
+large,0,nonrecursive graph two-hop,"180 nodes, 359 edge facts",evalTrie,534,6ef74ef,3fe2820,0.269324,0.288618,1.0716386211403364,exact,large-confirm
+large,0,nonrecursive graph two-hop,"180 nodes, 359 edge facts",evalTrie,534,6ef74ef,3fe2820,0.280242,0.286958,1.023965001677122,exact,large-confirm-forward
+large,0,nonrecursive graph two-hop,"180 nodes, 359 edge facts",evalZ,534,6ef74ef,3fe2820,0.474171,0.503961,1.0628254363932,exact,large-confirm
+large,0,nonrecursive graph two-hop,"180 nodes, 359 edge facts",evalZ,534,6ef74ef,3fe2820,0.508704,0.513053,1.0085491759451468,exact,large-confirm-forward
+large,2,nonrecursive graph two-hop,"720 nodes, 1439 edge facts",evalTrie,2154,6ef74ef,3fe2820,1.139196,1.368663,1.2014289024891238,exact,large-confirm
+large,2,nonrecursive graph two-hop,"720 nodes, 1439 edge facts",evalTrie,2154,6ef74ef,3fe2820,2.057861,1.970363,0.9574810932322446,exact,large-confirm-forward
+large,2,nonrecursive graph two-hop,"720 nodes, 1439 edge facts",evalZ,2154,6ef74ef,3fe2820,2.022213,1.977644,0.9779602841045925,exact,large-confirm
+large,2,nonrecursive graph two-hop,"720 nodes, 1439 edge facts",evalZ,2154,6ef74ef,3fe2820,1.935825,2.027545,1.0473803158859918,exact,large-confirm-forward
+large,8,product restricted by one first-level prefix,"30000 x 30000 product, 30000 result paths",evalTrie,30000,6ef74ef,3fe2820,5.208485,6.774622,1.3006895479203646,exact,large-confirm
+large,8,product restricted by one first-level prefix,"30000 x 30000 product, 30000 result paths",evalTrie,30000,6ef74ef,3fe2820,6.867261,5.055967,0.7362421495265725,exact,large-confirm-forward
+large,8,product restricted by one first-level prefix,"30000 x 30000 product, 30000 result paths",evalZ,30000,6ef74ef,3fe2820,0.000477,0.000441,0.9245283018867925,exact,large-confirm
+large,8,product restricted by one first-level prefix,"30000 x 30000 product, 30000 result paths",evalZ,30000,6ef74ef,3fe2820,0.000475,0.000478,1.0063157894736843,exact,large-confirm-forward
+programs,8,datalog semi-naive,reference 24-chain,eval,300,6ef74ef,3fe2820,223.996264,223.900521,0.9995725687639148,exact,reference-confirm
+programs,8,datalog semi-naive,reference 24-chain,evalTrie,300,6ef74ef,3fe2820,6.100018,5.956347,0.9764474465485183,exact,reference-confirm
+programs,8,datalog semi-naive,reference 24-chain,evalZ,300,6ef74ef,3fe2820,3.407537,3.506065,1.0289147263844824,exact,reference-confirm
+programs,8,datalog semi-naive,reference 24-chain,exec,300,6ef74ef,3fe2820,9.8e-05,6.8e-05,0.6938775510204082,exact,reference-confirm
+programs,8,datalog semi-naive,reference 24-chain,execT,300,6ef74ef,3fe2820,0.000111,9.1e-05,0.8198198198198199,exact,reference-confirm
+programs,10,life,reference random 24x24,eval,125,6ef74ef,3fe2820,26.628342,27.212749,1.0219468038978918,exact,reference-confirm
+programs,10,life,reference random 24x24,evalTrie,125,6ef74ef,3fe2820,302.137667,291.389825,0.9644273350399569,exact,reference-confirm
+programs,10,life,reference random 24x24,evalZ,125,6ef74ef,3fe2820,484.447162,388.170907,0.8012657260648789,exact,reference-confirm
+programs,10,life,reference random 24x24,exec,125,6ef74ef,3fe2820,13.096565,13.520858,1.032397273636255,exact,reference-confirm
+programs,10,life,reference random 24x24,execT,125,6ef74ef,3fe2820,3.392319,3.431753,1.011624496399071,exact,reference-confirm
+programs,10,life,reference random 24x24,openfst:bits,125,02651f1,3fe2820,424.07092,180.689035,0.4260821161705688,exact,fix-confirm-1
+programs,10,life,reference random 24x24,openfst:bits,125,02651f1,3fe2820,420.800559,182.870195,0.4345768822992461,exact,fix-confirm-2
+programs,10,life,reference random 24x24,openfst:bytes,125,02651f1,3fe2820,70.557767,66.244668,0.938871378965267,exact,fix-confirm-1
+programs,10,life,reference random 24x24,openfst:bytes,125,02651f1,3fe2820,71.363174,66.335764,0.9295517601277096,exact,fix-confirm-2
+programs,10,life,reference random 24x24,openfst:symbols,125,02651f1,3fe2820,6.652929,6.207931,0.9331124682076121,exact,fix-confirm-1
+programs,10,life,reference random 24x24,openfst:symbols,125,02651f1,3fe2820,6.671667,6.144637,0.9210047503869723,exact,fix-confirm-2
+programs,10,life,reference random 24x24,pathmap:bits-bytes,125,02651f1,3fe2820,344.319548,146.253139,0.424759906457591,exact,fix-confirm-1
+programs,10,life,reference random 24x24,pathmap:bits-bytes,125,02651f1,3fe2820,341.133068,145.091527,0.42532237595916683,exact,fix-confirm-2
+programs,10,life,reference random 24x24,pathmap:bytes-interned,125,02651f1,3fe2820,47.921422,44.845989,0.9358234194302498,exact,fix-confirm-1
+programs,10,life,reference random 24x24,pathmap:bytes-interned,125,02651f1,3fe2820,47.87982,44.535793,0.9301579036846838,exact,fix-confirm-2
+programs,10,life,reference random 24x24,pathmap:bytes-length,125,02651f1,3fe2820,14.999479,14.796074,0.9864391956547292,exact,fix-confirm-1
+programs,10,life,reference random 24x24,pathmap:bytes-length,125,02651f1,3fe2820,15.034141,14.805969,0.9848230770218265,exact,fix-confirm-2
+programs,10,life,reference random 24x24,pathmap:bytes-strings,125,02651f1,3fe2820,8.638818,8.565799,0.9915475705125399,exact,fix-confirm-1
+programs,10,life,reference random 24x24,pathmap:bytes-strings,125,02651f1,3fe2820,8.678488,8.46016,0.974842622355415,exact,fix-confirm-2
+programs,11,life,compile-pass random 24x24,openfst:bits,125,02651f1,3fe2820,234.92003,142.135664,0.6050385060822613,exact,fix-confirm-1
+programs,11,life,compile-pass random 24x24,openfst:bits,125,02651f1,3fe2820,236.048502,143.330555,0.607208068619728,exact,fix-confirm-2
+programs,11,life,compile-pass random 24x24,openfst:bytes,125,02651f1,3fe2820,71.652489,67.549233,0.9427339362907546,exact,fix-confirm-1
+programs,11,life,compile-pass random 24x24,openfst:bytes,125,02651f1,3fe2820,72.919589,68.071137,0.9335096087829018,exact,fix-confirm-2
+programs,11,life,compile-pass random 24x24,openfst:symbols,125,02651f1,3fe2820,6e-06,6e-06,1.0,exact,fix-confirm-1
+programs,11,life,compile-pass random 24x24,openfst:symbols,125,02651f1,3fe2820,6e-06,6e-06,1.0,exact,fix-confirm-2
+programs,11,life,compile-pass random 24x24,pathmap:bits-bytes,125,02651f1,3fe2820,103.912969,62.185959,0.5984427121892744,exact,fix-confirm-1
+programs,11,life,compile-pass random 24x24,pathmap:bits-bytes,125,02651f1,3fe2820,103.687901,61.83993,0.5964044927479051,exact,fix-confirm-2
+programs,11,life,compile-pass random 24x24,pathmap:bytes-interned,125,02651f1,3fe2820,48.506931,46.463595,0.957875380736827,exact,fix-confirm-1
+programs,11,life,compile-pass random 24x24,pathmap:bytes-interned,125,02651f1,3fe2820,48.488883,46.126449,0.951278852928,exact,fix-confirm-2
+programs,11,life,compile-pass random 24x24,pathmap:bytes-length,125,02651f1,3fe2820,14.32671,13.06045,0.9116154371799247,exact,fix-confirm-1
+programs,11,life,compile-pass random 24x24,pathmap:bytes-length,125,02651f1,3fe2820,14.036344,12.957466,0.923136822523016,exact,fix-confirm-2
+programs,11,life,compile-pass random 24x24,pathmap:bytes-strings,125,02651f1,3fe2820,5.115574,5.063174,0.9897567702079964,exact,fix-confirm-1
+programs,11,life,compile-pass random 24x24,pathmap:bytes-strings,125,02651f1,3fe2820,5.10647,5.053,0.9895289701104677,exact,fix-confirm-2
+programs,14,temperature,synthetic 32x64,eval,448,3fe2820,3fe2820,1.192457,1.182657,0.9917816743077528,exact,identical-reference
+programs,14,temperature,synthetic 32x64,eval,448,6ef74ef,3fe2820,0.965468,1.20803,1.251237741696255,exact,reference-confirm
+programs,14,temperature,synthetic 32x64,eval,448,6ef74ef,3fe2820,1.037873,1.178663,1.1356524353172306,exact,reference-confirm-forward
+programs,14,temperature,synthetic 32x64,evalTrie,448,3fe2820,3fe2820,0.00454,0.00465,1.024229074889868,exact,identical-reference
+programs,14,temperature,synthetic 32x64,evalTrie,448,6ef74ef,3fe2820,0.004626,0.004795,1.0365326415910072,exact,reference-confirm
+programs,14,temperature,synthetic 32x64,evalTrie,448,6ef74ef,3fe2820,0.004742,0.004783,1.0086461408688319,exact,reference-confirm-forward
+programs,14,temperature,synthetic 32x64,evalZ,448,3fe2820,3fe2820,0.008939,0.008911,0.9968676585747847,exact,identical-reference
+programs,14,temperature,synthetic 32x64,evalZ,448,6ef74ef,3fe2820,0.008805,0.008945,1.015900056785917,exact,reference-confirm
+programs,14,temperature,synthetic 32x64,evalZ,448,6ef74ef,3fe2820,0.00887,0.009147,1.031228861330327,exact,reference-confirm-forward
+programs,14,temperature,synthetic 32x64,eval_bits,448,6ef74ef,3fe2820,0.696348,0.711853,1.0222661657676908,exact,reference-confirm-forward
+programs,14,temperature,synthetic 32x64,exec,448,3fe2820,3fe2820,1.194297,1.199741,1.0045583301306125,exact,identical-reference
+programs,14,temperature,synthetic 32x64,exec,448,6ef74ef,3fe2820,0.965632,1.188805,1.2311159944989394,exact,reference-confirm
+programs,14,temperature,synthetic 32x64,exec,448,6ef74ef,3fe2820,1.048434,1.69162,1.6134730464673979,exact,reference-confirm-forward
+programs,14,temperature,synthetic 32x64,execT,448,3fe2820,3fe2820,0.001513,0.001539,1.017184401850628,exact,identical-reference
+programs,14,temperature,synthetic 32x64,execT,448,6ef74ef,3fe2820,0.001524,0.001516,0.994750656167979,exact,reference-confirm
+programs,14,temperature,synthetic 32x64,execT,448,6ef74ef,3fe2820,0.001542,0.001502,0.9740596627756162,exact,reference-confirm-forward
+programs,15,sliding puzzle,2x2 pure source full frontier step,eval,12,6ef74ef,3fe2820,1.614927,1.63267,1.010986874329304,exact,reference-confirm-forward
+programs,15,sliding puzzle,2x2 pure source full frontier step,evalTrie,12,6ef74ef,3fe2820,2.657052,2.516203,0.9469904992450279,exact,reference-confirm-forward
+programs,15,sliding puzzle,2x2 pure source full frontier step,evalZ,12,6ef74ef,3fe2820,4.766823,4.601529,0.9653240743363034,exact,reference-confirm-forward
+programs,15,sliding puzzle,2x2 pure source full frontier step,eval_bits,12,6ef74ef,3fe2820,41.715964,47.823255,1.1464017707945093,exact,bit-confirm
+programs,15,sliding puzzle,2x2 pure source full frontier step,eval_bits,12,3fe2820,3fe2820,41.892599,42.0131,1.0028764269316401,exact,identical-bit
+programs,15,sliding puzzle,2x2 pure source full frontier step,eval_bits,12,6ef74ef,3fe2820,43.303865,43.027711,0.9936228786968552,exact,reference-confirm-forward
+programs,15,sliding puzzle,2x2 pure source full frontier step,exec,12,6ef74ef,3fe2820,0.000131,0.000151,1.1526717557251909,exact,reference-confirm-forward
+programs,15,sliding puzzle,2x2 pure source full frontier step,execT,12,6ef74ef,3fe2820,8e-05,6.5e-05,0.8124999999999999,exact,reference-confirm-forward

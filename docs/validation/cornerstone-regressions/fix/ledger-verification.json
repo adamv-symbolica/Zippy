@@ -1,0 +1,19 @@
+{
+  "cases": 398680,
+  "checks": 3189440,
+  "all_eight_directions_once": true,
+  "duplicates": 0,
+  "failures": 0,
+  "source_errors": 0,
+  "sha256": "315a4fde680b42bb8ce42223d5d2f74683bc8030dde84e6297af9fa307a73f7f",
+  "passed": {
+    "symbols-bits": 398680,
+    "strings-bytes": 398680,
+    "length-bytes": 398680,
+    "interned-bytes": 398680,
+    "bits-bytes": 398680,
+    "bytes-bits": 398680,
+    "bits-symbols": 398680,
+    "bytes-symbols": 398680
+  }
+}

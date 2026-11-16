@@ -1,0 +1,232 @@
+{
+  "date": "2026-11-16",
+  "sourceCommit": "3fe28202545da451197266a1d73f826c6cc9d4a7",
+  "baselineCommit": "6ef74ef9699cb613ead3a03c78cc99a45415c155",
+  "regressedCommit": "02651f1b3d81ff7f0f75d88dbf5d917f42d51a48",
+  "profile": "cpu-h4d-xlarge",
+  "cpu": "AMD EPYC 9B45",
+  "cores": 192,
+  "java": 21,
+  "scala": "3.8.1",
+  "scala_cli": "1.18.0",
+  "rust_cargo": "1.99.1",
+  "openfst": "1.7.9",
+  "success": true,
+  "scala_native_tests": {
+    "passed": 371,
+    "failed": 0,
+    "stack_mib": 512,
+    "heap_gib": 256,
+    "backends": [
+      "pathmap",
+      "openfst"
+    ],
+    "additional_untracked_divergence_suite": true
+  },
+  "translation_reference_checks": 3189440,
+  "translation_cases": 398680,
+  "cornerstone_cases": 36,
+  "paired_measurements": 434,
+  "exact": true,
+  "output_mismatches": 0,
+  "successful_benchmark_processes": 352,
+  "retained_measurements": 1016,
+  "standalone_programs": {
+    "rust": 144,
+    "cpp": 108,
+    "exact_independent_scala_comparisons": 252
+  },
+  "negative_control": {
+    "unfixed_existing_tests_passed": 12,
+    "new_regression_tests_failed": 2
+  },
+  "fixed_native_regressions": [
+    {
+      "index": 10,
+      "evaluator": "pathmap:bits-bytes",
+      "regressed_ms": 342.726308,
+      "fixed_ms": 145.672333,
+      "speedup": 2.352720663847678,
+      "baseline_ms": 143.702191,
+      "fixed_matrix_ms": 145.778035,
+      "fixed_over_baseline": 1.0144454582463533,
+      "process_pair_ratios": [
+        0.424759906457591,
+        0.42532237595916683
+      ]
+    },
+    {
+      "index": 10,
+      "evaluator": "openfst:bits",
+      "regressed_ms": 422.4357395,
+      "fixed_ms": 181.77961499999998,
+      "speedup": 2.323889504882052,
+      "baseline_ms": 181.087978,
+      "fixed_matrix_ms": 179.552628,
+      "fixed_over_baseline": 0.9915215244161598,
+      "process_pair_ratios": [
+        0.4260821161705688,
+        0.4345768822992461
+      ]
+    },
+    {
+      "index": 11,
+      "evaluator": "pathmap:bits-bytes",
+      "regressed_ms": 103.800435,
+      "fixed_ms": 62.0129445,
+      "speedup": 1.6738510941050377,
+      "baseline_ms": 61.951817,
+      "fixed_matrix_ms": 62.210255,
+      "fixed_over_baseline": 1.0041715967749583,
+      "process_pair_ratios": [
+        0.5984427121892744,
+        0.5964044927479051
+      ]
+    },
+    {
+      "index": 11,
+      "evaluator": "openfst:bits",
+      "regressed_ms": 235.484266,
+      "fixed_ms": 142.7331095,
+      "speedup": 1.649822292983815,
+      "baseline_ms": 143.497476,
+      "fixed_matrix_ms": 143.310686,
+      "fixed_over_baseline": 0.9986983046308076,
+      "process_pair_ratios": [
+        0.6050385060822613,
+        0.607208068619728
+      ]
+    }
+  ],
+  "causal_generated_code_identity": [
+    {
+      "index": 10,
+      "backend": "pathmap",
+      "identical": true,
+      "sha256": "6bcd15e16467b3e64ecabddb760863deef71ff081279152e8a843b8ea251a23c"
+    },
+    {
+      "index": 10,
+      "backend": "openfst",
+      "identical": true,
+      "sha256": "0b2d4e2857c5a193eebed396296636010af96b28e93c8d375c2713054b8040c9"
+    },
+    {
+      "index": 11,
+      "backend": "pathmap",
+      "identical": true,
+      "sha256": "598bf19777be82ba1e458cd0742a434396d99a36a05f81227edb930c3837120e"
+    },
+    {
+      "index": 11,
+      "backend": "openfst",
+      "identical": true,
+      "sha256": "b4bc281e99e1405205d52f006bf01d987d97f4f604f9edf51f130dc75b2a0e98"
+    }
+  ],
+  "source_sha256": {
+    "src/main/scala/EvidenceElimination.scala": "a45416ba3ac5dce6984935fbe366b147cf7ca0366341fb504a7de636d6e24170",
+    "src/test/scala/EvidenceEliminationTest.scala": "ca3b6a182425f8e0436501af64c870490703bbff63c3c9414b2b3504f5380114",
+    "tools/check_cornerstone_regressions.py": "cad7e7bb571d56894e1de9b216cc3ff82e896ed1a9195e333c6c9b539ab52ef4"
+  },
+  "notes": [
+    "The first audited full-suite run passed 370 tests but hit the existing cold deep-TrieSpace freeze stack overflow at 256 MiB stack. The unchanged baseline deep-trie suite and the final full suite pass with 512 MiB. The independent translation ledger completed with no failures.",
+    "The 371-test corpus includes an additional untracked divergence suite; a clean checkout has fewer cases.",
+    "Native timing excludes input encoding, translation, compilation, decoding and exact-output comparison; PathMap includes counting, OpenFst includes realization and counts afterward. Native session setup may reuse compiler caches.",
+    "Reference probes include execution and cardinality, with independent JVMs and pinned eight-CPU sets. Main matrix uses at least 3 s warmup; reference replays use 10 s. Tiny compiled literal graphs are not used to infer regressions.",
+    "execZ delegates to evalZ and is not counted twice.",
+    "Diagnostic switches exist only in the temporary ablation checkout; production compiler behavior has no new flag."
+  ],
+  "fixture_control": {
+    "success": true,
+    "processes": 4,
+    "exact_measurements": 20,
+    "setup": "Construct only the synthetic temperature fixture, then use the unchanged five-evaluator probe; omit specialization of unrelated cornerstone fixtures.",
+    "comparisons": [
+      {
+        "repeat": 0,
+        "evaluator": "eval",
+        "before_ms": 0.486354,
+        "after_ms": 0.506424,
+        "after_over_before": 1.0412662381721955
+      },
+      {
+        "repeat": 0,
+        "evaluator": "evalTrie",
+        "before_ms": 0.004157,
+        "after_ms": 0.00414,
+        "after_over_before": 0.9959105123887417
+      },
+      {
+        "repeat": 0,
+        "evaluator": "exec",
+        "before_ms": 0.483783,
+        "after_ms": 0.506302,
+        "after_over_before": 1.0465477290438068
+      },
+      {
+        "repeat": 0,
+        "evaluator": "execT",
+        "before_ms": 0.001542,
+        "after_ms": 0.001502,
+        "after_over_before": 0.9740596627756162
+      },
+      {
+        "repeat": 0,
+        "evaluator": "evalZ",
+        "before_ms": 0.008307,
+        "after_ms": 0.008327,
+        "after_over_before": 1.0024076080414108
+      },
+      {
+        "repeat": 1,
+        "evaluator": "eval",
+        "before_ms": 0.504103,
+        "after_ms": 0.50556,
+        "after_over_before": 1.0028902823430927
+      },
+      {
+        "repeat": 1,
+        "evaluator": "evalTrie",
+        "before_ms": 0.004358,
+        "after_ms": 0.004161,
+        "after_over_before": 0.9547957778797613
+      },
+      {
+        "repeat": 1,
+        "evaluator": "exec",
+        "before_ms": 0.501333,
+        "after_ms": 0.503742,
+        "after_over_before": 1.0048051893651524
+      },
+      {
+        "repeat": 1,
+        "evaluator": "execT",
+        "before_ms": 0.001573,
+        "after_ms": 0.001489,
+        "after_over_before": 0.9465988556897649
+      },
+      {
+        "repeat": 1,
+        "evaluator": "evalZ",
+        "before_ms": 0.008438,
+        "after_ms": 0.008141,
+        "after_over_before": 0.964802085802323
+      }
+    ],
+    "source_sha256": "8dfa3346deae2b508c87d435b2257e5d06bc9b80aa4e453bd76cf4a8f804b17a"
+  },
+  "reference_timing_findings": [
+    "Large two-hop and product-restriction trie candidates reverse direction between the retained forward and reverse replays. TrieSpace and its evaluator have byte-identical javap output across revisions.",
+    "The bit-reference puzzle candidate disappears on the forward replay (43.304 vs 43.028 ms); an identical-binary control is also retained.",
+    "Temperature reference/exec timings change with preceding fixture compilation. With that setup removed, both revisions are approximately 0.5 ms; the retained two-order control has exact identical output."
+  ],
+  "python_tool_tests": {
+    "passed": 8,
+    "failed": 0
+  },
+  "exporter_documentation_compile": {
+    "success": true,
+    "change": "Remove a stale benchmark date and nonexistent bundle benchmark link."
+  }
+}

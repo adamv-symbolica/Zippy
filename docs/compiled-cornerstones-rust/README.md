@@ -16,15 +16,16 @@ The pinned PathMap runtime, PR #172 restriction fix, structural-equality and
 checked-count patches, Cargo.lock and CPU configuration are included in `runtime/`.
 The expanded README contains compilation commands. All **144 sources compiled,
 executed, and matched the independent Scala trie exactly** on the h4d.
-[Export evidence](../validation/pathmap-adiabatic/standalone-export-checks.json)
+[Export evidence](../validation/cornerstone-regressions/fix/rust-standalone-checks.json)
 records every source hash and compilation level.
 
 The archive also contains [15 OEIS source files](../../output/pathmap-adiabatic/oeis/sources/)
 (fourteen stage programs and their comparison harness) and
 [18 cursor-reuse ablation sources](../../output/pathmap-adiabatic/after/reuse/cursor-reuse/).
-The [per-example results](../pathmap-adiabatic-benchmarks/README.md),
-[before/after measurements](../pathmap-adiabatic-benchmarks/performance.md), and
-[OEIS report](../OEIS_BENCHMARK.md) describe their execution.
+The [current cornerstone measurements](../validation/cornerstone-regressions/fix/comparison.csv)
+include the singleton-range regression fix. The earlier
+[cursor-reuse measurements](../pathmap-adiabatic-benchmarks/performance.md) and
+[OEIS report](../OEIS_BENCHMARK.md) describe the unchanged auxiliary sources.
 
 Restore the committed [portable source archive](cornerstone-rust-review.tar.gz):
 
@@ -35,4 +36,5 @@ tar -xzf docs/compiled-cornerstones-rust/cornerstone-rust-review.tar.gz -C outpu
 
 [manifest.json](manifest.json) records the 144 cornerstone source hashes,
 optimization levels and graph sizes. [archive.json](archive.json) records the
-archive checksum and source totals. The measured compiler/runtime is `fdf15dd`.
+archive checksum and source totals. The compiler/runtime is `3fe2820`, checked
+on the h4d on 2026-11-16.

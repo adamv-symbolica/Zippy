@@ -107,13 +107,13 @@ object CornerstoneCppExport:
        |${main.size} cornerstone variants and ${large.size} supplementary large cases, each with complete C++ for the symbolic, Fibonacci-bit, and fixed-four-byte dialects (${records.size} translation units).
        |These are emitted directly from the same case factories and encodings used by the recorded OpenFst benchmarks.
        |No native compilation or new timing measurement is performed by this exporter.
-       |The retained benchmark evidence was collected on the Symba h4d on 2026-10-29; code is regenerated from the current checkout.
+       |Code is regenerated from the current checkout. Execution checks and timings are recorded separately in the repository's validation reports.
        |Fresh residual routine identifiers and C++ function numbering can differ between exports.
        |
        |Start with a case's `symbolic.zippy`, then its `symbols.cpp`, `bits.cpp`, and `bytes.cpp`.
        |`manifest.json` records file hashes, sizes, and whether each program needs host callbacks.
        |The shared OpenFst implementation is copied once into [runtime/](runtime/).
-       |Per-example benchmark tables are in [benchmarks/README.md](benchmarks/README.md).
+       |Per-example measurements are in the repository's docs/validation/cornerstone-regressions/ directory.
        |
        |## Build one translation unit
        |

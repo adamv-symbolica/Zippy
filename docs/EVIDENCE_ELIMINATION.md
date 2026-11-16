@@ -17,9 +17,12 @@ does not accidentally remove just one byte.
 An iteration whose body has no free dependence on its head or tail is reduced
 to an iteration over `Range(Subtraction(source, {epsilon}), 0, 1)`. Subtraction
 happens before selection, so an epsilon terminal cannot hide a headed branch.
-The body runs at most once. It is removed entirely only when a headed source
-is proved. Reconstructing a head and its complete tail group, including under
-an invariant prefix, instead reuses the source with epsilon removed.
+The body runs at most once. A range whose cardinality bound is already at most
+one keeps its original iteration, including the check that skips epsilon;
+adding another selection would be redundant. The body is removed entirely only
+when a headed source is proved. Reconstructing a head and its complete tail
+group, including under an invariant prefix, instead reuses the source with
+epsilon removed.
 
 Capture checks use `Matching.freeRefs`, `Matching.freeMentions`, and
 `Matching.subst`. Moving an external prefix under a colliding binder triggers
@@ -109,59 +112,101 @@ The corpus included an additional untracked divergence suite, so a clean
 checkout has fewer cases. Translation replay checks the reference evaluators;
 native backend correctness is covered separately by the compiled tests.
 
-## Cornerstone regression check
+## Cornerstone regression cause and fix
 
-The 2026-11-16 h4d comparison runs `6ef74ef` against `018bcdb`: all 22 primary
-variants and all 14 supplementary large fixtures. All **434 paired evaluator
-measurements pass exact-output checks**. The primary matrix covers `eval`,
-`evalTrie`, `evalZ`, `exec`, `execT`, bit/byte set references, four PathMap
-encodings and three OpenFst dialects. The supplementary matrix covers its
-existing trie/zipper evaluators and all seven native variants. `execZ` delegates
-to `evalZ` and is not counted twice. Previously omitted source puzzle and
-8-queens zipper cases are included.
+The four Game of Life Fibonacci-bit regressions came from capping an invariant
+iteration over `Range(S, k, k + 1)` with another
+`Range(Subtraction(..., {epsilon}), 0, 1)`. The inner rank window already
+contains at most one path. Fibonacci codewords do not preserve symbol order,
+so the extra logical selection lowered to another ordered-selection/scanner
+routine. Both native compilers inherited that work. The problem was in the
+shared source pass, before encoding.
 
-Four substantial native regressions reproduce in both revision orders:
+Revision `3fe2820` uses the existing overflow-safe
+`RangeBounds.cardinalityUpperBound` to preserve every range bounded by one
+path. The original iteration still skips epsilon. Wider and open ranges
+retain their headed-existence cap. This covers positive, negative, mixed,
+empty and extreme integer bounds without new runtime metadata or language
+operations. Two new regression tests fail on the unfixed compiler and pass
+with the fix: exhaustive range/epsilon semantics and a Fibonacci compiler
+check requiring exactly one logical rank selector.
 
-| Game of Life variant | Backend / encoding | Before ms | After ms | Slowdown |
+Controlled [ablations](validation/cornerstone-regressions/fix/ablations.csv)
+compare the regressed pass, the narrow fix, disabling the invariant-iteration
+rule, disabling the whole pass, and applying it only before or after encoding.
+For both affected variants and both backends, the narrow fix emits
+**byte-identical code to disabling the invariant-iteration rule**. Other
+consumer/producer simplifications remain enabled. Applying the pass only
+after encoding cannot repair a redundant cap already introduced when a fixture
+was specialized. Rust optimization levels remain 0 for the source bit program
+and 1 for its compile-pass variant. The symbolic source graph returns from
+3,393 to 2,667 nodes.
+
+Fresh h4d measurements compare regressed `02651f1` with fixed `3fe2820` in
+both revision orders. These are medians of two process medians; each process
+uses five adaptive native samples.
+
+| Game of Life variant | Backend / encoding | Regressed ms | Fixed ms | Speedup |
 |---|---|---:|---:|---:|
-| Source 24×24 | PathMap / Fibonacci bits injected into bytes | 144.055 | 339.728 | 2.36× |
-| Source 24×24 | OpenFst / Fibonacci bits | 178.895 | 421.023 | 2.35× |
-| Compile-pass 24×24 | PathMap / Fibonacci bits injected into bytes | 61.977 | 103.561 | 1.67× |
-| Compile-pass 24×24 | OpenFst / Fibonacci bits | 142.303 | 231.613 | 1.63× |
+| Source 24×24 | PathMap / Fibonacci bits injected into bytes | 342.726 | 145.672 | 2.35× |
+| Source 24×24 | OpenFst / Fibonacci bits | 422.436 | 181.780 | 2.32× |
+| Compile-pass 24×24 | PathMap / Fibonacci bits injected into bytes | 103.800 | 62.013 | 1.67× |
+| Compile-pass 24×24 | OpenFst / Fibonacci bits | 235.484 | 142.733 | 1.65× |
 
-These are medians of three process medians, including two isolated repeats
-with opposite revision orders. Each native process uses the existing five
-adaptive timing samples. Rust's optimization caps remain unchanged: level 0
-for the source bit program and level 1 for its compile-pass variant. The
-symbolic source graph also grows from 2,667 to 3,393 nodes. The exact cause of
-the native slowdown remains to be isolated; source size alone does not explain
-it, since the compile-pass native sources shrink.
+The full same-node comparison against the earlier `6ef74ef` baseline covers
+all 22 primary variants and 14 supplementary large fixtures. All **434 paired
+evaluator measurements pass exact-output checks**. The four fixed native
+cells are within 1.5% of that baseline. Primary cases cover `eval`, `evalTrie`,
+`evalZ`, `exec`, `execT`, bit/byte set references, four PathMap encodings and
+three OpenFst dialects. Supplementary cases cover their trie/zipper references
+and all seven native variants. `execZ` delegates to `evalZ` and is not counted
+twice. Source puzzle and full 8-queens zipper cases are included.
 
-Reference measurements use independent JVMs, pinned eight-CPU sets, a 192 GiB
-heap, at least three seconds of warmup and five adaptive batches targeting 50 ms each.
-Scala and PathMap timings include result cardinality; OpenFst includes lazy
-realization and counts afterward. Translation, input encoding, compilation,
-exact-output comparison and decoding are outside execution timing. Native
-session setup can reuse compiler caches and is recorded separately. One-node
-literal graphs are flagged in the measurements; their submicrosecond ratios
-are not treated as performance regressions.
+The [per-example comparison](validation/cornerstone-regressions/fix/comparison.csv)
+contains every evaluator's before/after time. [Individual measurements](validation/cornerstone-regressions/fix/measurements.csv)
+retain graph sizes, generated bytes, session setup times and available raw
+samples. [Replays](validation/cornerstone-regressions/fix/repeats.csv) include
+opposite revision orders and identical-binary controls. Reference probes run
+in separate JVMs pinned to eight CPUs, with at least three seconds of warmup;
+candidate replays use ten seconds. The larger two-hop and product-restriction
+trie candidates reverse direction between replays; the bit-reference puzzle
+candidate also disappears on replay. Such JVM compilation and GC variation
+is retained rather than selecting only favorable samples.
+The temperature reference/`exec` candidate is sensitive to preceding fixture
+compilation: constructing only that fixture brings both revisions to about
+0.5 ms, within 4.7% on the first pair and 0.5% on the reverse pair. The
+[fixture control](validation/cornerstone-regressions/fix/fixture-control.scala)
+and all [control samples](validation/cornerstone-regressions/fix/fixture-control.csv)
+are retained.
 
-Shorter reference runs showed JVM compilation transitions and GC variation;
-the retained replays include both favorable and unfavorable samples. A large
-two-hop trie candidate falls from 1.80× to 1.02× after a ten-second warmup.
-The graph-query and Datalog byte-reference candidates also fail to reproduce
-as slowdowns in isolation. Smaller reference differences should be interpreted
-with that variation in mind.
+Scala and PathMap timings include result cardinality. OpenFst includes lazy
+realization and counts afterward. Translation, encoding, compilation, decoding
+and exact-output comparison are outside execution timing. Native session setup
+can reuse compiler caches. Submicrosecond literal-graph ratios do not support
+performance conclusions. The [previous report](validation/cornerstone-regressions/summary.json)
+retains the original regression measurements.
 
-The [per-example comparison](validation/cornerstone-regressions/comparison.csv)
-contains every evaluator's before/after time. [Individual measurements](validation/cornerstone-regressions/measurements.csv)
-retain graph sizes, source bytes, session setup times and available raw samples;
-[replays](validation/cornerstone-regressions/repeats.csv) and the
-[strict summary](validation/cornerstone-regressions/summary.json) record the
-confirmation evidence. All four native performance regressions remain present
-in `018bcdb`.
+On Java 21, Scala 3.8.1 and Rust/Cargo 1.99.1 with both native backends enabled:
 
-Reproduce with clean before/after checkouts on the same Linux node:
+- All **371 Scala/native tests pass**; [test log](validation/cornerstone-regressions/fix/tests.log.gz).
+- All **3,189,440 reference translation checks pass**, covering 398,680 cases
+  in each of eight directions. The [independent ledger verification](validation/cornerstone-regressions/fix/ledger-verification.json)
+  checks uniqueness, completeness, failures and the full ledger checksum.
+- All **252 regenerated standalone programs** (144 Rust and 108 C++) compile,
+  execute and match independent Scala fixtures exactly; [oracle summary](validation/cornerstone-regressions/fix/standalone-oracle-checks.json).
+  The [Rust](compiled-cornerstones-rust/README.md) and
+  [C++](compiled-cornerstones/README.md) review archives contain the fixed code.
+
+The corpus includes an additional untracked divergence suite, so a clean
+checkout has fewer cases. The first audited suite completed its translation
+ledger but hit an existing cold deep-trie `freeze` stack overflow with a
+256 MiB stack. The unchanged baseline deep-trie suite and the final full
+371-test run pass with 512 MiB. The [summary](validation/cornerstone-regressions/fix/summary.json)
+records this distinction, source fingerprints, ablation identities and timings.
+
+Reproduce with clean before/after checkouts on the same Linux node. Each
+comparison compiles private source snapshots into immutable benchmark JARs,
+so concurrent runs do not share mutable Scala build output.
 
 ```sh
 python3 tools/check_cornerstone_regressions.py --before BEFORE --after AFTER \
